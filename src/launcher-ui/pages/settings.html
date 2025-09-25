@@ -1,0 +1,146 @@
+<div class="settings-content">
+    <div class="settings-section">
+        <h3>Game Settings</h3>
+
+        <div class="games-list">
+            <div class="game-settings-item" data-game="boiii">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">Black Ops 3 - BOIII</div>
+                </div>
+                <button class="game-settings-btn" data-game="bo3" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+
+            <div class="game-settings-item" data-game="iw6x">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">Ghosts - IW6X</div>
+                </div>
+                <button class="game-settings-btn" data-game="ghosts" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+
+            <div class="game-settings-item" data-game="s1x">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">Advanced Warfare - S1X</div>
+                </div>
+                <button class="game-settings-btn" data-game="aw" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+
+            <div class="game-settings-item" data-game="h1-mod">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">Modern Warfare Remastered - H1-MOD</div>
+                </div>
+                <button class="game-settings-btn" data-game="mwr" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+
+            <div class="game-settings-item" data-game="iw7-mod">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">Infinite Warfare - IW7-MOD</div>
+                </div>
+                <button class="game-settings-btn" data-game="iw7" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+
+            <div class="game-settings-item" data-game="hmw-mod">
+                <div class="game-settings-info">
+                    <div class="game-settings-name">HorizonMW - HMW-MOD</div>
+                </div>
+                <button class="game-settings-btn" data-game="hmw" title="Game Settings">
+                    ⚙️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-actions">
+        <button class="reset-button" onclick="resetAllSettings()">Reset All Game Settings</button>
+    </div>
+</div>
+
+<script>
+
+async function resetAllSettings() {
+    if (confirm('Are you sure you want to reset all game settings to defaults? This will clear all game installation paths and settings.')) {
+        if (typeof executeCommand === 'function') {
+            try {
+                // Clear each individual property
+                await executeCommand('set-property', {
+                    'bo3-install': '',
+                    'ghosts-install': '',
+                    'aw-install': '',
+                    'mwr-install': '',
+                    'iw7-install': '',
+                    'hmw-install': ''
+                });
+
+                // Also call the general reset command if it exists
+                await executeCommand('reset-settings');
+
+                // Trigger installation status update for game pages
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                    detail: { game: 'all' }
+                }));
+
+                window.showMessageBox("✓ Settings Reset", "All game settings have been reset to defaults!", ["OK"]);
+            } catch (error) {
+                console.error('Failed to reset settings:', error);
+                window.showMessageBox("✗ Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
+            }
+        } else {
+            // For testing without backend
+            console.log('Mock: Settings reset to defaults');
+            alert('Settings reset to defaults (mock mode)');
+        }
+    }
+}
+
+function showGameSettings(gameKey) {
+    console.log('Game settings button clicked for:', gameKey);
+
+    // Simple approach - show a basic message box for now
+    const gameNames = {
+        'bo3': 'Black Ops 3',
+        'ghosts': 'Ghosts',
+        'aw': 'Advanced Warfare',
+        'mwr': 'Modern Warfare Remastered',
+        'iw7': 'Infinite Warfare',
+        'hmw': 'HorizonMW'
+    };
+
+    const gameName = gameNames[gameKey] || gameKey;
+    window.showMessageBox(`${gameName} Settings`, `Settings for ${gameName} will be opened here. This feature integrates with the game installation and configuration system.`, ["OK"]);
+}
+
+// Initialize game settings buttons
+function initializeSettingsPage() {
+    console.log('Initializing settings page...');
+
+    const settingsButtons = document.querySelectorAll('.game-settings-btn');
+    console.log('Found settings buttons:', settingsButtons.length);
+
+    settingsButtons.forEach((button, index) => {
+        console.log(`Setting up button ${index}:`, button);
+        button.addEventListener('click', function() {
+            const gameKey = this.getAttribute('data-game');
+            console.log('Button clicked for game:', gameKey);
+            showGameSettings(gameKey);
+        });
+    });
+
+}
+
+// Initialize when page is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSettingsPage);
+} else {
+    // Page already loaded
+    setTimeout(initializeSettingsPage, 100);
+}
+</script>

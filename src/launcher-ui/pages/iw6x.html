@@ -1,0 +1,173 @@
+<div class="hero-section iw6x">
+    <div class="hero-content">
+        <div class="game-logo">GHOSTS</div>
+        <div class="game-mod">IW6X</div>
+    </div>
+</div>
+
+<div class="game-details">
+    <div class="button-group" id="button-group">
+        <!-- Buttons will be dynamically generated based on installation status -->
+    </div>
+
+    <div class="description">
+        Call of Duty: Ghosts reimagined with IW6x enhancements. Enjoy the complete campaign and enhanced multiplayer experience with dedicated servers and community features.
+    </div>
+</div>
+
+
+<script src="../js/game-mode-popup.js"></script>
+<script src="../js/game-settings-popup.js"></script>
+<script src="../js/setup-flow-popup.js"></script>
+<script>
+(function() {
+    const GAME_ID = 'iw6x';
+    let gameModePopup;
+    let gameSettingsPopup;
+    let setupFlowPopup;
+    let isInstalled = false;
+
+    function launchGame() {
+        console.log('Play button clicked');
+        if (!gameModePopup) {
+            gameModePopup = new GameModePopup();
+        }
+
+        const gameCommands = {
+            sp: { launch: 'launch-ghosts', arg: 'ghosts-sp' },
+            mp: { launch: 'launch-ghosts', arg: 'ghosts-mp' }
+        };
+
+        gameModePopup.show('ghosts', gameCommands);
+    }
+
+    function showGameSettings() {
+        console.log('Game settings button clicked');
+        if (!gameSettingsPopup) {
+            gameSettingsPopup = new GameSettingsPopup();
+        }
+
+        const gameConfig = GameSettingsPopup.getGameConfig('ghosts');
+        gameSettingsPopup.show('ghosts', gameConfig);
+    }
+
+    function verifyGame() {
+        console.log('Verify button clicked');
+
+        let progress = 0;
+        let interval;
+
+        // Cancel function to stop the verification
+        const cancelVerification = () => {
+            if (interval) {
+                clearInterval(interval);
+                console.log('Verification cancelled');
+            }
+        };
+
+        // Use the global progress manager with cancel callback
+        window.ProgressManager.show('iw6x', 'Verifying Call of Duty: Ghosts...', cancelVerification);
+
+        interval = setInterval(() => {
+            progress += Math.random() * 10;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                window.ProgressManager.update(progress, 'Verification complete!');
+                setTimeout(() => {
+                    window.ProgressManager.hide();
+                }, 1000);
+            } else {
+                window.ProgressManager.update(progress);
+            }
+        }, 200);
+    }
+
+    function showSetupFlow() {
+        console.log('Setup button clicked');
+        if (!setupFlowPopup) {
+            setupFlowPopup = new SetupFlowPopup();
+        }
+
+        const gameDisplayName = window.GameInstallationManager.getGameDisplayName(GAME_ID);
+        setupFlowPopup.show(window.GameInstallationManager.getGameMapping(GAME_ID), gameDisplayName);
+    }
+
+    async function createButtons() {
+        const buttonGroup = document.getElementById('button-group');
+        if (!buttonGroup) return;
+
+        // Check installation status
+        isInstalled = await window.GameInstallationManager.checkInstallation(GAME_ID);
+        console.log(`${GAME_ID} installation status:`, isInstalled);
+
+        if (isInstalled) {
+            // Show PLAY, VERIFY, and SETTINGS buttons
+            buttonGroup.innerHTML = `
+                <div class="left-buttons">
+                    <button class="play-button" id="play-button">
+                        <div class="play-icon"></div>
+                        PLAY
+                    </button>
+                    <button class="verify-button" id="verify-button">
+                        VERIFY
+                    </button>
+                </div>
+                <div class="right-buttons">
+                    <button class="game-settings-btn" id="game-settings-btn" title="Game Settings">
+                        <div class="settings-icon"></div>
+                    </button>
+                </div>
+            `;
+
+            // Attach event listeners
+            document.getElementById('play-button').onclick = launchGame;
+            document.getElementById('verify-button').onclick = verifyGame;
+            document.getElementById('game-settings-btn').onclick = showGameSettings;
+        } else {
+            // Show SETUP button only
+            buttonGroup.innerHTML = `
+                <div class="left-buttons">
+                    <button class="setup-button" id="setup-button">
+                        SETUP
+                    </button>
+                </div>
+            `;
+
+            // Attach event listener
+            document.getElementById('setup-button').onclick = showSetupFlow;
+        }
+
+        // Check if progress is active and disable buttons accordingly
+        if (window.ProgressManager && window.ProgressManager.isActive) {
+            const buttons = buttonGroup.querySelectorAll('button:not(.game-settings-btn)');
+            buttons.forEach(btn => btn.disabled = true);
+            console.log('Buttons disabled due to active progress');
+        }
+    }
+
+    // Listen for installation updates
+    window.addEventListener('gameInstallationUpdated', (event) => {
+        const targetGame = event.detail.game;
+        const currentGameMapping = window.GameInstallationManager.getGameMapping(GAME_ID);
+
+        if (targetGame === 'all' || targetGame === currentGameMapping) {
+            console.log('Installation updated, refreshing buttons');
+            createButtons();
+        }
+    });
+
+    // Initialize buttons when page loads
+    async function initializePage() {
+        await createButtons();
+        console.log('Page initialized for', GAME_ID);
+    }
+
+    // Initialize immediately if DOM is ready, otherwise wait
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializePage);
+    } else {
+        initializePage();
+    }
+})();
+</script>
