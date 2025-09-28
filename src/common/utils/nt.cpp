@@ -280,6 +280,22 @@ namespace utils::nt
 		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
 	}
 
+	void launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory)
+	{
+		STARTUPINFOW startup_info;
+		PROCESS_INFORMATION process_info;
+
+		ZeroMemory(&startup_info, sizeof(startup_info));
+		ZeroMemory(&process_info, sizeof(process_info));
+		startup_info.cb = sizeof(startup_info);
+
+		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, NULL, nullptr, working_directory.wstring().data(),
+		               &startup_info, &process_info);
+
+		if (process_info.hThread && process_info.hThread != INVALID_HANDLE_VALUE) CloseHandle(process_info.hThread);
+		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
+	}
+
 	void relaunch_self(std::string command_line)
 	{
 		const utils::nt::library self;

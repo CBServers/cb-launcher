@@ -6,8 +6,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="./css/main.css" rel="stylesheet" />
+    <script src="./js/utils.js"></script>
     <script src="./js/command.js"></script>
     <script src="./js/message-box.js"></script>
+    <script src="./js/game-mode-popup.js"></script>
+    <script src="./js/game-settings-popup.js"></script>
+    <script src="./js/setup-flow-popup.js"></script>
     <script src="./js/main.js"></script>
 </head>
 
@@ -67,26 +71,147 @@
             </div>
 
             <div class="content-area">
-                <div class="hero-section" id="hero-section">
-                    <div class="hero-content">
-                        <div class="game-logo" id="game-logo">CB SERVERS</div>
-                        <div class="game-mod" id="game-mod">LAUNCHER</div>
+                <!-- Home Page -->
+                <div class="page-section" id="home-page">
+                    <div class="hero-section home">
+                    </div>
+                    <div class="game-details">
+                        <div class="description">
+                            Welcome to CB Servers Launcher! Select a game from the sidebar to get started.
+                            <br>
+                            This launcher provides unified access to all CB Servers games with enhanced features and community support.
+                            <br><br>
+                            <strong>Available Games:</strong>
+                            <ul style="margin-top: 15px; margin-left: 20px; color: #bbb; line-height: 1.8;">
+                                <li><strong>Black Ops 3</strong> - Enhanced with BOIII modifications</li>
+                                <li><strong>Ghosts</strong> - Enhanced with IW6x modifications</li>
+                                <li><strong>Advanced Warfare</strong> - Enhanced with S1x modifications</li>
+                                <li><strong>Modern Warfare Remastered</strong> - Enhanced with H1-Mod features</li>
+                                <li><strong>Infinite Warfare</strong> - Enhanced with IW7-Mod features</li>
+                                <li><strong>HorizonMW</strong> - Enhanced with HMW-Mod features</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
-                <div class="game-details" id="game-details">
-                    <div class="button-group">
-                        <button class="play-button" id="play-button">
-                            <div class="play-icon"></div>
-                            PLAY
-                        </button>
-                        <button class="verify-button" id="verify-button">
-                            VERIFY
-                        </button>
+                <!-- Settings Page -->
+                <div class="page-section" id="settings-page" style="display: none;">
+                    <div class="settings-content">
+                        <div class="settings-section">
+                            <h3>Game Settings</h3>
+                            <div class="settings-description">
+                                You can manage settings for installed games here.
+                            </div>
+                            <div class="games-list" id="games-list">
+                                <!-- Games will be dynamically populated based on installation status -->
+                            </div>
+                        </div>
+                        <div class="settings-actions">
+                            <button class="reset-button" onclick="resetAllSettings()">Reset All Game Settings</button>
+                        </div>
                     </div>
+                </div>
 
-                    <div class="description" id="game-description">
-                        Welcome to CB Servers Launcher! Select a game from the sidebar to get started. This launcher provides unified access to all CB Servers games including Modern Warfare 2, Ghosts, and Advanced Warfare.
+                <!-- Game Pages -->
+                <div class="page-section game-page" id="boiii-page" style="display: none;">
+                    <div class="hero-section boiii">
+                        <div class="hero-content">
+                            <div class="game-logo">BLACK OPS 3</div>
+                            <div class="game-mod">BOIII</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="boiii-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            Call of Duty: Black Ops 3 enhanced with BOIII modifications. Experience the full campaign, multiplayer, and zombies modes with improved stability and additional features.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-section game-page" id="iw6x-page" style="display: none;">
+                    <div class="hero-section iw6x">
+                        <div class="hero-content">
+                            <div class="game-logo">GHOSTS</div>
+                            <div class="game-mod">IW6X</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="iw6x-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            Call of Duty: Ghosts enhanced with IW6x modifications. Experience the campaign and multiplayer with improved stability and additional features.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-section game-page" id="s1x-page" style="display: none;">
+                    <div class="hero-section s1x">
+                        <div class="hero-content">
+                            <div class="game-logo">ADVANCED WARFARE</div>
+                            <div class="game-mod">S1X</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="s1x-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            Call of Duty: Advanced Warfare enhanced with S1x modifications. Experience the futuristic warfare campaign and multiplayer with improved stability and additional features.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-section game-page" id="h1-mod-page" style="display: none;">
+                    <div class="hero-section h1-mod">
+                        <div class="hero-content">
+                            <div class="game-logo">MODERN WARFARE REMASTERED</div>
+                            <div class="game-mod">H1-MOD</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="h1-mod-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            Call of Duty: Modern Warfare Remastered enhanced with H1-Mod features. Experience the classic campaign and multiplayer with improved stability and additional features.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-section game-page" id="iw7-mod-page" style="display: none;">
+                    <div class="hero-section iw7-mod">
+                        <div class="hero-content">
+                            <div class="game-logo">INFINITE WARFARE</div>
+                            <div class="game-mod">IW7-MOD</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="iw7-mod-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            Call of Duty: Infinite Warfare enhanced with IW7-Mod features. Experience the space warfare campaign and multiplayer with improved stability and additional features.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-section game-page" id="hmw-mod-page" style="display: none;">
+                    <div class="hero-section hmw-mod">
+                        <div class="hero-content">
+                            <div class="game-logo">HORIZONMW</div>
+                            <div class="game-mod">HMW-MOD</div>
+                        </div>
+                    </div>
+                    <div class="game-details">
+                        <div class="button-group" id="hmw-mod-button-group">
+                            <!-- Buttons will be dynamically generated based on installation status -->
+                        </div>
+                        <div class="description">
+                            HorizonMW enhanced with HMW-Mod features. Experience enhanced gameplay with improved stability and additional features.
+                        </div>
                     </div>
                 </div>
             </div>

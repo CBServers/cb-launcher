@@ -204,31 +204,13 @@ function handleSettingsClick(e) {
     loadNavigationPage("settings");
 }
 
-function setInnerHTML(elm, html) {
-    elm.innerHTML = html;
-    Array.from(elm.querySelectorAll("script")).forEach(oldScript => {
-        const newScript = document.createElement("script");
-        Array.from(oldScript.attributes)
-            .forEach(attr => newScript.setAttribute(attr.name, attr.value));
-        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-        oldScript.parentNode.replaceChild(newScript, oldScript);
-    });
-}
+// setInnerHTML function removed - no longer needed with single page approach
 
 function loadBackgroundImage(gameId) {
-    const heroSection = document.querySelector('.hero-section');
+    const heroSection = document.querySelector(`.hero-section.${gameId}`);
     if (!heroSection || !gameId) return;
 
-    const imageMap = {
-        'boiii': './img/boiii-hero.png',
-        'iw6x': './img/iw6x-hero.png',
-        's1x': './img/s1x-hero.png',
-        'h1-mod': './img/h1-mod-hero.png',
-        'iw7-mod': './img/iw7-mod-hero.png',
-        'hmw-mod': './img/hmw-mod-hero.png'
-    };
-
-    const imagePath = imageMap[gameId];
+    const imagePath = GameUtils.getHeroImagePath(gameId);
     if (!imagePath) return;
 
     if (preloadedImages[imagePath]) {
@@ -257,7 +239,7 @@ function loadBackgroundImage(gameId) {
 }
 
 function loadHomeBackgroundImage() {
-    const heroSection = document.querySelector('.hero-section');
+    const heroSection = document.querySelector('.hero-section.home');
     if (!heroSection) return;
 
     const imagePath = './img/cb-hero.png';
@@ -291,15 +273,7 @@ function loadHomeBackgroundImage() {
 const preloadedImages = {};
 
 function preloadGameImages() {
-    const imageMap = {
-        'boiii': ['./img/boiii.png', './img/boiii-hero.png'],
-        'iw6x': ['./img/iw6x.png', './img/iw6x-hero.png'],
-        's1x': ['./img/s1x.png', './img/s1x-hero.png'],
-        'h1-mod': ['./img/h1-mod.png', './img/h1-mod-hero.png'],
-        'iw7-mod': ['./img/iw7-mod.png', './img/iw7-mod-hero.png'],
-        'hmw-mod': ['./img/hmw-mod.png', './img/hmw-mod-hero.png'],
-        'home': ['./img/cb-hero.png']
-    };
+    const imageMap = GameUtils.getAllGameImages();
 
     return Promise.all(
         Object.entries(imageMap).map(([gameId, imagePaths]) => {
@@ -325,20 +299,13 @@ function preloadGameImages() {
 }
 
 function loadSidebarIcons() {
-    const iconMap = {
-        'boiii': './img/boiii.png',
-        'iw6x': './img/iw6x.png',
-        's1x': './img/s1x.png',
-        'h1-mod': './img/h1-mod.png',
-        'iw7-mod': './img/iw7-mod.png',
-        'hmw-mod': './img/hmw-mod.png'
-    };
+    const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
 
-    Object.keys(iconMap).forEach(gameId => {
+    gameIds.forEach(gameId => {
         const thumbnail = document.querySelector(`.${gameId}-thumb`);
         if (!thumbnail) return;
 
-        const imagePath = iconMap[gameId];
+        const imagePath = GameUtils.getIconPath(gameId);
         if (preloadedImages[imagePath]) {
             // Image is already preloaded, apply immediately
             thumbnail.style.backgroundImage = `url('${imagePath}')`;
@@ -380,39 +347,17 @@ window.GameInstallationManager = {
     },
 
     getInstallProperty(gameId) {
-        const mapping = {
-            'boiii': 'bo3-install',
-            'iw6x': 'ghosts-install',
-            's1x': 'aw-install',
-            'h1-mod': 'mwr-install',
-            'iw7-mod': 'iw7-install',
-            'hmw-mod': 'hmw-install'
-        };
-        return mapping[gameId];
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        return config ? config.installProperty : null;
     },
 
     getGameMapping(gameId) {
-        const mapping = {
-            'boiii': 'bo3',
-            'iw6x': 'ghosts',
-            's1x': 'aw',
-            'h1-mod': 'mwr',
-            'iw7-mod': 'iw7',
-            'hmw-mod': 'hmw'
-        };
-        return mapping[gameId];
+        return GameUtils.getGameMapping(gameId);
     },
 
     getGameDisplayName(gameId) {
-        const mapping = {
-            'boiii': 'Black Ops 3',
-            'iw6x': 'Call of Duty: Ghosts',
-            's1x': 'Advanced Warfare',
-            'h1-mod': 'Modern Warfare Remastered',
-            'iw7-mod': 'Infinite Warfare',
-            'hmw-mod': 'HorizonMW'
-        };
-        return mapping[gameId];
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        return config ? config.displayName : gameId;
     }
 };
 
@@ -452,16 +397,7 @@ window.ProgressManager = {
             progressGameIcon.classList.add(gameId);
 
             // Try to load the actual game image if it's preloaded
-            const iconMap = {
-                'boiii': './img/boiii.png',
-                'iw6x': './img/iw6x.png',
-                's1x': './img/s1x.png',
-                'h1-mod': './img/h1-mod.png',
-                'iw7-mod': './img/iw7-mod.png',
-                'hmw-mod': './img/hmw-mod.png'
-            };
-
-            const imagePath = iconMap[gameId];
+            const imagePath = GameUtils.getIconPath(gameId);
             if (imagePath && preloadedImages[imagePath]) {
                 progressGameIcon.style.backgroundImage = `url('${imagePath}')`;
             }
@@ -543,45 +479,382 @@ window.ProgressManager = {
 };
 
 function loadNavigationPage(page) {
-    var content = document.querySelector(".content-area");
-    if (!content) {
-        console.error("Content area not found");
-        return Promise.reject("Content area not found");
+    console.log(`Loading page: ${page}`);
+
+    // Hide all page sections
+    const allPages = document.querySelectorAll('.page-section');
+    allPages.forEach(pageEl => {
+        pageEl.style.display = 'none';
+    });
+
+    // Show the target page
+    const targetPage = document.getElementById(`${page}-page`);
+    if (!targetPage) {
+        console.error(`Page not found: ${page}-page`);
+        return Promise.reject(`Page not found: ${page}-page`);
     }
 
-    return fetch(`./pages/${page}.html`).then(data => {
-        if (!data.ok) {
-            throw new Error(`HTTP error! status: ${data.status}`);
-        }
-        return data.text()
-    }).then(text => {
-        setInnerHTML(content, text);
+    targetPage.style.display = 'block';
 
-        // After loading new page content, check if progress is active and disable buttons if needed
-        if (window.ProgressManager && window.ProgressManager.isActive) {
-            // Use setTimeout to ensure buttons are in DOM before disabling
+    // Initialize page-specific functionality
+    if (page === 'settings') {
+        initializeSettingsPage();
+    } else if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+        initializeGamePage(page);
+    }
+
+    // Load background images
+    if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+        loadBackgroundImage(page);
+    } else if (page === 'home') {
+        loadHomeBackgroundImage();
+    } else {
+        // Clear background image for other pages - no need to clear since each page has its own hero section
+    }
+
+    // Handle progress manager state
+    if (window.ProgressManager && window.ProgressManager.isActive) {
+        setTimeout(() => {
+            window.ProgressManager.disableButtons();
+        }, 0);
+    }
+
+    return Promise.resolve();
+}
+
+// Game page initialization
+let gamePopups = {};
+
+function initializeGamePage(gameId) {
+    console.log(`Initializing game page: ${gameId}`);
+
+    // Initialize popups if not already done
+    if (!gamePopups[gameId]) {
+        gamePopups[gameId] = {
+            gameModePopup: null,
+            gameSettingsPopup: null,
+            setupFlowPopup: null
+        };
+    }
+
+    // Create buttons for the game
+    createGameButtons(gameId);
+}
+
+async function createGameButtons(gameId) {
+    const buttonGroup = document.getElementById(`${gameId}-button-group`);
+    if (!buttonGroup) return;
+
+    // Check installation status
+    const isInstalled = await window.GameInstallationManager.checkInstallation(gameId);
+    console.log(`${gameId} installation status:`, isInstalled);
+
+    if (isInstalled) {
+        // Show PLAY, VERIFY, and SETTINGS buttons
+        buttonGroup.innerHTML = `
+            <div class="left-buttons">
+                <button class="play-button" id="${gameId}-play-button">
+                    <div class="play-icon"></div>
+                    PLAY
+                </button>
+                <button class="verify-button" id="${gameId}-verify-button">
+                    VERIFY
+                </button>
+            </div>
+            <div class="right-buttons">
+                <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
+                    <div class="settings-icon"></div>
+                </button>
+            </div>
+        `;
+
+        // Attach event listeners
+        document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
+        document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
+        document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
+    } else {
+        // Show SETUP button only
+        buttonGroup.innerHTML = `
+            <div class="left-buttons">
+                <button class="setup-button" id="${gameId}-setup-button">
+                    SETUP
+                </button>
+            </div>
+        `;
+
+        // Attach event listener
+        document.getElementById(`${gameId}-setup-button`).onclick = () => showSetupFlow(gameId);
+    }
+
+    // Handle progress manager state
+    if (window.ProgressManager && window.ProgressManager.isActive) {
+        const buttons = buttonGroup.querySelectorAll('button:not(.game-settings-btn)');
+        buttons.forEach(btn => btn.disabled = true);
+    }
+}
+
+function launchGame(gameId) {
+    console.log(`Play button clicked for ${gameId}`);
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameConfig = GameUtils.getGameConfig(gameMapping);
+
+    if (!gameConfig) {
+        console.error(`No configuration found for game: ${gameId}`);
+        return;
+    }
+
+    // Check if game has multiple modes
+    if (gameConfig.hasMultipleModes) {
+        // Show mode selection popup for games with multiple modes
+        if (!gamePopups[gameId].gameModePopup) {
+            gamePopups[gameId].gameModePopup = new GameModePopup();
+        }
+        gamePopups[gameId].gameModePopup.show(gameMapping, gameConfig);
+    } else {
+        // Launch directly for single-mode games
+        const installProperty = gameConfig.installProperty;
+        window.executeCommand('get-property', installProperty).then(folder => {
+            if (!folder) {
+                const gameName = gameConfig.displayName;
+                if (typeof window.showMessageBox === 'function') {
+                    window.showMessageBox(`⚙ ${gameName} not configured`,
+                        `You have not configured your <b>${gameName} installation</b> path.<br><br>Please do so in the settings!`, ["Ok"]).then(index => {
+                        if (typeof window.showSettings === 'function') {
+                            window.showSettings();
+                        }
+                    });
+                } else {
+                    alert(`${gameName} installation path not configured. Please configure it in settings.`);
+                }
+            } else {
+                // Use launch-game command for all games
+                window.executeCommand('launch-game', { game: gameMapping }).then(() => {
+                    console.log(`Launching ${gameId} directly`);
+                }).catch(error => {
+                    console.error(`Failed to launch ${gameId}:`, error);
+                });
+            }
+        }).catch(error => {
+            console.error(`Failed to get ${gameId} install property:`, error);
+        });
+    }
+}
+
+function showGameSettings(gameId) {
+    console.log(`Game settings button clicked for ${gameId}`);
+
+    if (!gamePopups[gameId].gameSettingsPopup) {
+        gamePopups[gameId].gameSettingsPopup = new GameSettingsPopup();
+    }
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameConfig = GameUtils.getGameConfig(gameMapping);
+    gamePopups[gameId].gameSettingsPopup.show(gameMapping, gameConfig);
+}
+
+function verifyGame(gameId) {
+    console.log(`Verify button clicked for ${gameId}`);
+
+    let progress = 0;
+    let interval;
+
+    const cancelVerification = () => {
+        if (interval) {
+            clearInterval(interval);
+            console.log('Verification cancelled');
+        }
+    };
+
+    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+    window.ProgressManager.show(gameId, `Verifying ${gameDisplayName}...`, cancelVerification);
+
+    interval = setInterval(() => {
+        progress += Math.random() * 10;
+        if (progress >= 100) {
+            progress = 100;
+            clearInterval(interval);
+            window.ProgressManager.update(progress, 'Verification complete!');
             setTimeout(() => {
-                window.ProgressManager.disableButtons();
-            }, 0);
-        }
-
-        // Try to load background image for game pages
-        if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
-            // Load background image immediately since images are preloaded
-            loadBackgroundImage(page);
-        } else if (page === 'home') {
-            // Load CB hero image for home page
-            loadHomeBackgroundImage();
+                window.ProgressManager.hide();
+            }, 1000);
         } else {
-            // Clear background image for other pages
-            const heroSection = document.querySelector('.hero-section');
-            if (heroSection) {
-                heroSection.style.backgroundImage = 'none';
+            window.ProgressManager.update(progress);
+        }
+    }, 200);
+}
+
+function showSetupFlow(gameId) {
+    console.log(`Setup button clicked for ${gameId}`);
+
+    if (!gamePopups[gameId].setupFlowPopup) {
+        gamePopups[gameId].setupFlowPopup = new SetupFlowPopup();
+    }
+
+    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+    const gameMapping = window.GameInstallationManager.getGameMapping(gameId);
+    gamePopups[gameId].setupFlowPopup.show(gameMapping, gameDisplayName);
+}
+
+
+// Settings page functionality
+let settingsPopup;
+
+
+async function resetAllSettings() {
+    const result = await window.showMessageBox(
+        "⚠️ Reset Settings",
+        "Are you sure you want to reset all game settings to defaults? This will clear all game installation paths and settings.",
+        ["Cancel", "Reset"]
+    );
+
+    if (result === 1) {
+        if (typeof executeCommand === 'function') {
+            try {
+                await executeCommand('set-property', GameUtils.getResetProperties());
+
+                await executeCommand('reset-settings');
+
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                    detail: { game: 'all' }
+                }));
+
+                window.showMessageBox("✓ Settings Reset", "All game settings have been reset to defaults!", ["OK"]);
+                await initializeSettingsPage();
+            } catch (error) {
+                console.error('Failed to reset settings:', error);
+                window.showMessageBox("✗ Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
             }
         }
-    }).catch(error => {
-        console.error(`Failed to load page ${page}:`, error);
-        // Fallback content
-        content.innerHTML = `<div class="description">Failed to load page: ${page}<br>Error: ${error.message}</div>`;
-    });
+    }
 }
+
+function showSettingsGameSettings(gameId) {
+    console.log('Settings game settings button clicked for:', gameId);
+
+    if (!settingsPopup) {
+        settingsPopup = new GameSettingsPopup();
+    }
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameConfig = GameUtils.getGameConfig(gameMapping);
+    if (gameConfig) {
+        settingsPopup.show(gameMapping, gameConfig);
+    }
+}
+
+async function checkGameInstallation(gameId) {
+    const config = GameUtils.getGameConfigByUIId(gameId);
+    if (!config) return false;
+
+    const installProperty = config.installProperty;
+
+    try {
+        if (typeof window.executeCommand === 'function') {
+            const installPath = await window.executeCommand('get-property', installProperty);
+            return installPath && installPath.trim() !== '';
+        } else {
+            console.log(`Mock: Checking installation for ${gameId}`);
+            return Math.random() > 0.5;
+        }
+    } catch (error) {
+        console.error(`Error checking installation for ${gameId}:`, error);
+        return false;
+    }
+}
+
+async function populateGamesList() {
+    const gamesList = document.getElementById('games-list');
+    if (!gamesList) return;
+
+    console.log('Populating games list...');
+    gamesList.innerHTML = '';
+
+    let installedGamesCount = 0;
+
+    const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+
+    for (const gameId of gameIds) {
+        console.log(`Checking installation for ${gameId}...`);
+        const isInstalled = await checkGameInstallation(gameId);
+        console.log(`${gameId} installation status:`, isInstalled);
+
+        if (isInstalled) {
+            installedGamesCount++;
+            const config = GameUtils.getGameConfigByUIId(gameId);
+            if (!config) continue;
+
+            const gameItem = document.createElement('div');
+            gameItem.className = 'game-settings-item';
+            gameItem.setAttribute('data-game', gameId);
+
+            gameItem.innerHTML = `
+                <div class="game-settings-info">
+                    <div class="game-settings-name">${config.displayName} - ${config.codeName}</div>
+                </div>
+                <button class="game-settings-btn" data-game="${gameId}" title="Game Settings">
+                    <div class="settings-icon"></div>
+                </button>
+            `;
+
+            gamesList.appendChild(gameItem);
+
+            const settingsButton = gameItem.querySelector('.game-settings-btn');
+            settingsButton.addEventListener('click', function() {
+                const gameKey = this.getAttribute('data-game');
+                showSettingsGameSettings(gameKey);
+            });
+        }
+    }
+
+    // Update description and reset button visibility based on installed games
+    const descriptionEl = document.querySelector('.settings-description');
+    const resetButton = document.querySelector('.reset-button');
+
+    if (installedGamesCount === 0) {
+        if (descriptionEl) {
+            descriptionEl.textContent = 'No games installed. To install games, click on a game in the sidebar and then click the SETUP button.';
+        }
+        if (resetButton) {
+            resetButton.style.display = 'none';
+        }
+    } else {
+        if (descriptionEl) {
+            descriptionEl.textContent = 'You can manage settings for installed games here.';
+        }
+        if (resetButton) {
+            resetButton.style.display = 'block';
+        }
+    }
+
+    console.log('Games list populated');
+}
+
+async function initializeSettingsPage() {
+    console.log('=== Initializing settings page ===');
+    await populateGamesList();
+    console.log('Settings page initialized');
+}
+
+// Listen for installation updates globally
+window.addEventListener('gameInstallationUpdated', (event) => {
+    console.log('Installation updated globally');
+    const targetGame = event.detail.game;
+
+    // Refresh settings page if it's visible
+    const settingsPage = document.getElementById('settings-page');
+    if (settingsPage && settingsPage.style.display !== 'none') {
+        initializeSettingsPage();
+    }
+
+    // Refresh game pages if needed
+    const gamePages = document.querySelectorAll('.game-page');
+    gamePages.forEach(page => {
+        if (page.style.display !== 'none') {
+            const gameId = page.id.replace('-page', '');
+            if (targetGame === 'all' || targetGame === window.GameInstallationManager.getGameMapping(gameId)) {
+                createGameButtons(gameId);
+            }
+        }
+    });
+});

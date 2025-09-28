@@ -20,23 +20,8 @@ class GameModePopup {
                 <button class="popup-close">&times;</button>
             </div>
             <div class="popup-content">
-                <div class="mode-options">
-                    <label class="mode-option">
-                        <input type="radio" name="gameMode" value="sp" />
-                        <span class="radio-custom"></span>
-                        <div class="mode-info">
-                            <strong>Single Player</strong>
-                            <p>Play the campaign</p>
-                        </div>
-                    </label>
-                    <label class="mode-option">
-                        <input type="radio" name="gameMode" value="mp" checked />
-                        <span class="radio-custom"></span>
-                        <div class="mode-info">
-                            <strong>Multiplayer</strong>
-                            <p>Play online with others</p>
-                        </div>
-                    </label>
+                <div class="mode-options" id="mode-options">
+                    <!-- Mode options will be dynamically generated -->
                 </div>
                 <div class="remember-choice">
                     <label class="checkbox-option">
@@ -80,9 +65,9 @@ class GameModePopup {
         });
     }
 
-    async show(game, gameCommands) {
+    async show(game, gameConfig) {
         this.currentGame = game;
-        this.gameCommands = gameCommands;
+        this.gameConfig = gameConfig;
 
         const savedPreference = await this.getSavedPreference(game);
         if (savedPreference && savedPreference !== '') {
@@ -90,8 +75,22 @@ class GameModePopup {
             return;
         }
 
+        // Generate mode options based on game's supported modes
+        this.generateModeOptions(game, gameConfig);
+
         this.backdrop.style.display = 'flex';
-        this.popup.querySelector('input[name="gameMode"][value="mp"]').checked = true;
+
+        // Set default selection (prefer mp, then first available option)
+        const radioInputs = this.popup.querySelectorAll('input[name="gameMode"]');
+        if (radioInputs.length > 0) {
+            const mpOption = this.popup.querySelector('input[name="gameMode"][value="mp"]');
+            if (mpOption) {
+                mpOption.checked = true;
+            } else {
+                radioInputs[0].checked = true;
+            }
+        }
+
         this.popup.querySelector('#rememberChoice').checked = false;
     }
 
@@ -116,8 +115,7 @@ class GameModePopup {
     }
 
     launchGame(mode) {
-        const command = this.gameCommands[mode];
-        if (command && typeof window.executeCommand === 'function') {
+        if (typeof window.executeCommand === 'function') {
             const installProperty = this.getInstallProperty(this.currentGame);
             window.executeCommand('get-property', installProperty).then(folder => {
                 if (!folder) {
@@ -133,7 +131,8 @@ class GameModePopup {
                         alert(`${gameName} installation path not configured. Please configure it in settings.`);
                     }
                 } else {
-                    window.executeCommand(command.launch, command.arg).then(() => {
+                    // Use launch-game command for all games with mode parameter
+                    window.executeCommand('launch-game', { game: this.currentGame, mode: mode }).then(() => {
                         console.log(`Launching ${this.currentGame} in ${mode} mode`);
                     }).catch(error => {
                         console.error(`Failed to launch ${this.currentGame}:`, error);
@@ -145,22 +144,41 @@ class GameModePopup {
         }
     }
 
+    generateModeOptions(game, gameConfig) {
+        const modeOptionsContainer = this.popup.querySelector('#mode-options');
+        modeOptionsContainer.innerHTML = '';
+
+        // Get mode information from GameUtils
+        const modeInfo = GameUtils.getModeInfo();
+
+        // Generate options for each supported mode
+        gameConfig.supportedModes.forEach((mode, index) => {
+            const info = modeInfo[mode] || { name: mode.toUpperCase(), description: `Play ${mode} mode` };
+            const isFirst = index === 0;
+
+            const modeOption = document.createElement('label');
+            modeOption.className = 'mode-option';
+            modeOption.innerHTML = `
+                <input type="radio" name="gameMode" value="${mode}" ${isFirst ? 'checked' : ''} />
+                <span class="radio-custom"></span>
+                <div class="mode-info">
+                    <strong>${info.name}</strong>
+                    <p>${info.description}</p>
+                </div>
+            `;
+
+            modeOptionsContainer.appendChild(modeOption);
+        });
+    }
+
     getInstallProperty(game) {
-        const mapping = {
-            'bo3': 'bo3-install',
-            'ghosts': 'ghosts-install',
-            'aw': 'aw-install'
-        };
-        return mapping[game];
+        const config = GameUtils.getGameConfig(game);
+        return config ? config.installProperty : null;
     }
 
     getGameDisplayName(game) {
-        const mapping = {
-            'bo3': 'Black Ops 3',
-            'ghosts': 'Call of Duty: Ghosts',
-            'aw': 'Advanced Warfare'
-        };
-        return mapping[game];
+        const config = GameUtils.getGameConfig(game);
+        return config ? config.displayName : game;
     }
 
     async getSavedPreference(game) {

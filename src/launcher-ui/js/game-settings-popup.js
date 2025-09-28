@@ -31,7 +31,7 @@ class GameSettingsPopup {
                     </div>
                 </div>
 
-                <div class="settings-section">
+                <div class="settings-section" id="play-behavior-section">
                     <h4>Play Button Behavior</h4>
                     <div class="setting-item">
                         <label for="play-behavior-select">When the Play button is clicked, launch:</label>
@@ -40,6 +40,17 @@ class GameSettingsPopup {
                             <option value="sp">Singleplayer</option>
                             <option value="mp">Multiplayer</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="bo3-cinematic-section" style="display: none;">
+                    <h4>Game Options</h4>
+                    <div class="setting-item inline-setting">
+                        <label>Skip Intro Cinematic</label>
+                        <div class="toggle-group small" id="skip-intro-cinematic-toggle">
+                            <button class="toggle-btn" data-value="false">OFF</button>
+                            <button class="toggle-btn" data-value="true">ON</button>
+                        </div>
                     </div>
                 </div>
 
@@ -78,15 +89,43 @@ class GameSettingsPopup {
                 this.hide();
             }
         });
+
+        // Handle toggle button clicks
+        this.popup.addEventListener('click', (e) => {
+            if (e.target.classList.contains('toggle-btn')) {
+                const toggleGroup = e.target.parentElement;
+                const buttons = toggleGroup.querySelectorAll('.toggle-btn');
+
+                // Remove active class from all buttons in this group
+                buttons.forEach(btn => btn.classList.remove('active'));
+
+                // Add active class to clicked button
+                e.target.classList.add('active');
+            }
+        });
     }
 
     async show(game, gameConfig) {
         this.currentGame = game;
-        this.gameConfig = gameConfig;
+        this.gameConfig = gameConfig || GameUtils.getGameConfig(game);
 
         // Update the UI with game-specific information
-        this.popup.querySelector('#settings-title').textContent = `${gameConfig.displayName} Settings`;
-        this.popup.querySelector('#path-label').textContent = `${gameConfig.displayName} Installation Folder:`;
+        this.popup.querySelector('#settings-title').textContent = `${this.gameConfig.displayName} Settings`;
+        this.popup.querySelector('#path-label').textContent = `${this.gameConfig.displayName} Installation Folder:`;
+
+        // Show/hide sections based on game
+        const playBehaviorSection = this.popup.querySelector('#play-behavior-section');
+        const bo3CinematicSection = this.popup.querySelector('#bo3-cinematic-section');
+
+        if (game === 'bo3') {
+            // For BO3, hide play behavior and show cinematic option
+            playBehaviorSection.style.display = 'none';
+            bo3CinematicSection.style.display = 'block';
+        } else {
+            // For other games, show play behavior and hide cinematic option
+            playBehaviorSection.style.display = 'block';
+            bo3CinematicSection.style.display = 'none';
+        }
 
         // Load current settings
         await this.loadCurrentSettings();
@@ -109,16 +148,34 @@ class GameSettingsPopup {
                 const installPath = await window.executeCommand('get-property', this.gameConfig.installProperty);
                 this.popup.querySelector('#game-path').value = installPath || '';
 
-                // Load play behavior preference
-                const behaviorKey = `game-mode-${this.currentGame}`;
-                const savedBehavior = await window.executeCommand('get-property', behaviorKey);
+                if (this.currentGame === 'bo3') {
+                    // Load BO3 cinematic setting
+                    const cinematicKey = this.gameConfig.specialSettings.skipIntroCinematic;
+                    const skipIntro = await window.executeCommand('get-property', cinematicKey);
+                    const toggleGroup = this.popup.querySelector('#skip-intro-cinematic-toggle');
+                    const buttons = toggleGroup.querySelectorAll('.toggle-btn');
 
-                const behaviorSelect = this.popup.querySelector('#play-behavior-select');
-                if (savedBehavior && savedBehavior !== '') {
-                    behaviorSelect.value = savedBehavior;
+                    // Remove active class from all buttons
+                    buttons.forEach(btn => btn.classList.remove('active'));
+
+                    // Set active button based on saved value
+                    const targetValue = skipIntro === 'true' ? 'true' : 'false';
+                    const targetButton = toggleGroup.querySelector(`[data-value="${targetValue}"]`);
+                    if (targetButton) {
+                        targetButton.classList.add('active');
+                    }
                 } else {
-                    // No saved preference means "ask every time"
-                    behaviorSelect.value = 'ask';
+                    // Load play behavior preference for other games
+                    const behaviorKey = this.gameConfig.gameModeProperty;
+                    const savedBehavior = await window.executeCommand('get-property', behaviorKey);
+
+                    const behaviorSelect = this.popup.querySelector('#play-behavior-select');
+                    if (savedBehavior && savedBehavior !== '') {
+                        behaviorSelect.value = savedBehavior;
+                    } else {
+                        // No saved preference means "ask every time"
+                        behaviorSelect.value = 'ask';
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load current settings:', error);
@@ -141,7 +198,6 @@ class GameSettingsPopup {
 
     async handleSave() {
         const installPath = this.popup.querySelector('#game-path').value;
-        const selectedBehavior = this.popup.querySelector('#play-behavior-select').value;
 
         if (typeof window.executeCommand === 'function') {
             try {
@@ -152,15 +208,24 @@ class GameSettingsPopup {
                     properties[this.gameConfig.installProperty] = installPath;
                 }
 
-                // Save play behavior preference
-                const behaviorKey = `game-mode-${this.currentGame}`;
-                if (selectedBehavior === 'ask') {
-                    // For "ask every time", we remove the saved preference
-                    // This will make the game mode popup show up
-                    properties[behaviorKey] = '';
+                if (this.currentGame === 'bo3') {
+                    // Save BO3 cinematic setting
+                    const toggleGroup = this.popup.querySelector('#skip-intro-cinematic-toggle');
+                    const activeButton = toggleGroup.querySelector('.toggle-btn.active');
+                    const cinematicKey = this.gameConfig.specialSettings.skipIntroCinematic;
+                    properties[cinematicKey] = activeButton ? activeButton.dataset.value : 'false';
                 } else {
-                    // For specific modes, save the preference
-                    properties[behaviorKey] = selectedBehavior;
+                    // Save play behavior preference for other games
+                    const selectedBehavior = this.popup.querySelector('#play-behavior-select').value;
+                    const behaviorKey = `game-mode-${this.currentGame}`;
+                    if (selectedBehavior === 'ask') {
+                        // For "ask every time", we remove the saved preference
+                        // This will make the game mode popup show up
+                        properties[behaviorKey] = '';
+                    } else {
+                        // For specific modes, save the preference
+                        properties[behaviorKey] = selectedBehavior;
+                    }
                 }
 
                 await window.executeCommand('set-property', properties);
@@ -178,36 +243,6 @@ class GameSettingsPopup {
         }
     }
 
-    // Static method to get game configuration
-    static getGameConfig(game) {
-        const configs = {
-            'bo3': {
-                displayName: 'Black Ops 3',
-                installProperty: 'bo3-install'
-            },
-            'ghosts': {
-                displayName: 'Call of Duty: Ghosts',
-                installProperty: 'ghosts-install'
-            },
-            'aw': {
-                displayName: 'Advanced Warfare',
-                installProperty: 'aw-install'
-            },
-            'mwr': {
-                displayName: 'Modern Warfare Remastered',
-                installProperty: 'mwr-install'
-            },
-            'iw7': {
-                displayName: 'Infinite Warfare',
-                installProperty: 'iw7-install'
-            },
-            'hmw': {
-                displayName: 'HorizonMW',
-                installProperty: 'hmw-install'
-            }
-        };
-        return configs[game];
-    }
 }
 
 window.GameSettingsPopup = GameSettingsPopup;

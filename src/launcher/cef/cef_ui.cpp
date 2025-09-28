@@ -74,6 +74,9 @@ namespace cef
 
 #ifdef DEBUG
 			settings.remote_debugging_port = 12345;
+#else
+			// Enable remote debugging in release builds too for troubleshooting
+			settings.remote_debugging_port = 12345;
 #endif
 
 #ifdef DEBUG

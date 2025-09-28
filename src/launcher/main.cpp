@@ -109,30 +109,99 @@ namespace
 
 	void add_commands(cef::cef_ui& cef_ui)
 	{
-		cef_ui.add_command("launch-aw", [&cef_ui](const rapidjson::Value& value, auto&)
+		cef_ui.add_command("launch-game", [&cef_ui](const rapidjson::Value& value, auto&)
 		{
-			if (!value.IsString())
+			if (!value.IsObject() || !value.HasMember("game"))
 			{
 				return;
 			}
 
-			const auto arg = std::string{ value.GetString() };
+			const auto game = std::string{ value["game"].GetString() };
 
-			static const std::unordered_map<std::string, std::string> arg_mapping = {
-				{"aw-sp", "-singleplayer"},
-				{"aw-mp", "-multiplayer"},
-				{"aw-zm", "-zombies"},
-				{"aw-survival", "-survival"},
+			// Get mode if provided, otherwise empty string
+			const auto mode = value.HasMember("mode") ? std::string{ value["mode"].GetString() } : std::string{};
+
+			// Game configuration mapping (empty for games that don't need mode args)
+			static const std::unordered_map<std::string, std::unordered_map<std::string, std::string>> mode_mapping = {
+				{"bo3", {}}, // BO3 doesn't use mode arguments
+				{"aw", {
+					{"sp", "-singleplayer"},
+					{"mp", "-multiplayer"},
+					{"zm", "-zombies"},
+					{"sv", "-survival"}
+				}},
+				{"ghosts", {
+					{"sp", "-singleplayer"},
+					{"mp", "-multiplayer"}
+				}},
+				{"mwr", {
+					{"sp", "-singleplayer"},
+					{"mp", "-multiplayer"}
+				}},
+				{"iw", {}},
+				{"hmw", {}}
 			};
 
-			const auto mapped_arg = arg_mapping.find(arg);
-			if (mapped_arg == arg_mapping.end())
+			// Game executable and property mapping
+			static const std::unordered_map<std::string, std::tuple<std::string, std::string>> game_config = {
+				{"bo3", {"bo3-install", "boiii.exe"}},
+				{"aw", {"aw-install", "s1x.exe"}},
+				{"ghosts", {"ghosts-install", "iw6x.exe"}},
+				{"mwr", {"mwr-install", "h1-mod.exe"}},
+				{"iw", {"iw-install", "iw7-mod.exe"}},
+				{"hmw", {"hmw-install", "hmw-mod.exe"}}
+			};
+
+			// Validate game
+			auto game_modes = mode_mapping.find(game);
+			if (game_modes == mode_mapping.end())
 			{
 				return;
 			}
 
-			const auto aw_install = utils::properties::load("aw-install");
-			if (!aw_install)
+			// For games with mode support, validate the mode
+			std::string launch_args = "";
+			if (!game_modes->second.empty())
+			{
+				if (mode.empty())
+				{
+					return; // Mode required but not provided
+				}
+
+				auto mode_arg = game_modes->second.find(mode);
+				if (mode_arg == game_modes->second.end())
+				{
+					return; // Invalid mode
+				}
+				launch_args = mode_arg->second;
+			}
+			else
+			{
+				// Games with no modes use -launch argument
+				launch_args = "-launch";
+
+				// Special handling for BO3 cinematic setting
+				if (game == "bo3")
+				{
+					const auto cinematic_setting = utils::properties::load("bo3-skip-intro-cinematic");
+					if (cinematic_setting && cinematic_setting->data() == std::string("true"))
+					{
+						launch_args += " -nointro";
+					}
+				}
+			}
+
+			auto config = game_config.find(game);
+			if (config == game_config.end())
+			{
+				return;
+			}
+
+			const auto& [install_property, exe_name] = config->second;
+
+			// Get game installation path
+			const auto game_install = utils::properties::load(install_property);
+			if (!game_install)
 			{
 				return;
 			}
@@ -142,51 +211,14 @@ namespace
 				return;
 			}
 
-			SetEnvironmentVariableA("CB_AW_INSTALL", aw_install->data());
+			const auto game_directory = std::filesystem::path(game_install->data());
+			const auto game_exe = game_directory / exe_name;
 
-			const auto s1x_exe = utils::properties::get_appdata_path() / "data" / "s1x" / "s1x.exe";
-			utils::nt::launch_process(s1x_exe, get_launch_options(mapped_arg->second, "aw"));
-
-			cef_ui.close_browser();
-		});
-
-		cef_ui.add_command("launch-ghosts", [&cef_ui](const rapidjson::Value& value, auto&)
-		{
-			if (!value.IsString())
+			if (utils::io::file_exists(game_exe.string()))
 			{
-				return;
+				utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
+				cef_ui.close_browser();
 			}
-
-			const auto arg = std::string{ value.GetString() };
-
-			static const std::unordered_map<std::string, std::string> arg_mapping = {
-				{"ghosts-sp", "-singleplayer"},
-				{"ghosts-mp", "-multiplayer"},
-			};
-
-			const auto mapped_arg = arg_mapping.find(arg);
-			if (mapped_arg == arg_mapping.end())
-			{
-				return;
-			}
-
-			const auto ghosts_install = utils::properties::load("ghosts-install");
-			if (!ghosts_install)
-			{
-				return;
-			}
-
-			if (!try_lock_termination_barrier())
-			{
-				return;
-			}
-
-			SetEnvironmentVariableA("CB_GHOSTS_INSTALL", ghosts_install->data());
-
-			const auto iw6x_exe = utils::properties::get_appdata_path() / "data" / "iw6x" / "iw6x.exe";
-			utils::nt::launch_process(iw6x_exe, get_launch_options(mapped_arg->second, "ghost"));
-
-			cef_ui.close_browser();
 		});
 
 		cef_ui.add_command("browse-folder", [](const auto&, rapidjson::Document& response)

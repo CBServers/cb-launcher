@@ -110,6 +110,7 @@ namespace utils::nt
 	std::string load_resource(int id);
 
 	void launch_process(const std::filesystem::path& process, const std::string& command_line);
+	void launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
 	void relaunch_self(std::string command_line = GetCommandLineA());
 	void update_dll_search_path(const std::filesystem::path& directory);
 

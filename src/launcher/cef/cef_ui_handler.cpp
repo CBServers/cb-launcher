@@ -128,13 +128,34 @@ namespace cef
 	                                         CefRefPtr<CefContextMenuParams> /*params*/, CefRefPtr<CefMenuModel> model)
 	{
 		model->Clear();
+
+		// Add developer tools option
+		model->AddItem(MENU_ID_USER_FIRST + 1, "Inspect Element");
+		model->AddSeparator();
+		model->AddItem(MENU_ID_USER_FIRST + 2, "Reload");
 	}
 
-	bool cef_ui_handler::OnContextMenuCommand(CefRefPtr<CefBrowser> /*browser*/, CefRefPtr<CefFrame> /*frame*/,
-	                                          CefRefPtr<CefContextMenuParams> /*params*/, int /*command_id*/,
+	bool cef_ui_handler::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> /*frame*/,
+	                                          CefRefPtr<CefContextMenuParams> /*params*/, int command_id,
 	                                          CefContextMenuHandler::EventFlags /*event_flags*/)
 	{
-		return false;
+		switch (command_id)
+		{
+		case MENU_ID_USER_FIRST + 1: // Inspect Element
+			{
+				CefWindowInfo window_info;
+				window_info.SetAsPopup(browser->GetHost()->GetWindowHandle(), "Developer Tools");
+
+				CefBrowserSettings browser_settings;
+				browser->GetHost()->ShowDevTools(window_info, nullptr, browser_settings, CefPoint());
+				return true;
+			}
+		case MENU_ID_USER_FIRST + 2: // Reload
+			browser->Reload();
+			return true;
+		default:
+			return false;
+		}
 	}
 
 	void cef_ui_handler::OnContextMenuDismissed(CefRefPtr<CefBrowser> /*browser*/, CefRefPtr<CefFrame> /*frame*/)

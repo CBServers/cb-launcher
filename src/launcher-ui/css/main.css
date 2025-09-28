@@ -648,7 +648,7 @@ img {
 
 .sidebar .settings-section {
     margin-top: auto;
-    margin-bottom: 0;
+    margin-bottom: 10px;
 }
 
 .settings-icon {
@@ -1397,6 +1397,64 @@ body:not(.hidden) {
     padding: 8px;
 }
 
+.game-settings-popup .setting-item.inline-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+.game-settings-popup .toggle-group {
+    display: flex;
+    border: 2px solid #444;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.game-settings-popup .toggle-group.small {
+    margin-top: 0;
+    width: 110px;
+    flex-shrink: 0;
+}
+
+.game-settings-popup .toggle-btn {
+    flex: 1;
+    background: #1a1a1a;
+    border: none;
+    padding: 10px 16px;
+    color: #ccc;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.game-settings-popup .toggle-group.small .toggle-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.game-settings-popup .toggle-btn:not(:last-child) {
+    border-right: 1px solid #444;
+}
+
+.game-settings-popup .toggle-btn:hover {
+    background: #333;
+    color: #fff;
+}
+
+.game-settings-popup .toggle-btn.active {
+    background: #0078d4;
+    color: #fff;
+}
+
+.game-settings-popup .toggle-btn.active:hover {
+    background: #106ebe;
+}
+
 /* Setup Flow Popup */
 .setup-flow-backdrop {
     position: fixed;
@@ -1573,7 +1631,7 @@ body:not(.hidden) {
 .game-settings-item {
     display: flex;
     align-items: center;
-    padding: 10px 15px;
+    padding: 6px 15px;
     background: #1a1a1a;
     border: 1px solid #444;
     border-radius: 6px;
@@ -1596,19 +1654,16 @@ body:not(.hidden) {
 }
 
 .game-settings-item .game-settings-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     background: #444;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 0.2s;
-    flex-shrink: 0;
-    font-size: 16px;
-    color: #ccc;
 }
 
 .game-settings-item .game-settings-btn:hover {
@@ -1617,7 +1672,7 @@ body:not(.hidden) {
 }
 
 .game-settings-item .game-settings-btn .settings-icon {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="white" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke="white" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>') center/contain no-repeat;
 }
-

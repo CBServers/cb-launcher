@@ -153,15 +153,8 @@ class SetupFlowPopup {
     }
 
     getInstallProperty(game) {
-        const mapping = {
-            'bo3': 'bo3-install',
-            'ghosts': 'ghosts-install',
-            'aw': 'aw-install',
-            'mwr': 'mwr-install',
-            'iw7': 'iw7-install',
-            'hmw': 'hmw-install'
-        };
-        return mapping[game];
+        const config = GameUtils.getGameConfig(game);
+        return config ? config.installProperty : null;
     }
 
     triggerInstallationUpdate() {
@@ -172,11 +165,7 @@ class SetupFlowPopup {
     }
 
     static getGameDisplayName(game) {
-        const mapping = {
-            'bo3': 'Black Ops 3',
-            'ghosts': 'Call of Duty: Ghosts',
-            'aw': 'Advanced Warfare'
-        };
-        return mapping[game];
+        const config = GameUtils.getGameConfig(game);
+        return config ? config.displayName : game;
     }
 }
