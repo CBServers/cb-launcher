@@ -1,0 +1,28 @@
+#pragma once
+
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <optional>
+
+namespace game_config
+{
+	struct game_config_t
+	{
+		std::string display_name;
+		std::string install_property;
+		std::string ui_id;
+		std::string exe_name;
+		std::unordered_map<std::string, std::string> mode_arguments;
+	};
+
+	// Forward declarations
+	extern const std::unordered_map<std::string, game_config_t> game_configs_;
+	extern const std::unordered_map<std::string, std::string> ui_to_backend_mapping_;
+
+	// Function declarations
+	std::optional<game_config_t> get_game_config(const std::string& game);
+	bool has_multiple_modes(const std::string& game);
+	std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
+	std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
+}

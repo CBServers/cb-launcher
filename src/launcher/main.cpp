@@ -9,6 +9,7 @@
 #include <utils/properties.hpp>
 #include <utils/io.hpp>
 #include <utils/string.hpp>
+#include <game_config.hpp>
 
 namespace
 {
@@ -121,86 +122,22 @@ namespace
 			// Get mode if provided, otherwise empty string
 			const auto mode = value.HasMember("mode") ? std::string{ value["mode"].GetString() } : std::string{};
 
-			// Game configuration mapping (empty for games that don't need mode args)
-			static const std::unordered_map<std::string, std::unordered_map<std::string, std::string>> mode_mapping = {
-				{"bo3", {}}, // BO3 doesn't use mode arguments
-				{"aw", {
-					{"sp", "-singleplayer"},
-					{"mp", "-multiplayer"},
-					{"zm", "-zombies"},
-					{"sv", "-survival"}
-				}},
-				{"ghosts", {
-					{"sp", "-singleplayer"},
-					{"mp", "-multiplayer"}
-				}},
-				{"mwr", {
-					{"sp", "-singleplayer"},
-					{"mp", "-multiplayer"}
-				}},
-				{"iw", {}},
-				{"hmw", {}}
-			};
-
-			// Game executable and property mapping
-			static const std::unordered_map<std::string, std::tuple<std::string, std::string>> game_config = {
-				{"bo3", {"bo3-install", "boiii.exe"}},
-				{"aw", {"aw-install", "s1x.exe"}},
-				{"ghosts", {"ghosts-install", "iw6x.exe"}},
-				{"mwr", {"mwr-install", "h1-mod.exe"}},
-				{"iw", {"iw-install", "iw7-mod.exe"}},
-				{"hmw", {"hmw-install", "hmw-mod.exe"}}
-			};
-
-			// Validate game
-			auto game_modes = mode_mapping.find(game);
-			if (game_modes == mode_mapping.end())
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
 			{
-				return;
+				return; // Invalid game
 			}
 
-			// For games with mode support, validate the mode
-			std::string launch_args = "";
-			if (!game_modes->second.empty())
+			// Get launch arguments using the utility
+			const auto launch_args = game_config::get_launch_arguments(game, mode);
+			if (launch_args.empty() && config->mode_arguments.size() > 0)
 			{
-				if (mode.empty())
-				{
-					return; // Mode required but not provided
-				}
-
-				auto mode_arg = game_modes->second.find(mode);
-				if (mode_arg == game_modes->second.end())
-				{
-					return; // Invalid mode
-				}
-				launch_args = mode_arg->second;
+				return; // Mode required but not provided or invalid
 			}
-			else
-			{
-				// Games with no modes use -launch argument
-				launch_args = "-launch";
-
-				// Special handling for BO3 cinematic setting
-				if (game == "bo3")
-				{
-					const auto cinematic_setting = utils::properties::load("bo3-skip-intro-cinematic");
-					if (cinematic_setting && cinematic_setting->data() == std::string("true"))
-					{
-						launch_args += " -nointro";
-					}
-				}
-			}
-
-			auto config = game_config.find(game);
-			if (config == game_config.end())
-			{
-				return;
-			}
-
-			const auto& [install_property, exe_name] = config->second;
 
 			// Get game installation path
-			const auto game_install = utils::properties::load(install_property);
+			const auto game_install = utils::properties::load(config->install_property);
 			if (!game_install)
 			{
 				return;
@@ -212,7 +149,7 @@ namespace
 			}
 
 			const auto game_directory = std::filesystem::path(game_install->data());
-			const auto game_exe = game_directory / exe_name;
+			const auto game_exe = game_directory / config->exe_name;
 
 			if (utils::io::file_exists(game_exe.string()))
 			{
