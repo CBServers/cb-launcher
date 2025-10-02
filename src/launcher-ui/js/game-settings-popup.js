@@ -121,9 +121,14 @@ class GameSettingsPopup {
             // For BO3, hide play behavior and show cinematic option
             playBehaviorSection.style.display = 'none';
             bo3CinematicSection.style.display = 'block';
-        } else {
-            // For other games, show play behavior and hide cinematic option
+        } else if (this.gameConfig.hasMultipleModes) {
+            // For games with multiple modes, show play behavior and populate with supported modes
             playBehaviorSection.style.display = 'block';
+            bo3CinematicSection.style.display = 'none';
+            this.populatePlayBehaviorDropdown();
+        } else {
+            // For single-mode games (other than BO3), hide play behavior
+            playBehaviorSection.style.display = 'none';
             bo3CinematicSection.style.display = 'none';
         }
 
@@ -131,6 +136,29 @@ class GameSettingsPopup {
         await this.loadCurrentSettings();
 
         this.backdrop.style.display = 'flex';
+    }
+
+    populatePlayBehaviorDropdown() {
+        const behaviorSelect = this.popup.querySelector('#play-behavior-select');
+        const modeInfo = GameUtils.getModeInfo();
+
+        // Clear existing options
+        behaviorSelect.innerHTML = '';
+
+        // Add "Ask me every time" option
+        const askOption = document.createElement('option');
+        askOption.value = 'ask';
+        askOption.textContent = 'Ask me every time';
+        behaviorSelect.appendChild(askOption);
+
+        // Add options for each supported mode
+        this.gameConfig.supportedModes.forEach(mode => {
+            const info = modeInfo[mode] || { name: mode.toUpperCase() };
+            const option = document.createElement('option');
+            option.value = mode;
+            option.textContent = info.name;
+            behaviorSelect.appendChild(option);
+        });
     }
 
     hide() {
