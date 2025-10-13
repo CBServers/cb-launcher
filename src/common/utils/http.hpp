@@ -3,11 +3,26 @@
 #include <string>
 #include <optional>
 #include <future>
+#include <curl/curl.h>
 
 namespace utils::http
 {
+	struct result
+	{
+		CURLcode code{};
+		unsigned int response_code{};
+		std::string buffer{};
+	};
+
 	using headers = std::unordered_map<std::string, std::string>;
 
-	std::optional<std::string> get_data(const std::string& url, const headers& headers = {}, const std::function<void(size_t)>& callback = {}, uint32_t retries = 2);
-	std::future<std::optional<std::string>> get_data_async(const std::string& url, const headers& headers = {});
+	std::optional<result> get_data(const std::string& url, const std::string& fields = {},
+		const headers& headers = {}, const std::function<void(size_t, size_t, size_t)>& callback = {}, int timeout = 0, uint32_t retries = 2);
+
+	std::optional<result> get_data_stream(const std::string& url, const headers& headers = {},
+		const std::string& fields = {}, const std::function<void(size_t, size_t, size_t)>& progress_callback_ = {},
+		const std::function<void(const char*, size_t)>& stream_callback = {}, int timeout = 0, uint32_t retries = 2);
+
+	std::future<std::optional<result>> get_data_async(const std::string& url, const std::string& fields = {},
+		const headers& headers = {}, const std::function<int(size_t, size_t)>& callback = {}, uint32_t retries = 2);
 }

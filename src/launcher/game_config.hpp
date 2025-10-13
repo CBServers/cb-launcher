@@ -13,7 +13,9 @@ namespace game_config
 		std::string install_property;
 		std::string ui_id;
 		std::string exe_name;
+		std::vector<std::string> valid_game_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
+		std::string base_url;
 	};
 
 	// Forward declarations
@@ -25,4 +27,5 @@ namespace game_config
 	bool has_multiple_modes(const std::string& game);
 	std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
 	std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
+	bool validate_game_path(const std::string& game, const std::filesystem::path& path);
 }

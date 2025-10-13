@@ -1,5 +1,6 @@
 #include "http.hpp"
-#include <curl/curl.h>
+#include <algorithm>
+#include <chrono>
 #include "finally.hpp"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -10,20 +11,39 @@ namespace utils::http
 	{
 		struct progress_helper
 		{
-			const std::function<void(size_t)>* callback{};
+			const std::function<void(size_t, size_t, size_t)>* callback{};
+			std::exception_ptr exception{};
+			std::chrono::high_resolution_clock::time_point start{};
+		};
+
+		struct stream_helper
+		{
+			const std::function<void(const char*, size_t)>* callback{};
 			std::exception_ptr exception{};
 		};
 
-		int progress_callback(void* clientp, const curl_off_t /*dltotal*/, const curl_off_t dlnow,
-		                      const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
+		int progress_callback(void* clientp, const curl_off_t dltotal, const curl_off_t dlnow, const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
 		{
 			auto* helper = static_cast<progress_helper*>(clientp);
 
+			// Check for cancellation first - this is critical for proper curl abort
+			/*		
+			if (gui::is_update_cancelled())
+			{
+				return 1; // Non-zero return value aborts the transfer
+			}
+			*/
+
 			try
 			{
+				const auto now = std::chrono::high_resolution_clock::now();
+				const auto count = std::max(1, static_cast<int>(std::chrono::duration_cast<
+					std::chrono::seconds>(now - helper->start).count()));
+				const auto speed = dlnow / count;
+
 				if (*helper->callback)
 				{
-					(*helper->callback)(dlnow);
+					(*helper->callback)(dlnow, dltotal, speed);
 				}
 			}
 			catch (...)
@@ -37,16 +57,52 @@ namespace utils::http
 
 		size_t write_callback(void* contents, const size_t size, const size_t nmemb, void* userp)
 		{
+			// Check for cancellation - returning 0 will abort the transfer
+			/*
+			if (gui::is_update_cancelled())
+			{
+				return 0;
+			}
+			*/
+
 			auto* buffer = static_cast<std::string*>(userp);
 
 			const auto total_size = size * nmemb;
 			buffer->append(static_cast<char*>(contents), total_size);
 			return total_size;
 		}
+
+		size_t write_callback_stream(void* contents, const size_t size, const size_t nmemb, void* userp)
+		{
+			// Check for cancellation - returning 0 will abort the transfer
+			/*
+			if (gui::is_update_cancelled())
+			{
+				return 0;
+			}
+			*/
+			
+			const auto total_size = size * nmemb;
+			auto* write_helper = static_cast<stream_helper*>(userp);
+
+			try
+			{
+				if (*write_helper->callback)
+				{
+					(*write_helper->callback)(static_cast<char*>(contents), total_size);
+				}
+			}
+			catch (...)
+			{
+				write_helper->exception = std::current_exception();
+			}
+
+			return total_size;
+		}
 	}
 
-	std::optional<std::string> get_data(const std::string& url, const headers& headers,
-	                                    const std::function<void(size_t)>& callback, const uint32_t retries)
+	std::optional<result> get_data(const std::string& url, const std::string& fields,
+		const headers& headers, const std::function<void(size_t, size_t, size_t)>& callback, int timeout, uint32_t retries)
 	{
 		curl_slist* header_list = nullptr;
 		auto* curl = curl_easy_init();
@@ -67,38 +123,49 @@ namespace utils::http
 			header_list = curl_slist_append(header_list, data.data());
 		}
 
-		std::string buffer{};
-		progress_helper helper{};
-		helper.callback = &callback;
-
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
 		curl_easy_setopt(curl, CURLOPT_URL, url.data());
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buffer);
-		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
-		curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &helper);
-		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "cb-updater/1.0");
-		curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
 
+		if (!fields.empty())
+		{
+			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields.data());
+		}
+
+		// Retry loop
 		for (auto i = 0u; i < retries + 1; ++i)
 		{
-			// Due to CURLOPT_FAILONERROR, CURLE_OK will not be met when the server returns 400 or 500
-			if (curl_easy_perform(curl) == CURLE_OK)
+			std::string buffer{};
+			progress_helper helper{};
+			helper.callback = &callback;
+
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buffer);
+			curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+			curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &helper);
+			curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0);
+
+			const auto code = curl_easy_perform(curl);
+			unsigned int response_code{};
+			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+			// Check if operation was cancelled
+			if (code == CURLE_ABORTED_BY_CALLBACK /*&& gui::is_update_cancelled()*/)
 			{
-				long http_code = 0;
-				curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				return result; // Return early on cancellation
+			}
 
-				if (http_code >= 200)
-				{
-					return {std::move(buffer)};
-				}
-
-				throw std::runtime_error(
-					"Bad status code " + std::to_string(http_code) + " met while trying to download file " + url);
+			if (code == CURLE_OK)
+			{
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				result.buffer = std::move(buffer);
+				return result;
 			}
 
 			if (helper.exception)
@@ -106,23 +173,123 @@ namespace utils::http
 				std::rethrow_exception(helper.exception);
 			}
 
-			long http_code = 0;
-			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-			if (http_code > 0)
+			// If we got a response code, don't retry
+			if (response_code > 0)
 			{
 				break;
 			}
 		}
 
-		return {};
+		// All retries failed
+		result result;
+		result.code = CURLE_OPERATION_TIMEDOUT;
+		result.response_code = 0;
+		return result;
 	}
 
-	std::future<std::optional<std::string>> get_data_async(const std::string& url, const headers& headers)
+	std::optional<result> get_data_stream(const std::string& url, const headers& headers,
+		const std::string& fields, const std::function<void(size_t, size_t, size_t)>& progress_callback_,
+		const std::function<void(const char*, size_t)>& stream_callback, int timeout, uint32_t retries)
 	{
-		return std::async(std::launch::async, [url, headers]()
+		curl_slist* header_list = nullptr;
+		auto* curl = curl_easy_init();
+		if (!curl)
 		{
-			return get_data(url, headers);
+			return {};
+		}
+
+		auto _ = utils::finally([&]()
+		{
+			curl_slist_free_all(header_list);
+			curl_easy_cleanup(curl);
 		});
+
+		// Set up headers
+		for (const auto& header : headers)
+		{
+			auto data = header.first + ": " + header.second;
+			header_list = curl_slist_append(header_list, data.data());
+		}
+
+		// Set common curl options
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
+		curl_easy_setopt(curl, CURLOPT_URL, url.data());
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
+
+		if (!fields.empty())
+		{
+			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields.data());
+		}
+
+		// Retry loop
+		for (auto i = 0u; i < retries + 1; ++i)
+		{
+			// Reset helpers for each attempt
+			progress_helper helper{};
+			helper.callback = &progress_callback_;
+
+			stream_helper write_helper{};
+			write_helper.callback = &stream_callback;
+
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback_stream);
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, &write_helper);
+			curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+			curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &helper);
+			curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0);
+
+			const auto code = curl_easy_perform(curl);
+			unsigned int response_code{};
+			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+			// Check if operation was cancelled
+			if (code == CURLE_ABORTED_BY_CALLBACK /* && gui::is_update_cancelled()*/)
+			{
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				return result; // Return early on cancellation
+			}
+
+			if (code == CURLE_OK)
+			{
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				return result;
+			}
+
+			// Handle exceptions from callbacks
+			if (helper.exception)
+			{
+				std::rethrow_exception(helper.exception);
+			}
+
+			if (write_helper.exception)
+			{
+				std::rethrow_exception(write_helper.exception);
+			}
+
+			// If we got a response code, don't retry
+			if (response_code > 0)
+			{
+				break;
+			}
+		}
+
+		// All retries failed
+		result result;
+		result.code = CURLE_OPERATION_TIMEDOUT;
+		result.response_code = 0;
+		return result;
+	}
+
+	std::future<std::optional<result>> get_data_async(const std::string& url, const std::string& fields,
+		const headers& headers, const std::function<int(size_t, size_t, size_t)>& callback, uint32_t retries)
+	{
+		return std::async(std::launch::async, [url, fields, headers, callback, retries]()
+			{
+				return get_data(url, fields, headers, callback, 0, retries);
+			});
 	}
 }

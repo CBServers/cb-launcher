@@ -9,14 +9,14 @@
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
+#include <utils/string.hpp>
 
 #include <rapidjson/writer.h>
 
 #define UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
 
-#define UPDATE_FILE_MAIN UPDATE_SERVER "files.json"
-#define UPDATE_FOLDER_MAIN UPDATE_SERVER "data/"
-
+#define UPDATE_FILE_MAIN UPDATE_SERVER "cb-launcher.json"
+#define UPDATE_FOLDER_MAIN UPDATE_SERVER "cb-launcher/"
 #define UPDATE_HOST_BINARY "cb-launcher.exe"
 
 namespace updater
@@ -75,12 +75,25 @@ namespace updater
 		std::vector<file_info> get_file_infos()
 		{
 			const auto json = utils::http::get_data(get_update_file() + get_cache_buster());
-			if (!json)
+			if (!json || !json.has_value())
 			{
 				return {};
 			}
 
-			return parse_file_infos(*json);
+			try
+			{
+				const auto& result = json.value();
+				if (result.code != CURLE_OK)
+				{
+					return {};
+				}
+
+				return parse_file_infos(result.buffer);
+			}
+			catch (...)
+			{
+				return {};
+			}
 		}
 
 		std::string get_hash(const std::string& data)
@@ -143,48 +156,56 @@ namespace updater
 
 		this->update_host_binary(outdated_files);
 		this->update_files(outdated_files);
+
+		std::this_thread::sleep_for(1s);
 	}
 
-	void file_updater::update_file(const file_info& file, const bool iw4x_file) const
+	void file_updater::update_file(const file_info& file) const
 	{
 		auto url = get_update_folder() + file.name + "?" + file.hash;
 		utils::logger::write("Updating file {}", url);
 
-		if (iw4x_file)
-		{
-			url = file.name;
-			utils::logger::write("This is an iw4x file, the url has been swapped to {}", url);
-		}
-
-		const auto data = utils::http::get_data(url, {}, [&](const size_t progress)
+		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed)
 		{
 			this->listener_.file_progress(file, progress);
 		});
 
-		// IW4x files have invalid hash and size for now
-		if (!data || (!iw4x_file && (data->size() != file.size || get_hash(*data) != file.hash)))
+		if (!data || !data.has_value())
 		{
-			throw std::runtime_error("Failed to download: " + url);
+			throw std::runtime_error(utils::string::va("Failed to download: %s - Data has no value", url.data()));
 		}
 
-		auto out_file = this->get_drive_filename(file);
-
-		// IW4x hack to fetch release from github
-		if (iw4x_file)
+		try
 		{
-			out_file = this->base_ / std::filesystem::path(file.name).filename().string();
+			const auto& result = data.value();
+			if (result.code == CURLE_ABORTED_BY_CALLBACK)
+			{
+				return;
+			}
+
+			if (result.code != CURLE_OK || result.buffer.size() != file.size || get_hash(result.buffer) != file.hash)
+			{
+				throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code", url.data()));
+			}
+
+			const auto out_file = this->get_drive_filename(file);
+			if (!utils::io::write_file(out_file.string(), result.buffer, false))
+			{
+				utils::logger::write("Failed to write {}. Error code: ", file.name,
+					std::system_category().message(static_cast<int>(::GetLastError())));
+				throw std::runtime_error(utils::string::va("Failed to write: %s", out_file.string().data()));
+			}
+
+			utils::logger::write("Done updating file {}", file.name);
 		}
-
-		utils::logger::write("Writing file to {}", out_file.string());
-
-		if (!utils::io::write_file(out_file.string(), *data, false))
+		catch (const std::exception& e)
 		{
-			utils::logger::write("Failed to write {}. Error code: ", file.name,
-			                     std::system_category().message(static_cast<int>(::GetLastError())));
-			throw std::runtime_error("Failed to write: " + file.name);
+			throw std::runtime_error(utils::string::va("Failed to update host file: %s", e.what()));
 		}
-
-		utils::logger::write("Done updating file {}", file.name);
+		catch (...)
+		{
+			throw std::runtime_error("Unknown error occurred while updating host file");
+		}
 	}
 
 	std::vector<file_info> file_updater::get_outdated_files(const std::vector<file_info>& files) const
@@ -225,7 +246,7 @@ namespace updater
 		throw update_cancelled();
 	}
 
-	void file_updater::update_files(const std::vector<file_info>& outdated_files, const bool iw4x_files) const
+	void file_updater::update_files(const std::vector<file_info>& outdated_files) const
 	{
 		this->listener_.update_files(outdated_files);
 
@@ -255,7 +276,7 @@ namespace updater
 					{
 						const auto& file = outdated_files[index];
 						this->listener_.begin_file(file);
-						this->update_file(file, iw4x_files);
+						this->update_file(file);
 						this->listener_.end_file(file);
 					}
 					catch (...)
@@ -292,7 +313,7 @@ namespace updater
 
 	bool file_updater::is_outdated_file(const file_info& file) const
 	{
-#ifndef CI_BUILD
+#if !defined(NDEBUG)
 		if (file.name == UPDATE_HOST_BINARY)
 		{
 			return false;

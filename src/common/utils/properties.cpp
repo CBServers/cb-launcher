@@ -46,7 +46,7 @@ namespace utils::properties
 		void store_properties(const rapidjson::Document& doc)
 		{
 			rapidjson::StringBuffer buffer{};
-			rapidjson::Writer<rapidjson::StringBuffer, rapidjson::Document::EncodingType, rapidjson::ASCII<>>
+			rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::Document::EncodingType, rapidjson::ASCII<>>
 				writer(buffer);
 			doc.Accept(writer);
 

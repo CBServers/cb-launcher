@@ -1,6 +1,6 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
-#include "updater/updater.hpp"
+#include "launcher-updater/updater.hpp"
 
 #include <utils/com.hpp>
 #include <utils/flags.hpp>
@@ -228,6 +228,36 @@ namespace
 
 				utils::properties::store(key, val);
 			}
+		});
+
+		cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			response.SetBool(false); // Default to failure
+
+			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+			const auto path = std::filesystem::path{ value["path"].GetString() };
+
+			// Get game config
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return;
+			}
+
+			// Validate the path
+			if (!game_config::validate_game_path(game, path))
+			{
+				return; // Invalid - no valid game exe found
+			}
+
+			// Path is valid, store it
+			utils::properties::store(config->install_property, path.string());
+			response.SetBool(true); // Success
 		});
 	}
 

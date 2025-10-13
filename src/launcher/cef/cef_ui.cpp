@@ -9,8 +9,6 @@
 #include <utils/string.hpp>
 #include <utils/finally.hpp>
 
-#include "../updater/updater.hpp"
-
 namespace cef
 {
 	namespace

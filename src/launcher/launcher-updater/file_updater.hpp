@@ -14,7 +14,7 @@ namespace updater
 		[[nodiscard]] std::vector<file_info> get_outdated_files(const std::vector<file_info>& files) const;
 
 		void update_host_binary(const std::vector<file_info>& outdated_files) const;
-		void update_files(const std::vector<file_info>& outdated_files, bool iw4x_files = false) const;
+		void update_files(const std::vector<file_info>& outdated_files) const;
 
 	private:
 
@@ -24,7 +24,7 @@ namespace updater
 		std::filesystem::path process_file_;
 		std::filesystem::path dead_process_file_;
 
-		void update_file(const file_info& file, bool iw4x_files = false) const;
+		void update_file(const file_info& file) const;
 
 		[[nodiscard]] bool is_outdated_file(const file_info& file) const;
 		[[nodiscard]] std::filesystem::path get_drive_filename(const file_info& file) const;

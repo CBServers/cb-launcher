@@ -12,7 +12,9 @@ namespace game_config
 				.install_property = "bo3-install",
 				.ui_id = "boiii",
 				.exe_name = "boiii.exe",
+				.valid_game_exes = {"BlackOps3.exe"},
 				.mode_arguments = {},
+				.base_url = "https://cdn.brad.stream/bo3_game_files"
 			}
 		},
 		{
@@ -22,10 +24,12 @@ namespace game_config
 				.install_property = "ghosts-install",
 				.ui_id = "iw6x",
 				.exe_name = "iw6x.exe",
+				.valid_game_exes = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
-				}
+				},
+				.base_url = "https://cdn.brad.stream/ghosts_game_files"
 			}
 		},
 		{
@@ -35,12 +39,14 @@ namespace game_config
 				.install_property = "aw-install",
 				.ui_id = "s1x",
 				.exe_name = "s1x.exe",
+				.valid_game_exes = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"},
 					{"zm", "-zombies"},
 					{"sv", "-survival"}
-				}
+				},
+				.base_url = "https://cdn.brad.stream/aw_game_files"
 			}
 		},
 		{
@@ -50,10 +56,12 @@ namespace game_config
 				.install_property = "mwr-install",
 				.ui_id = "h1-mod",
 				.exe_name = "h1-mod.exe",
+				.valid_game_exes = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
-				}
+				},
+				.base_url = "https://cdn.brad.stream/mwr_game_files"
 			}
 		},
 		{
@@ -63,8 +71,11 @@ namespace game_config
 				.install_property = "iw-install",
 				.ui_id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
-				.mode_arguments = {}
-			}
+				.valid_game_exes = {"iw7_ship.exe.exe"},
+				.mode_arguments = {},
+				.base_url = "https://cdn.brad.stream/iw_game_files"
+			},
+			
 		},
 		{
 			"hmw",
@@ -73,8 +84,11 @@ namespace game_config
 				.install_property = "hmw-install",
 				.ui_id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
-				.mode_arguments = {}
-			}
+				.valid_game_exes = {"h1_mp64_ship.exe"},
+				.mode_arguments = {},
+				.base_url = "https://cdn.brad.stream/mwr_game_files"
+			},
+			
 		}
 	};
 
@@ -156,5 +170,26 @@ namespace game_config
 
 			return launch_args;
 		}
+	}
+
+	bool validate_game_path(const std::string& game, const std::filesystem::path& path)
+	{
+		const auto config = get_game_config(game);
+		if (!config)
+		{
+			return false;
+		}
+
+		// Check if any of the valid game executables exist
+		for (const auto& exe : config->valid_game_exes)
+		{
+			const auto exe_path = path / exe;
+			if (std::filesystem::exists(exe_path))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

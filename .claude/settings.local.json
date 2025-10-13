@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Read(//f/Repos/CBServers/h2m-updater/src/updater/**)"
     ],
     "deny": [],
     "ask": []
