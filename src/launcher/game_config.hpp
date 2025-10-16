@@ -11,8 +11,11 @@ namespace game_config
 	{
 		std::string display_name;
 		std::string install_property;
-		std::string ui_id;
+		std::string id;
 		std::string exe_name;
+		std::string update_manifest_url;
+		std::string update_folder_url;
+		std::vector<std::string> required_updater_files;
 		std::vector<std::string> valid_game_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
 		std::string base_url;

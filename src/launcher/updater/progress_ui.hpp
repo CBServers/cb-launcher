@@ -2,7 +2,7 @@
 
 #include <utils/com.hpp>
 
-namespace updater
+namespace launcher_updater
 {
 	class progress_ui
 	{

@@ -2,7 +2,7 @@
 
 #include "file_info.hpp"
 
-namespace updater
+namespace launcher_updater
 {
 	class progress_listener
 	{

@@ -4,7 +4,7 @@
 
 #include <utils/string.hpp>
 
-namespace updater
+namespace launcher_updater
 {
 	updater_ui::updater_ui() = default;
 	updater_ui::~updater_ui() = default;

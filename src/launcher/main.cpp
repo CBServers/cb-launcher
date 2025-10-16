@@ -1,6 +1,6 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
-#include "launcher-updater/updater.hpp"
+#include "updater/updater.hpp"
 
 #include <utils/com.hpp>
 #include <utils/flags.hpp>
@@ -148,6 +148,8 @@ namespace
 				return;
 			}
 
+			client_updater::run(game);
+
 			const auto game_directory = std::filesystem::path(game_install->data());
 			const auto game_exe = game_directory / config->exe_name;
 
@@ -287,12 +289,12 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
 		enable_dpi_awareness();
 
-#if defined(CI_BUILD) && !defined(DEBUG)
+#if !defined(DEBUG)
 		run_as_singleton();
 
 		if (!utils::flags::has_flag("noupdate"))
 		{
-			updater::run(path);
+			launcher_updater::run(path);
 		}
 #endif
 
@@ -303,7 +305,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
 		return 0;
 	}
-	catch (updater::update_cancelled&)
+	catch (launcher_updater::update_cancelled&)
 	{
 		return 0;
 	}

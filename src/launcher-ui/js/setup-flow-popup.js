@@ -124,11 +124,22 @@ class SetupFlowPopup {
             if (typeof window.executeCommand === 'function') {
                 const folder = await window.executeCommand('browse-folder');
                 if (folder) {
-                    // Save the installation path
-                    const installProperty = this.getInstallProperty(this.currentGame);
-                    await window.executeCommand('set-property', {
-                        [installProperty]: folder
+                    // Validate and save the installation path
+                    const pathValid = await window.executeCommand('set-game-path', {
+                        game: this.currentGame,
+                        path: folder
                     });
+
+                    if (!pathValid) {
+                        // Path validation failed - show error message
+                        if (typeof window.showMessageBox === 'function') {
+                            window.showMessageBox("Invalid Game Path",
+                                `The selected folder does not contain valid ${this.currentGameDisplayName} game files. Please select the correct game installation folder.`, ["OK"]);
+                        } else {
+                            alert(`The selected folder does not contain valid ${this.currentGameDisplayName} game files.`);
+                        }
+                        return; // Don't hide popup or trigger update
+                    }
 
                     // Hide popup and trigger page refresh
                     this.hide();

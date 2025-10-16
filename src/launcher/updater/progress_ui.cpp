@@ -3,7 +3,7 @@
 
 #include <utils/string.hpp>
 
-namespace updater
+namespace launcher_updater
 {
 	progress_ui::progress_ui()
 	{

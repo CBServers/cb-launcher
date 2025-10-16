@@ -1,6 +1,17 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
+namespace launcher_updater
+{
+	struct file_info
+	{
+		std::string name;
+		std::size_t size;
+		std::string hash;
+	};
+}
 
 namespace game_updater
 {
@@ -20,5 +31,15 @@ namespace game_updater
 		{
 			return (hash.empty() || files.empty());
 		}
+	};
+}
+
+namespace client_updater
+{
+	struct file_info
+	{
+		std::string name;
+		std::size_t size;
+		std::string hash;
 	};
 }

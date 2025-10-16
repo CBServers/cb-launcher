@@ -1,7 +1,7 @@
 #include <std_include.hpp>
 
 #include "updater.hpp"
-#include "file_updater.hpp"
+#include "game_updater.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
@@ -10,6 +10,7 @@
 #include <utils/concurrency.hpp>
 #include <utils/hash.hpp>
 #include <utils/string.hpp>
+#include <utils/properties.hpp>
 
 namespace game_updater
 {
@@ -153,19 +154,24 @@ namespace game_updater
 		}
 	}
 
-	file_updater::file_updater(std::filesystem::path install_path,
-		std::string base_url, bool force_update)
-		: install_path_(std::move(install_path))
-		, base_url_(std::move(base_url))
-		, force_update_(force_update)
+	game_updater::game_updater(const game_config::game_config_t& config, bool force_update)
 	{
+		const auto install_path_prop = utils::properties::load(config.install_property);
+		if (!install_path_prop || install_path_prop->empty())
+		{
+			throw std::runtime_error("Game install path not set for: " + config.id);
+		}
+
+		this->install_path = std::filesystem::path(install_path_prop->data());
+		this->base_url = config.base_url;
+		this->force_update = force_update;
 	}
 
-	void file_updater::run(bool& update_needed) const
+	void game_updater::run(bool& update_needed) const
 	{
 		printf("Checking for updates...\n"); // TODO: Replace with CEF GUI logging
 
-		const auto manifest = get_manifest(base_url_ + "/manifest.json");
+		const auto manifest = get_manifest(this->base_url + "/manifest.json");
 		if (manifest.empty())
 		{
 			update_needed = false;
@@ -173,7 +179,7 @@ namespace game_updater
 			return;
 		}
 
-		if (!this->force_update_ && !utils::flags::has_flag("verify"))
+		if (!this->force_update && !utils::flags::has_flag("verify"))
 		{
 			if (!this->needs_to_update(manifest.hash))
 			{
@@ -221,9 +227,9 @@ namespace game_updater
 		printf("Update complete!\n"); // TODO: Replace with CEF GUI logging
 	}
 
-	void file_updater::update_file(const file_info& file) const
+	void game_updater::update_file(const file_info& file) const
 	{
-		const auto url = base_url_ + "/" + file.name + "?" + file.hash;
+		const auto url = this->base_url + "/" + file.name + "?" + file.hash;
 		const auto out_file = this->get_drive_filename(file);
 
 		std::string empty{};
@@ -299,7 +305,7 @@ namespace game_updater
 	}
 
 
-	std::vector<file_info> file_updater::get_outdated_files(const std::vector<file_info>& files) const
+	std::vector<file_info> game_updater::get_outdated_files(const std::vector<file_info>& files) const
 	{
 		printf("Verifying files, please wait...\n"); // TODO: Replace with CEF GUI logging
 
@@ -379,7 +385,7 @@ namespace game_updater
 	}
 
 
-	bool file_updater::needs_to_update(const std::string& hash) const
+	bool game_updater::needs_to_update(const std::string& hash) const
 	{
 		const auto manifest_path = this->get_manifest_file_path();
 		if (utils::io::file_exists(manifest_path))
@@ -401,7 +407,7 @@ namespace game_updater
 	}
 
 
-	std::size_t file_updater::get_update_size(const std::vector<file_info>& outdated_files) const
+	std::size_t game_updater::get_update_size(const std::vector<file_info>& outdated_files) const
 	{
 		std::size_t total_size = 0;
 		for (const auto& file : outdated_files)
@@ -412,13 +418,13 @@ namespace game_updater
 		return total_size;
 	}
 
-	std::size_t file_updater::get_available_drive_space() const
+	std::size_t game_updater::get_available_drive_space() const
 	{
-		std::filesystem::space_info spaceInfo = std::filesystem::space(this->install_path_);
+		std::filesystem::space_info spaceInfo = std::filesystem::space(this->install_path);
 		return spaceInfo.available;
 	}
 
-	void file_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void game_updater::update_files(const std::vector<file_info>& outdated_files) const
 	{
 		printf("Found outdated files! Downloading/updating files...\n"); // TODO: Replace with CEF GUI logging
 
@@ -485,7 +491,7 @@ namespace game_updater
 		printf("Finished downloading/updating files\n"); // TODO: Replace with CEF GUI logging
 	}
 
-	bool file_updater::is_outdated_file(const file_info& file) const
+	bool game_updater::is_outdated_file(const file_info& file) const
 	{
 		printf("Verifying: %s\n", get_filename(file.name).data()); // TODO: Replace with CEF GUI logging
 		const auto drive_name = this->get_drive_filename(file);
@@ -503,14 +509,14 @@ namespace game_updater
 		return hash != file.hash;
 	}
 
-	std::string file_updater::get_drive_filename(const file_info& file) const
+	std::string game_updater::get_drive_filename(const file_info& file) const
 	{
-		return (this->install_path_ / file.name).string();
+		return (this->install_path / file.name).string();
 	}
 
-	std::string file_updater::get_manifest_file_path() const
+	std::string game_updater::get_manifest_file_path() const
 	{
-		return (this->install_path_ / "latest.manifest").string();
+		return (this->install_path / "latest.manifest").string();
 	}
 
 }

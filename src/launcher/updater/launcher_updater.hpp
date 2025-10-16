@@ -2,12 +2,12 @@
 
 #include "progress_listener.hpp"
 
-namespace updater
+namespace launcher_updater
 {
-	class file_updater
+	class launcher_updater
 	{
 	public:
-		file_updater(progress_listener& listener, std::filesystem::path base, std::filesystem::path process_file);
+		launcher_updater(progress_listener& listener, std::filesystem::path base, std::filesystem::path process_file);
 
 		void run() const;
 

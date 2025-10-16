@@ -2,7 +2,7 @@
 
 #include "updater.hpp"
 #include "updater_ui.hpp"
-#include "file_updater.hpp"
+#include "launcher_updater.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/http.hpp>
@@ -19,7 +19,7 @@
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "cb-launcher/"
 #define UPDATE_HOST_BINARY "cb-launcher.exe"
 
-namespace updater
+namespace launcher_updater
 {
 	namespace
 	{
@@ -129,7 +129,7 @@ namespace updater
 		}
 	}
 
-	file_updater::file_updater(progress_listener& listener, std::filesystem::path base,
+	launcher_updater::launcher_updater(progress_listener& listener, std::filesystem::path base,
 	                           std::filesystem::path process_file)
 		: listener_(listener)
 		  , base_(std::move(base))
@@ -140,7 +140,7 @@ namespace updater
 		this->delete_old_process_file();
 	}
 
-	void file_updater::run() const
+	void launcher_updater::run() const
 	{
 		const auto files = get_file_infos();
 		if (!files.empty())
@@ -160,7 +160,7 @@ namespace updater
 		std::this_thread::sleep_for(1s);
 	}
 
-	void file_updater::update_file(const file_info& file) const
+	void launcher_updater::update_file(const file_info& file) const
 	{
 		auto url = get_update_folder() + file.name + "?" + file.hash;
 		utils::logger::write("Updating file {}", url);
@@ -208,7 +208,7 @@ namespace updater
 		}
 	}
 
-	std::vector<file_info> file_updater::get_outdated_files(const std::vector<file_info>& files) const
+	std::vector<file_info> launcher_updater::get_outdated_files(const std::vector<file_info>& files) const
 	{
 		std::vector<file_info> outdated_files{};
 
@@ -223,7 +223,7 @@ namespace updater
 		return outdated_files;
 	}
 
-	void file_updater::update_host_binary(const std::vector<file_info>& outdated_files) const
+	void launcher_updater::update_host_binary(const std::vector<file_info>& outdated_files) const
 	{
 		const auto* host_file = find_host_file_info(outdated_files);
 		if (!host_file)
@@ -246,7 +246,7 @@ namespace updater
 		throw update_cancelled();
 	}
 
-	void file_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void launcher_updater::update_files(const std::vector<file_info>& outdated_files) const
 	{
 		this->listener_.update_files(outdated_files);
 
@@ -311,7 +311,7 @@ namespace updater
 		this->listener_.done_update();
 	}
 
-	bool file_updater::is_outdated_file(const file_info& file) const
+	bool launcher_updater::is_outdated_file(const file_info& file) const
 	{
 #if !defined(NDEBUG)
 		if (file.name == UPDATE_HOST_BINARY)
@@ -336,7 +336,7 @@ namespace updater
 		return hash != file.hash;
 	}
 
-	std::filesystem::path file_updater::get_drive_filename(const file_info& file) const
+	std::filesystem::path launcher_updater::get_drive_filename(const file_info& file) const
 	{
 		if (file.name == UPDATE_HOST_BINARY)
 		{
@@ -346,17 +346,17 @@ namespace updater
 		return this->base_ / "data" / file.name;
 	}
 
-	void file_updater::move_current_process_file() const
+	void launcher_updater::move_current_process_file() const
 	{
 		utils::io::move_file(this->process_file_, this->dead_process_file_);
 	}
 
-	void file_updater::restore_current_process_file() const
+	void launcher_updater::restore_current_process_file() const
 	{
 		utils::io::move_file(this->dead_process_file_, this->process_file_);
 	}
 
-	void file_updater::delete_old_process_file() const
+	void launcher_updater::delete_old_process_file() const
 	{
 		// Wait for other process to die
 		for (auto i = 0; i < 4; ++i)
@@ -371,7 +371,7 @@ namespace updater
 		}
 	}
 
-	void file_updater::cleanup_directories(const std::vector<file_info>& files) const
+	void launcher_updater::cleanup_directories(const std::vector<file_info>& files) const
 	{
 		if (!utils::io::directory_exists(this->base_))
 		{
@@ -382,13 +382,13 @@ namespace updater
 		this->cleanup_data_directory(files);
 	}
 
-	void file_updater::cleanup_root_directory() const
+	void launcher_updater::cleanup_root_directory() const
 	{
 		const auto existing_files = utils::io::list_files(this->base_);
 		for (const auto& file : existing_files)
 		{
 			const auto entry = std::filesystem::relative(file, this->base_);
-			if ((entry.string() == "user" || entry.string() == "data") && utils::io::directory_exists(file))
+			if ((entry.string() == "user" || entry.string() == "data") && utils::io::directory_exists(file) || file.ends_with(".key"))
 			{
 				continue;
 			}
@@ -398,7 +398,7 @@ namespace updater
 		}
 	}
 
-	void file_updater::cleanup_data_directory(const std::vector<file_info>& files) const
+	void launcher_updater::cleanup_data_directory(const std::vector<file_info>& files) const
 	{
 		const auto base = std::filesystem::path(this->base_) / "data";
 		if (!utils::io::directory_exists(base.string()))

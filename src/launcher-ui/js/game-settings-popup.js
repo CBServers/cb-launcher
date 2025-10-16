@@ -229,12 +229,27 @@ class GameSettingsPopup {
 
         if (typeof window.executeCommand === 'function') {
             try {
-                const properties = {};
-
-                // Save installation path
+                // Validate and save installation path if provided
                 if (installPath) {
-                    properties[this.gameConfig.installProperty] = installPath;
+                    const pathValid = await window.executeCommand('set-game-path', {
+                        game: this.currentGame,
+                        path: installPath
+                    });
+
+                    if (!pathValid) {
+                        // Path validation failed - show error message
+                        if (typeof window.showMessageBox === 'function') {
+                            window.showMessageBox("Invalid Game Path",
+                                `The selected folder does not contain valid ${this.gameConfig.displayName} game files. Please select the correct game installation folder.`, ["OK"]);
+                        } else {
+                            alert(`The selected folder does not contain valid ${this.gameConfig.displayName} game files.`);
+                        }
+                        return; // Don't save anything if path is invalid
+                    }
                 }
+
+                // Save other properties using set-property
+                const properties = {};
 
                 if (this.currentGame === 'bo3') {
                     // Save BO3 cinematic setting

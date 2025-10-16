@@ -3,13 +3,14 @@
 #include "file_info.hpp"
 #include <string>
 #include <filesystem>
+#include <game_config.hpp>
 
 namespace game_updater
 {
-	class file_updater
+	class game_updater
 	{
 	public:
-		file_updater(std::filesystem::path install_path, std::string base_url, bool force_update);
+		game_updater(const game_config::game_config_t& config, bool force_update);
 
 		void run(bool& update_needed) const;
 
@@ -19,9 +20,9 @@ namespace game_updater
 		bool needs_to_update(const std::string& hash) const;
 
 	private:
-		std::filesystem::path install_path_;
-		std::string base_url_; // Base URL for downloading files (derived from manifest URL)
-		bool force_update_;
+		std::filesystem::path install_path;
+		std::string base_url;
+		bool force_update;
 
 		void update_file(const file_info& file) const;
 

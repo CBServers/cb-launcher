@@ -1,6 +1,10 @@
 #include "std_include.hpp"
 #include "game_config.hpp"
 #include <utils/properties.hpp>
+#include <utils/io.hpp>
+
+#define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
+#define GAME_UPDATE_SERVER "https://cdn.brad.stream/"
 
 namespace game_config
 {
@@ -10,11 +14,14 @@ namespace game_config
 			{
 				.display_name = "Black Ops 3",
 				.install_property = "bo3-install",
-				.ui_id = "boiii",
+				.id = "boiii",
 				.exe_name = "boiii.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
+				.required_updater_files = {"boiii.exe"},
 				.valid_game_exes = {"BlackOps3.exe"},
 				.mode_arguments = {},
-				.base_url = "https://cdn.brad.stream/bo3_game_files"
+				.base_url = GAME_UPDATE_SERVER "bo3_game_files"
 			}
 		},
 		{
@@ -22,14 +29,17 @@ namespace game_config
 			{
 				.display_name = "Ghosts",
 				.install_property = "ghosts-install",
-				.ui_id = "iw6x",
+				.id = "iw6x",
 				.exe_name = "iw6x.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
+				.required_updater_files = {"iw6x.exe"},
 				.valid_game_exes = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = "https://cdn.brad.stream/ghosts_game_files"
+				.base_url = GAME_UPDATE_SERVER "ghosts_game_files"
 			}
 		},
 		{
@@ -37,8 +47,11 @@ namespace game_config
 			{
 				.display_name = "Advanced Warfare",
 				.install_property = "aw-install",
-				.ui_id = "s1x",
+				.id = "s1x",
 				.exe_name = "s1x.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
+				.required_updater_files = {"s1x.exe"},
 				.valid_game_exes = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
@@ -46,7 +59,7 @@ namespace game_config
 					{"zm", "-zombies"},
 					{"sv", "-survival"}
 				},
-				.base_url = "https://cdn.brad.stream/aw_game_files"
+				.base_url = GAME_UPDATE_SERVER "aw_game_files"
 			}
 		},
 		{
@@ -54,14 +67,17 @@ namespace game_config
 			{
 				.display_name = "Modern Warfare Remastered",
 				.install_property = "mwr-install",
-				.ui_id = "h1-mod",
+				.id = "h1-mod",
 				.exe_name = "h1-mod.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
+				.required_updater_files = {"h1-mod.exe"},
 				.valid_game_exes = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = "https://cdn.brad.stream/mwr_game_files"
+				.base_url = "mwr_game_files"
 			}
 		},
 		{
@@ -69,11 +85,14 @@ namespace game_config
 			{
 				.display_name = "Infinite Warfare",
 				.install_property = "iw-install",
-				.ui_id = "iw7-mod",
+				.id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
-				.valid_game_exes = {"iw7_ship.exe.exe"},
+				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
+				.required_updater_files = {"iw7-mod.exe"},
+				.valid_game_exes = {"iw7_ship.exe"},
 				.mode_arguments = {},
-				.base_url = "https://cdn.brad.stream/iw_game_files"
+				.base_url = GAME_UPDATE_SERVER "iw_game_files"
 			},
 			
 		},
@@ -82,11 +101,14 @@ namespace game_config
 			{
 				.display_name = "HorizonMW",
 				.install_property = "hmw-install",
-				.ui_id = "hmw-mod",
+				.id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+				.required_updater_files = {"hmw-mod.exe", "d3d11.dll"},
 				.valid_game_exes = {"h1_mp64_ship.exe"},
 				.mode_arguments = {},
-				.base_url = "https://cdn.brad.stream/mwr_game_files"
+				.base_url = GAME_UPDATE_SERVER "mwr_game_files"
 			},
 			
 		}
@@ -184,7 +206,7 @@ namespace game_config
 		for (const auto& exe : config->valid_game_exes)
 		{
 			const auto exe_path = path / exe;
-			if (std::filesystem::exists(exe_path))
+			if (utils::io::file_exists(exe_path.string()))
 			{
 				return true;
 			}

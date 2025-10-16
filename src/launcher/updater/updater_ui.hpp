@@ -5,7 +5,7 @@
 
 #include <utils/concurrency.hpp>
 
-namespace updater
+namespace launcher_updater
 {
 	class updater_ui : public progress_listener
 	{

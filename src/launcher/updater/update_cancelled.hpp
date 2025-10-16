@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace updater
+namespace launcher_updater
 {
 	class update_cancelled : public std::runtime_error
 	{
