@@ -1,6 +1,7 @@
 #pragma once
 
 #include "update_cancelled.hpp"
+#include <game_config.hpp>
 
 namespace launcher_updater
 {
@@ -9,10 +10,10 @@ namespace launcher_updater
 
 namespace game_updater
 {
-	void run(const std::string& game, bool force_update = false);
+	void run(const game_config::game_config_t& config, bool force_update = false);
 }
 
 namespace client_updater
 {
-	void run(const std::string& game);
+	void run(const game_config::game_config_t& config);
 }

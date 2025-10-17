@@ -148,7 +148,7 @@ namespace
 				return;
 			}
 
-			client_updater::run(game);
+			client_updater::run(*config);
 
 			const auto game_directory = std::filesystem::path(game_install->data());
 			const auto game_exe = game_directory / config->exe_name;
@@ -159,6 +159,31 @@ namespace
 				cef_ui.close_browser();
 			}
 		});
+
+		cef_ui.add_command("verify-game", [&cef_ui](const rapidjson::Value& value, auto&)
+			{
+				if (!value.IsObject() || !value.HasMember("game"))
+				{
+					return;
+				}
+
+				const auto game = std::string{ value["game"].GetString() };
+
+				// Get game configuration
+				const auto config = game_config::get_game_config(game);
+				if (!config)
+				{
+					return; // Invalid game
+				}
+
+				if (!try_lock_termination_barrier())
+				{
+					return;
+				}
+
+				game_updater::run(*config);
+				client_updater::run(*config);
+			});
 
 		cef_ui.add_command("browse-folder", [](const auto&, rapidjson::Document& response)
 		{

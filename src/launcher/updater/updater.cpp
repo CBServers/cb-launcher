@@ -5,7 +5,6 @@
 #include "launcher_updater.hpp"
 #include "game_updater.hpp"
 #include "client_updater.hpp"
-#include <game_config.hpp>
 
 #include <version.hpp>
 
@@ -31,17 +30,9 @@ namespace game_updater
 {
 	bool update_needed = false;
 
-	void run(const std::string& game, bool force_update)
+	void run(const game_config::game_config_t& config, bool force_update)
 	{
-		// Get game config to retrieve base URL
-		const auto config = game_config::get_game_config(game);
-		if (!config)
-		{
-			throw std::runtime_error("Invalid game: " + game);
-		}
-
-		const game_updater game_updater{ *config, force_update };
-
+		const game_updater game_updater{config, force_update};
 		game_updater.run(update_needed);
 	}
 
@@ -53,19 +44,9 @@ namespace game_updater
 
 namespace client_updater
 {
-	bool update_needed = false;
-
-	void run(const std::string& game)
+	void run(const game_config::game_config_t& config)
 	{
-		// Get game config to retrieve base URL
-		const auto config = game_config::get_game_config(game);
-		if (!config)
-		{
-			throw std::runtime_error("Invalid game: " + game);
-		}
-
-		const client_updater client_updater{ *config };
-
+		const client_updater client_updater{config};
 		client_updater.run();
 	}
 }
