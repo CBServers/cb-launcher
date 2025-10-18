@@ -1,6 +1,8 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
 #include "updater/updater.hpp"
+#include "updater/progress_tracker.hpp"
+#include "updater/ui_progress_listener.hpp"
 
 #include <utils/com.hpp>
 #include <utils/flags.hpp>
@@ -143,11 +145,6 @@ namespace
 				return;
 			}
 
-			if (!try_lock_termination_barrier())
-			{
-				return;
-			}
-
 			client_updater::run(*config);
 
 			const auto game_directory = std::filesystem::path(game_install->data());
@@ -155,6 +152,11 @@ namespace
 
 			if (utils::io::file_exists(game_exe.string()))
 			{
+				if (!try_lock_termination_barrier())
+				{
+					return;
+				}
+
 				utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
 				cef_ui.close_browser();
 			}
@@ -162,27 +164,63 @@ namespace
 
 		cef_ui.add_command("verify-game", [&cef_ui](const rapidjson::Value& value, auto&)
 			{
+				printf("[DEBUG] verify-game command called\n");
+
 				if (!value.IsObject() || !value.HasMember("game"))
 				{
+					printf("[DEBUG] Invalid request - missing game parameter\n");
 					return;
 				}
 
 				const auto game = std::string{ value["game"].GetString() };
+				printf("[DEBUG] Verifying game: %s\n", game.c_str());
 
 				// Get game configuration
 				const auto config = game_config::get_game_config(game);
 				if (!config)
 				{
+					printf("[DEBUG] Invalid game config for: %s\n", game.c_str());
 					return; // Invalid game
 				}
 
-				if (!try_lock_termination_barrier())
-				{
-					return;
-				}
+				printf("[DEBUG] Starting verification thread\n");
 
-				game_updater::run(*config);
-				client_updater::run(*config);
+				// Run verification in a separate thread with progress tracking
+				std::thread([config]()
+				{
+					try
+					{
+						printf("[DEBUG] Creating progress listener\n");
+						updater::ui_progress_listener progress_listener;
+
+						// Enable verification mode for game file verification
+						progress_listener.set_verification_mode(true);
+
+						printf("[DEBUG] Running game_updater\n");
+						game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
+
+						// Re-enable verification mode for client file verification
+						// (game_updater may have disabled it if downloads occurred)
+						progress_listener.set_verification_mode(true);
+
+						printf("[DEBUG] Running client_updater\n");
+						client_updater::run(*config, &progress_listener);
+						printf("[DEBUG] Verification complete\n");
+					}
+					catch (const std::exception& e)
+					{
+						// Log error but don't crash
+						printf("Verification error: %s\n", e.what());
+						updater::progress_tracker::instance().cancel_update();
+					}
+					catch (...)
+					{
+						printf("Unknown verification error\n");
+						updater::progress_tracker::instance().cancel_update();
+					}
+				}).detach();
+
+				printf("[DEBUG] Verification thread started\n");
 			});
 
 		cef_ui.add_command("browse-folder", [](const auto&, rapidjson::Document& response)
@@ -286,6 +324,67 @@ namespace
 			utils::properties::store(config->install_property, path.string());
 			response.SetBool(true); // Success
 		});
+
+		cef_ui.add_command("get-update-progress", [](const auto&, rapidjson::Document& response)
+		{
+			const auto state = updater::progress_tracker::instance().get_progress();
+
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			response.AddMember("active", state.is_active, allocator);
+			response.AddMember("progress", state.progress_percent, allocator);
+
+			rapidjson::Value message_value;
+			message_value.SetString(state.status_message.c_str(), static_cast<rapidjson::SizeType>(state.status_message.length()), allocator);
+			response.AddMember("message", message_value, allocator);
+
+			rapidjson::Value file_value;
+			file_value.SetString(state.current_file.c_str(), static_cast<rapidjson::SizeType>(state.current_file.length()), allocator);
+			response.AddMember("currentFile", file_value, allocator);
+
+			response.AddMember("totalFiles", state.total_files, allocator);
+			response.AddMember("completedFiles", state.completed_files, allocator);
+			response.AddMember("totalBytes", state.total_bytes, allocator);
+			response.AddMember("downloadedBytes", state.downloaded_bytes, allocator);
+		});
+
+		cef_ui.add_command("get-game-download-info", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+			const auto path = std::filesystem::path{ value["path"].GetString() };
+
+			// Get game config
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return;
+			}
+
+			const auto game_size = game_updater::get_game_size(*config);
+
+			std::filesystem::space_info spaceInfo = std::filesystem::space(path);
+			const auto available_space = spaceInfo.available;
+
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+			response.AddMember("game_size", game_size, allocator);
+			response.AddMember("available_space", available_space, allocator);
+		});
+
+		cef_ui.add_command("cancel-update", [](const auto&, rapidjson::Document& response)
+		{
+			response.SetBool(false); // Default to failure
+
+			updater::progress_tracker::instance().cancel_update();
+			response.SetBool(true);
+
+		});
 	}
 
 	void show_window(const utils::nt::library& process, const std::filesystem::path& path)
@@ -317,11 +416,18 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 #if !defined(DEBUG)
 		run_as_singleton();
 
-		if (!utils::flags::has_flag("noupdate"))
+		/*if (!utils::flags::has_flag("noupdate"))
 		{
 			launcher_updater::run(path);
-		}
+		}*/
 #endif
+
+		// TEMPORARY: Enable console for debugging
+		AllocConsole();
+		FILE* fp;
+		freopen_s(&fp, "CONOUT$", "w", stdout);
+		freopen_s(&fp, "CONOUT$", "w", stderr);
+		printf("Debug console enabled\n");
 
 		if (!is_dedi())
 		{

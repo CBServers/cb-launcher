@@ -30,10 +30,16 @@ namespace game_updater
 {
 	bool update_needed = false;
 
-	void run(const game_config::game_config_t& config, bool force_update)
+	void run(const game_config::game_config_t& config, bool force_update, updater::progress_listener* listener)
 	{
-		const game_updater game_updater{config, force_update};
+		const game_updater game_updater{config, force_update, listener};
 		game_updater.run(update_needed);
+	}
+
+	size_t get_game_size(const game_config::game_config_t& config)
+	{
+		const game_updater game_updater{config};
+		return game_updater.get_game_size();
 	}
 
 	bool is_update_needed()
@@ -44,9 +50,9 @@ namespace game_updater
 
 namespace client_updater
 {
-	void run(const game_config::game_config_t& config)
+	void run(const game_config::game_config_t& config, updater::progress_listener* listener)
 	{
-		const client_updater client_updater{config};
+		const client_updater client_updater{config, listener};
 		client_updater.run();
 	}
 }

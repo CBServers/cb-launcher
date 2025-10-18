@@ -9,7 +9,7 @@ namespace launcher_updater
 	updater_ui::updater_ui() = default;
 	updater_ui::~updater_ui() = default;
 
-	void updater_ui::update_files(const std::vector<file_info>& files)
+	void updater_ui::update_files(const std::vector<updater::file_info>& files)
 	{
 		this->handle_cancellation();
 
@@ -35,7 +35,7 @@ namespace launcher_updater
 		this->downloading_files_.clear();
 	}
 
-	void updater_ui::begin_file(const file_info& file)
+	void updater_ui::begin_file(const updater::file_info& file)
 	{
 		this->handle_cancellation();
 
@@ -45,7 +45,7 @@ namespace launcher_updater
 		this->update_file_name();
 	}
 
-	void updater_ui::end_file(const file_info& file)
+	void updater_ui::end_file(const updater::file_info& file)
 	{
 		std::lock_guard<std::recursive_mutex> _{this->mutex_};
 
@@ -64,7 +64,7 @@ namespace launcher_updater
 		this->update_file_name();
 	}
 
-	void updater_ui::file_progress(const file_info& file, const size_t progress)
+	void updater_ui::file_progress(const updater::file_info& file, const size_t progress)
 	{
 		this->handle_cancellation();
 

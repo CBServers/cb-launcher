@@ -11,28 +11,20 @@ namespace utils::http
 	{
 		struct progress_helper
 		{
-			const std::function<void(size_t, size_t, size_t)>* callback{};
+			const std::function<bool(size_t, size_t, size_t)>* callback{};
 			std::exception_ptr exception{};
 			std::chrono::high_resolution_clock::time_point start{};
 		};
 
 		struct stream_helper
 		{
-			const std::function<void(const char*, size_t)>* callback{};
+			const std::function<bool(const char*, size_t)>* callback{};
 			std::exception_ptr exception{};
 		};
 
 		int progress_callback(void* clientp, const curl_off_t dltotal, const curl_off_t dlnow, const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
 		{
 			auto* helper = static_cast<progress_helper*>(clientp);
-
-			// Check for cancellation first - this is critical for proper curl abort
-			/*		
-			if (gui::is_update_cancelled())
-			{
-				return 1; // Non-zero return value aborts the transfer
-			}
-			*/
 
 			try
 			{
@@ -43,7 +35,11 @@ namespace utils::http
 
 				if (*helper->callback)
 				{
-					(*helper->callback)(dlnow, dltotal, speed);
+					// Callback returns false to abort
+					if (!(*helper->callback)(dlnow, dltotal, speed))
+					{
+						return 1; // Abort transfer
+					}
 				}
 			}
 			catch (...)
@@ -57,14 +53,6 @@ namespace utils::http
 
 		size_t write_callback(void* contents, const size_t size, const size_t nmemb, void* userp)
 		{
-			// Check for cancellation - returning 0 will abort the transfer
-			/*
-			if (gui::is_update_cancelled())
-			{
-				return 0;
-			}
-			*/
-
 			auto* buffer = static_cast<std::string*>(userp);
 
 			const auto total_size = size * nmemb;
@@ -74,14 +62,6 @@ namespace utils::http
 
 		size_t write_callback_stream(void* contents, const size_t size, const size_t nmemb, void* userp)
 		{
-			// Check for cancellation - returning 0 will abort the transfer
-			/*
-			if (gui::is_update_cancelled())
-			{
-				return 0;
-			}
-			*/
-			
 			const auto total_size = size * nmemb;
 			auto* write_helper = static_cast<stream_helper*>(userp);
 
@@ -89,12 +69,17 @@ namespace utils::http
 			{
 				if (*write_helper->callback)
 				{
-					(*write_helper->callback)(static_cast<char*>(contents), total_size);
+					// Callback returns false to abort
+					if (!(*write_helper->callback)(static_cast<char*>(contents), total_size))
+					{
+						return 0; // Abort transfer
+					}
 				}
 			}
 			catch (...)
 			{
 				write_helper->exception = std::current_exception();
+				return 0; // Abort on exception
 			}
 
 			return total_size;
@@ -102,7 +87,7 @@ namespace utils::http
 	}
 
 	std::optional<result> get_data(const std::string& url, const std::string& fields,
-		const headers& headers, const std::function<void(size_t, size_t, size_t)>& callback, int timeout, uint32_t retries)
+		const headers& headers, const std::function<bool(size_t, size_t, size_t)>& callback, int timeout, uint32_t retries)
 	{
 		curl_slist* header_list = nullptr;
 		auto* curl = curl_easy_init();
@@ -151,7 +136,7 @@ namespace utils::http
 			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
 			// Check if operation was cancelled
-			if (code == CURLE_ABORTED_BY_CALLBACK /*&& gui::is_update_cancelled()*/)
+			if (code == CURLE_ABORTED_BY_CALLBACK)
 			{
 				result result;
 				result.code = code;
@@ -188,8 +173,8 @@ namespace utils::http
 	}
 
 	std::optional<result> get_data_stream(const std::string& url, const headers& headers,
-		const std::string& fields, const std::function<void(size_t, size_t, size_t)>& progress_callback_,
-		const std::function<void(const char*, size_t)>& stream_callback, int timeout, uint32_t retries)
+		const std::string& fields, const std::function<bool(size_t, size_t, size_t)>& progress_callback_,
+		const std::function<bool(const char*, size_t)>& stream_callback, int timeout, uint32_t retries)
 	{
 		curl_slist* header_list = nullptr;
 		auto* curl = curl_easy_init();

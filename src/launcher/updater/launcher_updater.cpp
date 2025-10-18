@@ -33,7 +33,7 @@ namespace launcher_updater
 			return UPDATE_FOLDER_MAIN;
 		}
 
-		std::vector<file_info> parse_file_infos(const std::string& json)
+		std::vector<updater::file_info> parse_file_infos(const std::string& json)
 		{
 			rapidjson::Document doc{};
 			doc.Parse(json.data(), json.size());
@@ -43,7 +43,7 @@ namespace launcher_updater
 				return {};
 			}
 
-			std::vector<file_info> files{};
+			std::vector<updater::file_info> files{};
 
 			for (const auto& element : doc.GetArray())
 			{
@@ -54,7 +54,7 @@ namespace launcher_updater
 
 				auto array = element.GetArray();
 
-				file_info info{};
+				updater::file_info info{};
 				info.name.assign(array[0].GetString(), array[0].GetStringLength());
 				info.size = array[1].GetInt64();
 				info.hash.assign(array[2].GetString(), array[2].GetStringLength());
@@ -72,7 +72,7 @@ namespace launcher_updater
 					std::chrono::system_clock::now().time_since_epoch()).count());
 		}
 
-		std::vector<file_info> get_file_infos()
+		std::vector<updater::file_info> get_file_infos()
 		{
 			const auto json = utils::http::get_data(get_update_file() + get_cache_buster());
 			if (!json || !json.has_value())
@@ -101,7 +101,7 @@ namespace launcher_updater
 			return utils::cryptography::sha1::compute(data, true);
 		}
 
-		const file_info* find_host_file_info(const std::vector<file_info>& outdated_files)
+		const updater::file_info* find_host_file_info(const std::vector<updater::file_info>& outdated_files)
 		{
 			for (const auto& file : outdated_files)
 			{
@@ -129,7 +129,7 @@ namespace launcher_updater
 		}
 	}
 
-	launcher_updater::launcher_updater(progress_listener& listener, std::filesystem::path base,
+	launcher_updater::launcher_updater(updater::progress_listener& listener, std::filesystem::path base,
 	                           std::filesystem::path process_file)
 		: listener_(listener)
 		  , base_(std::move(base))
@@ -160,14 +160,15 @@ namespace launcher_updater
 		std::this_thread::sleep_for(1s);
 	}
 
-	void launcher_updater::update_file(const file_info& file) const
+	void launcher_updater::update_file(const updater::file_info& file) const
 	{
 		auto url = get_update_folder() + file.name + "?" + file.hash;
 		utils::logger::write("Updating file {}", url);
 
-		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed)
+		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
 		{
 			this->listener_.file_progress(file, progress);
+			return true;
 		});
 
 		if (!data || !data.has_value())
@@ -208,9 +209,9 @@ namespace launcher_updater
 		}
 	}
 
-	std::vector<file_info> launcher_updater::get_outdated_files(const std::vector<file_info>& files) const
+	std::vector<updater::file_info> launcher_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
 	{
-		std::vector<file_info> outdated_files{};
+		std::vector<updater::file_info> outdated_files{};
 
 		for (const auto& info : files)
 		{
@@ -223,7 +224,7 @@ namespace launcher_updater
 		return outdated_files;
 	}
 
-	void launcher_updater::update_host_binary(const std::vector<file_info>& outdated_files) const
+	void launcher_updater::update_host_binary(const std::vector<updater::file_info>& outdated_files) const
 	{
 		const auto* host_file = find_host_file_info(outdated_files);
 		if (!host_file)
@@ -246,7 +247,7 @@ namespace launcher_updater
 		throw update_cancelled();
 	}
 
-	void launcher_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void launcher_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
 	{
 		this->listener_.update_files(outdated_files);
 
@@ -311,7 +312,7 @@ namespace launcher_updater
 		this->listener_.done_update();
 	}
 
-	bool launcher_updater::is_outdated_file(const file_info& file) const
+	bool launcher_updater::is_outdated_file(const updater::file_info& file) const
 	{
 #if !defined(NDEBUG)
 		if (file.name == UPDATE_HOST_BINARY)
@@ -336,7 +337,7 @@ namespace launcher_updater
 		return hash != file.hash;
 	}
 
-	std::filesystem::path launcher_updater::get_drive_filename(const file_info& file) const
+	std::filesystem::path launcher_updater::get_drive_filename(const updater::file_info& file) const
 	{
 		if (file.name == UPDATE_HOST_BINARY)
 		{
@@ -371,7 +372,7 @@ namespace launcher_updater
 		}
 	}
 
-	void launcher_updater::cleanup_directories(const std::vector<file_info>& files) const
+	void launcher_updater::cleanup_directories(const std::vector<updater::file_info>& files) const
 	{
 		if (!utils::io::directory_exists(this->base_))
 		{
@@ -398,7 +399,7 @@ namespace launcher_updater
 		}
 	}
 
-	void launcher_updater::cleanup_data_directory(const std::vector<file_info>& files) const
+	void launcher_updater::cleanup_data_directory(const std::vector<updater::file_info>& files) const
 	{
 		const auto base = std::filesystem::path(this->base_) / "data";
 		if (!utils::io::directory_exists(base.string()))

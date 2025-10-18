@@ -17,7 +17,7 @@ namespace client_updater
 {
 	namespace
 	{
-		std::vector<file_info> parse_file_infos(const std::string& json)
+		std::vector<updater::file_info> parse_file_infos(const std::string& json)
 		{
 			rapidjson::Document doc{};
 			doc.Parse(json.data(), json.size());
@@ -27,7 +27,7 @@ namespace client_updater
 				return {};
 			}
 
-			std::vector<file_info> files{};
+			std::vector<updater::file_info> files{};
 
 			for (const auto& element : doc.GetArray())
 			{
@@ -38,7 +38,7 @@ namespace client_updater
 
 				auto array = element.GetArray();
 
-				file_info info{};
+				updater::file_info info{};
 				info.name.assign(array[0].GetString(), array[0].GetStringLength());
 				info.size = array[1].GetInt64();
 				info.hash.assign(array[2].GetString(), array[2].GetStringLength());
@@ -56,7 +56,7 @@ namespace client_updater
 					std::chrono::system_clock::now().time_since_epoch()).count());
 		}
 
-		std::vector<file_info> get_file_infos(const std::string& manifest_url)
+		std::vector<updater::file_info> get_file_infos(const std::string& manifest_url)
 		{
 			const auto json = utils::http::get_data(manifest_url + get_cache_buster());
 			if (!json || !json.has_value())
@@ -85,10 +85,10 @@ namespace client_updater
 			return utils::cryptography::sha1::compute(data, true);
 		}
 
-		std::vector<file_info> find_file_infos(const std::vector<std::string>& file_names, const std::vector<file_info>& files)
+		std::vector<updater::file_info> find_file_infos(const std::vector<std::string>& file_names, const std::vector<updater::file_info>& files)
 		{
 			std::unordered_set<std::string> name_set(file_names.begin(), file_names.end());
-			std::vector<file_info> file_infos{};
+			std::vector<updater::file_info> file_infos{};
 			file_infos.reserve(file_names.size());
 
 			for (const auto& file : files)
@@ -117,7 +117,8 @@ namespace client_updater
 		}
 	}
 
-	client_updater::client_updater(const game_config::game_config_t& config)
+	client_updater::client_updater(const game_config::game_config_t& config, updater::progress_listener* listener)
+		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
 		if (!install_path_prop || install_path_prop->empty())
@@ -145,25 +146,61 @@ namespace client_updater
 			return;
 		}
 
+		// Initialize progress tracking for verification phase (if listener is in verification mode)
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->update_files(valid_files);
+		}
+
 		const auto outdated_files = this->get_outdated_files(valid_files);
 		if (outdated_files.empty())
 		{
+			// Verification complete, all client files up to date
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->done_update();
+			}
 			return;
+		}
+
+		// Disable verification mode and switch to byte-based download progress
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->set_verification_mode(false);
+			this->progress_listener_->update_files(outdated_files);
 		}
 
 		this->update_files(outdated_files);
 
+		// Notify completion
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->done_update();
+		}
+
 		std::this_thread::sleep_for(1s);
 	}
 
-	void client_updater::update_file(const file_info& file) const
+	void client_updater::update_file(const updater::file_info& file) const
 	{
 		auto url = this->update_folder_url + file.name + "?" + file.hash;
 		utils::logger::write("Updating file {}", url);
 
-		const auto data = utils::http::get_data(url, {}, {}, [&]([[maybe_unused]]  size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed)
+		// Notify progress listener that file download is beginning
+		if (this->progress_listener_)
 		{
-			
+			this->progress_listener_->begin_file(file);
+		}
+
+		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
+		{
+			// Notify progress listener of download progress
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->file_progress(file, progress);
+			}
+
+			return !is_update_cancelled(); // Continue unless cancelled
 		});
 
 		if (!data || !data.has_value())
@@ -193,6 +230,12 @@ namespace client_updater
 			}
 
 			utils::logger::write("Done updating file {}", file.name);
+
+			// Notify progress listener that file is complete
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->end_file(file);
+			}
 		}
 		catch (const std::exception& e)
 		{
@@ -204,22 +247,34 @@ namespace client_updater
 		}
 	}
 
-	std::vector<file_info> client_updater::get_outdated_files(const std::vector<file_info>& files) const
+	std::vector<updater::file_info> client_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
 	{
-		std::vector<file_info> outdated_files{};
+		std::vector<updater::file_info> outdated_files{};
 
 		for (const auto& info : files)
 		{
+			// Report that we're starting to verify this file
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->begin_file(info);
+			}
+
 			if (this->is_outdated_file(info))
 			{
 				outdated_files.emplace_back(info);
+			}
+
+			// Report that we've finished verifying this file
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->end_file(info);
 			}
 		}
 
 		return outdated_files;
 	}
 
-	void client_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void client_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
 	{
 		const auto thread_count = get_optimal_concurrent_download_count(outdated_files.size());
 
@@ -278,7 +333,7 @@ namespace client_updater
 		});
 	}
 
-	bool client_updater::is_outdated_file(const file_info& file) const
+	bool client_updater::is_outdated_file(const updater::file_info& file) const
 	{
 		std::string data{};
 		const auto drive_name = this->get_drive_filename(file);
@@ -296,8 +351,13 @@ namespace client_updater
 		return hash != file.hash;
 	}
 
-	std::filesystem::path client_updater::get_drive_filename(const file_info& file) const
+	std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
 	{
 		return this->install_path / file.name;
+	}
+
+	bool client_updater::is_update_cancelled() const
+	{
+		return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
 	}
 }

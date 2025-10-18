@@ -3,8 +3,9 @@
 #include <string>
 #include <vector>
 
-namespace launcher_updater
+namespace updater
 {
+	// Common file_info used by all updaters
 	struct file_info
 	{
 		std::string name;
@@ -15,31 +16,14 @@ namespace launcher_updater
 
 namespace game_updater
 {
-	struct file_info
-	{
-		std::string name;
-		std::size_t size;
-		std::string hash;
-	};
-
 	struct update_manifest
 	{
 		std::string hash;
-		std::vector<file_info> files;
+		std::vector<updater::file_info> files;
 
 		bool empty() const
 		{
 			return (hash.empty() || files.empty());
 		}
-	};
-}
-
-namespace client_updater
-{
-	struct file_info
-	{
-		std::string name;
-		std::size_t size;
-		std::string hash;
 	};
 }

@@ -26,7 +26,7 @@ namespace game_updater
 		void throw_error(const std::string error, bool terminate = false)
 		{
 			std::string error_string = error + "\n";
-			printf("%s", error_string.c_str()); // TODO: Replace with CEF GUI logging
+			printf("%s", error_string.data());
 			error_occurred = true;
 
 			if (terminate)
@@ -35,7 +35,7 @@ namespace game_updater
 			}
 		}
 
-		std::vector<file_info> parse_file_infos(const std::string& json)
+		std::vector<updater::file_info> parse_file_infos(const std::string& json)
 		{
 			rapidjson::Document doc{};
 			doc.Parse(json.data(), json.size());
@@ -45,7 +45,7 @@ namespace game_updater
 				return {};
 			}
 
-			std::vector<file_info> files{};
+			std::vector<updater::file_info> files{};
 
 			for (const auto& element : doc.GetArray())
 			{
@@ -56,7 +56,7 @@ namespace game_updater
 
 				auto array = element.GetArray();
 
-				file_info info{};
+				updater::file_info info{};
 				info.name.assign(array[0].GetString(), array[0].GetStringLength());
 				info.size = array[1].GetInt64();
 				info.hash.assign(array[2].GetString(), array[2].GetStringLength());
@@ -94,7 +94,7 @@ namespace game_updater
 				for (rapidjson::SizeType i = 0; i < filesArray.Size(); ++i)
 				{
 					const rapidjson::Value& fileEntry = filesArray[i];
-					file_info info;
+					updater::file_info info;
 					info.name = fileEntry[0].GetString();
 					info.size = fileEntry[1].GetUint64();
 					info.hash = fileEntry[2].GetString();
@@ -154,14 +154,10 @@ namespace game_updater
 		}
 	}
 
-	game_updater::game_updater(const game_config::game_config_t& config, bool force_update)
+	game_updater::game_updater(const game_config::game_config_t& config, bool force_update, updater::progress_listener* listener)
+		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
-		if (!install_path_prop || install_path_prop->empty())
-		{
-			throw std::runtime_error("Game install path not set for: " + config.id);
-		}
-
 		this->install_path = std::filesystem::path(install_path_prop->data());
 		this->base_url = config.base_url;
 		this->force_update = force_update;
@@ -169,6 +165,12 @@ namespace game_updater
 
 	void game_updater::run(bool& update_needed) const
 	{
+		if (this->install_path.empty())
+		{
+			return;
+		}
+		check_cancelled();
+
 		printf("Checking for updates...\n"); // TODO: Replace with CEF GUI logging
 
 		const auto manifest = get_manifest(this->base_url + "/manifest.json");
@@ -179,7 +181,7 @@ namespace game_updater
 			return;
 		}
 
-		if (!this->force_update && !utils::flags::has_flag("verify"))
+		if (!this->force_update)
 		{
 			if (!this->needs_to_update(manifest.hash))
 			{
@@ -192,14 +194,34 @@ namespace game_updater
 			printf("Update required!\n"); // TODO: Replace with CEF GUI logging
 		}
 
+		check_cancelled();
+
+		// Initialize progress tracking for verification phase
+		// We pass total_bytes = 0 (via update_files) so progress is calculated by file count
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->update_files(manifest.files);
+		}
+
 		const auto outdated_files = this->get_outdated_files(manifest.files);
+
+		check_cancelled();
+
 		if (outdated_files.empty())
 		{
+			// Verification complete, all files up to date
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->done_update();
+			}
+
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
 			update_needed = false;
 			printf("All files are up to date!\n"); // TODO: Replace with CEF GUI logging
 			return;
 		}
+
+		check_cancelled();
 
 		const auto update_size = this->get_update_size(outdated_files);
 		const auto drive_space = this->get_available_drive_space();
@@ -211,14 +233,31 @@ namespace game_updater
 			return;
 		}
 
+		check_cancelled();
+
+		// Disable verification mode and switch to byte-based download progress
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->set_verification_mode(false);
+			this->progress_listener_->update_files(outdated_files);
+		}
+
 		this->update_files(outdated_files);
+
+		check_cancelled();
+
+		// Notify completion
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->done_update();
+		}
 
 		if (error_occurred)
 		{
 			throw std::runtime_error("An error occurred during the update process.");
 		}
 
-		if (!error_occurred)
+		if (!error_occurred && !this->is_update_cancelled())
 		{
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
 		}
@@ -227,8 +266,22 @@ namespace game_updater
 		printf("Update complete!\n"); // TODO: Replace with CEF GUI logging
 	}
 
-	void game_updater::update_file(const file_info& file) const
+	size_t game_updater::get_game_size() const
 	{
+		const auto manifest = get_manifest(this->base_url + "/manifest.json");
+		if (manifest.empty())
+		{
+			printf("Failed to download manifest\n"); // TODO: Replace with CEF GUI logging
+			return 0;
+		}
+
+		return this->get_update_size(manifest.files);
+	}
+
+	void game_updater::update_file(const updater::file_info& file) const
+	{
+		check_cancelled();
+
 		const auto url = this->base_url + "/" + file.name + "?" + file.hash;
 		const auto out_file = this->get_drive_filename(file);
 
@@ -247,25 +300,36 @@ namespace game_updater
 		}
 
 		int currentPercent = 0;
-		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed)
+		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
 		{
 			auto progressRatio = (total_size > 0 && progress >= 0) ? static_cast<double>(progress) / total_size : 0.0;
 			auto progressPercent = int(progressRatio * 100.0);
 			if (progressPercent == currentPercent)
-				return;
+				return !is_update_cancelled(); // Continue unless cancelled
 
 			currentPercent = progressPercent;
-			printf("Updating: %s (%d%%)\n", get_filename(file.name).data(), progressPercent); // TODO: Replace with CEF GUI logging
+			printf("Updating: %s (%d%%)\n", get_filename(file.name).data(), progressPercent);
+			return !is_update_cancelled(); // Continue unless cancelled
 		},
-		[&](const char* chunk, size_t size)
+		[&](const char* chunk, size_t size) -> bool
 		{
 			if (chunk && size > 0)
 			{
 				ofs.write(chunk, size);
 			}
+
+			// We pass size of chunk to file_progress to progress that amount in bytes
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->file_progress(file, size);
+			}
+
+			return !is_update_cancelled(); // Continue unless cancelled
 		});
 
 		ofs.close();
+
+		check_cancelled();
 
 		if (!data || !data.has_value())
 		{
@@ -276,6 +340,12 @@ namespace game_updater
 		try
 		{
 			const auto& result = data.value();
+			if (result.code == CURLE_ABORTED_BY_CALLBACK && this->is_update_cancelled())
+			{
+				// Download was cancelled, return silently
+				return;
+			}
+
 			if (result.code != CURLE_OK)
 			{
 				throw_error("Failed to download: " + url + " - Invalid curl code");
@@ -304,86 +374,35 @@ namespace game_updater
 		}
 	}
 
-
-	std::vector<file_info> game_updater::get_outdated_files(const std::vector<file_info>& files) const
+	std::vector<updater::file_info> game_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
 	{
-		printf("Verifying files, please wait...\n"); // TODO: Replace with CEF GUI logging
+		printf("Verifying files, please wait...\n");
 
-		const auto thread_count = get_optimal_concurrent_download_count(files.size());
-		std::vector<std::thread> threads{};
-		std::atomic<size_t> current_index{ 0 };
-		std::atomic<size_t> completed_files{ 0 };
-		std::vector<std::vector<file_info>> per_thread_outdated_files(thread_count);
-		utils::concurrency::container<std::exception_ptr> exception{};
-
-		for (size_t i = 0; i < thread_count; ++i)
+		std::vector<updater::file_info> outdated_files{};
+		for (const auto& info : files)
 		{
-			threads.emplace_back([&, i]()
-				{
-					auto& local_outdated_files = per_thread_outdated_files[i];
-
-					while (!exception.access<bool>([](const std::exception_ptr& ptr)
-					{
-						return static_cast<bool>(ptr);
-					}))
-					{
-						const auto index = current_index++;
-						if (index >= files.size())
-						{
-							break;
-						}
-
-						try
-						{
-							const auto& info = files[index];
-
-							if (this->is_outdated_file(info))
-							{
-								printf("Verification failed: %s\n", get_filename(info.name).data()); // TODO: Replace with CEF GUI logging
-								local_outdated_files.emplace_back(info);
-							}
-
-							++completed_files; // TODO: Report progress to CEF GUI
-						}
-						catch (...)
-						{
-							exception.access([](std::exception_ptr& ptr)
-							{
-								ptr = std::current_exception();
-							});
-							return;
-						}
-					}
-				});
-		}
-
-		for (auto& thread : threads)
-		{
-			if (thread.joinable())
+			// Report that we're starting to verify this file
+			if (this->progress_listener_)
 			{
-				thread.join();
+				this->progress_listener_->begin_file(info);
 			}
-		}
 
-		exception.access([](const std::exception_ptr& ptr)
+			if (this->is_outdated_file(info))
 			{
-				if (ptr)
-				{
-					std::rethrow_exception(ptr);
-				}
-			});
+				outdated_files.emplace_back(info);
+			}
 
-		std::vector<file_info> outdated_files;
-		for (const auto& thread_files : per_thread_outdated_files)
-		{
-			outdated_files.insert(outdated_files.end(), thread_files.begin(), thread_files.end());
+			// Report that we've finished verifying this file
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->end_file(info);
+			}
 		}
 
 		printf("Finished verifying files\n"); // TODO: Replace with CEF GUI logging
 
 		return outdated_files;
 	}
-
 
 	bool game_updater::needs_to_update(const std::string& hash) const
 	{
@@ -406,8 +425,7 @@ namespace game_updater
 		return true;
 	}
 
-
-	std::size_t game_updater::get_update_size(const std::vector<file_info>& outdated_files) const
+	std::size_t game_updater::get_update_size(const std::vector<updater::file_info>& outdated_files) const
 	{
 		std::size_t total_size = 0;
 		for (const auto& file : outdated_files)
@@ -424,7 +442,7 @@ namespace game_updater
 		return spaceInfo.available;
 	}
 
-	void game_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void game_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
 	{
 		printf("Found outdated files! Downloading/updating files...\n"); // TODO: Replace with CEF GUI logging
 
@@ -453,11 +471,25 @@ namespace game_updater
 
 						try
 						{
+							check_cancelled();
+
 							const auto& file = outdated_files[index];
+
+							// Notify progress listener that file download is beginning
+							if (this->progress_listener_)
+							{
+								this->progress_listener_->begin_file(file);
+							}
 
 							this->update_file(file);
 
-							++completed_files; // TODO: Report progress to CEF GUI
+							// Notify progress listener that file is complete
+							if (this->progress_listener_)
+							{
+								this->progress_listener_->end_file(file);
+							}
+
+							++completed_files;
 						}
 						catch (...)
 						{
@@ -491,7 +523,7 @@ namespace game_updater
 		printf("Finished downloading/updating files\n"); // TODO: Replace with CEF GUI logging
 	}
 
-	bool game_updater::is_outdated_file(const file_info& file) const
+	bool game_updater::is_outdated_file(const updater::file_info& file) const
 	{
 		printf("Verifying: %s\n", get_filename(file.name).data()); // TODO: Replace with CEF GUI logging
 		const auto drive_name = this->get_drive_filename(file);
@@ -509,7 +541,7 @@ namespace game_updater
 		return hash != file.hash;
 	}
 
-	std::string game_updater::get_drive_filename(const file_info& file) const
+	std::string game_updater::get_drive_filename(const updater::file_info& file) const
 	{
 		return (this->install_path / file.name).string();
 	}
@@ -519,4 +551,16 @@ namespace game_updater
 		return (this->install_path / "latest.manifest").string();
 	}
 
+	bool game_updater::is_update_cancelled() const
+	{
+		return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
+	}
+
+	void game_updater::check_cancelled() const
+	{
+		if (is_update_cancelled())
+		{
+			throw launcher_updater::update_cancelled();
+		}
+	}
 }

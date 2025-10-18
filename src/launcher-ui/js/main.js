@@ -431,7 +431,7 @@ window.ProgressManager = {
         }
 
         progressFill.style.width = `${progress}%`;
-        progressPercent.textContent = `${Math.round(progress)}%`;
+        progressPercent.textContent = `${Math.floor(progress)}%`;
     },
 
     cancel: function() {
@@ -656,32 +656,65 @@ function showGameSettings(gameId) {
 function verifyGame(gameId) {
     console.log(`Verify button clicked for ${gameId}`);
 
-    let progress = 0;
-    let interval;
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+
+    let pollInterval;
 
     const cancelVerification = () => {
-        if (interval) {
-            clearInterval(interval);
+        if (pollInterval) {
+            clearInterval(pollInterval);
             console.log('Verification cancelled');
         }
+        // Call backend to cancel the update
+        window.executeCommand('cancel-update').then(() => {
+            console.log('Cancel command sent to backend');
+        }).catch(error => {
+            console.error('Failed to send cancel command:', error);
+        });
     };
 
-    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+    // Show progress bar
     window.ProgressManager.show(gameId, `Verifying ${gameDisplayName}...`, cancelVerification);
 
-    interval = setInterval(() => {
-        progress += Math.random() * 10;
-        if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            window.ProgressManager.update(progress, 'Verification complete!');
-            setTimeout(() => {
+    // Start verification command
+    window.executeCommand('verify-game', { game: gameMapping }).catch(error => {
+        console.error('Failed to start verification:', error);
+        window.ProgressManager.hide();
+    });
+
+    setTimeout(() => {
+        // Poll for progress updates
+        pollInterval = setInterval(async () => {
+            try {
+                const result = await window.executeCommand('get-update-progress');
+
+                if (!result) {
+                    console.log('No progress data received');
+                    return;
+                }
+
+                if (!result.active) {
+                    console.log('Update no longer active');
+                    // Verification complete
+                    clearInterval(pollInterval);
+                    window.ProgressManager.update(100, 'Verification complete!');
+                    setTimeout(() => {
+                        window.ProgressManager.hide();
+                    }, 1000);
+                    return;
+                }
+
+                // Update progress
+                console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                window.ProgressManager.update(result.progress, result.message);
+            } catch (error) {
+                console.error('Error polling progress:', error);
+                clearInterval(pollInterval);
                 window.ProgressManager.hide();
-            }, 1000);
-        } else {
-            window.ProgressManager.update(progress);
-        }
-    }, 200);
+            }
+        }, 100); // Poll every 100ms
+    }, 500); // This is the initial 500ms delay
 }
 
 function showSetupFlow(gameId) {
