@@ -299,13 +299,14 @@ namespace
 		{
 			response.SetBool(false); // Default to failure
 
-			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path"))
+			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path") || !value.HasMember("existing_install"))
 			{
 				return;
 			}
 
 			const auto game = std::string{ value["game"].GetString() };
 			const auto path = std::filesystem::path{ value["path"].GetString() };
+			const auto existing_install = value["existing_install"].GetBool();
 
 			// Get game config
 			const auto config = game_config::get_game_config(game);
@@ -314,12 +315,19 @@ namespace
 				return;
 			}
 
-			// Validate the path
-			if (!game_config::validate_game_path(game, path))
+			//Only validate install if it is existing
+			if (existing_install)
 			{
-				return; // Invalid - no valid game exe found
-			}
+				if (!game_config::validate_game_path(game, path))
+				{
+					return; // Invalid - no valid game exe found
+				}
 
+				const auto has_zone_folder = utils::io::directory_exists(path / "zone") ? "true" : "false";
+				utils::properties::store(config->has_zone_property, has_zone_folder);
+				printf("Setting has_zone_folder: %s", has_zone_folder);
+			}
+			
 			// Path is valid, store it
 			utils::properties::store(config->install_property, path.string());
 			response.SetBool(true); // Success

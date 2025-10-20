@@ -158,7 +158,9 @@ namespace game_updater
 		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
+		const auto has_zone_prop = utils::properties::load(config.has_zone_property);
 		this->install_path = std::filesystem::path(install_path_prop->data());
+		this->has_zone_folder = (std::string(has_zone_prop->data()) == "false") ? false : true;
 		this->base_url = config.base_url;
 		this->force_update = force_update;
 	}
@@ -543,6 +545,12 @@ namespace game_updater
 
 	std::string game_updater::get_drive_filename(const updater::file_info& file) const
 	{
+		if(!this->has_zone_folder && utils::string::starts_with(file.name, "zone/"))
+		{
+			const auto filename = utils::string::replace(file.name, "zone/", "");
+			return (this->install_path / filename).string();
+		}
+
 		return (this->install_path / file.name).string();
 	}
 

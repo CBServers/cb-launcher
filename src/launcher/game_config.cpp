@@ -14,6 +14,7 @@ namespace game_config
 			{
 				.display_name = "Black Ops 3",
 				.install_property = "bo3-install",
+				.has_zone_property = "bo3-has-zone",
 				.id = "boiii",
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
@@ -29,6 +30,7 @@ namespace game_config
 			{
 				.display_name = "Ghosts",
 				.install_property = "ghosts-install",
+				.has_zone_property = "ghosts-has-zone",
 				.id = "iw6x",
 				.exe_name = "iw6x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
@@ -47,6 +49,7 @@ namespace game_config
 			{
 				.display_name = "Advanced Warfare",
 				.install_property = "aw-install",
+				.has_zone_property = "aw-has-zone",
 				.id = "s1x",
 				.exe_name = "s1x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
@@ -67,6 +70,7 @@ namespace game_config
 			{
 				.display_name = "Modern Warfare Remastered",
 				.install_property = "mwr-install",
+				.has_zone_property = "mwr-has-zone",
 				.id = "h1-mod",
 				.exe_name = "h1-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
@@ -85,6 +89,7 @@ namespace game_config
 			{
 				.display_name = "Infinite Warfare",
 				.install_property = "iw-install",
+				.has_zone_property = "iw-has-zone",
 				.id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",

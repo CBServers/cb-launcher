@@ -127,7 +127,8 @@ class SetupFlowPopup {
                     // Validate and save the installation path
                     const pathValid = await window.executeCommand('set-game-path', {
                         game: this.currentGame,
-                        path: folder
+                        path: folder,
+                        existing_install: true
                     });
 
                     if (!pathValid) {
