@@ -4,9 +4,6 @@
 [submodule "deps/rapidjson"]
 	path = deps/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
-[submodule "deps/zlib"]
-	path = deps/zlib
-	url = https://github.com/madler/zlib.git
 [submodule "deps/libtommath"]
 	path = deps/libtommath
 	url = https://github.com/libtom/libtommath.git

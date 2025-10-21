@@ -1,0 +1,131 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          #- Debug
+          - Release
+    steps:
+      - name: Check out files
+        uses: actions/checkout@v4.2.0
+        with:
+          submodules: true
+          fetch-depth: 0
+          # NOTE - If LFS ever starts getting used during builds, switch this to true!
+          lfs: false
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Generate project files
+        run: tools/premake5 vs2022
+
+      - name: Set up problem matching
+        uses: ammaraskar/msvc-problem-matcher@master
+
+      - name: Build ${{matrix.configuration}}
+        run: msbuild /m /v:minimal /p:Configuration=${{matrix.configuration}} /p:Platform=x64 build/cb-launcher.sln
+
+      - name: Upload ${{matrix.configuration}} binary
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} Binary
+          path: |
+            build/bin/x64/${{matrix.configuration}}/cb-launcher.exe
+      
+      - name: Upload ${{matrix.configuration}} CEF artifacts
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} CEF artifacts
+          path: |
+            build/runtime/x64/${{matrix.configuration}}/cef/*
+
+      - name: Upload ${{matrix.configuration}} UI artifacts
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} UI artifacts
+          path: |
+            src/launcher-ui/*
+
+  deploy:
+    name: Deploy artifacts
+    needs: build
+    runs-on: windows-2022
+    if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - name: Download Release binaries
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: Release Binary
+
+      - name: Download CEF artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: Release CEF artifacts
+          path: data/cef/release
+
+      - name: Download UI artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: Release UI artifacts
+          path: data/launcher-ui
+
+      - name: Download hashing executable
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/download/v1.0.0/update-hasher.exe" -OutFile "update-hasher.exe"
+
+      - name: Generate hashed.json
+        run: |
+          .\update-hasher.exe
+
+      - name: Move files to cb-launcher folder and rename hashes
+        run: |
+          mkdir cb-launcher
+          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\
+          Move-Item -Path .\data -Destination .\cb-launcher\
+          mv hashed.json cb-launcher.json
+
+      - name: Clone updater
+        run: |
+          git config --global user.name 'CBServers'
+          git config --global user.email '${{ secrets.OWNER_EMAIL }}'
+          $env:GIT_TERMINAL_PROMPT=0
+          $env:GIT_USERNAME="CBServers"
+          $env:GIT_PASSWORD="${{ secrets.REPO_PAT }}"
+          git clone https://$env:GIT_USERNAME:$env:GIT_PASSWORD@github.com/CBServers/updater.git
+
+      - name: Copy files to updater and cleanup
+        run: |
+          Copy-Item -Path .\cb-launcher.json -Destination .\updater\updater\ -Force
+          Copy-Item -Path .\cb-launcher\* -Destination .\updater\updater\cb-launcher\ -Recurse -Force
+          Remove-Item -Path .\cb-launcher.json -Force
+          Remove-Item -Path .\cb-launcher -Recurse -Force
+          Remove-Item -Path .\update-hasher.exe -Force
+
+      - name: Push changes to updater
+        run: |
+          cd updater
+          git add .
+          git commit -m "Update artifacts"
+          git push origin main
