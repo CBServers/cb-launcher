@@ -1,30 +1,30 @@
 #pragma once
 
-#include "progress_listener.hpp"
+#include "file_info.hpp"
 #include "progress_tracker.hpp"
+#include <vector>
 
 namespace updater
 {
-	class ui_progress_listener : public progress_listener
+	class ui_progress_listener
 	{
 	public:
 		ui_progress_listener() = default;
-		~ui_progress_listener() override = default;
+		~ui_progress_listener() = default;
 
-		void update_files(const std::vector<file_info>& files) override;
-		void done_update() override;
-		bool is_update_cancelled() override;
+		void update_files(const std::vector<file_info>& files, progress_mode mode);
+		void done_update();
+		bool is_update_cancelled();
 
-		void begin_file(const file_info& file) override;
-		void end_file(const file_info& file) override;
+		void begin_file(const file_info& file);
+		void end_file(const file_info& file);
 
-		void file_progress(const file_info& file, size_t progress) override;
+		void file_progress(const file_info& file, size_t progress);
 
-		// Set verification mode (file-count based progress, not byte-based)
-		void set_verification_mode(bool verification_mode) override;
+		// Reset progress state from previous update
+		void reset();
 
 	private:
 		size_t total_size_ = 0;
-		bool verification_mode_ = false;
 	};
 }

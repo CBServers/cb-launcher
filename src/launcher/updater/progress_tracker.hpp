@@ -7,6 +7,12 @@
 
 namespace updater
 {
+	enum class progress_mode
+	{
+		verifying,
+		downloading
+	};
+
 	class progress_tracker
 	{
 	public:
@@ -26,7 +32,7 @@ namespace updater
 		static progress_tracker& instance();
 
 		// Called by updater to manage lifecycle
-		void begin_update(size_t total_files, size_t total_bytes);
+		void begin_update(size_t total_files, size_t total_bytes, progress_mode mode);
 		void end_update();
 		void cancel_update();
 		bool is_cancelled() const;
@@ -52,6 +58,7 @@ namespace updater
 
 		mutable std::recursive_mutex mutex_;
 		progress_state state_;
+		progress_mode mode_ = progress_mode::verifying;
 		std::vector<std::string> files_in_progress_;  // Track all files currently being processed
 
 		void recalculate_progress();

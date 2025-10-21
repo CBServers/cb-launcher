@@ -244,7 +244,7 @@ namespace launcher_updater
 		}
 
 		utils::nt::relaunch_self();
-		throw update_cancelled();
+		throw updater::update_cancelled();
 	}
 
 	void launcher_updater::update_files(const std::vector<updater::file_info>& outdated_files) const

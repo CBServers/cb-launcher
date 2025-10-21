@@ -18,6 +18,8 @@ namespace cef
 
 		void close_browser();
 		void reload_browser() const;
+		void execute_javascript(const std::string& code) const;
+		void show_message_box(const std::string& title, const std::string& msg) const;
 
 		int run_process() const;
 		void create(const std::filesystem::path& folder, const std::string& file);
@@ -36,5 +38,6 @@ namespace cef
 		CefRefPtr<cef_ui_handler> ui_handler_;
 
 		static void invoke_close_browser(CefRefPtr<CefBrowser> browser);
+		static void invoke_show_message_box(CefRefPtr<CefBrowser> browser, const std::string& title, const std::string& msg);
 	};
 }

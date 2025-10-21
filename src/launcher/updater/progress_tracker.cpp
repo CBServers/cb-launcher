@@ -13,7 +13,7 @@ namespace updater
 		return instance;
 	}
 
-	void progress_tracker::begin_update(size_t total_files, size_t total_bytes)
+	void progress_tracker::begin_update(size_t total_files, size_t total_bytes, progress_mode mode)
 	{
 		std::lock_guard lock(this->mutex_);
 		this->state_.is_active = true;
@@ -25,6 +25,7 @@ namespace updater
 		this->state_.current_file.clear();
 		this->state_.status_message = "Starting update...";
 		this->state_.progress_percent = 0.0f;
+		this->mode_ = mode;
 		this->files_in_progress_.clear();
 	}
 
@@ -124,8 +125,7 @@ namespace updater
 		// Update status message with progress
 		if (!this->state_.current_file.empty())
 		{
-			// Use "Verifying" if we're in verification mode (total_bytes == 0), otherwise "Downloading"
-			const char* action = (this->state_.total_bytes == 0) ? "Verifying" : "Downloading";
+			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
 			this->state_.status_message = utils::string::va(
 				"%s %s (%zu/%zu files)...",
 				action,
@@ -167,13 +167,13 @@ namespace updater
 			// Update status message based on state
 			if (this->state_.completed_files == this->state_.total_files && this->state_.total_files > 0)
 			{
-				const char* action = (this->state_.total_bytes == 0) ? "Verified" : "Downloaded";
+				const char* action = (this->mode_ == progress_mode::verifying) ? "Verified" : "Downloaded";
 				this->state_.status_message = utils::string::va("%s all files (%zu/%zu)",
 					action, this->state_.completed_files, this->state_.total_files);
 			}
 			else if (this->state_.is_active)
 			{
-				const char* action = (this->state_.total_bytes == 0) ? "Verifying" : "Downloading";
+				const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
 				this->state_.status_message = utils::string::va("%s files... (%zu/%zu)",
 					action, this->state_.completed_files, this->state_.total_files);
 			}
@@ -183,8 +183,7 @@ namespace updater
 			// Display the last file in the list
 			this->state_.current_file = this->files_in_progress_.back();
 
-			// Use "Verifying" if we're in verification mode (total_bytes == 0), otherwise "Downloading"
-			const char* action = (this->state_.total_bytes == 0) ? "Verifying" : "Downloading";
+			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
 			this->state_.status_message = utils::string::va(
 				"%s %s (%zu/%zu files)...",
 				action,

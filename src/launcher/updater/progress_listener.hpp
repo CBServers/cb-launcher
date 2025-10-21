@@ -19,8 +19,8 @@ namespace updater
 
 		virtual void file_progress(const file_info& file, size_t progress) = 0;
 
-		// Optional: Set verification mode (file-count based vs byte-based progress)
+		// Reset progress state from previous update
 		// Default implementation does nothing - only ui_progress_listener needs this
-		virtual void set_verification_mode([[maybe_unused]] bool verification_mode) {}
+		virtual void reset() {}
 	};
 }

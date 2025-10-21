@@ -78,7 +78,7 @@ namespace launcher_updater
 	{
 		if (this->progress_ui_.is_cancelled())
 		{
-			throw update_cancelled();
+			throw updater::update_cancelled();
 		}
 	}
 

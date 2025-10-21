@@ -157,11 +157,343 @@ class SetupFlowPopup {
         }
     }
 
-    handleDownloadInstallation() {
-        // For now, just show a placeholder
-        console.log('Download installation will be implemented later');
-        alert(`Download functionality for ${this.currentGameDisplayName} will be implemented later.`);
+    async handleDownloadInstallation() {
+        try {
+            // Open folder browser to select download location
+            if (typeof window.executeCommand === 'function') {
+                const folder = await window.executeCommand('browse-folder');
+                if (folder) {
+                    // Append defaultInstallPath to the selected folder
+                    const gameConfig = GameUtils.getGameConfig(this.currentGame);
+                    const defaultInstallPath = gameConfig ? gameConfig.defaultInstallPath : '';
+
+                    // Combine folder with default install path
+                    console.log(folder);
+                    
+                    const fullPath = defaultInstallPath
+                        ? `${folder}\\${defaultInstallPath}`
+                        : folder;
+                    console.log(fullPath);
+
+                    // Show install confirmation popup with download info
+                    this.showInstallConfirmation(fullPath);
+                } else {
+                    console.log('No folder selected');
+                }
+            } else {
+                console.log('Mock: Would browse for download location folder');
+                this.hide();
+            }
+        } catch (error) {
+            console.error('Error selecting download location:', error);
+        }
+    }
+
+    async showInstallConfirmation(installPath) {
+        // Hide the setup flow popup first
         this.hide();
+
+        // Create install confirmation backdrop
+        const installBackdrop = document.createElement('div');
+        installBackdrop.className = 'install-confirm-backdrop';
+
+        // Create install confirmation popup
+        const installPopup = document.createElement('div');
+        installPopup.className = 'install-confirm-popup';
+
+        installPopup.innerHTML = `
+            <div class="popup-header">
+                <h3>Install ${this.currentGameDisplayName}</h3>
+                <button class="popup-close" type="button">×</button>
+            </div>
+            <div class="popup-content">
+                <div class="install-path-section">
+                    <label>Install Location</label>
+                    <div class="install-path-group">
+                        <div class="install-path-display" id="install-path-display">${installPath}</div>
+                        <button class="install-browse-button" id="install-browse-btn" type="button">Browse</button>
+                    </div>
+                </div>
+                <div class="install-info-section">
+                    <div class="install-info-row">
+                        <span class="install-info-label">Game Size:</span>
+                        <span class="install-info-value loading" id="install-game-size">Loading...</span>
+                    </div>
+                    <div class="install-info-row">
+                        <span class="install-info-label">Available Space:</span>
+                        <span class="install-info-value loading" id="install-available-space">Loading...</span>
+                    </div>
+                </div>
+                <div class="install-actions">
+                    <button class="btn-install-cancel" type="button">Cancel</button>
+                    <button class="btn-install" type="button" id="btn-confirm-install" disabled>Install</button>
+                </div>
+            </div>
+        `;
+
+        installBackdrop.appendChild(installPopup);
+        document.body.appendChild(installBackdrop);
+
+        // Keep track of current install path
+        let currentInstallPath = installPath;
+
+        // Setup event listeners
+        const closeBtn = installBackdrop.querySelector('.popup-close');
+        const cancelBtn = installBackdrop.querySelector('.btn-install-cancel');
+        const installBtn = installBackdrop.querySelector('#btn-confirm-install');
+        const browseBtn = installBackdrop.querySelector('#install-browse-btn');
+        const pathDisplay = installBackdrop.querySelector('#install-path-display');
+
+        const hideInstallPopup = () => {
+            document.body.removeChild(installBackdrop);
+        };
+
+        closeBtn.addEventListener('click', hideInstallPopup);
+        cancelBtn.addEventListener('click', hideInstallPopup);
+
+        // Browse button click handler
+        browseBtn.addEventListener('click', async () => {
+            try {
+                if (typeof window.executeCommand === 'function') {
+                    const folder = await window.executeCommand('browse-folder');
+                    if (folder) {
+                        // Append defaultInstallPath to the selected folder
+                        const gameConfig = GameUtils.getGameConfig(this.currentGame);
+                        const defaultInstallPath = gameConfig ? gameConfig.defaultInstallPath : '';
+
+                        // Combine folder with default install path
+                        const newPath = defaultInstallPath
+                            ? `${folder}\\${defaultInstallPath}`
+                            : folder;
+
+                        // Update the path display
+                        currentInstallPath = newPath;
+                        pathDisplay.textContent = newPath;
+
+                        // Refresh download info with new path
+                        await updateDownloadInfo(newPath);
+                    }
+                }
+            } catch (error) {
+                console.error('Error browsing for new path:', error);
+            }
+        });
+
+        // Click outside to close
+        installBackdrop.addEventListener('click', (e) => {
+            if (e.target === installBackdrop) {
+                hideInstallPopup();
+            }
+        });
+
+        // Function to update download info
+        const updateDownloadInfo = async (path) => {
+            const gameSizeEl = installBackdrop.querySelector('#install-game-size');
+            const availableSpaceEl = installBackdrop.querySelector('#install-available-space');
+
+            // Reset to loading state
+            gameSizeEl.textContent = 'Loading...';
+            availableSpaceEl.textContent = 'Loading...';
+            gameSizeEl.className = 'install-info-value loading';
+            availableSpaceEl.className = 'install-info-value loading';
+            installBtn.disabled = true;
+
+            try {
+                if (typeof window.executeCommand === 'function') {
+                    const downloadInfo = await window.executeCommand('get-game-download-info', {
+                        game: this.currentGame,
+                        path: path
+                    });
+
+                    if (downloadInfo) {
+                        // Update game size
+                        gameSizeEl.textContent = this.formatBytes(downloadInfo.game_size);
+                        gameSizeEl.classList.remove('loading');
+
+                        // Update available space
+                        availableSpaceEl.textContent = this.formatBytes(downloadInfo.available_space);
+                        availableSpaceEl.classList.remove('loading');
+
+                        // Check if there's enough space
+                        if (downloadInfo.available_space < downloadInfo.game_size) {
+                            availableSpaceEl.classList.add('error');
+                            installBtn.disabled = true;
+
+                            // Show error message
+                            if (typeof window.showMessageBox === 'function') {
+                                window.showMessageBox("Insufficient Space",
+                                    `Not enough space available. You need ${this.formatBytes(downloadInfo.game_size)} but only have ${this.formatBytes(downloadInfo.available_space)} available.`, ["OK"]);
+                            }
+                        } else if (downloadInfo.available_space < downloadInfo.game_size * 1.1) {
+                            // Less than 10% overhead, show warning
+                            availableSpaceEl.classList.add('warning');
+                            installBtn.disabled = false;
+                        } else {
+                            installBtn.disabled = false;
+                        }
+                    }
+                } else {
+                    // Mock for development
+                    console.log('Mock: Would get download info');
+                    installBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error getting download info:', error);
+                gameSizeEl.textContent = 'Error';
+                availableSpaceEl.textContent = 'Error';
+                gameSizeEl.classList.remove('loading');
+                availableSpaceEl.classList.remove('loading');
+            }
+        };
+
+        // Get initial download info
+        await updateDownloadInfo(currentInstallPath);
+
+        // Install button click handler
+        installBtn.addEventListener('click', async () => {
+            try {
+                hideInstallPopup();
+
+                if (typeof window.executeCommand === 'function') {
+                    // Set the game path with existing_install = false
+                    const pathSet = await window.executeCommand('set-game-path', {
+                        game: this.currentGame,
+                        path: currentInstallPath,
+                        existing_install: false
+                    });
+
+                    if (pathSet) {
+                        // Trigger game installation update event
+                        this.triggerInstallationUpdate();
+
+                        // Start the download by calling verify-files
+                        // The verify-files command will detect missing files and download them
+                        await this.startGameDownload();
+                    } else {
+                        if (typeof window.showMessageBox === 'function') {
+                            window.showMessageBox("Installation Error",
+                                `Failed to set installation path for ${this.currentGameDisplayName}.`, ["OK"]);
+                        }
+                    }
+                } else {
+                    console.log('Mock: Would start installation');
+                }
+            } catch (error) {
+                console.error('Error starting installation:', error);
+                if (typeof window.showMessageBox === 'function') {
+                    window.showMessageBox("Installation Error",
+                        `An error occurred while starting the installation: ${error.message}`, ["OK"]);
+                }
+            }
+        });
+    }
+
+    async startGameDownload() {
+        // Get the game ID for the UI
+        const gameId = this.getGameIdFromMapping(this.currentGame);
+
+        if (!gameId) {
+            console.error('Could not determine game ID for:', this.currentGame);
+            return;
+        }
+
+        // Show progress bar
+        const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+
+        let pollInterval;
+
+        const cancelDownload = () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                console.log('Download cancelled');
+            }
+            // Call backend to cancel the update
+            window.executeCommand('cancel-update').then(() => {
+                console.log('Cancel command sent to backend');
+            }).catch(error => {
+                console.error('Failed to send cancel command:', error);
+            });
+        };
+
+        window.ProgressManager.show(gameId, `Downloading ${gameDisplayName}...`, cancelDownload);
+
+        // Start the download via verify-game command
+        window.executeCommand('verify-game', { game: this.currentGame }).catch(error => {
+            console.error('Failed to start download:', error);
+            window.ProgressManager.hide();
+        });
+
+        setTimeout(() => {
+            // Poll for progress updates
+            pollInterval = setInterval(async () => {
+                try {
+                    const result = await window.executeCommand('get-update-progress');
+
+                    if (!result) {
+                        console.log('No progress data received');
+                        return;
+                    }
+
+                    // Check for errors
+                    if (result.hasError && result.errorMessage) {
+                        console.error('Download error:', result.errorMessage);
+                        clearInterval(pollInterval);
+                        window.ProgressManager.hide();
+
+                        // Show error message to user
+                        if (typeof window.showMessageBox === 'function') {
+                            window.showMessageBox("Download Error", result.errorMessage, ["OK"]);
+                        } else {
+                            alert('Download Error: ' + result.errorMessage);
+                        }
+                        return;
+                    }
+
+                    if (!result.active) {
+                        console.log('Download no longer active');
+                        // Download complete
+                        clearInterval(pollInterval);
+                        window.ProgressManager.update(100, 'Download complete!');
+                        setTimeout(() => {
+                            window.ProgressManager.hide();
+                        }, 1000);
+                        return;
+                    }
+
+                    // Update progress
+                    console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                    window.ProgressManager.update(result.progress, result.message);
+                } catch (error) {
+                    console.error('Error polling progress:', error);
+                    clearInterval(pollInterval);
+                    window.ProgressManager.hide();
+                }
+            }, 100); // Poll every 100ms
+        }, 500); // Initial 500ms delay
+    }
+
+    getGameIdFromMapping(gameMapping) {
+        // Reverse lookup: find UI game ID from backend game mapping
+        const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+
+        for (const gameId of gameIds) {
+            const mapping = GameUtils.getGameMapping(gameId);
+            if (mapping === gameMapping) {
+                return gameId;
+            }
+        }
+
+        return null;
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
 
     getInstallProperty(game) {

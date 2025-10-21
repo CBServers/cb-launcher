@@ -127,6 +127,37 @@ namespace cef
 		browser->GetHost()->CloseBrowser(true);
 	}
 
+	void cef_ui::invoke_show_message_box(CefRefPtr<CefBrowser> browser, const std::string& title, const std::string& msg)
+	{
+		if (!browser) return;
+		auto frame = browser->GetMainFrame();
+		if (!frame) return;
+
+		// Escape single quotes in title and message for JavaScript
+		auto escape_js_string = [](const std::string& str) -> std::string
+		{
+			std::string escaped;
+			escaped.reserve(str.size());
+			for (char c : str)
+			{
+				if (c == '\'') escaped += "\\'";
+				else if (c == '\\') escaped += "\\\\";
+				else if (c == '\n') escaped += "\\n";
+				else if (c == '\r') escaped += "\\r";
+				else escaped += c;
+			}
+			return escaped;
+		};
+
+		const auto escaped_title = escape_js_string(title);
+		const auto escaped_msg = escape_js_string(msg);
+		const auto js_code = utils::string::va(
+			"if (typeof window.showMessageBox === 'function') { window.showMessageBox('%s', '%s', ['OK']); }",
+			escaped_title.data(), escaped_msg.data());
+
+		frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
+	}
+
 	void cef_ui::close_browser()
 	{
 		if (!this->browser_) return;
@@ -138,6 +169,23 @@ namespace cef
 	{
 		if (!this->browser_) return;
 		this->browser_->Reload();
+	}
+
+	void cef_ui::execute_javascript(const std::string& code) const
+	{
+		if (!this->browser_) return;
+		auto frame = this->browser_->GetMainFrame();
+		if (frame)
+		{
+			frame->ExecuteJavaScript(code, frame->GetURL(), 0);
+		}
+	}
+
+	void cef_ui::show_message_box(const std::string& title, const std::string& msg) const
+	{
+		if (!this->browser_) return;
+		// Post to UI thread to avoid crashes when called from other threads (e.g., updater thread)
+		CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_show_message_box, this->browser_, title, msg));
 	}
 
 	cef_ui::cef_ui(utils::nt::library process, std::filesystem::path path)

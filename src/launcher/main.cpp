@@ -163,65 +163,46 @@ namespace
 		});
 
 		cef_ui.add_command("verify-game", [&cef_ui](const rapidjson::Value& value, auto&)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
 			{
-				printf("[DEBUG] verify-game command called\n");
+				return;
+			}
 
-				if (!value.IsObject() || !value.HasMember("game"))
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			// Run verification in a separate thread with progress tracking
+			std::thread([config, &cef_ui]()
+			{
+				try
 				{
-					printf("[DEBUG] Invalid request - missing game parameter\n");
-					return;
+					updater::ui_progress_listener progress_listener;
+					game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
+					client_updater::run(*config, &progress_listener);
 				}
-
-				const auto game = std::string{ value["game"].GetString() };
-				printf("[DEBUG] Verifying game: %s\n", game.c_str());
-
-				// Get game configuration
-				const auto config = game_config::get_game_config(game);
-				if (!config)
+				catch (const std::exception& e)
 				{
-					printf("[DEBUG] Invalid game config for: %s\n", game.c_str());
-					return; // Invalid game
+					// Set error in progress tracker and show error popup in UI
+					updater::progress_tracker::instance().cancel_update();
+					printf("Update error: %s\n", e.what());
+					cef_ui.show_message_box("Updater Error", e.what());
 				}
-
-				printf("[DEBUG] Starting verification thread\n");
-
-				// Run verification in a separate thread with progress tracking
-				std::thread([config]()
+				catch (...)
 				{
-					try
-					{
-						printf("[DEBUG] Creating progress listener\n");
-						updater::ui_progress_listener progress_listener;
-
-						// Enable verification mode for game file verification
-						progress_listener.set_verification_mode(true);
-
-						printf("[DEBUG] Running game_updater\n");
-						game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
-
-						// Re-enable verification mode for client file verification
-						// (game_updater may have disabled it if downloads occurred)
-						progress_listener.set_verification_mode(true);
-
-						printf("[DEBUG] Running client_updater\n");
-						client_updater::run(*config, &progress_listener);
-						printf("[DEBUG] Verification complete\n");
-					}
-					catch (const std::exception& e)
-					{
-						// Log error but don't crash
-						printf("Verification error: %s\n", e.what());
-						updater::progress_tracker::instance().cancel_update();
-					}
-					catch (...)
-					{
-						printf("Unknown verification error\n");
-						updater::progress_tracker::instance().cancel_update();
-					}
-				}).detach();
-
-				printf("[DEBUG] Verification thread started\n");
-			});
+					// Set generic error for unknown exceptions
+					updater::progress_tracker::instance().cancel_update();
+					printf("Unknown update error\n");
+					cef_ui.show_message_box("Updater Error", "An unknown error occurred during verification");
+				}
+			}).detach();
+		});
 
 		cef_ui.add_command("browse-folder", [](const auto&, rapidjson::Document& response)
 		{
@@ -327,6 +308,11 @@ namespace
 				utils::properties::store(config->has_zone_property, has_zone_folder);
 				printf("Setting has_zone_folder: %s", has_zone_folder);
 			}
+
+			if (!utils::io::directory_exists(path))
+			{
+				utils::io::create_directory(path);
+			}
 			
 			// Path is valid, store it
 			utils::properties::store(config->install_property, path.string());
@@ -365,7 +351,7 @@ namespace
 			}
 
 			const auto game = std::string{ value["game"].GetString() };
-			const auto path = std::filesystem::path{ value["path"].GetString() };
+			auto path = std::filesystem::path{ value["path"].GetString() };
 
 			// Get game config
 			const auto config = game_config::get_game_config(game);
@@ -375,6 +361,18 @@ namespace
 			}
 
 			const auto game_size = game_updater::get_game_size(*config);
+
+			// If the path doesn't exist, check parent directories until we find one that exists
+			while (!path.empty() && !std::filesystem::exists(path))
+			{
+				path = path.parent_path();
+			}
+
+			// If no valid path found, return without setting response
+			if (path.empty())
+			{
+				return;
+			}
 
 			std::filesystem::space_info spaceInfo = std::filesystem::space(path);
 			const auto available_space = spaceInfo.available;
@@ -424,18 +422,17 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 #if !defined(DEBUG)
 		run_as_singleton();
 
-		/*if (!utils::flags::has_flag("noupdate"))
+		if (!utils::flags::has_flag("noupdate"))
 		{
 			launcher_updater::run(path);
-		}*/
-#endif
-
-		// TEMPORARY: Enable console for debugging
+		}
+#elif
 		AllocConsole();
 		FILE* fp;
 		freopen_s(&fp, "CONOUT$", "w", stdout);
 		freopen_s(&fp, "CONOUT$", "w", stderr);
 		printf("Debug console enabled\n");
+#endif
 
 		if (!is_dedi())
 		{
@@ -444,7 +441,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
 		return 0;
 	}
-	catch (launcher_updater::update_cancelled&)
+	catch (updater::update_cancelled&)
 	{
 		return 0;
 	}

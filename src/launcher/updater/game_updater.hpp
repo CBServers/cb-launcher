@@ -1,7 +1,7 @@
 #pragma once
 
 #include "file_info.hpp"
-#include "progress_listener.hpp"
+#include "ui_progress_listener.hpp"
 #include <string>
 #include <filesystem>
 #include <game_config.hpp>
@@ -11,7 +11,7 @@ namespace game_updater
 	class game_updater
 	{
 	public:
-		game_updater(const game_config::game_config_t& config, bool force_update = false, updater::progress_listener* listener = nullptr);
+		game_updater(const game_config::game_config_t& config, bool force_update = false, updater::ui_progress_listener* listener = nullptr);
 
 		void run(bool& update_needed) const;
 		size_t get_game_size() const;
@@ -26,7 +26,7 @@ namespace game_updater
 		std::string base_url;
 		bool has_zone_folder;
 		bool force_update;
-		updater::progress_listener* progress_listener_;
+		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;
 

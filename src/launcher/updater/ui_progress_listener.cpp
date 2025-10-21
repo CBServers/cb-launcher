@@ -4,18 +4,16 @@
 
 namespace updater
 {
-	void ui_progress_listener::update_files(const std::vector<file_info>& files)
+	void ui_progress_listener::update_files(const std::vector<file_info>& files, progress_mode mode)
 	{
-		// Calculate total size (only used for download mode)
+		// Calculate total size for byte-based progress
 		this->total_size_ = 0;
 		for (const auto& file : files)
 		{
 			this->total_size_ += file.size;
 		}
 
-		// In verification mode, pass 0 for total_bytes so progress is file-count based
-		const size_t total_bytes = this->verification_mode_ ? 0 : this->total_size_;
-		progress_tracker::instance().begin_update(files.size(), total_bytes);
+		progress_tracker::instance().begin_update(files.size(), this->total_size_, mode);
 	}
 
 	void ui_progress_listener::done_update()
@@ -40,12 +38,12 @@ namespace updater
 
 	void ui_progress_listener::file_progress([[maybe_unused]] const file_info& file, size_t progress)
 	{
-		// Progress is the number of bytes downloaded in this within this call
+		// Progress is the number of bytes downloaded/verified in this call
 		progress_tracker::instance().update_downloaded_bytes(progress);
 	}
 
-	void ui_progress_listener::set_verification_mode(bool verification_mode)
+	void ui_progress_listener::reset()
 	{
-		this->verification_mode_ = verification_mode;
+		progress_tracker::instance().reset();
 	}
 }

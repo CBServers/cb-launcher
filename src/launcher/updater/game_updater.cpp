@@ -23,18 +23,6 @@ namespace game_updater
 			return path.filename().string();
 		}
 
-		void throw_error(const std::string error, bool terminate = false)
-		{
-			std::string error_string = error + "\n";
-			printf("%s", error_string.data());
-			error_occurred = true;
-
-			if (terminate)
-			{
-				throw std::runtime_error(error);
-			}
-		}
-
 		std::vector<updater::file_info> parse_file_infos(const std::string& json)
 		{
 			rapidjson::Document doc{};
@@ -154,7 +142,7 @@ namespace game_updater
 		}
 	}
 
-	game_updater::game_updater(const game_config::game_config_t& config, bool force_update, updater::progress_listener* listener)
+	game_updater::game_updater(const game_config::game_config_t& config, bool force_update, updater::ui_progress_listener* listener)
 		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
@@ -171,16 +159,20 @@ namespace game_updater
 		{
 			return;
 		}
-		check_cancelled();
 
-		printf("Checking for updates...\n"); // TODO: Replace with CEF GUI logging
+		// Reset cancellation state from any previous update
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->reset();
+		}
+
+		printf("Checking for updates...\n");
 
 		const auto manifest = get_manifest(this->base_url + "/manifest.json");
 		if (manifest.empty())
 		{
 			update_needed = false;
-			printf("Failed to download manifest\n"); // TODO: Replace with CEF GUI logging
-			return;
+			throw std::runtime_error("Failed to download manifest");
 		}
 
 		if (!this->force_update)
@@ -188,21 +180,19 @@ namespace game_updater
 			if (!this->needs_to_update(manifest.hash))
 			{
 				update_needed = false;
-				printf("Game is up to date!\n"); // TODO: Replace with CEF GUI logging
-				return;
+				throw std::runtime_error("Game is up to date!");
 			}
 
 			update_needed = true;
-			printf("Update required!\n"); // TODO: Replace with CEF GUI logging
+			printf("Update required!\n");
 		}
 
 		check_cancelled();
 
-		// Initialize progress tracking for verification phase
-		// We pass total_bytes = 0 (via update_files) so progress is calculated by file count
+		// Initialize progress tracking for verification phase with all files
 		if (this->progress_listener_)
 		{
-			this->progress_listener_->update_files(manifest.files);
+			this->progress_listener_->update_files(manifest.files, updater::progress_mode::verifying);
 		}
 
 		const auto outdated_files = this->get_outdated_files(manifest.files);
@@ -219,7 +209,7 @@ namespace game_updater
 
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
 			update_needed = false;
-			printf("All files are up to date!\n"); // TODO: Replace with CEF GUI logging
+			printf("All files are up to date!\n");
 			return;
 		}
 
@@ -231,17 +221,15 @@ namespace game_updater
 		{
 			update_needed = true;
 			double gigabytes = static_cast<double>(update_size) / (1024 * 1024 * 1024);
-			throw_error(utils::string::va("Not enough space for update! %.2f GB required.", gigabytes), true);
-			return;
+			throw std::runtime_error(utils::string::va("Not enough space for update! %.2f GB required.", gigabytes));
 		}
 
 		check_cancelled();
 
-		// Disable verification mode and switch to byte-based download progress
+		// Reset progress tracking for download phase with only outdated files
 		if (this->progress_listener_)
 		{
-			this->progress_listener_->set_verification_mode(false);
-			this->progress_listener_->update_files(outdated_files);
+			this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
 		}
 
 		this->update_files(outdated_files);
@@ -265,7 +253,7 @@ namespace game_updater
 		}
 
 		update_needed = false;
-		printf("Update complete!\n"); // TODO: Replace with CEF GUI logging
+		printf("Update complete!\n");
 	}
 
 	size_t game_updater::get_game_size() const
@@ -273,7 +261,7 @@ namespace game_updater
 		const auto manifest = get_manifest(this->base_url + "/manifest.json");
 		if (manifest.empty())
 		{
-			printf("Failed to download manifest\n"); // TODO: Replace with CEF GUI logging
+			throw std::runtime_error("Failed to download manifest");
 			return 0;
 		}
 
@@ -290,14 +278,14 @@ namespace game_updater
 		std::string empty{};
 		if (!utils::io::write_file(out_file, empty, false))
 		{
-			throw_error("Failed to write file: " + out_file);
+			throw std::runtime_error("Failed to write file: " + out_file);
 			return;
 		}
 
 		std::ofstream ofs(out_file, std::ios::binary);
 		if (!ofs)
 		{
-			throw_error("Failed to open file: " + out_file);
+			throw std::runtime_error("Failed to open file: " + out_file);
 			return;
 		}
 
@@ -335,7 +323,7 @@ namespace game_updater
 
 		if (!data || !data.has_value())
 		{
-			throw_error("Failed to download: " + url + " - Data has no value");
+			throw std::runtime_error("Failed to download: " + url + " - Data has no value");
 			return;
 		}
 
@@ -350,29 +338,26 @@ namespace game_updater
 
 			if (result.code != CURLE_OK)
 			{
-				throw_error("Failed to download: " + url + " - Invalid curl code");
-				return;
+				throw std::runtime_error("Failed to download: " + url + " - Invalid curl code");
 			}
 
 			if (utils::io::file_size(out_file) != file.size)
 			{
-				throw_error("Downloaded file size mismatch: " + out_file);
-				return;
+				throw std::runtime_error("Downloaded file size mismatch: " + out_file);
 			}
 
 			if (utils::hash::get_file_hash(out_file) != file.hash)
 			{
-				throw_error("Downloaded file hash mismatch: " + out_file);
-				return;
+				throw std::runtime_error("Downloaded file hash mismatch: " + out_file);
 			}
 		}
 		catch (const std::exception& e)
 		{
-			throw_error("Failed to download: " + url + " - " + e.what());
+			throw std::runtime_error("Failed to download: " + url + " - " + e.what());
 		}
 		catch (...)
 		{
-			throw_error("Unknown error occurred while updating: " + url);
+			throw std::runtime_error("Unknown error occurred while updating: " + url);
 		}
 	}
 
@@ -383,6 +368,8 @@ namespace game_updater
 		std::vector<updater::file_info> outdated_files{};
 		for (const auto& info : files)
 		{
+			check_cancelled();
+
 			// Report that we're starting to verify this file
 			if (this->progress_listener_)
 			{
@@ -394,6 +381,12 @@ namespace game_updater
 				outdated_files.emplace_back(info);
 			}
 
+			// Mark file as verified by adding its size to progress
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->file_progress(info, info.size);
+			}
+
 			// Report that we've finished verifying this file
 			if (this->progress_listener_)
 			{
@@ -401,7 +394,7 @@ namespace game_updater
 			}
 		}
 
-		printf("Finished verifying files\n"); // TODO: Replace with CEF GUI logging
+		printf("Finished verifying files\n");
 
 		return outdated_files;
 	}
@@ -446,7 +439,7 @@ namespace game_updater
 
 	void game_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
 	{
-		printf("Found outdated files! Downloading/updating files...\n"); // TODO: Replace with CEF GUI logging
+		printf("Found outdated files! Downloading/updating files...\n");
 
 		const auto thread_count = get_optimal_concurrent_download_count(outdated_files.size());
 
@@ -522,12 +515,12 @@ namespace game_updater
 			}
 		});
 
-		printf("Finished downloading/updating files\n"); // TODO: Replace with CEF GUI logging
+		printf("Finished downloading/updating files\n");
 	}
 
 	bool game_updater::is_outdated_file(const updater::file_info& file) const
 	{
-		printf("Verifying: %s\n", get_filename(file.name).data()); // TODO: Replace with CEF GUI logging
+		printf("Verifying: %s\n", get_filename(file.name).data());
 		const auto drive_name = this->get_drive_filename(file);
 		if (!utils::io::file_exists(drive_name))
 		{
@@ -568,7 +561,7 @@ namespace game_updater
 	{
 		if (is_update_cancelled())
 		{
-			throw launcher_updater::update_cancelled();
+			throw updater::update_cancelled();
 		}
 	}
 }

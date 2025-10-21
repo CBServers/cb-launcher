@@ -117,7 +117,7 @@ namespace client_updater
 		}
 	}
 
-	client_updater::client_updater(const game_config::game_config_t& config, updater::progress_listener* listener)
+	client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
 		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
@@ -134,6 +134,12 @@ namespace client_updater
 
 	void client_updater::run() const
 	{
+		// Reset cancellation state from any previous update
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->reset();
+		}
+
 		const auto files = get_file_infos(this->update_manifest_url);
 		if (files.empty())
 		{
@@ -146,10 +152,10 @@ namespace client_updater
 			return;
 		}
 
-		// Initialize progress tracking for verification phase (if listener is in verification mode)
+		// Initialize progress tracking for verification phase
 		if (this->progress_listener_)
 		{
-			this->progress_listener_->update_files(valid_files);
+			this->progress_listener_->update_files(valid_files, updater::progress_mode::verifying);
 		}
 
 		const auto outdated_files = this->get_outdated_files(valid_files);
@@ -163,11 +169,10 @@ namespace client_updater
 			return;
 		}
 
-		// Disable verification mode and switch to byte-based download progress
+		// Reset progress tracking for download phase with only outdated files
 		if (this->progress_listener_)
 		{
-			this->progress_listener_->set_verification_mode(false);
-			this->progress_listener_->update_files(outdated_files);
+			this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
 		}
 
 		this->update_files(outdated_files);
@@ -262,6 +267,12 @@ namespace client_updater
 			if (this->is_outdated_file(info))
 			{
 				outdated_files.emplace_back(info);
+			}
+
+			// Mark file as verified by adding its size to progress
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->file_progress(info, info.size);
 			}
 
 			// Report that we've finished verifying this file

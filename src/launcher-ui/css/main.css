@@ -1676,3 +1676,175 @@ body:not(.hidden) {
     height: 20px;
     background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="white" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke="white" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>') center/contain no-repeat;
 }
+
+/* Install Confirmation Popup */
+.install-confirm-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+}
+
+.install-confirm-popup {
+    background: #2a2a2a;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90vw;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid #444;
+}
+
+.install-confirm-popup .popup-header {
+    padding: 20px 20px 15px 20px;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.install-confirm-popup .popup-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.install-confirm-popup .popup-content {
+    padding: 25px;
+}
+
+.install-path-section {
+    margin-bottom: 20px;
+}
+
+.install-path-section label {
+    display: block;
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.install-path-group {
+    display: flex;
+    gap: 10px;
+}
+
+.install-path-display {
+    flex: 1;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    word-break: break-all;
+}
+
+.install-browse-button {
+    background: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.install-browse-button:hover {
+    background: #106ebe;
+}
+
+.install-info-section {
+    margin-bottom: 25px;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.install-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.install-info-row:not(:last-child) {
+    border-bottom: 1px solid #333;
+}
+
+.install-info-label {
+    color: #999;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.install-info-value {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.install-info-value.warning {
+    color: #f9d406;
+}
+
+.install-info-value.error {
+    color: #ff4444;
+}
+
+.install-info-value.loading {
+    color: #666;
+}
+
+.install-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+}
+
+.install-actions button {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-install-cancel {
+    background: #444;
+    color: #ccc;
+}
+
+.btn-install-cancel:hover {
+    background: #555;
+    color: #fff;
+}
+
+.btn-install {
+    background: #0078d4;
+    color: white;
+}
+
+.btn-install:hover {
+    background: #106ebe;
+}
+
+.btn-install:disabled {
+    background: #444;
+    color: #666;
+    cursor: not-allowed;
+}

@@ -228,7 +228,7 @@ namespace utils::http
 			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
 			// Check if operation was cancelled
-			if (code == CURLE_ABORTED_BY_CALLBACK /* && gui::is_update_cancelled()*/)
+			if (code == CURLE_ABORTED_BY_CALLBACK)
 			{
 				result result;
 				result.code = code;
