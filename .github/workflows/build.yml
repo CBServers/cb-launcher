@@ -102,8 +102,9 @@ jobs:
       - name: Move files to cb-launcher folder and rename hashes
         run: |
           mkdir cb-launcher
-          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\
-          Move-Item -Path .\data -Destination .\cb-launcher\
+          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\ -Force
+          Copy-Item -Path .\data\* -Destination .\cb-launcher\data\ -Recurse -Force
+          Remove-Item -Path .\data -Recurse -Force
           mv hashed.json cb-launcher.json
 
       - name: Clone updater
