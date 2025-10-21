@@ -74,11 +74,8 @@ if ($null -eq $sz) {
 Write-Output 'Downloading CEF...'
 #-------------------------------------------------
 
-Add-Type -AssemblyName System.Web
-$cefURLVersion = [System.Web.HttpUtility]::UrlEncode($cefVersion) 
-
-$source = "https://cef-builds.spotifycdn.com/$cefURLVersion.tar.bz2"
-(New-Object Net.WebClient).DownloadFile($source, $destination)
+$source = "https://cef-builds.spotifycdn.com/$cefVersion.tar.bz2"
+Invoke-WebRequest -Uri $source -OutFile $destination -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 #-------------------------------------------------
 Write-Output 'Unpacking CEF...'
