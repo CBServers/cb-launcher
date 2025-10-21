@@ -103,9 +103,11 @@ jobs:
         run: |
           mkdir cb-launcher
           Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\ -Force
+          Remove-Item -Path .\cb-launcher\data -Force -Recurse -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path .\cb-launcher\data -Force | Out-Null
           Copy-Item -Path .\data\* -Destination .\cb-launcher\data\ -Recurse -Force
           Remove-Item -Path .\data -Recurse -Force
-          mv hashed.json cb-launcher.json
+          Rename-Item -Path hashed.json -NewName cb-launcher.json
 
       - name: Clone updater
         run: |
