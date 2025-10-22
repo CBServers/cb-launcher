@@ -14,7 +14,8 @@ namespace game_config
 			{
 				.display_name = "Black Ops 3",
 				.install_property = "bo3-install",
-				.has_zone_property = "bo3-has-zone",
+				.is_installed_property = "bo3-is-installed",
+				.steam_install_property = "bo3-is-steam-install",
 				.id = "boiii",
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
@@ -30,7 +31,8 @@ namespace game_config
 			{
 				.display_name = "Ghosts",
 				.install_property = "ghosts-install",
-				.has_zone_property = "ghosts-has-zone",
+				.is_installed_property = "ghosts-is-installed",
+				.steam_install_property = "ghosts-is-steam-install",
 				.id = "iw6x",
 				.exe_name = "iw6x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
@@ -49,7 +51,8 @@ namespace game_config
 			{
 				.display_name = "Advanced Warfare",
 				.install_property = "aw-install",
-				.has_zone_property = "aw-has-zone",
+				.is_installed_property = "aw-is-installed",
+				.steam_install_property = "aw-is-steam-install",
 				.id = "s1x",
 				.exe_name = "s1x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
@@ -70,7 +73,8 @@ namespace game_config
 			{
 				.display_name = "Modern Warfare Remastered",
 				.install_property = "mwr-install",
-				.has_zone_property = "mwr-has-zone",
+				.is_installed_property = "mwr-is-installed",
+				.steam_install_property = "mwr-is-steam-install",
 				.id = "h1-mod",
 				.exe_name = "h1-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
@@ -89,7 +93,8 @@ namespace game_config
 			{
 				.display_name = "Infinite Warfare",
 				.install_property = "iw-install",
-				.has_zone_property = "iw-has-zone",
+				.is_installed_property = "iw-is-installed",
+				.steam_install_property = "iw-is-steam-install",
 				.id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
@@ -99,13 +104,15 @@ namespace game_config
 				.mode_arguments = {},
 				.base_url = GAME_UPDATE_SERVER "iw_game_files"
 			},
-			
+
 		},
 		{
 			"hmw",
 			{
 				.display_name = "HorizonMW",
 				.install_property = "hmw-install",
+				.is_installed_property = "hmw-is-installed",
+				.steam_install_property = "hmw-is-steam-install",
 				.id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
@@ -115,7 +122,7 @@ namespace game_config
 				.mode_arguments = {},
 				.base_url = GAME_UPDATE_SERVER "mwr_game_files"
 			},
-			
+
 		}
 	};
 

@@ -146,7 +146,7 @@ namespace game_updater
 		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
-		const auto has_zone_prop = utils::properties::load(config.has_zone_property);
+		const auto is_steam_install_prop = utils::properties::load(config.steam_install_property);
 
 		// install_path and has_zone_folder may not be set yet (e.g., when calling get_game_size before installation)
 		if (install_path_prop.has_value())
@@ -154,16 +154,17 @@ namespace game_updater
 			this->install_path = std::filesystem::path(install_path_prop->data());
 		}
 
-		if (has_zone_prop.has_value())
+		if (is_steam_install_prop.has_value())
 		{
-			this->has_zone_folder = (std::string(has_zone_prop->data()) == "false") ? false : true;
+			this->is_steam_install = (std::string(is_steam_install_prop->data()) == "true") ? true : false;
 		}
 		else
 		{
-			this->has_zone_folder = true; // Default to true if not set
+			this->is_steam_install = false; // Default to false if not set
 		}
 
 		this->base_url = config.base_url;
+		this->is_installed_property = config.is_installed_property;
 		this->force_update = force_update;
 	}
 
@@ -222,6 +223,13 @@ namespace game_updater
 			}
 
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
+
+			// Mark game as fully installed
+			if (!this->is_installed_property.empty())
+			{
+				utils::properties::store(this->is_installed_property, "true");
+			}
+
 			update_needed = false;
 			printf("All files are up to date!\n");
 			return;
@@ -264,6 +272,12 @@ namespace game_updater
 		if (!error_occurred && !this->is_update_cancelled())
 		{
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
+
+			// Mark game as fully installed
+			if (!this->is_installed_property.empty())
+			{
+				utils::properties::store(this->is_installed_property, "true");
+			}
 		}
 
 		update_needed = false;
@@ -552,10 +566,18 @@ namespace game_updater
 
 	std::string game_updater::get_drive_filename(const updater::file_info& file) const
 	{
-		if(!this->has_zone_folder && utils::string::starts_with(file.name, "zone/"))
+		if(this->is_steam_install)
 		{
-			const auto filename = utils::string::replace(file.name, "zone/", "");
-			return (this->install_path / filename).string();
+			if (utils::string::starts_with(file.name, "zone/"))
+			{
+				const auto filename = utils::string::replace(file.name, "zone/", "");
+				return (this->install_path / filename).string();
+			}
+			else if (utils::string::starts_with(file.name, "raw/video/"))
+			{
+				const auto filename = utils::string::replace(file.name, "raw/video/", "");
+				return (this->install_path / filename).string();
+			}
 		}
 
 		return (this->install_path / file.name).string();

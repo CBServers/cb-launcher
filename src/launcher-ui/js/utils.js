@@ -12,6 +12,7 @@ class GameUtils {
                 displayName: 'Black Ops 3',
                 installProperty: 'bo3-install',
                 isInstalledProperty: 'bo3-is-installed',
+                isSteamInstallProperty: "bo3-is-steam-install",
                 gameModeProperty: 'bo3-game-mode',
                 defaultInstallPath: 'bo3_game_files',
                 uiId: 'boiii',
@@ -28,6 +29,7 @@ class GameUtils {
                 displayName: 'Ghosts',
                 installProperty: 'ghosts-install',
                 isInstalledProperty: 'ghosts-is-installed',
+                isSteamInstallProperty: "ghosts-is-steam-install",
                 gameModeProperty: 'ghosts-game-mode',
                 defaultInstallPath: 'ghosts_game_files',
                 uiId: 'iw6x',
@@ -42,7 +44,8 @@ class GameUtils {
                 displayName: 'Advanced Warfare',
                 installProperty: 'aw-install',
                 isInstalledProperty: 'aw-is-installed',
-                gameModeProperty: '-aw-game-mode',
+                isSteamInstallProperty: "aw-is-steam-install",
+                gameModeProperty: 'aw-game-mode',
                 defaultInstallPath: 'aw_game_files',
                 uiId: 's1x',
                 hasMultipleModes: true,
@@ -56,6 +59,7 @@ class GameUtils {
                 displayName: 'Modern Warfare Remastered',
                 installProperty: 'mwr-install',
                 isInstalledProperty: 'mwr-is-installed',
+                isSteamInstallProperty: "mwr-is-steam-install",
                 gameModeProperty: 'mwr-game-mode',
                 defaultInstallPath: 'mwr_game_files',
                 uiId: 'h1-mod',
@@ -68,7 +72,9 @@ class GameUtils {
             },
             'iw': {
                 displayName: 'Infinite Warfare',
+                installProperty: 'iw-install',
                 isInstalledProperty: 'iw-is-installed',
+                isSteamInstallProperty: "iw-is-steam-install",
                 gameModeProperty: 'iw-game-mode',
                 defaultInstallPath: 'iw_game_files',
                 uiId: 'iw7-mod',
@@ -83,6 +89,7 @@ class GameUtils {
                 displayName: 'HorizonMW',
                 installProperty: 'hmw-install',
                 isInstalledProperty: 'hmw-is-installed',
+                isSteamInstallProperty: "hmw-is-steam-install",
                 gameModeProperty: 'hmw-game-mode',
                 defaultInstallPath: 'hmw_game_files',
                 uiId: 'hmw-mod',
@@ -171,6 +178,8 @@ class GameUtils {
             const config = this.getGameConfig(game);
             if (config) {
                 properties[config.installProperty] = '';
+                properties[config.isInstalledProperty] = '';
+                properties[config.isSteamInstallProperty] = '';
                 properties[config.gameModeProperty] = '';
 
                 // Add special settings

@@ -302,7 +302,6 @@ namespace
 				return;
 			}
 
-			//Only validate install if it is existing
 			if (existing_install)
 			{
 				if (!game_config::validate_game_path(game, path))
@@ -310,16 +309,32 @@ namespace
 					return; // Invalid - no valid game exe found
 				}
 
-				const auto has_zone_folder = utils::io::directory_exists(path / "zone") ? "true" : "false";
-				utils::properties::store(config->has_zone_property, has_zone_folder);
-				printf("Setting has_zone_folder: %s", has_zone_folder);
+				const auto has_zone_folder = utils::io::directory_exists(path / "zone");
+				const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
+				if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
+				{
+					utils::properties::store(config->steam_install_property, "true");
+				}
+				else
+				{
+					utils::properties::store(config->steam_install_property, "false");
+				}
+				
+
+				// Mark as installed since validation passed
+				utils::properties::store(config->is_installed_property, "true");
+			}
+			else
+			{
+				// For new downloads, mark as not installed yet
+				utils::properties::store(config->is_installed_property, "false");
 			}
 
 			if (!utils::io::directory_exists(path))
 			{
 				utils::io::create_directory(path);
 			}
-			
+
 			// Path is valid, store it
 			utils::properties::store(config->install_property, path.string());
 			response.SetBool(true); // Success

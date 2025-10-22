@@ -24,7 +24,8 @@ namespace game_updater
 	private:
 		std::filesystem::path install_path;
 		std::string base_url;
-		bool has_zone_folder;
+		std::string is_installed_property;
+		bool is_steam_install;
 		bool force_update;
 		updater::ui_progress_listener* progress_listener_;
 

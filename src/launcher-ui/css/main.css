@@ -1731,6 +1731,30 @@ body:not(.hidden) {
     font-weight: 500;
 }
 
+.install-download-info-section {
+    margin-bottom: 20px;
+}
+
+.install-download-info-section label {
+    display: block;
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.install-note-section {
+    margin-bottom: 20px;
+}
+
+.install-note-section label {
+    display: block;
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
 .install-path-group {
     display: flex;
     gap: 10px;
@@ -1806,6 +1830,12 @@ body:not(.hidden) {
 
 .install-info-value.loading {
     color: #666;
+}
+
+.install-note {
+    color: #ccc;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 .install-actions {

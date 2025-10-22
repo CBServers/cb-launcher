@@ -328,13 +328,13 @@ function loadSidebarIcons() {
 // Game Installation Manager
 window.GameInstallationManager = {
     async checkInstallation(gameId) {
-        const installProperty = this.getInstallProperty(gameId);
-        if (!installProperty) return false;
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        if (!config) return false;
 
         try {
             if (typeof window.executeCommand === 'function') {
-                const installPath = await window.executeCommand('get-property', installProperty);
-                return installPath && installPath.trim() !== '';
+                const isInstalled = await window.executeCommand('get-property', config.isInstalledProperty);
+                return isInstalled && isInstalled.trim() === 'true';
             } else {
                 // Mock for development
                 console.log(`Mock: Checking installation for ${gameId}`);
@@ -699,6 +699,12 @@ function verifyGame(gameId) {
                     // Verification complete
                     clearInterval(pollInterval);
                     window.ProgressManager.update(100, 'Verification complete!');
+
+                    // Trigger UI update in case verification installed missing files
+                    window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                        detail: { game: gameMapping }
+                    }));
+
                     setTimeout(() => {
                         window.ProgressManager.hide();
                     }, 1000);
@@ -780,12 +786,10 @@ async function checkGameInstallation(gameId) {
     const config = GameUtils.getGameConfigByUIId(gameId);
     if (!config) return false;
 
-    const installProperty = config.installProperty;
-
     try {
         if (typeof window.executeCommand === 'function') {
-            const installPath = await window.executeCommand('get-property', installProperty);
-            return installPath && installPath.trim() !== '';
+            const isInstalled = await window.executeCommand('get-property', config.isInstalledProperty);
+            return isInstalled && isInstalled.trim() === 'true';
         } else {
             console.log(`Mock: Checking installation for ${gameId}`);
             return Math.random() > 0.5;

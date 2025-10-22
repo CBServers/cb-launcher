@@ -11,7 +11,8 @@ namespace game_config
 	{
 		std::string display_name;
 		std::string install_property;
-		std::string has_zone_property;
+		std::string is_installed_property;
+		std::string steam_install_property;
 		std::string id;
 		std::string exe_name;
 		std::string update_manifest_url;

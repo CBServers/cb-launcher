@@ -159,27 +159,44 @@ class SetupFlowPopup {
 
     async handleDownloadInstallation() {
         try {
-            // Open folder browser to select download location
+            // Check if install path is already set (e.g., from a previous cancelled download)
+            const gameConfig = GameUtils.getGameConfig(this.currentGame);
+            if (!gameConfig) {
+                console.error('Game config not found');
+                return;
+            }
+
+            let fullPath = null;
+
             if (typeof window.executeCommand === 'function') {
-                const folder = await window.executeCommand('browse-folder');
-                if (folder) {
+                // Check for existing install path
+                const existingPath = await window.executeCommand('get-property', gameConfig.installProperty);
+
+                if (existingPath && existingPath.trim() !== '') {
+                    // Path already exists, use it directly
+                    console.log('Using existing install path:', existingPath);
+                    fullPath = existingPath;
+                } else {
+                    // No existing path, browse for folder
+                    const folder = await window.executeCommand('browse-folder');
+                    if (!folder) {
+                        console.log('No folder selected');
+                        return;
+                    }
+
                     // Append defaultInstallPath to the selected folder
-                    const gameConfig = GameUtils.getGameConfig(this.currentGame);
-                    const defaultInstallPath = gameConfig ? gameConfig.defaultInstallPath : '';
+                    const defaultInstallPath = gameConfig.defaultInstallPath || '';
 
                     // Combine folder with default install path
-                    console.log(folder);
-                    
-                    const fullPath = defaultInstallPath
+                    console.log('Selected folder:', folder);
+                    fullPath = defaultInstallPath
                         ? `${folder}\\${defaultInstallPath}`
                         : folder;
-                    console.log(fullPath);
-
-                    // Show install confirmation popup with download info
-                    this.showInstallConfirmation(fullPath);
-                } else {
-                    console.log('No folder selected');
+                    console.log('Full path:', fullPath);
                 }
+
+                // Show install confirmation popup with download info
+                this.showInstallConfirmation(fullPath);
             } else {
                 console.log('Mock: Would browse for download location folder');
                 this.hide();
@@ -209,19 +226,30 @@ class SetupFlowPopup {
             <div class="popup-content">
                 <div class="install-path-section">
                     <label>Install Location</label>
-                    <div class="install-path-group">
-                        <div class="install-path-display" id="install-path-display">${installPath}</div>
-                        <button class="install-browse-button" id="install-browse-btn" type="button">Browse</button>
+                    <div class="input-group">
+                        <input type="text" id="install-path-display" value="${installPath}" readonly />
+                        <button class="browse-button" id="install-browse-btn" type="button">Browse</button>
                     </div>
                 </div>
-                <div class="install-info-section">
-                    <div class="install-info-row">
-                        <span class="install-info-label">Game Size:</span>
-                        <span class="install-info-value loading" id="install-game-size">Loading...</span>
+                <div class="install-download-info-section">
+                    <label>Download Info</label>
+                    <div class="install-info-section">
+                        <div class="install-info-row">
+                            <span class="install-info-label">Game Size:</span>
+                            <span class="install-info-value loading" id="install-game-size">Loading...</span>
+                        </div>
+                        <div class="install-info-row">
+                            <span class="install-info-label">Available Space:</span>
+                            <span class="install-info-value loading" id="install-available-space">Loading...</span>
+                        </div>
                     </div>
-                    <div class="install-info-row">
-                        <span class="install-info-label">Available Space:</span>
-                        <span class="install-info-value loading" id="install-available-space">Loading...</span>
+                </div>
+                <div class="install-note-section">
+                    <label>Note</label>
+                    <div class="install-info-section">
+                        <div class="install-note">
+                            Game installs DO NOT include Campaign or Zombies DLC due to large game size (Only Multiplayer and DLC is included).
+                        </div>
                     </div>
                 </div>
                 <div class="install-actions">
@@ -268,7 +296,7 @@ class SetupFlowPopup {
 
                         // Update the path display
                         currentInstallPath = newPath;
-                        pathDisplay.textContent = newPath;
+                        pathDisplay.value = newPath;
 
                         // Refresh download info with new path
                         await updateDownloadInfo(newPath);
@@ -454,6 +482,10 @@ class SetupFlowPopup {
                         // Download complete
                         clearInterval(pollInterval);
                         window.ProgressManager.update(100, 'Download complete!');
+
+                        // Trigger UI update to show PLAY buttons now that download is complete
+                        this.triggerInstallationUpdate();
+
                         setTimeout(() => {
                             window.ProgressManager.hide();
                         }, 1000);
