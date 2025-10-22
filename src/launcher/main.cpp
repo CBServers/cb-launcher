@@ -26,6 +26,12 @@ namespace
 	void set_working_directory()
 	{
 		const auto appdata = utils::properties::get_appdata_path();
+
+		if (!utils::io::directory_exists(appdata / "data"))
+		{
+			utils::io::create_directory(appdata / "data");
+		}
+
 		std::filesystem::current_path(appdata);
 	}
 
