@@ -85,7 +85,7 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = "mwr_game_files"
+				.base_url = GAME_UPDATE_SERVER "mwr_game_files"
 			}
 		},
 		{
@@ -110,9 +110,9 @@ namespace game_config
 			"hmw",
 			{
 				.display_name = "HorizonMW",
-				.install_property = "hmw-install",
+				.install_property = "mwr-install",
 				.is_installed_property = "hmw-is-installed",
-				.steam_install_property = "hmw-is-steam-install",
+				.steam_install_property = "mwr-is-steam-install",
 				.id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
