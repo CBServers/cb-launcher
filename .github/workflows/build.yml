@@ -102,12 +102,9 @@ jobs:
       - name: Move files to cb-launcher folder and rename hashes
         run: |
           mkdir cb-launcher
-          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\ -Force
-          Remove-Item -Path .\cb-launcher\data -Force -Recurse -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path .\cb-launcher\data -Force | Out-Null
-          Copy-Item -Path .\data\* -Destination .\cb-launcher\data\ -Recurse -Force
-          Remove-Item -Path .\data -Recurse -Force
-          Rename-Item -Path hashed.json -NewName cb-launcher.json
+          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\
+          Move-Item -Path .\data -Destination .\cb-launcher\
+          mv hashed.json cb-launcher.json
 
       - name: Clone updater
         run: |
@@ -122,7 +119,7 @@ jobs:
       - name: Copy files to updater and cleanup
         run: |
           Copy-Item -Path .\cb-launcher.json -Destination .\updater\updater\ -Force
-          Copy-Item -Path .\cb-launcher\* -Destination .\updater\updater\cb-launcher\ -Recurse -Force
+          Copy-Item -Path .\cb-launcher -Destination .\updater\updater\ -Recurse -Force
           Remove-Item -Path .\cb-launcher.json -Force
           Remove-Item -Path .\cb-launcher -Recurse -Force
           Remove-Item -Path .\update-hasher.exe -Force
