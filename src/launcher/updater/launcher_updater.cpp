@@ -344,7 +344,7 @@ namespace launcher_updater
 			return this->process_file_;
 		}
 
-		return this->base_ / "data" / file.name;
+		return this->base_ / file.name;
 	}
 
 	void launcher_updater::move_current_process_file() const

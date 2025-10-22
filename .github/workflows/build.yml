@@ -24,6 +24,11 @@ jobs:
           #- Debug
           - Release
     steps:
+      - name: Set Git to use LF line endings
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          
       - name: Check out files
         uses: actions/checkout@v4.2.0
         with:
