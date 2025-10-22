@@ -432,7 +432,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 		{
 			launcher_updater::run(path);
 		}
-#elif
+#else
 		AllocConsole();
 		FILE* fp;
 		freopen_s(&fp, "CONOUT$", "w", stdout);

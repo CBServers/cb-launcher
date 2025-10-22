@@ -70,24 +70,11 @@ namespace utils::properties
 			CoTaskMemFree(path);
 		});
 
+#ifdef DEBUG
+		static auto appdata = std::filesystem::path(path) / "cbservers_debug";
+#else
 		static auto appdata = std::filesystem::path(path) / "cbservers";
-		return appdata;
-	}
-
-	std::filesystem::path get_appdata_path(const std::string& folder)
-	{
-		PWSTR path;
-		if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
-		{
-			throw std::runtime_error("Failed to read APPDATA path!");
-		}
-
-		auto _ = finally([&path]
-			{
-				CoTaskMemFree(path);
-			});
-
-		static auto appdata = std::filesystem::path(path) / folder;
+#endif
 		return appdata;
 	}
 

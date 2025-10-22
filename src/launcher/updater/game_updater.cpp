@@ -147,8 +147,22 @@ namespace game_updater
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
 		const auto has_zone_prop = utils::properties::load(config.has_zone_property);
-		this->install_path = std::filesystem::path(install_path_prop->data());
-		this->has_zone_folder = (std::string(has_zone_prop->data()) == "false") ? false : true;
+
+		// install_path and has_zone_folder may not be set yet (e.g., when calling get_game_size before installation)
+		if (install_path_prop.has_value())
+		{
+			this->install_path = std::filesystem::path(install_path_prop->data());
+		}
+
+		if (has_zone_prop.has_value())
+		{
+			this->has_zone_folder = (std::string(has_zone_prop->data()) == "false") ? false : true;
+		}
+		else
+		{
+			this->has_zone_folder = true; // Default to true if not set
+		}
+
 		this->base_url = config.base_url;
 		this->force_update = force_update;
 	}

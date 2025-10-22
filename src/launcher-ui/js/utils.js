@@ -11,7 +11,8 @@ class GameUtils {
             'bo3': {
                 displayName: 'Black Ops 3',
                 installProperty: 'bo3-install',
-                gameModeProperty: 'game-mode-bo3',
+                isInstalledProperty: 'bo3-is-installed',
+                gameModeProperty: 'bo3-game-mode',
                 defaultInstallPath: 'bo3_game_files',
                 uiId: 'boiii',
                 hasMultipleModes: false,
@@ -26,7 +27,8 @@ class GameUtils {
             'ghosts': {
                 displayName: 'Ghosts',
                 installProperty: 'ghosts-install',
-                gameModeProperty: 'game-mode-ghosts',
+                isInstalledProperty: 'ghosts-is-installed',
+                gameModeProperty: 'ghosts-game-mode',
                 defaultInstallPath: 'ghosts_game_files',
                 uiId: 'iw6x',
                 hasMultipleModes: true,
@@ -39,7 +41,8 @@ class GameUtils {
             'aw': {
                 displayName: 'Advanced Warfare',
                 installProperty: 'aw-install',
-                gameModeProperty: 'game-mode-aw',
+                isInstalledProperty: 'aw-is-installed',
+                gameModeProperty: '-aw-game-mode',
                 defaultInstallPath: 'aw_game_files',
                 uiId: 's1x',
                 hasMultipleModes: true,
@@ -52,7 +55,8 @@ class GameUtils {
             'mwr': {
                 displayName: 'Modern Warfare Remastered',
                 installProperty: 'mwr-install',
-                gameModeProperty: 'game-mode-mwr',
+                isInstalledProperty: 'mwr-is-installed',
+                gameModeProperty: 'mwr-game-mode',
                 defaultInstallPath: 'mwr_game_files',
                 uiId: 'h1-mod',
                 hasMultipleModes: true,
@@ -64,8 +68,8 @@ class GameUtils {
             },
             'iw': {
                 displayName: 'Infinite Warfare',
-                installProperty: 'iw-install',
-                gameModeProperty: 'game-mode-iw',
+                isInstalledProperty: 'iw-is-installed',
+                gameModeProperty: 'iw-game-mode',
                 defaultInstallPath: 'iw_game_files',
                 uiId: 'iw7-mod',
                 hasMultipleModes: false,
@@ -78,7 +82,8 @@ class GameUtils {
             'hmw': {
                 displayName: 'HorizonMW',
                 installProperty: 'hmw-install',
-                gameModeProperty: 'game-mode-hmw',
+                isInstalledProperty: 'hmw-is-installed',
+                gameModeProperty: 'hmw-game-mode',
                 defaultInstallPath: 'hmw_game_files',
                 uiId: 'hmw-mod',
                 hasMultipleModes: false,
