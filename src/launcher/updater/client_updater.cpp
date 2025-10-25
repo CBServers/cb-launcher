@@ -126,7 +126,11 @@ namespace client_updater
 			throw std::runtime_error("Game install path not set for: " + config.id);
 		}
 
-		this->install_path = std::filesystem::path(install_path_prop->data());
+		if (install_path_prop.has_value())
+		{
+			this->install_path = std::filesystem::path(install_path_prop->data());
+		}
+
 		this->update_manifest_url = config.update_manifest_url;
 		this->update_folder_url = config.update_folder_url;
 		this->files_to_update = config.required_updater_files;

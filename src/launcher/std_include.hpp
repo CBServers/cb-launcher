@@ -53,11 +53,8 @@
 
 #pragma comment(lib, "Dwmapi.lib")
 
-#ifdef DEBUG
-#define CONFIG_NAME "debug"
-#else
 #define CONFIG_NAME "release"
-#endif
+
 
 using namespace std::literals;
 

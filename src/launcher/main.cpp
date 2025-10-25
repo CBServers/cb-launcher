@@ -442,11 +442,6 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
 #if !defined(DEBUG)
 		run_as_singleton();
-
-		if (!utils::flags::has_flag("noupdate"))
-		{
-			launcher_updater::run(path);
-		}
 #else
 		AllocConsole();
 		FILE* fp;
@@ -454,6 +449,11 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 		freopen_s(&fp, "CONOUT$", "w", stderr);
 		printf("Debug console enabled\n");
 #endif
+
+		if (!utils::flags::has_flag("noupdate"))
+		{
+			launcher_updater::run(path);
+		}
 
 		if (!is_dedi())
 		{

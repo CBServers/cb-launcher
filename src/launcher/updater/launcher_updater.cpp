@@ -314,7 +314,7 @@ namespace launcher_updater
 
 	bool launcher_updater::is_outdated_file(const updater::file_info& file) const
 	{
-#if !defined(NDEBUG)
+#if defined(DEBUG)
 		if (file.name == UPDATE_HOST_BINARY)
 		{
 			return false;
