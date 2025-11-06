@@ -42,8 +42,13 @@ namespace updater
 		progress_tracker::instance().update_downloaded_bytes(progress);
 	}
 
-	void ui_progress_listener::reset()
+	void ui_progress_listener::reset(bool new_update)
 	{
-		progress_tracker::instance().reset();
+		progress_tracker::instance().reset(new_update);
+	}
+
+	void ui_progress_listener::cancel_update()
+	{
+		progress_tracker::instance().cancel_update();
 	}
 }

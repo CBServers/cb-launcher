@@ -445,63 +445,48 @@ class SetupFlowPopup {
 
         window.ProgressManager.show(gameId, `Downloading ${gameDisplayName}...`, cancelDownload);
 
-        // Start the download via verify-game command
-        window.executeCommand('verify-game', { game: this.currentGame }).catch(error => {
+        // Start the download via verify-game command and wait for it to initialize
+        window.executeCommand('verify-game', { game: this.currentGame }).then(() => {
+            console.log('Download command handler completed, starting polling');
+
+            // Poll for progress updates - backend has now set is_active=true
+            pollInterval = setInterval(async () => {
+            try {
+                const result = await window.executeCommand('get-update-progress');
+
+                if (!result) {
+                    console.log('No progress data received');
+                    return;
+                }
+
+                if (!result.active) {
+                    console.log('Download no longer active - download complete');
+                    // Download complete
+                    clearInterval(pollInterval);
+                    window.ProgressManager.update(100, 'Download complete!');
+
+                    // Trigger UI update to show PLAY buttons now that download is complete
+                    this.triggerInstallationUpdate();
+
+                    setTimeout(() => {
+                        window.ProgressManager.hide();
+                    }, 1000);
+                    return;
+                }
+
+                // Update progress
+                console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                window.ProgressManager.update(result.progress, result.message);
+            } catch (error) {
+                console.error('Error polling progress:', error);
+                clearInterval(pollInterval);
+                window.ProgressManager.hide();
+            }
+        }, 100); // Poll every 100ms
+        }).catch(error => {
             console.error('Failed to start download:', error);
             window.ProgressManager.hide();
         });
-
-        setTimeout(() => {
-            // Poll for progress updates
-            pollInterval = setInterval(async () => {
-                try {
-                    const result = await window.executeCommand('get-update-progress');
-
-                    if (!result) {
-                        console.log('No progress data received');
-                        return;
-                    }
-
-                    // Check for errors
-                    if (result.hasError && result.errorMessage) {
-                        console.error('Download error:', result.errorMessage);
-                        clearInterval(pollInterval);
-                        window.ProgressManager.hide();
-
-                        // Show error message to user
-                        if (typeof window.showMessageBox === 'function') {
-                            window.showMessageBox("Download Error", result.errorMessage, ["OK"]);
-                        } else {
-                            alert('Download Error: ' + result.errorMessage);
-                        }
-                        return;
-                    }
-
-                    if (!result.active) {
-                        console.log('Download no longer active');
-                        // Download complete
-                        clearInterval(pollInterval);
-                        window.ProgressManager.update(100, 'Download complete!');
-
-                        // Trigger UI update to show PLAY buttons now that download is complete
-                        this.triggerInstallationUpdate();
-
-                        setTimeout(() => {
-                            window.ProgressManager.hide();
-                        }, 1000);
-                        return;
-                    }
-
-                    // Update progress
-                    console.log(`Updating progress: ${result.message}, ${result.progress}`);
-                    window.ProgressManager.update(result.progress, result.message);
-                } catch (error) {
-                    console.error('Error polling progress:', error);
-                    clearInterval(pollInterval);
-                    window.ProgressManager.hide();
-                }
-            }, 100); // Poll every 100ms
-        }, 500); // Initial 500ms delay
     }
 
     getGameIdFromMapping(gameMapping) {

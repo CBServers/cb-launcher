@@ -15,12 +15,23 @@
 
 namespace
 {
-	bool try_lock_termination_barrier()
+	std::atomic_bool* get_termination_barrier()
 	{
 		static std::atomic_bool barrier{false};
+		return &barrier;
+	}
 
+	bool try_lock_termination_barrier()
+	{
+		auto* barrier = get_termination_barrier();
 		auto expected = false;
-		return barrier.compare_exchange_strong(expected, true);
+		return barrier->compare_exchange_strong(expected, true);
+	}
+
+	void unlock_termination_barrier()
+	{
+		auto* barrier = get_termination_barrier();
+		barrier->store(false);
 	}
 
 	void set_working_directory()
@@ -164,7 +175,60 @@ namespace
 				}
 
 				utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
-				cef_ui.close_browser();
+				// Don't close browser - keep launcher open so user can see STOP button
+				// cef_ui.close_browser();
+			}
+		});
+
+		cef_ui.add_command("is-game-running", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			response.SetBool(false); // Default to not running
+
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			// Check if the game process is running
+			const bool is_running = utils::nt::is_process_running(config->exe_name);
+			response.SetBool(is_running);
+		});
+
+		cef_ui.add_command("stop-game", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			response.SetBool(false); // Default to failure
+
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			// Attempt to stop the game process
+			const bool stopped = utils::nt::stop_process(config->exe_name);
+			response.SetBool(stopped);
+
+			// If we successfully stopped the game, unlock the termination barrier
+			if (stopped)
+			{
+				unlock_termination_barrier();
 			}
 		});
 
@@ -184,26 +248,28 @@ namespace
 				return; // Invalid game
 			}
 
+			updater::ui_progress_listener progress_listener;
+			progress_listener.reset(true);
+
 			// Run verification in a separate thread with progress tracking
-			std::thread([config, &cef_ui]()
+			std::thread([config, &progress_listener , &cef_ui]()
 			{
 				try
 				{
-					updater::ui_progress_listener progress_listener;
 					game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
 					client_updater::run(*config, &progress_listener);
 				}
 				catch (const std::exception& e)
 				{
 					// Set error in progress tracker and show error popup in UI
-					updater::progress_tracker::instance().cancel_update();
+					progress_listener.cancel_update();
 					printf("Update error: %s\n", e.what());
 					cef_ui.show_message_box("Updater Error", e.what());
 				}
 				catch (...)
 				{
 					// Set generic error for unknown exceptions
-					updater::progress_tracker::instance().cancel_update();
+					progress_listener.cancel_update();
 					printf("Unknown update error\n");
 					cef_ui.show_message_box("Updater Error", "An unknown error occurred during verification");
 				}

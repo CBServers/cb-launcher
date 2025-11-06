@@ -296,6 +296,71 @@ namespace utils::nt
 		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
 	}
 
+	bool is_process_running(const std::string& processName)
+	{
+		HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (hProcessSnap == INVALID_HANDLE_VALUE)
+		{
+			return false;
+		}
+
+		PROCESSENTRY32 pe32;
+		pe32.dwSize = sizeof(PROCESSENTRY32);
+
+		if (!Process32First(hProcessSnap, &pe32))
+		{
+			CloseHandle(hProcessSnap);
+			return false;
+		}
+
+		do
+		{
+			if (std::string(pe32.szExeFile) == processName)
+			{
+				CloseHandle(hProcessSnap);
+				return true;
+			}
+		} while (Process32Next(hProcessSnap, &pe32));
+
+		CloseHandle(hProcessSnap);
+		return false;
+	}
+
+	bool stop_process(const std::string& processName)
+	{
+		HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (hProcessSnap == INVALID_HANDLE_VALUE)
+		{
+			return false;
+		}
+
+		PROCESSENTRY32 pe32;
+		pe32.dwSize = sizeof(PROCESSENTRY32);
+
+		if (!Process32First(hProcessSnap, &pe32))
+		{
+			CloseHandle(hProcessSnap);
+			return false;
+		}
+
+		bool terminated = false;
+		do
+		{
+			if (std::string(pe32.szExeFile) == processName)
+			{
+				HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe32.th32ProcessID);
+				if (hProcess != nullptr)
+				{
+					terminated = TerminateProcess(hProcess, 0);
+					CloseHandle(hProcess);
+				}
+			}
+		} while (Process32Next(hProcessSnap, &pe32));
+
+		CloseHandle(hProcessSnap);
+		return terminated;
+	}
+
 	void relaunch_self(std::string command_line)
 	{
 		const utils::nt::library self;

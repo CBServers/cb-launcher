@@ -175,12 +175,6 @@ namespace game_updater
 			return;
 		}
 
-		// Reset cancellation state from any previous update
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->reset();
-		}
-
 		printf("Checking for updates...\n");
 
 		const auto manifest = get_manifest(this->base_url + "/manifest.json");

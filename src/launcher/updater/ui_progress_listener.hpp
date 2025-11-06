@@ -21,8 +21,8 @@ namespace updater
 
 		void file_progress(const file_info& file, size_t progress);
 
-		// Reset progress state from previous update
-		void reset();
+		void reset(bool new_update = false);
+		void cancel_update();
 
 	private:
 		size_t total_size_ = 0;

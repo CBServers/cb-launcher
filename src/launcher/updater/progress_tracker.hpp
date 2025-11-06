@@ -47,7 +47,7 @@ namespace updater
 		bool is_active() const;
 
 		// Clear/reset
-		void reset();
+		void reset(bool new_update);
 
 	private:
 		progress_tracker() = default;

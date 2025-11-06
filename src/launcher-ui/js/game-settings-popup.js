@@ -55,6 +55,8 @@ class GameSettingsPopup {
                 </div>
 
                 <div class="popup-actions">
+                    <button class="btn-reset">Reset Game Settings</button>
+                    <div style="flex: 1;"></div>
                     <button class="btn-cancel">Cancel</button>
                     <button class="btn-save">Save Settings</button>
                 </div>
@@ -71,11 +73,13 @@ class GameSettingsPopup {
         const closeBtn = this.popup.querySelector('.popup-close');
         const cancelBtn = this.popup.querySelector('.btn-cancel');
         const saveBtn = this.popup.querySelector('.btn-save');
+        const resetBtn = this.popup.querySelector('.btn-reset');
         const browseBtn = this.popup.querySelector('#browse-btn');
 
         closeBtn.addEventListener('click', () => this.hide());
         cancelBtn.addEventListener('click', () => this.hide());
         saveBtn.addEventListener('click', () => this.handleSave());
+        resetBtn.addEventListener('click', () => this.handleReset());
         browseBtn.addEventListener('click', () => this.handleBrowse());
 
         this.backdrop.addEventListener('click', (e) => {
@@ -281,6 +285,54 @@ class GameSettingsPopup {
                         "Failed to save settings. Please try again.", ["OK"]);
                 } else {
                     alert('Failed to save settings. Please try again.');
+                }
+            }
+        }
+    }
+
+    async handleReset() {
+        if (typeof window.showMessageBox === 'function') {
+            const result = await window.showMessageBox(
+                "⚠️ Reset Game Settings",
+                `Are you sure you want to reset all settings for ${this.gameConfig.displayName}? This will clear the installation path and all game preferences.`,
+                ["Cancel", "Reset"]
+            );
+
+            if (result === 1) {
+                try {
+                    // Build properties object to reset
+                    const properties = {};
+                    properties[this.gameConfig.installProperty] = '';
+                    properties[this.gameConfig.isInstalledProperty] = '';
+                    properties[this.gameConfig.isSteamInstallProperty] = '';
+                    properties[this.gameConfig.gameModeProperty] = '';
+
+                    // Add special settings if they exist
+                    if (this.gameConfig.specialSettings) {
+                        Object.values(this.gameConfig.specialSettings).forEach(settingKey => {
+                            properties[settingKey] = '';
+                        });
+                    }
+
+                    await window.executeCommand('set-property', properties);
+
+                    // Trigger UI refresh
+                    window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                        detail: { game: this.currentGame }
+                    }));
+
+                    this.hide();
+
+                    if (typeof window.showMessageBox === 'function') {
+                        window.showMessageBox("✓ Settings Reset",
+                            `${this.gameConfig.displayName} settings have been reset to defaults!`, ["OK"]);
+                    }
+                } catch (error) {
+                    console.error('Failed to reset settings:', error);
+                    if (typeof window.showMessageBox === 'function') {
+                        window.showMessageBox("✗ Reset Failed",
+                            "Failed to reset settings. Please try again.", ["OK"]);
+                    }
                 }
             }
         }

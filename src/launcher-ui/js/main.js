@@ -94,6 +94,11 @@ function initialize() {
             } catch (error) {
                 console.log("Show command not available:", error);
             }
+
+            // Start game state polling
+            if (window.GameStateManager) {
+                window.GameStateManager.startPolling();
+            }
         });
 
     document.querySelector("#minimize-button").onclick = () => {
@@ -328,22 +333,8 @@ function loadSidebarIcons() {
 // Game Installation Manager
 window.GameInstallationManager = {
     async checkInstallation(gameId) {
-        const config = GameUtils.getGameConfigByUIId(gameId);
-        if (!config) return false;
-
-        try {
-            if (typeof window.executeCommand === 'function') {
-                const isInstalled = await window.executeCommand('get-property', config.isInstalledProperty);
-                return isInstalled && isInstalled.trim() === 'true';
-            } else {
-                // Mock for development
-                console.log(`Mock: Checking installation for ${gameId}`);
-                return false; // Default to not installed for testing
-            }
-        } catch (error) {
-            console.error('Error checking installation:', error);
-            return false;
-        }
+        const installStatus = await checkGameInstallation(gameId);
+        return installStatus.status === 'installed';
     },
 
     getInstallProperty(gameId) {
@@ -358,6 +349,109 @@ window.GameInstallationManager = {
     getGameDisplayName(gameId) {
         const config = GameUtils.getGameConfigByUIId(gameId);
         return config ? config.displayName : gameId;
+    }
+};
+
+// Game State Manager - Continuously monitors game states and updates UI
+window.GameStateManager = {
+    pollInterval: null,
+    isPolling: false,
+    gameStates: {},
+    pollIntervalMs: 1000, // Check every second
+
+    async checkGameRunning(gameId) {
+        // Check if a game is currently running
+        // This requires a backend command to check process status
+        try {
+            if (typeof window.executeCommand === 'function') {
+                const gameMapping = GameUtils.getGameMapping(gameId);
+                const isRunning = await window.executeCommand('is-game-running', { game: gameMapping });
+                return isRunning === true || isRunning === 'true';
+            }
+        } catch (error) {
+            console.error(`Error checking if ${gameId} is running:`, error);
+        }
+        return false;
+    },
+
+    async updateGameState(gameId) {
+        // Get current installation status
+        const installStatus = await checkGameInstallation(gameId);
+
+        // Check if game is running
+        const isRunning = await this.checkGameRunning(gameId);
+
+        // Store the state
+        const previousState = this.gameStates[gameId];
+        this.gameStates[gameId] = {
+            installStatus: installStatus.status,
+            isRunning: isRunning,
+            hasAnySetup: installStatus.hasAnySetup
+        };
+
+        // Check if state changed
+        const stateChanged = !previousState ||
+            previousState.installStatus !== installStatus.status ||
+            previousState.isRunning !== isRunning;
+
+        return stateChanged;
+    },
+
+    async updateAllGameStates() {
+        const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+
+        // Find which game page is currently visible
+        let visibleGameId = null;
+        for (const gameId of gameIds) {
+            const gamePage = document.getElementById(`${gameId}-page`);
+            if (gamePage && gamePage.style.display !== 'none') {
+                visibleGameId = gameId;
+                break;
+            }
+        }
+
+        // Only poll the visible game page
+        if (visibleGameId) {
+            const stateChanged = await this.updateGameState(visibleGameId);
+
+            // Update buttons if state changed
+            if (stateChanged) {
+                console.log(`${visibleGameId} state changed, updating buttons`);
+                await createGameButtons(visibleGameId);
+            }
+        }
+        // If no game page is visible (home/settings), skip polling to save resources
+    },
+
+    startPolling() {
+        if (this.isPolling) {
+            console.log('GameStateManager: Already polling');
+            return;
+        }
+
+        console.log('GameStateManager: Starting state polling');
+        this.isPolling = true;
+
+        // Initial update
+        this.updateAllGameStates();
+
+        // Start interval
+        this.pollInterval = setInterval(() => {
+            this.updateAllGameStates();
+        }, this.pollIntervalMs);
+    },
+
+    stopPolling() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
+        this.isPolling = false;
+        console.log('GameStateManager: Stopped state polling');
+    },
+
+    getGameState(gameId) {
+        return this.gameStates[gameId] || null;
     }
 };
 
@@ -462,7 +556,7 @@ window.ProgressManager = {
     },
 
     disableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = true;
         });
@@ -470,7 +564,7 @@ window.ProgressManager = {
     },
 
     enableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = false;
         });
@@ -545,39 +639,72 @@ async function createGameButtons(gameId) {
     const buttonGroup = document.getElementById(`${gameId}-button-group`);
     if (!buttonGroup) return;
 
-    // Check installation status
-    const isInstalled = await window.GameInstallationManager.checkInstallation(gameId);
-    console.log(`${gameId} installation status:`, isInstalled);
+    // Get game state from StateManager if available, otherwise check directly
+    let gameState = window.GameStateManager.getGameState(gameId);
+    if (!gameState) {
+        const installStatus = await checkGameInstallation(gameId);
+        const isRunning = await window.GameStateManager.checkGameRunning(gameId);
+        gameState = {
+            installStatus: installStatus.status,
+            isRunning: isRunning,
+            hasAnySetup: installStatus.hasAnySetup
+        };
+    }
 
-    if (isInstalled) {
-        // Show PLAY, VERIFY, and SETTINGS buttons
-        buttonGroup.innerHTML = `
-            <div class="left-buttons">
-                <button class="play-button" id="${gameId}-play-button">
-                    <div class="play-icon"></div>
-                    PLAY
-                </button>
-                <button class="verify-button" id="${gameId}-verify-button">
-                    VERIFY
-                </button>
-            </div>
-            <div class="right-buttons">
-                <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
-                    <div class="settings-icon"></div>
-                </button>
-            </div>
-        `;
+    console.log(`${gameId} state:`, gameState);
 
-        // Attach event listeners
-        document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
-        document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
-        document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
+    if (gameState.installStatus === 'installed') {
+        if (gameState.isRunning) {
+            // Show STOP button when game is running
+            buttonGroup.innerHTML = `
+                <div class="left-buttons">
+                    <button class="stop-button" id="${gameId}-stop-button">
+                        <div class="stop-icon"></div>
+                        STOP
+                    </button>
+                </div>
+                <div class="right-buttons">
+                    <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
+                        <div class="settings-icon"></div>
+                    </button>
+                </div>
+            `;
+
+            // Attach event listeners
+            document.getElementById(`${gameId}-stop-button`).onclick = () => stopGame(gameId);
+            document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
+        } else {
+            // Show PLAY, VERIFY, and SETTINGS buttons
+            buttonGroup.innerHTML = `
+                <div class="left-buttons">
+                    <button class="play-button" id="${gameId}-play-button">
+                        <div class="play-icon"></div>
+                        PLAY
+                    </button>
+                    <button class="verify-button" id="${gameId}-verify-button">
+                        VERIFY
+                    </button>
+                </div>
+                <div class="right-buttons">
+                    <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
+                        <div class="settings-icon"></div>
+                    </button>
+                </div>
+            `;
+
+            // Attach event listeners
+            document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
+            document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
+            document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
+        }
     } else {
-        // Show SETUP button only
+        // Show SETUP or FINISH SETUP button
+        const buttonText = gameState.installStatus === 'partial' ? 'FINISH SETUP' : 'SETUP';
+
         buttonGroup.innerHTML = `
             <div class="left-buttons">
                 <button class="setup-button" id="${gameId}-setup-button">
-                    SETUP
+                    ${buttonText}
                 </button>
             </div>
         `;
@@ -677,50 +804,71 @@ function verifyGame(gameId) {
     // Show progress bar
     window.ProgressManager.show(gameId, `Verifying ${gameDisplayName}...`, cancelVerification);
 
-    // Start verification command
-    window.executeCommand('verify-game', { game: gameMapping }).catch(error => {
+    // Start verification command and wait for it to initialize
+    window.executeCommand('verify-game', { game: gameMapping }).then(() => {
+        console.log('Verify command handler completed, starting polling');
+
+        // Poll for progress updates - backend has now set is_active=true
+        pollInterval = setInterval(async () => {
+        try {
+            const result = await window.executeCommand('get-update-progress');
+
+            if (!result) {
+                console.log('No progress data received');
+                return;
+            }
+
+            if (!result.active) {
+                console.log('Update no longer active - verification complete');
+                // Verification complete
+                clearInterval(pollInterval);
+                window.ProgressManager.update(100, 'Verification complete!');
+
+                // Trigger UI update in case verification installed missing files
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                    detail: { game: gameMapping }
+                }));
+
+                setTimeout(() => {
+                    window.ProgressManager.hide();
+                }, 1000);
+                return;
+            }
+
+            // Update progress
+            console.log(`Updating progress: ${result.message}, ${result.progress}`);
+            window.ProgressManager.update(result.progress, result.message);
+        } catch (error) {
+            console.error('Error polling progress:', error);
+            clearInterval(pollInterval);
+            window.ProgressManager.hide();
+        }
+    }, 100); // Poll every 100ms
+    }).catch(error => {
         console.error('Failed to start verification:', error);
         window.ProgressManager.hide();
     });
+}
 
-    setTimeout(() => {
-        // Poll for progress updates
-        pollInterval = setInterval(async () => {
-            try {
-                const result = await window.executeCommand('get-update-progress');
+function stopGame(gameId) {
+    console.log(`Stop button clicked for ${gameId}`);
 
-                if (!result) {
-                    console.log('No progress data received');
-                    return;
-                }
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
 
-                if (!result.active) {
-                    console.log('Update no longer active');
-                    // Verification complete
-                    clearInterval(pollInterval);
-                    window.ProgressManager.update(100, 'Verification complete!');
-
-                    // Trigger UI update in case verification installed missing files
-                    window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                        detail: { game: gameMapping }
-                    }));
-
-                    setTimeout(() => {
-                        window.ProgressManager.hide();
-                    }, 1000);
-                    return;
-                }
-
-                // Update progress
-                console.log(`Updating progress: ${result.message}, ${result.progress}`);
-                window.ProgressManager.update(result.progress, result.message);
-            } catch (error) {
-                console.error('Error polling progress:', error);
-                clearInterval(pollInterval);
-                window.ProgressManager.hide();
+    // Send command to stop the game
+    if (typeof window.executeCommand === 'function') {
+        window.executeCommand('stop-game', { game: gameMapping }).then(() => {
+            console.log(`${gameId} stopped successfully`);
+            // State will be updated automatically by polling
+        }).catch(error => {
+            console.error(`Failed to stop ${gameId}:`, error);
+            if (typeof window.showMessageBox === 'function') {
+                window.showMessageBox("Error Stopping Game",
+                    `Failed to stop ${gameDisplayName}. The game may have already closed.`, ["OK"]);
             }
-        }, 100); // Poll every 100ms
-    }, 500); // This is the initial 500ms delay
+        });
+    }
 }
 
 function showSetupFlow(gameId) {
@@ -784,19 +932,30 @@ function showSettingsGameSettings(gameId) {
 
 async function checkGameInstallation(gameId) {
     const config = GameUtils.getGameConfigByUIId(gameId);
-    if (!config) return false;
+    if (!config) return { hasAnySetup: false, status: 'not-setup' };
 
     try {
         if (typeof window.executeCommand === 'function') {
             const isInstalled = await window.executeCommand('get-property', config.isInstalledProperty);
-            return isInstalled && isInstalled.trim() === 'true';
+            const installPath = await window.executeCommand('get-property', config.installProperty);
+
+            const fullyInstalled = isInstalled && isInstalled.trim() === 'true';
+            const hasPath = installPath && installPath.trim() !== '';
+
+            if (fullyInstalled) {
+                return { hasAnySetup: true, status: 'installed' };
+            } else if (hasPath) {
+                return { hasAnySetup: true, status: 'partial' };
+            } else {
+                return { hasAnySetup: false, status: 'not-setup' };
+            }
         } else {
             console.log(`Mock: Checking installation for ${gameId}`);
-            return Math.random() > 0.5;
+            return { hasAnySetup: Math.random() > 0.5, status: 'installed' };
         }
     } catch (error) {
         console.error(`Error checking installation for ${gameId}:`, error);
-        return false;
+        return { hasAnySetup: false, status: 'not-setup' };
     }
 }
 
@@ -807,19 +966,30 @@ async function populateGamesList() {
     console.log('Populating games list...');
     gamesList.innerHTML = '';
 
-    let installedGamesCount = 0;
+    let gamesWithSetupCount = 0;
 
     const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
 
     for (const gameId of gameIds) {
         console.log(`Checking installation for ${gameId}...`);
-        const isInstalled = await checkGameInstallation(gameId);
-        console.log(`${gameId} installation status:`, isInstalled);
+        const installStatus = await checkGameInstallation(gameId);
+        console.log(`${gameId} installation status:`, installStatus);
 
-        if (isInstalled) {
-            installedGamesCount++;
+        if (installStatus.hasAnySetup) {
+            gamesWithSetupCount++;
             const config = GameUtils.getGameConfigByUIId(gameId);
             if (!config) continue;
+
+            // Determine badge text and class
+            let badgeText = '';
+            let badgeClass = '';
+            if (installStatus.status === 'installed') {
+                badgeText = 'Installed';
+                badgeClass = 'installed';
+            } else if (installStatus.status === 'partial') {
+                badgeText = 'Partial';
+                badgeClass = 'partial';
+            }
 
             const gameItem = document.createElement('div');
             gameItem.className = 'game-settings-item';
@@ -827,7 +997,10 @@ async function populateGamesList() {
 
             gameItem.innerHTML = `
                 <div class="game-settings-info">
-                    <div class="game-settings-name">${config.displayName} - ${config.codeName}</div>
+                    <div class="game-settings-name">
+                        ${config.displayName} - ${config.codeName}
+                        <span class="game-status-badge ${badgeClass}">${badgeText}</span>
+                    </div>
                 </div>
                 <button class="game-settings-btn" data-game="${gameId}" title="Game Settings">
                     <div class="settings-icon"></div>
@@ -844,20 +1017,20 @@ async function populateGamesList() {
         }
     }
 
-    // Update description and reset button visibility based on installed games
+    // Update description and reset button visibility based on games with setup
     const descriptionEl = document.querySelector('.settings-description');
     const resetButton = document.querySelector('.reset-button');
 
-    if (installedGamesCount === 0) {
+    if (gamesWithSetupCount === 0) {
         if (descriptionEl) {
-            descriptionEl.textContent = 'No games installed. To install games, click on a game in the sidebar and then click the SETUP button.';
+            descriptionEl.textContent = 'No games configured. To set up games, click on a game in the sidebar and then click the SETUP button.';
         }
         if (resetButton) {
             resetButton.style.display = 'none';
         }
     } else {
         if (descriptionEl) {
-            descriptionEl.textContent = 'You can manage settings for installed games here.';
+            descriptionEl.textContent = 'You can manage settings for configured games here.';
         }
         if (resetButton) {
             resetButton.style.display = 'block';

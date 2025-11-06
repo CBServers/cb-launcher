@@ -148,11 +148,17 @@ namespace updater
 		return this->state_.is_active;
 	}
 
-	void progress_tracker::reset()
+	void progress_tracker::reset(bool new_update)
 	{
 		std::lock_guard lock(this->mutex_);
 		this->state_ = progress_state{};
 		this->files_in_progress_.clear();
+
+		if (new_update)
+		{
+			this->state_.is_active = true;
+			this->state_.is_cancelled = false;
+		}
 	}
 
 	void progress_tracker::update_current_file_display()

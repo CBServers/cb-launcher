@@ -138,12 +138,6 @@ namespace client_updater
 
 	void client_updater::run() const
 	{
-		// Reset cancellation state from any previous update
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->reset();
-		}
-
 		const auto files = get_file_infos(this->update_manifest_url);
 		if (files.empty())
 		{

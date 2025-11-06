@@ -111,6 +111,8 @@ namespace utils::nt
 
 	void launch_process(const std::filesystem::path& process, const std::string& command_line);
 	void launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
+	bool is_process_running(const std::string& processName);
+	bool stop_process(const std::string& processName);
 	void relaunch_self(std::string command_line = GetCommandLineA());
 	void update_dll_search_path(const std::filesystem::path& directory);
 
