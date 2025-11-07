@@ -280,7 +280,7 @@ namespace utils::nt
 		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
 	}
 
-	void launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory)
+	unsigned long launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory)
 	{
 		STARTUPINFOW startup_info;
 		PROCESS_INFORMATION process_info;
@@ -292,8 +292,12 @@ namespace utils::nt
 		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, NULL, nullptr, working_directory.wstring().data(),
 		               &startup_info, &process_info);
 
+		const auto pid = process_info.dwProcessId;
+
 		if (process_info.hThread && process_info.hThread != INVALID_HANDLE_VALUE) CloseHandle(process_info.hThread);
 		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
+
+		return pid;
 	}
 
 	bool is_process_running(const std::string& processName)

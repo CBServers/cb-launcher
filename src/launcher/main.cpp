@@ -171,12 +171,20 @@ namespace
 			{
 				if (!try_lock_termination_barrier())
 				{
+					cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
 					return;
 				}
 
-				utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
-				// Don't close browser - keep launcher open so user can see STOP button
-				// cef_ui.close_browser();
+				const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
+
+				// Spawn watchdog thread to unlock barrier when game exits
+				std::thread([pid]()
+				{
+					if (utils::nt::wait_for_process(pid))
+					{
+						unlock_termination_barrier();
+					}
+				}).detach();
 			}
 		});
 
