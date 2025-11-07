@@ -237,7 +237,8 @@ class GameSettingsPopup {
                 if (installPath) {
                     const pathValid = await window.executeCommand('set-game-path', {
                         game: this.currentGame,
-                        path: installPath
+                        path: installPath,
+                        existing_install: true
                     });
 
                     if (!pathValid) {
