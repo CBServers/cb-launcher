@@ -124,7 +124,7 @@ window.showSettings = function() {
     document.querySelector("#settings").click();
 }
 
-function initializeNavigation() {
+async function initializeNavigation() {
     // Handle home navigation
     const homeElement = document.querySelector("#home");
     homeElement.addEventListener("click", handleHomeClick);
@@ -139,8 +139,31 @@ function initializeNavigation() {
     const settingsElement = document.querySelector("#settings");
     settingsElement.addEventListener("click", handleSettingsClick);
 
-    // Initialize with home view
-    return loadNavigationPage("home");
+    // Try to load last game page, otherwise default to home
+    let pageToLoad = "home";
+    try {
+        if (typeof window.executeCommand === 'function') {
+            const lastGamePage = await window.executeCommand('get-property', 'last-game-page');
+            // Verify it's a valid game page
+            if (lastGamePage && ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(lastGamePage)) {
+                pageToLoad = lastGamePage;
+                console.log(`Restoring last game page: ${lastGamePage}`);
+
+                // Set the appropriate navigation item as active
+                const gameItem = document.querySelector(`.game-item[data-game="${lastGamePage}"]`);
+                if (gameItem) {
+                    removeActiveNavigation();
+                    gameItem.classList.add("active");
+                    gameItem.classList.add(`${lastGamePage}-active`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load last game page:', error);
+    }
+
+    // Initialize with the determined page
+    return loadNavigationPage(pageToLoad);
 }
 
 function removeActiveNavigation() {
@@ -589,6 +612,15 @@ function loadNavigationPage(page) {
     }
 
     targetPage.style.display = 'block';
+
+    // Save last game page (exclude home and settings)
+    if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+        if (typeof window.executeCommand === 'function') {
+            window.executeCommand('set-property', { 'last-game-page': page }).catch(error => {
+                console.error('Failed to save last game page:', error);
+            });
+        }
+    }
 
     // Initialize page-specific functionality
     if (page === 'settings') {
