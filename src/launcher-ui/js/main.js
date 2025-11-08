@@ -556,7 +556,7 @@ window.ProgressManager = {
     },
 
     disableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .setup-button, .stop-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .unlock-all-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = true;
         });
@@ -564,7 +564,7 @@ window.ProgressManager = {
     },
 
     enableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .setup-button, .stop-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .unlock-all-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = false;
         });
@@ -675,6 +675,13 @@ async function createGameButtons(gameId) {
             document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
         } else {
             // Show PLAY, VERIFY, and SETTINGS buttons
+            // For HMW, also show UNLOCK ALL button
+            const unlockAllButton = gameId === 'hmw-mod' ? `
+                <button class="unlock-all-button" id="${gameId}-unlock-all-button">
+                    UNLOCK ALL
+                </button>
+            ` : '';
+
             buttonGroup.innerHTML = `
                 <div class="left-buttons">
                     <button class="play-button" id="${gameId}-play-button">
@@ -683,7 +690,7 @@ async function createGameButtons(gameId) {
                     </button>
                     <button class="verify-button" id="${gameId}-verify-button">
                         VERIFY
-                    </button>
+                    </button>${unlockAllButton}
                 </div>
                 <div class="right-buttons">
                     <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
@@ -696,6 +703,11 @@ async function createGameButtons(gameId) {
             document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
             document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
             document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
+
+            // Attach unlock all listener for HMW
+            if (gameId === 'hmw-mod') {
+                document.getElementById(`${gameId}-unlock-all-button`).onclick = () => unlockAllGame(gameId);
+            }
         }
     } else {
         // Show SETUP or FINISH SETUP button
@@ -755,11 +767,64 @@ function launchGame(gameId) {
                     alert(`${gameName} installation path not configured. Please configure it in settings.`);
                 }
             } else {
+                // Launch with progress tracking
+                let pollInterval;
+                const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+
+                const cancelLaunch = () => {
+                    if (pollInterval) {
+                        clearInterval(pollInterval);
+                        console.log('Launch cancelled');
+                    }
+                    // Call backend to cancel the update
+                    window.executeCommand('cancel-update').then(() => {
+                        console.log('Cancel command sent to backend');
+                    }).catch(error => {
+                        console.error('Failed to send cancel command:', error);
+                    });
+                };
+
+                // Show progress bar
+                window.ProgressManager.show(gameId, `Launching ${gameDisplayName}...`, cancelLaunch);
+
                 // Use launch-game command for all games
                 window.executeCommand('launch-game', { game: gameMapping }).then(() => {
-                    console.log(`Launching ${gameId} directly`);
+                    console.log('Launch command handler completed, starting polling');
+
+                    // Poll for progress updates - backend has now set is_active=true
+                    pollInterval = setInterval(async () => {
+                        try {
+                            const result = await window.executeCommand('get-update-progress');
+
+                            if (!result) {
+                                console.log('No progress data received');
+                                return;
+                            }
+
+                            if (!result.active) {
+                                console.log('Update no longer active - launch complete');
+                                // Launch complete
+                                clearInterval(pollInterval);
+                                window.ProgressManager.update(100, 'Launch complete!');
+
+                                setTimeout(() => {
+                                    window.ProgressManager.hide();
+                                }, 1000);
+                                return;
+                            }
+
+                            // Update progress
+                            console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                            window.ProgressManager.update(result.progress, result.message);
+                        } catch (error) {
+                            console.error('Error polling progress:', error);
+                            clearInterval(pollInterval);
+                            window.ProgressManager.hide();
+                        }
+                    }, 100); // Poll every 100ms
                 }).catch(error => {
                     console.error(`Failed to launch ${gameId}:`, error);
+                    window.ProgressManager.hide();
                 });
             }
         }).catch(error => {
@@ -850,6 +915,96 @@ function verifyGame(gameId) {
     });
 }
 
+async function unlockAllGame(gameId) {
+    console.log(`Unlock All button clicked for ${gameId}`);
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+
+    // Show confirmation dialog
+    if (typeof window.showMessageBox === 'function') {
+        const result = await window.showMessageBox(
+            "Unlock All",
+            "Unlocking all will reset all of your current classes.\nAre you sure you want to continue?",
+            ["No", "Yes"]
+        );
+
+        // If user clicked "No" (index 0) or closed the dialog, return
+        if (result !== 1) {
+            console.log('Unlock All cancelled by user');
+            return;
+        }
+    }
+
+    let pollInterval;
+
+    const cancelUnlockAll = () => {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            console.log('Unlock All cancelled');
+        }
+        // Call backend to cancel the update
+        window.executeCommand('cancel-update').then(() => {
+            console.log('Cancel command sent to backend');
+        }).catch(error => {
+            console.error('Failed to send cancel command:', error);
+        });
+    };
+
+    // Show progress bar
+    window.ProgressManager.show(gameId, `Unlocking all for ${gameDisplayName}...`, cancelUnlockAll);
+
+    // Start unlock all command and wait for it to initialize
+    window.executeCommand('unlock-all', { game: gameMapping }).then(() => {
+        console.log('Unlock All command handler completed, starting polling');
+
+        // Poll for progress updates - backend has now set is_active=true
+        pollInterval = setInterval(async () => {
+        try {
+            const result = await window.executeCommand('get-update-progress');
+
+            if (!result) {
+                console.log('No progress data received');
+                return;
+            }
+
+            if (!result.active) {
+                console.log('unlock all no longer active');
+                // Unlock all complete
+                clearInterval(pollInterval);
+                window.ProgressManager.update(100, 'Unlock all complete!');
+
+                setTimeout(() => {
+                    window.ProgressManager.hide();
+                }, 1000);
+                return;
+            }
+
+            // Update progress
+            console.log(`Updating progress: ${result.message}, ${result.progress}`);
+            window.ProgressManager.update(result.progress, result.message);
+        } catch (error) {
+            console.error('Error polling progress:', error);
+            clearInterval(pollInterval);
+            window.ProgressManager.hide();
+            // Show error message
+            if (typeof window.showMessageBox === 'function') {
+                window.showMessageBox("Unlock All Failed",
+                    `Failed to unlock all for ${gameDisplayName}. Please try again.`, ["OK"]);
+            }
+        }
+    }, 100); // Poll every 100ms
+    }).catch(error => {
+        console.error('Failed to start unlock all:', error);
+        window.ProgressManager.hide();
+        // Show error message
+        if (typeof window.showMessageBox === 'function') {
+            window.showMessageBox("Unlock All Failed",
+                `Failed to start unlock all process: ${error}`, ["OK"]);
+        }
+    });
+}
+
 function stopGame(gameId) {
     console.log(`Stop button clicked for ${gameId}`);
 
@@ -906,11 +1061,11 @@ async function resetAllSettings() {
                     detail: { game: 'all' }
                 }));
 
-                window.showMessageBox("✓ Settings Reset", "All game settings have been reset to defaults!", ["OK"]);
+                window.showMessageBox("Settings Reset", "All game settings have been reset to defaults!", ["OK"]);
                 await initializeSettingsPage();
             } catch (error) {
                 console.error('Failed to reset settings:', error);
-                window.showMessageBox("✗ Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
+                window.showMessageBox("Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
             }
         }
     }

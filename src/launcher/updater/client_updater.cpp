@@ -159,11 +159,6 @@ namespace client_updater
 		const auto outdated_files = this->get_outdated_files(valid_files);
 		if (outdated_files.empty())
 		{
-			// Verification complete, all client files up to date
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->done_update();
-			}
 			return;
 		}
 
@@ -174,12 +169,6 @@ namespace client_updater
 		}
 
 		this->update_files(outdated_files);
-
-		// Notify completion
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->done_update();
-		}
 
 		std::this_thread::sleep_for(1s);
 	}

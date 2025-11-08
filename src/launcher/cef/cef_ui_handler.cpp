@@ -129,10 +129,11 @@ namespace cef
 	{
 		model->Clear();
 
-		// Add developer tools option
+#if DEBUG
 		model->AddItem(MENU_ID_USER_FIRST + 1, "Inspect Element");
 		model->AddSeparator();
 		model->AddItem(MENU_ID_USER_FIRST + 2, "Reload");
+#endif
 	}
 
 	bool cef_ui_handler::OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> /*frame*/,

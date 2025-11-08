@@ -273,7 +273,7 @@ namespace utils::nt
 		wchar_t current_dir[MAX_PATH];
 		GetCurrentDirectoryW(MAX_PATH, current_dir);
 
-		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, NULL, nullptr, current_dir,
+		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, current_dir,
 		               &startup_info, &process_info);
 
 		if (process_info.hThread && process_info.hThread != INVALID_HANDLE_VALUE) CloseHandle(process_info.hThread);
@@ -289,7 +289,7 @@ namespace utils::nt
 		ZeroMemory(&process_info, sizeof(process_info));
 		startup_info.cb = sizeof(startup_info);
 
-		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, NULL, nullptr, working_directory.wstring().data(),
+		CreateProcessW(process.wstring().data(), string::convert(command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, working_directory.wstring().data(),
 		               &startup_info, &process_info);
 
 		const auto pid = process_info.dwProcessId;

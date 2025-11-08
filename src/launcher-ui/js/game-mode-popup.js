@@ -131,11 +131,75 @@ class GameModePopup {
                         alert(`${gameName} installation path not configured. Please configure it in settings.`);
                     }
                 } else {
+                    // Launch with progress tracking
+                    let pollInterval;
+                    const gameName = this.getGameDisplayName(this.currentGame);
+
+                    // Convert backend game ID to UI gameId for ProgressManager
+                    const backendToUIMap = {
+                        'bo3': 'boiii',
+                        'ghosts': 'iw6x',
+                        'aw': 's1x',
+                        'mwr': 'h1-mod',
+                        'iw': 'iw7-mod',
+                        'hmw': 'hmw-mod'
+                    };
+                    const gameId = backendToUIMap[this.currentGame] || this.currentGame;
+
+                    const cancelLaunch = () => {
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            console.log('Launch cancelled');
+                        }
+                        // Call backend to cancel the update
+                        window.executeCommand('cancel-update').then(() => {
+                            console.log('Cancel command sent to backend');
+                        }).catch(error => {
+                            console.error('Failed to send cancel command:', error);
+                        });
+                    };
+
+                    // Show progress bar
+                    window.ProgressManager.show(gameId, `Launching ${gameName}...`, cancelLaunch);
+
                     // Use launch-game command for all games with mode parameter
                     window.executeCommand('launch-game', { game: this.currentGame, mode: mode }).then(() => {
-                        console.log(`Launching ${this.currentGame} in ${mode} mode`);
+                        console.log('Launch command handler completed, starting polling');
+
+                        // Poll for progress updates - backend has now set is_active=true
+                        pollInterval = setInterval(async () => {
+                            try {
+                                const result = await window.executeCommand('get-update-progress');
+
+                                if (!result) {
+                                    console.log('No progress data received');
+                                    return;
+                                }
+
+                                if (!result.active) {
+                                    console.log('Update no longer active - launch complete');
+                                    // Launch complete
+                                    clearInterval(pollInterval);
+                                    window.ProgressManager.update(100, 'Launch complete!');
+
+                                    setTimeout(() => {
+                                        window.ProgressManager.hide();
+                                    }, 1000);
+                                    return;
+                                }
+
+                                // Update progress
+                                console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                                window.ProgressManager.update(result.progress, result.message);
+                            } catch (error) {
+                                console.error('Error polling progress:', error);
+                                clearInterval(pollInterval);
+                                window.ProgressManager.hide();
+                            }
+                        }, 100); // Poll every 100ms
                     }).catch(error => {
                         console.error(`Failed to launch ${this.currentGame}:`, error);
+                        window.ProgressManager.hide();
                     });
                 }
             }).catch(error => {

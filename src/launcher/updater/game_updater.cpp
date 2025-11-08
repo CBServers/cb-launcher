@@ -189,7 +189,8 @@ namespace game_updater
 			if (!this->needs_to_update(manifest.hash))
 			{
 				update_needed = false;
-				throw std::runtime_error("Game is up to date!");
+				printf("Game is up to date!\n");
+				return;
 			}
 
 			update_needed = true;
@@ -210,12 +211,6 @@ namespace game_updater
 
 		if (outdated_files.empty())
 		{
-			// Verification complete, all files up to date
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->done_update();
-			}
-
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
 
 			// Mark game as fully installed
@@ -251,12 +246,6 @@ namespace game_updater
 		this->update_files(outdated_files);
 
 		check_cancelled();
-
-		// Notify completion
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->done_update();
-		}
 
 		if (error_occurred)
 		{

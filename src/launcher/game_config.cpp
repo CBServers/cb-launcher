@@ -117,10 +117,13 @@ namespace game_config
 				.exe_name = "hmw-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
-				.required_updater_files = {"hmw-mod.exe", "d3d11.dll"},
+				.required_updater_files = {"d3d11.dll"},
 				.valid_game_exes = {"h1_mp64_ship.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "mwr_game_files"
+				.base_url = GAME_UPDATE_SERVER "h2m",
+				.base_game = "mwr",
+				.check_for_game_updates = true,
+				.unlock_url_folder = "h2m/"
 			},
 
 		}

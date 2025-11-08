@@ -282,7 +282,7 @@ class GameSettingsPopup {
             } catch (error) {
                 console.error('Failed to save settings:', error);
                 if (typeof window.showMessageBox === 'function') {
-                    window.showMessageBox("✗ Save Failed",
+                    window.showMessageBox("Save Failed",
                         "Failed to save settings. Please try again.", ["OK"]);
                 } else {
                     alert('Failed to save settings. Please try again.');
@@ -325,13 +325,13 @@ class GameSettingsPopup {
                     this.hide();
 
                     if (typeof window.showMessageBox === 'function') {
-                        window.showMessageBox("✓ Settings Reset",
+                        window.showMessageBox("Settings Reset",
                             `${this.gameConfig.displayName} settings have been reset to defaults!`, ["OK"]);
                     }
                 } catch (error) {
                     console.error('Failed to reset settings:', error);
                     if (typeof window.showMessageBox === 'function') {
-                        window.showMessageBox("✗ Reset Failed",
+                        window.showMessageBox("Reset Failed",
                             "Failed to reset settings. Please try again.", ["OK"]);
                     }
                 }

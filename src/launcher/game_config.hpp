@@ -21,6 +21,9 @@ namespace game_config
 		std::vector<std::string> valid_game_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
 		std::string base_url;
+		std::string base_game;
+		bool check_for_game_updates = false;
+		std::string unlock_url_folder;
 	};
 
 	// Forward declarations

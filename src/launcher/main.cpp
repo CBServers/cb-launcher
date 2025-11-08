@@ -3,6 +3,7 @@
 #include "updater/updater.hpp"
 #include "updater/progress_tracker.hpp"
 #include "updater/ui_progress_listener.hpp"
+#include "unlockall/unlockall.hpp"
 
 #include <utils/com.hpp>
 #include <utils/flags.hpp>
@@ -162,30 +163,62 @@ namespace
 				return;
 			}
 
-			client_updater::run(*config);
+			updater::ui_progress_listener progress_listener;
+			progress_listener.reset(true);
 
-			const auto game_directory = std::filesystem::path(game_install->data());
-			const auto game_exe = game_directory / config->exe_name;
-
-			if (utils::io::file_exists(game_exe.string()))
+			// Run update and launch in a separate thread with progress tracking
+			std::thread([config, mode, game, game_install, launch_args, &progress_listener, &cef_ui]()
 			{
-				if (!try_lock_termination_barrier())
+				try
 				{
-					cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
-					return;
-				}
-
-				const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
-
-				// Spawn watchdog thread to unlock barrier when game exits
-				std::thread([pid]()
-				{
-					if (utils::nt::wait_for_process(pid))
+					// Check for game updates if configured
+					if (config->check_for_game_updates)
 					{
-						unlock_termination_barrier();
+						game_updater::run(*config, false, &progress_listener);  // Don't force update, just check for new manifest
 					}
-				}).detach();
-			}
+
+					client_updater::run(*config, &progress_listener);
+
+					progress_listener.done_update();
+
+					const auto game_directory = std::filesystem::path(game_install->data());
+					const auto game_exe = game_directory / config->exe_name;
+
+					if (utils::io::file_exists(game_exe.string()))
+					{
+						if (!try_lock_termination_barrier())
+						{
+							cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
+							return;
+						}
+
+						const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
+
+						// Spawn watchdog thread to unlock barrier when game exits
+						std::thread([pid]()
+						{
+							if (utils::nt::wait_for_process(pid))
+							{
+								unlock_termination_barrier();
+							}
+						}).detach();
+					}
+				}
+				catch (const std::exception& e)
+				{
+					// Set error in progress tracker and show error popup in UI
+					progress_listener.cancel_update();
+					printf("Launch error: %s\n", e.what());
+					cef_ui.show_message_box("Launch Error", e.what());
+				}
+				catch (...)
+				{
+					// Set generic error for unknown exceptions
+					progress_listener.cancel_update();
+					printf("Unknown launch error\n");
+					cef_ui.show_message_box("Launch Error", "An unknown error occurred during game launch");
+				}
+			}).detach();
 		});
 
 		cef_ui.add_command("is-game-running", [](const rapidjson::Value& value, rapidjson::Document& response)
@@ -264,25 +297,78 @@ namespace
 			{
 				try
 				{
+					// If this game depends on a base game, verify/update the base game files first
+					if (!config->base_game.empty())
+					{
+						const auto base_config = game_config::get_game_config(config->base_game);
+						if (base_config)
+						{
+							game_updater::run(*base_config, true, &progress_listener);  // force_update = true for verify
+						}
+					}
+
 					game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
 					client_updater::run(*config, &progress_listener);
+					progress_listener.done_update();
 				}
 				catch (const std::exception& e)
 				{
 					// Set error in progress tracker and show error popup in UI
 					progress_listener.cancel_update();
 					printf("Update error: %s\n", e.what());
-					cef_ui.show_message_box("Updater Error", e.what());
+					cef_ui.show_message_box("Verify Error", e.what());
 				}
 				catch (...)
 				{
 					// Set generic error for unknown exceptions
 					progress_listener.cancel_update();
 					printf("Unknown update error\n");
-					cef_ui.show_message_box("Updater Error", "An unknown error occurred during verification");
+					cef_ui.show_message_box("Verify Error", "An unknown error occurred during verification");
 				}
 			}).detach();
 		});
+
+		cef_ui.add_command("unlock-all", [&cef_ui](const rapidjson::Value& value, auto&)
+			{
+				if (!value.IsObject() || !value.HasMember("game"))
+				{
+					return;
+				}
+
+				const auto game = std::string{ value["game"].GetString() };
+
+				// Get game configuration
+				const auto config = game_config::get_game_config(game);
+				if (!config)
+				{
+					return; // Invalid game
+				}
+
+				updater::ui_progress_listener progress_listener;
+				progress_listener.reset(true);
+
+				std::thread([config, &progress_listener, &cef_ui]()
+				{
+					try
+					{
+						unlockall::run(*config, &progress_listener);
+						progress_listener.done_update();
+						cef_ui.show_message_box("Unlock All Complete", "Unlock all completed successfully! You can now start the game with all content unlocked.");
+					}
+					catch (const std::exception& e)
+					{
+						progress_listener.cancel_update();
+						printf("Unlock All error: %s\n", e.what());
+						cef_ui.show_message_box("Unlock All Error", e.what());
+					}
+					catch (...)
+					{
+						progress_listener.cancel_update();
+						printf("Unlock All error\n");
+						cef_ui.show_message_box("Unlock All Error", "An unknown error occurred during unlock all");
+					}
+				}).detach();
+			});
 
 		cef_ui.add_command("browse-folder", [](const auto&, rapidjson::Document& response)
 		{
@@ -455,7 +541,16 @@ namespace
 				return;
 			}
 
-			const auto game_size = game_updater::get_game_size(*config);
+			auto game_size = game_updater::get_game_size(*config);
+
+			if (!config->base_game.empty())
+			{
+				const auto base_config = game_config::get_game_config(config->base_game);
+				if (base_config)
+				{
+					game_size += game_updater::get_game_size(*base_config);
+				}
+			}
 
 			// If the path doesn't exist, check parent directories until we find one that exists
 			while (!path.empty() && !std::filesystem::exists(path))

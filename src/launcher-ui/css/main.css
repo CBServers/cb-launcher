@@ -384,6 +384,33 @@ img {
     background: #444;
 }
 
+.unlock-all-button {
+    background: #666;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.unlock-all-button:hover {
+    background: #777;
+}
+
+.unlock-all-button:disabled {
+    background: #444;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.unlock-all-button:disabled:hover {
+    background: #444;
+}
+
 .setup-button {
     background: #0078d4;
     color: white;
