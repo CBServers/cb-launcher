@@ -4,7 +4,7 @@
 #include <utils/io.hpp>
 
 #define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
-#define GAME_UPDATE_SERVER "https://cdn.brad.stream/"
+#define GAME_UPDATE_SERVER "https://cdn.cbservers.xyz/"
 
 namespace game_config
 {
