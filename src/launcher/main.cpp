@@ -205,6 +205,11 @@ namespace
 						}).detach();
 					}
 				}
+				catch (const updater::update_cancelled&)
+				{
+					progress_listener.cancel_update();
+					printf("Update cancelled by user\n");
+				}
 				catch (const std::exception& e)
 				{
 					// Set error in progress tracker and show error popup in UI
@@ -312,6 +317,11 @@ namespace
 					client_updater::run(*config, &progress_listener);
 					progress_listener.done_update();
 				}
+				catch (const updater::update_cancelled&)
+				{
+					progress_listener.cancel_update();
+					printf("Update cancelled by user\n");
+				}
 				catch (const std::exception& e)
 				{
 					// Set error in progress tracker and show error popup in UI
@@ -324,7 +334,7 @@ namespace
 					// Set generic error for unknown exceptions
 					progress_listener.cancel_update();
 					printf("Unknown update error\n");
-					cef_ui.show_message_box("Update Error", "An unknown error occurred during verification");
+					cef_ui.show_message_box("Update Error", "An unknown error occurred during update");
 				}
 			}).detach();
 		});

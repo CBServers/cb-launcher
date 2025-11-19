@@ -8,8 +8,6 @@
 
 namespace game_updater
 {
-	bool error_during_update = false;
-
 	class game_updater
 	{
 	public:

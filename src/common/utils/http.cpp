@@ -1,6 +1,7 @@
 #include "http.hpp"
 #include <algorithm>
 #include <chrono>
+#include <thread>
 #include "finally.hpp"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -84,6 +85,23 @@ namespace utils::http
 
 			return total_size;
 		}
+
+		bool should_retry_request(const CURLcode code, const unsigned int response_code)
+		{
+			// Don't retry user cancellations
+			if (code == CURLE_ABORTED_BY_CALLBACK)
+			{
+				return false;
+			}
+
+			// Don't retry if request succeeded
+			if (code == CURLE_OK && response_code >= 200 && response_code < 300)
+			{
+				return false;
+			}
+
+			return true;
+		}
 	}
 
 	std::optional<result> get_data(const std::string& url, const std::string& fields,
@@ -158,10 +176,22 @@ namespace utils::http
 				std::rethrow_exception(helper.exception);
 			}
 
-			// If we got a response code, don't retry
-			if (response_code > 0)
+			// Check if we should retry this request
+			if (!should_retry_request(code, response_code))
 			{
-				break;
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				result.buffer = std::move(buffer);
+				return result;
+			}
+
+			// If we have more retries left, wait a bit before trying again
+			if (i < retries)
+			{
+				printf("HTTP request failed for %s (code: %d, response: %u), retrying in 500ms... (attempt %u/%u)\n",
+					url.data(), code, response_code, i + 1, retries);
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 			}
 		}
 
@@ -255,10 +285,21 @@ namespace utils::http
 				std::rethrow_exception(write_helper.exception);
 			}
 
-			// If we got a response code, don't retry
-			if (response_code > 0)
+			// Check if we should retry this request
+			if (!should_retry_request(code, response_code))
 			{
-				break;
+				result result;
+				result.code = code;
+				result.response_code = response_code;
+				return result;
+			}
+
+			// If we have more retries left, wait a bit before trying again
+			if (i < retries)
+			{
+				printf("HTTP stream request failed for %s (code: %d, response: %u), retrying in 500ms... (attempt %u/%u)\n",
+					url.data(), code, response_code, i + 1, retries);
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 			}
 		}
 

@@ -16,17 +16,6 @@ namespace game_updater
 {
 	namespace
 	{
-		void throw_error(const std::runtime_error& error, bool throw_it = false)
-		{
-			error_during_update = true;
-			printf("Error: %s", error.what());
-
-			if (throw_it)
-			{
-				throw(error);
-			}
-		}
-
 		std::string get_filename(const std::filesystem::path path)
 		{
 			return path.filename().string();
@@ -237,11 +226,6 @@ namespace game_updater
 
 		check_cancelled();
 
-		if (error_during_update)
-		{
-			throw std::runtime_error("An error occurred during the update process.\nPlease try again.");
-		}
-
 		if (!this->is_update_cancelled())
 		{
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
@@ -289,15 +273,13 @@ namespace game_updater
 		std::string empty{};
 		if (!utils::io::write_file(out_file, empty, false))
 		{
-			throw_error(std::runtime_error("Failed to write file: " + out_file));
-			return;
+			throw std::runtime_error("Failed to write file: " + out_file);
 		}
 
 		std::ofstream ofs(out_file, std::ios::binary);
 		if (!ofs)
 		{
-			throw_error(std::runtime_error("Failed to open file: " + out_file));
-			return;
+			throw std::runtime_error("Failed to open file: " + out_file);
 		}
 
 		int currentPercent = 0;
@@ -334,8 +316,7 @@ namespace game_updater
 
 		if (!data || !data.has_value())
 		{
-			throw_error(std::runtime_error("Failed to download: " + url + " - Data has no value"));
-			return;
+			throw std::runtime_error("Failed to download: " + url + " - Data has no value");
 		}
 
 		try
@@ -349,7 +330,8 @@ namespace game_updater
 
 			if (result.code != CURLE_OK)
 			{
-				throw std::runtime_error("Failed to download: " + url + " - Invalid curl code");
+				throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
+					url.data(), result.code, curl_easy_strerror(result.code)));
 			}
 
 			if (utils::io::file_size(out_file) != file.size)
@@ -362,13 +344,13 @@ namespace game_updater
 				throw std::runtime_error("Downloaded file hash mismatch: " + out_file);
 			}
 		}
-		catch (const std::exception& e)
+		catch (const std::exception&)
 		{
-			throw_error(std::runtime_error(e.what()));
+			throw;  // Re-throw the original exception
 		}
 		catch (...)
 		{
-			throw_error(std::runtime_error("Unknown error occurred while updating: " + url));
+			throw std::runtime_error("Unknown error occurred while updating: " + url);
 		}
 	}
 
