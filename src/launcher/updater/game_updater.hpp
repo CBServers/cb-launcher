@@ -8,13 +8,16 @@
 
 namespace game_updater
 {
+	bool error_during_update = false;
+
 	class game_updater
 	{
 	public:
-		game_updater(const game_config::game_config_t& config, bool force_update = false, updater::ui_progress_listener* listener = nullptr);
+		game_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr);
 
-		void run(bool& update_needed) const;
+		void run() const;
 		size_t get_game_size() const;
+		bool is_update_needed() const;
 
 		[[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
 
@@ -26,7 +29,6 @@ namespace game_updater
 		std::string base_url;
 		std::string is_installed_property;
 		bool is_steam_install;
-		bool force_update;
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;

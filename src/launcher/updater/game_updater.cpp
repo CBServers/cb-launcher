@@ -16,7 +16,16 @@ namespace game_updater
 {
 	namespace
 	{
-		bool error_occurred = false;
+		void throw_error(const std::runtime_error& error, bool throw_it = false)
+		{
+			error_during_update = true;
+			printf("Error: %s", error.what());
+
+			if (throw_it)
+			{
+				throw(error);
+			}
+		}
 
 		std::string get_filename(const std::filesystem::path path)
 		{
@@ -142,7 +151,7 @@ namespace game_updater
 		}
 	}
 
-	game_updater::game_updater(const game_config::game_config_t& config, bool force_update, updater::ui_progress_listener* listener)
+	game_updater::game_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
 		: progress_listener_(listener)
 	{
 		const auto install_path_prop = utils::properties::load(config.install_property);
@@ -165,10 +174,9 @@ namespace game_updater
 
 		this->base_url = config.base_url;
 		this->is_installed_property = config.is_installed_property;
-		this->force_update = force_update;
 	}
 
-	void game_updater::run(bool& update_needed) const
+	void game_updater::run() const
 	{
 		if (this->install_path.empty())
 		{
@@ -180,21 +188,7 @@ namespace game_updater
 		const auto manifest = get_manifest(this->base_url + "/manifest.json");
 		if (manifest.empty())
 		{
-			update_needed = false;
 			throw std::runtime_error("Failed to download manifest");
-		}
-
-		if (!this->force_update)
-		{
-			if (!this->needs_to_update(manifest.hash))
-			{
-				update_needed = false;
-				printf("Game is up to date!\n");
-				return;
-			}
-
-			update_needed = true;
-			printf("Update required!\n");
 		}
 
 		check_cancelled();
@@ -219,18 +213,14 @@ namespace game_updater
 				utils::properties::store(this->is_installed_property, "true");
 			}
 
-			update_needed = false;
 			printf("All files are up to date!\n");
 			return;
 		}
-
-		check_cancelled();
 
 		const auto update_size = this->get_update_size(outdated_files);
 		const auto drive_space = this->get_available_drive_space();
 		if (drive_space < update_size)
 		{
-			update_needed = true;
 			double gigabytes = static_cast<double>(update_size) / (1024 * 1024 * 1024);
 			throw std::runtime_error(utils::string::va("Not enough space for update! %.2f GB required.", gigabytes));
 		}
@@ -247,12 +237,12 @@ namespace game_updater
 
 		check_cancelled();
 
-		if (error_occurred)
+		if (error_during_update)
 		{
-			throw std::runtime_error("An error occurred during the update process.");
+			throw std::runtime_error("An error occurred during the update process.\nPlease try again.");
 		}
 
-		if (!error_occurred && !this->is_update_cancelled())
+		if (!this->is_update_cancelled())
 		{
 			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
 
@@ -263,7 +253,6 @@ namespace game_updater
 			}
 		}
 
-		update_needed = false;
 		printf("Update complete!\n");
 	}
 
@@ -279,6 +268,17 @@ namespace game_updater
 		return this->get_update_size(manifest.files);
 	}
 
+	bool game_updater::is_update_needed() const
+	{
+		const auto manifest = get_manifest(this->base_url + "/manifest.json");
+		if (manifest.empty())
+		{
+			throw std::runtime_error("Failed to download manifest");
+		}
+
+		return this->needs_to_update(manifest.hash);
+	}
+
 	void game_updater::update_file(const updater::file_info& file) const
 	{
 		check_cancelled();
@@ -289,14 +289,14 @@ namespace game_updater
 		std::string empty{};
 		if (!utils::io::write_file(out_file, empty, false))
 		{
-			throw std::runtime_error("Failed to write file: " + out_file);
+			throw_error(std::runtime_error("Failed to write file: " + out_file));
 			return;
 		}
 
 		std::ofstream ofs(out_file, std::ios::binary);
 		if (!ofs)
 		{
-			throw std::runtime_error("Failed to open file: " + out_file);
+			throw_error(std::runtime_error("Failed to open file: " + out_file));
 			return;
 		}
 
@@ -334,7 +334,7 @@ namespace game_updater
 
 		if (!data || !data.has_value())
 		{
-			throw std::runtime_error("Failed to download: " + url + " - Data has no value");
+			throw_error(std::runtime_error("Failed to download: " + url + " - Data has no value"));
 			return;
 		}
 
@@ -364,11 +364,11 @@ namespace game_updater
 		}
 		catch (const std::exception& e)
 		{
-			throw std::runtime_error("Failed to download: " + url + " - " + e.what());
+			throw_error(std::runtime_error(e.what()));
 		}
 		catch (...)
 		{
-			throw std::runtime_error("Unknown error occurred while updating: " + url);
+			throw_error(std::runtime_error("Unknown error occurred while updating: " + url));
 		}
 	}
 

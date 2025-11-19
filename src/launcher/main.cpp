@@ -172,9 +172,10 @@ namespace
 				try
 				{
 					// Check for game updates if configured
-					if (config->check_for_game_updates)
+					if (config->check_for_game_updates && game_updater::is_update_needed(*config))
 					{
-						game_updater::run(*config, false, &progress_listener);  // Don't force update, just check for new manifest
+						cef_ui.show_message_box("Game Update Required", "This game requires an update. Please wait for update to complete before you can start playing.");
+						game_updater::run(*config, &progress_listener);
 					}
 
 					client_updater::run(*config, &progress_listener);
@@ -303,11 +304,11 @@ namespace
 						const auto base_config = game_config::get_game_config(config->base_game);
 						if (base_config)
 						{
-							game_updater::run(*base_config, true, &progress_listener);  // force_update = true for verify
+							game_updater::run(*base_config, &progress_listener);
 						}
 					}
 
-					game_updater::run(*config, true, &progress_listener);  // force_update = true for verify
+					game_updater::run(*config, &progress_listener);
 					client_updater::run(*config, &progress_listener);
 					progress_listener.done_update();
 				}
@@ -316,14 +317,14 @@ namespace
 					// Set error in progress tracker and show error popup in UI
 					progress_listener.cancel_update();
 					printf("Update error: %s\n", e.what());
-					cef_ui.show_message_box("Verify Error", e.what());
+					cef_ui.show_message_box("Update Error", e.what());
 				}
 				catch (...)
 				{
 					// Set generic error for unknown exceptions
 					progress_listener.cancel_update();
 					printf("Unknown update error\n");
-					cef_ui.show_message_box("Verify Error", "An unknown error occurred during verification");
+					cef_ui.show_message_box("Update Error", "An unknown error occurred during verification");
 				}
 			}).detach();
 		});
