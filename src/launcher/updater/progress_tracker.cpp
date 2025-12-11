@@ -125,7 +125,9 @@ namespace updater
 		// Update status message with progress
 		if (!this->state_.current_file.empty())
 		{
-			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
+			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying"
+			: (this->mode_ == progress_mode::deleting) ? "Deleting"
+			: "Downloading";
 			this->state_.status_message = utils::string::va(
 				"%s %s (%zu/%zu files)...",
 				action,
@@ -173,13 +175,15 @@ namespace updater
 			// Update status message based on state
 			if (this->state_.completed_files == this->state_.total_files && this->state_.total_files > 0)
 			{
-				const char* action = (this->mode_ == progress_mode::verifying) ? "Verified" : "Downloaded";
+				const char* action = (this->mode_ == progress_mode::verifying) ? "Verified"
+				: (this->mode_ == progress_mode::deleting) ? "Deleted" : "Downloaded";
 				this->state_.status_message = utils::string::va("%s all files (%zu/%zu)",
 					action, this->state_.completed_files, this->state_.total_files);
 			}
 			else if (this->state_.is_active)
 			{
-				const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
+				const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying"
+			: (this->mode_ == progress_mode::deleting) ? "Deleting" : "Downloading";
 				this->state_.status_message = utils::string::va("%s files... (%zu/%zu)",
 					action, this->state_.completed_files, this->state_.total_files);
 			}
@@ -189,7 +193,8 @@ namespace updater
 			// Display the last file in the list
 			this->state_.current_file = this->files_in_progress_.back();
 
-			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying" : "Downloading";
+			const char* action = (this->mode_ == progress_mode::verifying) ? "Verifying"
+			: (this->mode_ == progress_mode::deleting) ? "Deleting" : "Downloading";
 			this->state_.status_message = utils::string::va(
 				"%s %s (%zu/%zu files)...",
 				action,

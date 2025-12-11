@@ -10,7 +10,8 @@ namespace updater
 	enum class progress_mode
 	{
 		verifying,
-		downloading
+		downloading,
+		deleting
 	};
 
 	class progress_tracker

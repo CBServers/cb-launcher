@@ -66,7 +66,7 @@ namespace unlockall
 	unlockall::unlockall(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
 		: progress_listener_(listener)
 	{
-		const auto install_path_prop = utils::properties::load(config.install_property);
+		const auto install_path_prop = config.get_install_path();
 		if (!install_path_prop || install_path_prop->empty())
 		{
 			throw std::runtime_error("Game install path not set for: " + config.id);

@@ -28,22 +28,10 @@ namespace launcher_updater
 
 namespace game_updater
 {
-	void run(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
+	void run(const game_config::game_config_t& config, bool skip_hash, updater::ui_progress_listener* listener)
 	{
-		const game_updater game_updater{config, listener};
+		const game_updater game_updater{config, skip_hash, listener};
 		game_updater.run();
-	}
-
-	size_t get_game_size(const game_config::game_config_t& config)
-	{
-		const game_updater game_updater{config};
-		return game_updater.get_game_size();
-	}
-
-	bool is_update_needed(const game_config::game_config_t& config)
-	{
-		const game_updater game_updater{config};
-		return game_updater.is_update_needed();
 	}
 }
 

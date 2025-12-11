@@ -3,6 +3,7 @@
 #pragma code_page(65001)
 
 #include "std_include.hpp"
+#include "version.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -46,8 +47,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0
- PRODUCTVERSION 1,0,0
+ FILEVERSION VERSION_FILE_RC
+ PRODUCTVERSION VERSION_PRODUCT_RC
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -68,14 +69,14 @@ BEGIN
 #else
             VALUE "FileDescription", "CB Servers Launcher"
 #endif
-            VALUE "FileVersion", "1.0.0"
+            VALUE "FileVersion", VERSION_FILE
             VALUE "InternalName", "launcher"
             VALUE "LegalCopyright", "Copyright (C) 2025 CB Servers. All rights reserved."
             VALUE "Licence", "GPLv3"
             VALUE "Info", "https://cbservers.xyz/"
 			      VALUE "OriginalFilename", "cb-launcher.exe"
             VALUE "ProductName", "CB Servers Launcher"
-            VALUE "ProductVersion", "1.0.0"
+            VALUE "ProductVersion", VERSION_PRODUCT
         END
     END
     BLOCK "VarFileInfo"

@@ -89,6 +89,34 @@ namespace utils::io
 		return 0;
 	}
 
+	std::unordered_map<std::string, file_stat_result> batch_stat_files(const std::vector<std::string>& paths)
+	{
+		std::unordered_map<std::string, file_stat_result> results;
+		results.reserve(paths.size());
+
+		for (const auto& path : paths)
+		{
+			file_stat_result stat{};
+
+			// Open once with ios::ate to get size immediately
+			std::ifstream stream(path, std::ios::binary | std::ios::ate);
+			if (stream.good())
+			{
+				stat.exists = true;
+				stat.size = static_cast<std::size_t>(stream.tellg());
+			}
+			else
+			{
+				stat.exists = false;
+				stat.size = 0;
+			}
+
+			results[path] = stat;
+		}
+
+		return results;
+	}
+
 	bool create_directory(const std::filesystem::path& directory)
 	{
 		return std::filesystem::create_directories(directory);

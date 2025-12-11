@@ -3,7 +3,12 @@
     "allow": [
       "Bash(dir:*)",
       "Read(//f/Repos/CBServers/h2m-updater/src/updater/**)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(findstr:*)",
+      "WebFetch(domain:cdn.cbservers.xyz)",
+      "Bash(git grep:*)",
+      "Bash(git describe:*)",
+      "Bash(git rev-list:*)"
     ],
     "deny": [],
     "ask": []

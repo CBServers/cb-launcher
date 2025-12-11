@@ -12,6 +12,8 @@
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
 
+#define MANIFEST_FILE "manifest_v2.json"
+
 namespace game_updater
 {
 	namespace
@@ -85,12 +87,72 @@ namespace game_updater
 					info.size = fileEntry[1].GetUint64();
 					info.hash = fileEntry[2].GetString();
 
+					// Component field is optional (4th element) - defaults to "base" for backward compatibility
+					if (fileEntry.Size() >= 4 && fileEntry[3].IsString())
+					{
+						info.component = fileEntry[3].GetString();
+					}
+					else
+					{
+						info.component = "base";
+					}
+
 					manifest.files.push_back(info);
 				}
 			}
 			else
 			{
 				return {};
+			}
+
+			// Parse components metadata (optional)
+			if (doc.HasMember("components") && doc["components"].IsObject())
+			{
+				const rapidjson::Value& componentsObj = doc["components"];
+				for (auto it = componentsObj.MemberBegin(); it != componentsObj.MemberEnd(); ++it)
+				{
+					component_info comp;
+					comp.id = it->name.GetString();
+
+					const auto& compData = it->value;
+					if (compData.IsObject())
+					{
+						if (compData.HasMember("displayName") && compData["displayName"].IsString())
+						{
+							comp.display_name = compData["displayName"].GetString();
+						}
+						if (compData.HasMember("description") && compData["description"].IsString())
+						{
+							comp.description = compData["description"].GetString();
+						}
+						if (compData.HasMember("required") && compData["required"].IsBool())
+						{
+							comp.required = compData["required"].GetBool();
+						}
+						if (compData.HasMember("defaultEnabled") && compData["defaultEnabled"].IsBool())
+						{
+							comp.default_enabled = compData["defaultEnabled"].GetBool();
+						}
+						if (compData.HasMember("show") && compData["show"].IsBool())
+						{
+							comp.show = compData["show"].GetBool();
+						}
+						else
+						{
+							comp.show = true; // Default to showing component if not specified
+						}
+						if (compData.HasMember("totalSize") && compData["totalSize"].IsUint64())
+						{
+							comp.total_size = compData["totalSize"].GetUint64();
+						}
+						else
+						{
+							comp.total_size = 0; // Default to 0 if not specified
+						}
+
+						manifest.components[comp.id] = comp;
+					}
+				}
 			}
 
 			return manifest;
@@ -140,29 +202,24 @@ namespace game_updater
 		}
 	}
 
-	game_updater::game_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
-		: progress_listener_(listener)
+	game_updater::game_updater(const game_config::game_config_t& config, bool skip_hash, updater::ui_progress_listener* listener)
+		: config_(config), progress_listener_(listener)
 	{
-		const auto install_path_prop = utils::properties::load(config.install_property);
-		const auto is_steam_install_prop = utils::properties::load(config.steam_install_property);
-
-		// install_path and has_zone_folder may not be set yet (e.g., when calling get_game_size before installation)
+		const auto install_path_prop = config.get_install_path();
 		if (install_path_prop.has_value())
 		{
 			this->install_path = std::filesystem::path(install_path_prop->data());
 		}
 
-		if (is_steam_install_prop.has_value())
-		{
-			this->is_steam_install = (std::string(is_steam_install_prop->data()) == "true") ? true : false;
-		}
-		else
-		{
-			this->is_steam_install = false; // Default to false if not set
-		}
-
+		this->is_steam_install = config.is_steam_install();
 		this->base_url = config.base_url;
-		this->is_installed_property = config.is_installed_property;
+		this->skip_hash_check = skip_hash;
+
+		this->manifest_ = get_manifest(this->base_url + "/" + MANIFEST_FILE);
+		if (this->manifest_.empty())
+		{
+			throw std::runtime_error("Failed to download or parse manifest for " + config.display_name);
+		}
 	}
 
 	void game_updater::run() const
@@ -174,35 +231,70 @@ namespace game_updater
 
 		printf("Checking for updates...\n");
 
-		const auto manifest = get_manifest(this->base_url + "/manifest.json");
-		if (manifest.empty())
-		{
-			throw std::runtime_error("Failed to download manifest");
-		}
-
 		check_cancelled();
 
-		// Initialize progress tracking for verification phase with all files
-		if (this->progress_listener_)
+		// Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
+		std::vector<std::string> selected_components = config_.get_list("selected-components");
+
+		if (!selected_components.empty())
 		{
-			this->progress_listener_->update_files(manifest.files, updater::progress_mode::verifying);
+			// Components were loaded from properties
+			printf("Selected components loaded from properties\n");
+		}
+		else
+		{
+			// No component selection stored - include all files
+			std::unordered_set<std::string> all_components;
+			for (const auto& file : this->manifest_.files)
+			{
+				all_components.insert(file.component);
+			}
+			selected_components.assign(all_components.begin(), all_components.end());
+			printf("No component selection found, including all components\n");
 		}
 
-		const auto outdated_files = this->get_outdated_files(manifest.files);
+		// Delete files from deselected components before verification
+		const auto files_to_delete = this->get_files_to_delete(selected_components);
+		if (!files_to_delete.empty())
+		{
+			this->delete_files(files_to_delete);
+		}
+
+		// Filter manifest files by selected components
+		const auto filtered_files = this->filter_files_by_components(this->manifest_.files, selected_components);
+
+		// Initialize progress tracking for verification phase with filtered files
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->update_files(filtered_files, updater::progress_mode::verifying);
+		}
+
+		const auto outdated_files = this->get_outdated_files(filtered_files);
 
 		check_cancelled();
 
 		if (outdated_files.empty())
 		{
-			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
+			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
 
 			// Mark game as fully installed
-			if (!this->is_installed_property.empty())
-			{
-				utils::properties::store(this->is_installed_property, "true");
-			}
+			config_.set_installed(true);
 
 			printf("All files are up to date!\n");
+
+			// Detect and cache installed components
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->update_files(this->manifest_.files, updater::progress_mode::verifying);
+			}
+
+			printf("Detecting installed components...\n");
+			const auto detected = this->detect_installed_components();
+			config_.set_list("detected-components", detected);
+			if (config_.get_list("selected-components").empty())
+			{
+				config_.set_list("selected-components", detected);
+			}
 			return;
 		}
 
@@ -222,18 +314,30 @@ namespace game_updater
 			this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
 		}
 
+
 		this->update_files(outdated_files);
 
 		check_cancelled();
 
 		if (!this->is_update_cancelled())
 		{
-			utils::io::write_file(this->get_manifest_file_path(), manifest.hash);
+			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
 
 			// Mark game as fully installed
-			if (!this->is_installed_property.empty())
+			config_.set_installed(true);
+
+			// Detect and cache installed components
+			if (this->progress_listener_)
 			{
-				utils::properties::store(this->is_installed_property, "true");
+				this->progress_listener_->update_files(this->manifest_.files, updater::progress_mode::verifying);
+			}
+
+			printf("Detecting installed components...\n");
+			const auto detected = this->detect_installed_components();
+			config_.set_list("detected-components", detected);
+			if (config_.get_list("selected-components").empty())
+			{
+				config_.set_list("selected-components", detected);
 			}
 		}
 
@@ -242,25 +346,12 @@ namespace game_updater
 
 	size_t game_updater::get_game_size() const
 	{
-		const auto manifest = get_manifest(this->base_url + "/manifest.json");
-		if (manifest.empty())
-		{
-			throw std::runtime_error("Failed to download manifest");
-			return 0;
-		}
-
-		return this->get_update_size(manifest.files);
+		return this->get_update_size(this->manifest_.files);
 	}
 
 	bool game_updater::is_update_needed() const
 	{
-		const auto manifest = get_manifest(this->base_url + "/manifest.json");
-		if (manifest.empty())
-		{
-			throw std::runtime_error("Failed to download manifest");
-		}
-
-		return this->needs_to_update(manifest.hash);
+		return this->needs_to_update(this->manifest_.hash);
 	}
 
 	void game_updater::update_file(const updater::file_info& file) const
@@ -339,9 +430,12 @@ namespace game_updater
 				throw std::runtime_error("Downloaded file size mismatch: " + out_file);
 			}
 
-			if (utils::hash::get_file_hash(out_file) != file.hash)
+			if (!this->skip_hash_check)
 			{
-				throw std::runtime_error("Downloaded file hash mismatch: " + out_file);
+				if (utils::hash::get_file_hash(out_file) != file.hash)
+				{
+					throw std::runtime_error("Downloaded file hash mismatch: " + out_file);
+				}
 			}
 		}
 		catch (const std::exception&)
@@ -525,8 +619,13 @@ namespace game_updater
 			return true;
 		}
 
-		const auto hash = utils::hash::get_file_hash(drive_name);
-		return hash != file.hash;
+		if (!this->skip_hash_check)
+		{
+			const auto hash = utils::hash::get_file_hash(drive_name);
+			return hash != file.hash;
+		}
+
+		return false;
 	}
 
 	std::string game_updater::get_drive_filename(const updater::file_info& file) const
@@ -564,5 +663,245 @@ namespace game_updater
 		{
 			throw updater::update_cancelled();
 		}
+	}
+
+	std::vector<component_info> game_updater::get_available_components() const
+	{
+		std::vector<component_info> components;
+		for (const auto& [id, info] : this->manifest_.components)
+		{
+			// Only include components that should be shown in the UI
+			if (info.show)
+			{
+				components.push_back(info);
+			}
+		}
+
+		return components;
+	}
+
+	std::vector<std::string> game_updater::detect_installed_components() const
+	{
+		if (this->install_path.empty())
+		{
+			return {};
+		}
+
+		// Build list of all file paths to check
+		std::vector<std::string> paths_to_check;
+		paths_to_check.reserve(this->manifest_.files.size());
+
+		for (const auto& file : this->manifest_.files)
+		{
+			paths_to_check.push_back(this->get_drive_filename(file));
+		}
+
+		// Batch stat all files (single open per file - NEW OPTIMIZATION)
+		const auto file_stats = utils::io::batch_stat_files(paths_to_check);
+
+		// Count files per component: {component_id -> {found, total}}
+		std::unordered_map<std::string, std::pair<int, int>> component_stats;
+
+		// Initialize counters for all components
+		for (const auto& [comp_id, comp_info] : this->manifest_.components)
+		{
+			component_stats[comp_id] = {0, 0};
+		}
+
+		// Also track any components found in files that aren't in the manifest metadata
+		for (const auto& file : this->manifest_.files)
+		{
+			if (component_stats.find(file.component) == component_stats.end())
+			{
+				component_stats[file.component] = {0, 0};
+			}
+		}
+
+		// Check each file with progress tracking
+		for (const auto& file : this->manifest_.files)
+		{
+			// Progress tracking - show current file being checked
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->begin_file(file);
+			}
+
+			// Check for cancellation
+			check_cancelled();
+
+			const auto& component = file.component;
+			component_stats[component].second++; // Increment total
+
+			const auto drive_name = this->get_drive_filename(file);
+			auto it = file_stats.find(drive_name);
+
+			if (it != file_stats.end() && it->second.exists && it->second.size == file.size)
+			{
+				component_stats[component].first++; // Increment found
+			}
+
+			// Mark file as complete
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->end_file(file);
+			}
+		}
+
+		// Determine which components are "installed" (>= 75% of files present)
+		std::vector<std::string> installed_components;
+		for (const auto& [comp_id, stats] : component_stats)
+		{
+			const auto [found, total] = stats;
+			if (total > 0)
+			{
+				const auto percentage = (found * 100) / total;
+				if (percentage >= 75)
+				{
+					installed_components.push_back(comp_id);
+				}
+			}
+		}
+
+		return installed_components;
+	}
+
+	std::vector<updater::file_info> game_updater::filter_files_by_components(
+		const std::vector<updater::file_info>& all_files,
+		const std::vector<std::string>& selected_components) const
+	{
+		std::vector<updater::file_info> filtered_files;
+
+		// Create a set for faster lookup
+		std::unordered_set<std::string> component_set(selected_components.begin(), selected_components.end());
+
+		for (const auto& file : all_files)
+		{
+			// Include file if its component is in the selected set
+			if (component_set.find(file.component) != component_set.end())
+			{
+				filtered_files.push_back(file);
+			}
+		}
+
+		return filtered_files;
+	}
+
+	size_t game_updater::calculate_component_size(const std::vector<std::string>& components) const
+	{
+		size_t total_size = 0;
+
+		// Use totalSize from component metadata if available
+		for (const auto& comp_id : components)
+		{
+			auto it = this->manifest_.components.find(comp_id);
+			if (it != this->manifest_.components.end())
+			{
+				total_size += it->second.total_size;
+			}
+		}
+
+		return total_size;
+	}
+
+	std::vector<updater::file_info> game_updater::get_files_to_delete(
+		const std::vector<std::string>& selected_components) const
+	{
+		if (this->install_path.empty())
+		{
+			return {};
+		}
+
+		// Detect which components are currently installed
+		const auto installed_components = this->detect_installed_components();
+
+		// Create a set of selected components for fast lookup
+		std::unordered_set<std::string> selected_set(selected_components.begin(), selected_components.end());
+
+		// Find deselected components (installed but not selected)
+		std::unordered_set<std::string> deselected_components;
+		for (const auto& installed_comp : installed_components)
+		{
+			if (selected_set.find(installed_comp) == selected_set.end())
+			{
+				deselected_components.insert(installed_comp);
+			}
+		}
+
+		// If no components are deselected, return empty list
+		if (deselected_components.empty())
+		{
+			return {};
+		}
+
+		// Collect all files from deselected components that exist on disk
+		std::vector<updater::file_info> files_to_delete;
+		for (const auto& file : this->manifest_.files)
+		{
+			// Check if this file belongs to a deselected component
+			if (deselected_components.find(file.component) != deselected_components.end())
+			{
+				// Check if the file actually exists on disk
+				const auto drive_name = this->get_drive_filename(file);
+				if (utils::io::file_exists(drive_name))
+				{
+					files_to_delete.push_back(file);
+				}
+			}
+		}
+
+		return files_to_delete;
+	}
+
+	void game_updater::delete_files(const std::vector<updater::file_info>& files) const
+	{
+		if (files.empty())
+		{
+			return;
+		}
+
+		printf("Deleting files from deselected components...\n");
+
+		// Initialize progress tracking for deletion phase
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->update_files(files, updater::progress_mode::deleting);
+		}
+
+		for (const auto& file : files)
+		{
+			check_cancelled();
+
+			// Report that we're starting to delete this file
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->begin_file(file);
+			}
+
+			const auto drive_name = this->get_drive_filename(file);
+			printf("Deleting: %s\n", get_filename(file.name).data());
+
+			// Delete the file
+			if (utils::io::file_exists(drive_name))
+			{
+				if (!utils::io::remove_file(drive_name))
+				{
+					printf("Warning: Failed to delete file: %s\n", drive_name.c_str());
+				}
+			}
+
+			// Mark file as processed by adding its size to progress
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->file_progress(file, file.size);
+			}
+
+			// Report that we've finished deleting this file
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->end_file(file);
+			}
+		}
+
+		printf("Finished deleting files from deselected components\n");
 	}
 }

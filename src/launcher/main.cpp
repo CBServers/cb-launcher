@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
 #include "updater/updater.hpp"
+#include "updater/game_updater.hpp"
 #include "updater/progress_tracker.hpp"
 #include "updater/ui_progress_listener.hpp"
 #include "unlockall/unlockall.hpp"
@@ -13,6 +14,7 @@
 #include <utils/io.hpp>
 #include <utils/string.hpp>
 #include <game_config.hpp>
+#include <version.hpp>
 
 namespace
 {
@@ -117,9 +119,9 @@ namespace
 		return cef_ui.run_process();
 	}
 
-	std::string get_launch_options(const std::string& arg, const std::string& game)
+	std::string get_launch_options(const std::string& arg, const game_config::game_config_t& config)
 	{
-		const auto options = utils::properties::load(std::format("{}-{}", "launch-options", game));
+		const auto options = config.get_launch_options();
 		if (!options.has_value())
 		{
 			return arg;
@@ -157,7 +159,7 @@ namespace
 			}
 
 			// Get game installation path
-			const auto game_install = utils::properties::load(config->install_property);
+			const auto game_install = config->get_install_path();
 			if (!game_install)
 			{
 				return;
@@ -172,10 +174,11 @@ namespace
 				try
 				{
 					// Check for game updates if configured
-					if (config->check_for_game_updates && game_updater::is_update_needed(*config))
+					game_updater::game_updater game_updater(*config, false, &progress_listener);
+					if (config->check_for_game_updates && game_updater.is_update_needed())
 					{
 						cef_ui.show_message_box("Game Update Required", "This game requires an update. Please wait for update to complete before you can start playing.");
-						game_updater::run(*config, &progress_listener);
+						game_updater.run();
 					}
 
 					client_updater::run(*config, &progress_listener);
@@ -193,7 +196,17 @@ namespace
 							return;
 						}
 
-						const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, game), game_directory);
+						const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, *config), game_directory);
+
+						// Check if launcher should close after game starts
+						const auto close_on_launch = utils::properties::load("launcher-close-on-launch");
+						if (close_on_launch && *close_on_launch == "true")
+						{
+							printf("Close on launch enabled - closing launcher\n");
+							// Close the launcher browser window
+							cef_ui.close_browser();
+							return;
+						}
 
 						// Spawn watchdog thread to unlock barrier when game exits
 						std::thread([pid]()
@@ -295,11 +308,23 @@ namespace
 				return; // Invalid game
 			}
 
+			// Check if hash verification should be skipped
+			bool skip_hash = false;
+			const auto skip_hash_prop = utils::properties::load("launcher-skip-hash-verification");
+			if (skip_hash_prop && *skip_hash_prop == "true")
+			{
+				skip_hash = true;
+				printf("Skip hash verification enabled\n");
+			}
+
+			// Clear component cache before verification
+			config->set("detected-components", "");
+
 			updater::ui_progress_listener progress_listener;
 			progress_listener.reset(true);
 
 			// Run verification in a separate thread with progress tracking
-			std::thread([config, &progress_listener , &cef_ui]()
+			std::thread([config, &progress_listener , &cef_ui, skip_hash]()
 			{
 				try
 				{
@@ -309,11 +334,11 @@ namespace
 						const auto base_config = game_config::get_game_config(config->base_game);
 						if (base_config)
 						{
-							game_updater::run(*base_config, &progress_listener);
+							game_updater::run(*base_config, skip_hash, &progress_listener);
 						}
 					}
 
-					game_updater::run(*config, &progress_listener);
+					game_updater::run(*config, skip_hash, &progress_listener);
 					client_updater::run(*config, &progress_listener);
 					progress_listener.done_update();
 				}
@@ -453,6 +478,81 @@ namespace
 			}
 		});
 
+		cef_ui.add_command("set-game-property", [](const rapidjson::Value& value, auto&)
+		{
+			if (!value.IsObject() || !value.HasMember("game") ||
+				!value.HasMember("suffix") || !value.HasMember("value"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+			const auto suffix = std::string{ value["suffix"].GetString() };
+			const auto val = std::string{ value["value"].GetString() };
+
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			config->set(suffix, val);
+		});
+
+		cef_ui.add_command("get-game-property", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("suffix"))
+			{
+				response.SetNull();
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+			const auto suffix = std::string{ value["suffix"].GetString() };
+
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				response.SetNull();
+				return;
+			}
+
+			const auto result = config->get(suffix);
+			if (result.has_value())
+			{
+				response.SetString(result->c_str(), static_cast<rapidjson::SizeType>(result->length()), response.GetAllocator());
+			}
+			else
+			{
+				response.SetNull();
+			}
+		});
+
+		cef_ui.add_command("reset-game-settings", [](const rapidjson::Value& value, auto&)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			if (game == "all")
+			{
+				game_config::reset_all_games();
+			}
+			else
+			{
+				const auto config = game_config::get_game_config(game);
+				if (!config)
+				{
+					return; // Invalid game
+				}
+
+				config->reset();
+			}
+		});
+
 		cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
 		{
 			response.SetBool(false); // Default to failure
@@ -484,21 +584,21 @@ namespace
 				const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
 				if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
 				{
-					utils::properties::store(config->steam_install_property, "true");
+					config->set_steam_install(true);
 				}
 				else
 				{
-					utils::properties::store(config->steam_install_property, "false");
+					config->set_steam_install(false);
 				}
-				
+
 
 				// Mark as installed since validation passed
-				utils::properties::store(config->is_installed_property, "true");
+				config->set_installed(true);
 			}
 			else
 			{
 				// For new downloads, mark as not installed yet
-				utils::properties::store(config->is_installed_property, "false");
+				config->set_installed(false);
 			}
 
 			if (!utils::io::directory_exists(path))
@@ -507,7 +607,7 @@ namespace
 			}
 
 			// Path is valid, store it
-			utils::properties::store(config->install_property, path.string());
+			config->set_install_path(path.string());
 			response.SetBool(true); // Success
 		});
 
@@ -535,55 +635,6 @@ namespace
 			response.AddMember("downloadedBytes", state.downloaded_bytes, allocator);
 		});
 
-		cef_ui.add_command("get-game-download-info", [](const rapidjson::Value& value, rapidjson::Document& response)
-		{
-			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path"))
-			{
-				return;
-			}
-
-			const auto game = std::string{ value["game"].GetString() };
-			auto path = std::filesystem::path{ value["path"].GetString() };
-
-			// Get game config
-			const auto config = game_config::get_game_config(game);
-			if (!config)
-			{
-				return;
-			}
-
-			auto game_size = game_updater::get_game_size(*config);
-
-			if (!config->base_game.empty())
-			{
-				const auto base_config = game_config::get_game_config(config->base_game);
-				if (base_config)
-				{
-					game_size += game_updater::get_game_size(*base_config);
-				}
-			}
-
-			// If the path doesn't exist, check parent directories until we find one that exists
-			while (!path.empty() && !std::filesystem::exists(path))
-			{
-				path = path.parent_path();
-			}
-
-			// If no valid path found, return without setting response
-			if (path.empty())
-			{
-				return;
-			}
-
-			std::filesystem::space_info spaceInfo = std::filesystem::space(path);
-			const auto available_space = spaceInfo.available;
-
-			response.SetObject();
-			auto& allocator = response.GetAllocator();
-			response.AddMember("game_size", game_size, allocator);
-			response.AddMember("available_space", available_space, allocator);
-		});
-
 		cef_ui.add_command("cancel-update", [](const auto&, rapidjson::Document& response)
 		{
 			response.SetBool(false); // Default to failure
@@ -591,6 +642,360 @@ namespace
 			updater::progress_tracker::instance().cancel_update();
 			response.SetBool(true);
 
+		});
+
+		cef_ui.add_command("get-game-component-info", [&cef_ui](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Check if caller wants to detect existing install (only true for "Manage Install" button)
+			bool detect_existing = false;
+			if (value.HasMember("detectExisting") && value["detectExisting"].IsBool())
+			{
+				detect_existing = value["detectExisting"].GetBool();
+			}
+
+			// Check if caller wants to force refresh (clear cache)
+			bool force_refresh = false;
+			if (value.HasMember("forceRefresh") && value["forceRefresh"].IsBool())
+			{
+				force_refresh = value["forceRefresh"].GetBool();
+			}
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			// Clear cache if force refresh requested
+			if (force_refresh && detect_existing)
+			{
+				config->set_list("detected-components", {});
+			}
+
+			// Create single updater instance (fetches manifest once)
+			const game_updater::game_updater updater(*config);
+			const auto components = updater.get_available_components();
+
+			// Only detect installed components if requested (expensive operation, skip for setup/download flow)
+			bool detection_in_progress = false;
+			std::vector<std::string> installed;
+
+			if (detect_existing)
+			{
+				// Try cache first (unless force refresh)
+				const auto cached = force_refresh ? std::vector<std::string>{} : config->get_list("detected-components");
+				if (!cached.empty())
+				{
+					// Cache hit - instant response
+					installed = cached;
+				}
+				else
+				{
+					// Cache miss
+					detection_in_progress = true;
+					std::thread([config, &cef_ui]() {
+						try {
+							updater::ui_progress_listener listener;
+							listener.reset(true);
+
+							game_updater::game_updater updater(*config, false, &listener);
+							const auto detected = updater.detect_installed_components();
+
+							// Cache results
+							config->set_list("detected-components", detected);
+							if (config->get_list("selected-components").empty())
+							{
+								config->set_list("selected-components", detected);
+							}
+
+							listener.done_update();
+						}
+						catch (const updater::update_cancelled&) {
+							updater::progress_tracker::instance().cancel_update();
+						}
+						catch (const std::exception& e) {
+							updater::progress_tracker::instance().cancel_update();
+							cef_ui.show_message_box("Detection Error", e.what());
+						}
+					}).detach();
+				}
+			}
+
+			// Build response object
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			// Add components metadata
+			rapidjson::Value componentsObj(rapidjson::kObjectType);
+			for (const auto& comp : components)
+			{
+				rapidjson::Value compObj(rapidjson::kObjectType);
+
+				rapidjson::Value displayName;
+				displayName.SetString(comp.display_name.c_str(), static_cast<rapidjson::SizeType>(comp.display_name.length()), allocator);
+				compObj.AddMember("displayName", displayName, allocator);
+
+				rapidjson::Value description;
+				description.SetString(comp.description.c_str(), static_cast<rapidjson::SizeType>(comp.description.length()), allocator);
+				compObj.AddMember("description", description, allocator);
+
+				compObj.AddMember("required", comp.required, allocator);
+				compObj.AddMember("defaultEnabled", comp.default_enabled, allocator);
+
+				rapidjson::Value compId;
+				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);
+				componentsObj.AddMember(compId, compObj, allocator);
+			}
+			response.AddMember("components", componentsObj, allocator);
+
+			// Add installed components array
+			rapidjson::Value installedArray(rapidjson::kArrayType);
+			for (const auto& comp_id : installed)
+			{
+				rapidjson::Value val;
+				val.SetString(comp_id.c_str(), static_cast<rapidjson::SizeType>(comp_id.length()), allocator);
+				installedArray.PushBack(val, allocator);
+			}
+			response.AddMember("installed", installedArray, allocator);
+			response.AddMember("detectionInProgress", detection_in_progress, allocator);
+
+			// Add component sizes
+			rapidjson::Value sizesObj(rapidjson::kObjectType);
+			for (const auto& comp : components)
+			{
+				std::vector<std::string> single_component = { comp.id };
+				const auto size = updater.calculate_component_size(single_component);
+
+				rapidjson::Value compId;
+				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);
+				sizesObj.AddMember(compId, static_cast<uint64_t>(size), allocator);
+			}
+			response.AddMember("sizes", sizesObj, allocator);
+		});
+
+		cef_ui.add_command("get-available-space", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("path"))
+			{
+				return;
+			}
+
+			auto path = std::filesystem::path{ value["path"].GetString() };
+
+			// If the path doesn't exist, check parent directories until we find one that exists
+			while (!path.empty() && !std::filesystem::exists(path))
+			{
+				path = path.parent_path();
+			}
+
+			// If no valid path found, return 0
+			uint64_t available_space = 0;
+			if (!path.empty())
+			{
+				std::filesystem::space_info spaceInfo = std::filesystem::space(path);
+				available_space = spaceInfo.available;
+			}
+
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+			response.AddMember("availableSpace", available_space, allocator);
+		});
+
+		cef_ui.add_command("get-game-components", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			const game_updater::game_updater updater(*config);
+			const auto components = updater.get_available_components();
+
+			// Build response as object with component details
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			for (const auto& comp : components)
+			{
+				rapidjson::Value compObj(rapidjson::kObjectType);
+
+				rapidjson::Value displayName;
+				displayName.SetString(comp.display_name.c_str(), static_cast<rapidjson::SizeType>(comp.display_name.length()), allocator);
+				compObj.AddMember("displayName", displayName, allocator);
+
+				rapidjson::Value description;
+				description.SetString(comp.description.c_str(), static_cast<rapidjson::SizeType>(comp.description.length()), allocator);
+				compObj.AddMember("description", description, allocator);
+
+				compObj.AddMember("required", comp.required, allocator);
+				compObj.AddMember("defaultEnabled", comp.default_enabled, allocator);
+
+				rapidjson::Value compId;
+				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);
+				response.AddMember(compId, compObj, allocator);
+			}
+		});
+
+		cef_ui.add_command("detect-installed-components", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			const game_updater::game_updater updater(*config);
+			const auto installed = updater.detect_installed_components();
+
+			// Build response as array of component IDs
+			response.SetArray();
+			auto& allocator = response.GetAllocator();
+
+			for (const auto& comp_id : installed)
+			{
+				rapidjson::Value val;
+				val.SetString(comp_id.c_str(), static_cast<rapidjson::SizeType>(comp_id.length()), allocator);
+				response.PushBack(val, allocator);
+			}
+		});
+
+		cef_ui.add_command("set-game-components", [](const rapidjson::Value& value, auto&)
+		{
+			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("components"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			// Parse components array
+			if (!value["components"].IsArray())
+			{
+				return;
+			}
+
+			const auto& componentsArray = value["components"];
+			std::vector<std::string> components_vec;
+
+			for (rapidjson::SizeType i = 0; i < componentsArray.Size(); ++i)
+			{
+				if (componentsArray[i].IsString())
+				{
+					components_vec.push_back(componentsArray[i].GetString());
+				}
+			}
+
+			// Store selected components using list helper
+			config->set_list("selected-components", components_vec);
+		});
+
+		cef_ui.add_command("get-component-sizes", [](const rapidjson::Value& value, rapidjson::Document& response)
+		{
+			if (!value.IsObject() || !value.HasMember("game"))
+			{
+				return;
+			}
+
+			const auto game = std::string{ value["game"].GetString() };
+
+			// Get game configuration
+			const auto config = game_config::get_game_config(game);
+			if (!config)
+			{
+				return; // Invalid game
+			}
+
+			const game_updater::game_updater updater(*config);
+			const auto components =  updater.get_available_components();
+
+			// Build response as object with component sizes
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			for (const auto& comp : components)
+			{
+				std::vector<std::string> single_component = { comp.id };
+				const auto size = updater.calculate_component_size(single_component);
+
+				rapidjson::Value compId;
+				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);
+				response.AddMember(compId, static_cast<uint64_t>(size), allocator);
+			}
+		});
+
+		cef_ui.add_command("get-version", [](const rapidjson::Value&, rapidjson::Document& response)
+		{
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			response.AddMember("version", VERSION, allocator);
+			response.AddMember("versionFile", VERSION_FILE, allocator);
+			response.AddMember("versionProduct", VERSION_PRODUCT, allocator);
+			response.AddMember("gitHash", GIT_HASH, allocator);
+			response.AddMember("gitBranch", GIT_BRANCH, allocator);
+			response.AddMember("gitDirty", GIT_DIRTY, allocator);
+		});
+
+		cef_ui.add_command("check-launcher-update", [](const rapidjson::Value&, rapidjson::Document& response)
+		{
+			response.SetObject();
+			auto& allocator = response.GetAllocator();
+
+			try
+			{
+#if !defined(DEBUG)
+				const auto path = utils::properties::get_appdata_path();
+				printf("Checking for launcher updates...\n");
+				launcher_updater::run(path);
+#endif
+
+				// If we reach here, no update was needed or update was cancelled
+				response.AddMember("updateAvailable", false, allocator);
+			}
+			catch (const updater::update_cancelled&)
+			{
+				printf("Update cancelled by user\n");
+				response.AddMember("updateAvailable", false, allocator);
+				response.AddMember("cancelled", true, allocator);
+			}
+			catch (const std::exception& e)
+			{
+				printf("Update check error: %s\n", e.what());
+				response.AddMember("updateAvailable", false, allocator);
+				response.AddMember("error", rapidjson::Value(e.what(), allocator), allocator);
+			}
 		});
 	}
 

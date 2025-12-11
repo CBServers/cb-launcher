@@ -8,14 +8,146 @@
 
 namespace game_config
 {
+	// Property access method implementations
+	std::string game_config_t::make_property_key(const std::string& suffix) const
+	{
+		// Check for property-specific override first
+		auto override_it = this->property_overrides.find(suffix);
+		if (override_it != this->property_overrides.end())
+		{
+			return override_it->second + "-" + suffix;
+		}
+
+		// Otherwise use base_properties_game if set, or game_key
+		const std::string& base_key = this->base_properties_game.empty()
+			? this->game_key
+			: this->base_properties_game;
+
+		return base_key + "-" + suffix;
+	}
+
+	std::optional<std::string> game_config_t::get(const std::string& property_suffix) const
+	{
+		return utils::properties::load(this->make_property_key(property_suffix));
+	}
+
+	void game_config_t::set(const std::string& property_suffix, const std::string& value) const
+	{
+		utils::properties::store(this->make_property_key(property_suffix), value);
+	}
+
+	std::vector<std::string> game_config_t::get_list(const std::string& property_suffix) const
+	{
+		const auto value = this->get(property_suffix);
+		if (!value || value->empty())
+		{
+			return {};
+		}
+
+		// Parse comma-separated list
+		std::vector<std::string> result;
+		const auto& str = value.value();
+		std::string current;
+
+		for (char c : str)
+		{
+			if (c == ',')
+			{
+				if (!current.empty())
+				{
+					result.push_back(current);
+					current.clear();
+				}
+			}
+			else
+			{
+				current += c;
+			}
+		}
+
+		if (!current.empty())
+		{
+			result.push_back(current);
+		}
+
+		return result;
+	}
+
+	void game_config_t::set_list(const std::string& property_suffix, const std::vector<std::string>& values) const
+	{
+		if (values.empty())
+		{
+			this->set(property_suffix, "");
+			return;
+		}
+
+		// Join with commas
+		std::string joined;
+		for (size_t i = 0; i < values.size(); ++i)
+		{
+			if (i > 0) joined += ",";
+			joined += values[i];
+		}
+
+		this->set(property_suffix, joined);
+	}
+
+	// Convenience methods
+	std::optional<std::string> game_config_t::get_install_path() const
+	{
+		return this->get("install");
+	}
+
+	void game_config_t::set_install_path(const std::string& path) const
+	{
+		this->set("install", path);
+	}
+
+	bool game_config_t::is_installed() const
+	{
+		auto value = this->get("is-installed");
+		return value && value.value() == "true";
+	}
+
+	void game_config_t::set_installed(bool installed) const
+	{
+		this->set("is-installed", installed ? "true" : "false");
+	}
+
+	bool game_config_t::is_steam_install() const
+	{
+		auto value = this->get("is-steam-install");
+		return value && value.value() == "true";
+	}
+
+	void game_config_t::set_steam_install(bool is_steam) const
+	{
+		this->set("is-steam-install", is_steam ? "true" : "false");
+	}
+
+	std::optional<std::string> game_config_t::get_launch_options() const
+	{
+		return this->get("launch-options");
+	}
+
+	void game_config_t::reset() const
+	{
+		// Clear all properties for this game
+		this->set("install", "");
+		this->set("is-installed", "");
+		this->set("is-steam-install", "");
+		this->set_list("detected-components", {});
+		this->set_list("selected-components", {});
+		this->set("launch-options", "");
+	}
+
+	// Game configurations
 	const std::unordered_map<std::string, game_config_t> game_configs_ = {
 		{
 			"bo3",
 			{
+				.game_key = "bo3",
 				.display_name = "Black Ops 3",
-				.install_property = "bo3-install",
-				.is_installed_property = "bo3-is-installed",
-				.steam_install_property = "bo3-is-steam-install",
 				.id = "boiii",
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
@@ -23,16 +155,16 @@ namespace game_config
 				.required_updater_files = {"boiii.exe"},
 				.valid_game_exes = {"BlackOps3.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "bo3_game_files"
+				.base_url = GAME_UPDATE_SERVER "bo3_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
 			}
 		},
 		{
 			"ghosts",
 			{
+				.game_key = "ghosts",
 				.display_name = "Ghosts",
-				.install_property = "ghosts-install",
-				.is_installed_property = "ghosts-is-installed",
-				.steam_install_property = "ghosts-is-steam-install",
 				.id = "iw6x",
 				.exe_name = "iw6x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
@@ -43,16 +175,16 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = GAME_UPDATE_SERVER "ghosts_game_files"
+				.base_url = GAME_UPDATE_SERVER "ghosts_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
 			}
 		},
 		{
 			"aw",
 			{
+				.game_key = "aw",
 				.display_name = "Advanced Warfare",
-				.install_property = "aw-install",
-				.is_installed_property = "aw-is-installed",
-				.steam_install_property = "aw-is-steam-install",
 				.id = "s1x",
 				.exe_name = "s1x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
@@ -65,16 +197,16 @@ namespace game_config
 					{"zm", "-zombies"},
 					{"sv", "-survival"}
 				},
-				.base_url = GAME_UPDATE_SERVER "aw_game_files"
+				.base_url = GAME_UPDATE_SERVER "aw_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
 			}
 		},
 		{
 			"mwr",
 			{
+				.game_key = "mwr",
 				.display_name = "Modern Warfare Remastered",
-				.install_property = "mwr-install",
-				.is_installed_property = "mwr-is-installed",
-				.steam_install_property = "mwr-is-steam-install",
 				.id = "h1-mod",
 				.exe_name = "h1-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
@@ -85,16 +217,16 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = GAME_UPDATE_SERVER "mwr_game_files"
+				.base_url = GAME_UPDATE_SERVER "mwr_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
 			}
 		},
 		{
 			"iw",
 			{
+				.game_key = "iw",
 				.display_name = "Infinite Warfare",
-				.install_property = "iw-install",
-				.is_installed_property = "iw-is-installed",
-				.steam_install_property = "iw-is-steam-install",
 				.id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
@@ -102,17 +234,16 @@ namespace game_config
 				.required_updater_files = {"iw7-mod.exe"},
 				.valid_game_exes = {"iw7_ship.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "iw_game_files"
-			},
-
+				.base_url = GAME_UPDATE_SERVER "iw_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
+			}
 		},
 		{
 			"hmw",
 			{
+				.game_key = "hmw",
 				.display_name = "HorizonMW",
-				.install_property = "mwr-install",
-				.is_installed_property = "hmw-is-installed",
-				.steam_install_property = "mwr-is-steam-install",
 				.id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
@@ -123,9 +254,15 @@ namespace game_config
 				.base_url = GAME_UPDATE_SERVER "h2m",
 				.base_game = "mwr",
 				.check_for_game_updates = true,
-				.unlock_url_folder = "h2m/"
-			},
-
+				.unlock_url_folder = "h2m/",
+				.base_properties_game = "mwr",
+				.property_overrides = {
+					{"is-installed", "hmw"},
+					{"detected-components", "hmw"},
+					{"selected-components", "hmw"},
+					{"launch-options", "hmw"}
+				}
+			}
 		}
 	};
 
@@ -228,5 +365,14 @@ namespace game_config
 		}
 
 		return false;
+	}
+
+	void reset_all_games()
+	{
+		// Reset properties for all games
+		for (const auto& [game_key, config] : game_configs_)
+		{
+			config.reset();
+		}
 	}
 }

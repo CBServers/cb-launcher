@@ -4,6 +4,7 @@
 #include "ui_progress_listener.hpp"
 #include <string>
 #include <filesystem>
+#include <optional>
 #include <game_config.hpp>
 
 namespace game_updater
@@ -11,7 +12,7 @@ namespace game_updater
 	class game_updater
 	{
 	public:
-		game_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr);
+		game_updater(const game_config::game_config_t& config, bool skip_hash = false, updater::ui_progress_listener* listener = nullptr);
 
 		void run() const;
 		size_t get_game_size() const;
@@ -22,11 +23,21 @@ namespace game_updater
 		void update_files(const std::vector<updater::file_info>& outdated_files) const;
 		bool needs_to_update(const std::string& hash) const;
 
+		// Component management methods
+		[[nodiscard]] std::vector<component_info> get_available_components() const;
+		[[nodiscard]] std::vector<std::string> detect_installed_components() const;
+		[[nodiscard]] std::vector<updater::file_info> filter_files_by_components(
+			const std::vector<updater::file_info>& all_files,
+			const std::vector<std::string>& selected_components) const;
+		[[nodiscard]] size_t calculate_component_size(const std::vector<std::string>& components) const;
+
 	private:
+		const game_config::game_config_t& config_;
 		std::filesystem::path install_path;
 		std::string base_url;
-		std::string is_installed_property;
+		update_manifest manifest_;
 		bool is_steam_install;
+		bool skip_hash_check;
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;
@@ -39,5 +50,12 @@ namespace game_updater
 		[[nodiscard]] std::string get_manifest_file_path() const;
 		[[nodiscard]] bool is_update_cancelled() const;
 		void check_cancelled() const; // Throws update_cancelled exception if cancelled
+
+		// Get files that should be deleted (files from deselected components)
+		[[nodiscard]] std::vector<updater::file_info> get_files_to_delete(
+			const std::vector<std::string>& selected_components) const;
+
+		// Delete files with progress tracking
+		void delete_files(const std::vector<updater::file_info>& files) const;
 	};
 }

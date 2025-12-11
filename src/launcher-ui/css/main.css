@@ -783,8 +783,8 @@ img {
 }
 
 .settings-actions {
-    margin-top: 40px;
-    padding-top: 20px;
+    margin-top: 20px;
+    padding-top: 15px;
     border-top: 1px solid #444;
     display: flex;
     gap: 15px;
