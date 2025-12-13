@@ -980,21 +980,17 @@ namespace
 				printf("Checking for launcher updates...\n");
 				launcher_updater::run(path);
 #endif
-
-				// If we reach here, no update was needed or update was cancelled
-				response.AddMember("updateAvailable", false, allocator);
+				response.AddMember("updateComplete", true, allocator);
 			}
 			catch (const updater::update_cancelled&)
 			{
 				printf("Update cancelled by user\n");
-				response.AddMember("updateAvailable", false, allocator);
-				response.AddMember("cancelled", true, allocator);
+				response.AddMember("updateComplete", false, allocator);
 			}
 			catch (const std::exception& e)
 			{
 				printf("Update check error: %s\n", e.what());
-				response.AddMember("updateAvailable", false, allocator);
-				response.AddMember("error", rapidjson::Value(e.what(), allocator), allocator);
+				response.AddMember("updateComplete", false, allocator);
 			}
 		});
 	}

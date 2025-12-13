@@ -54,6 +54,15 @@ class GameSettingsPopup {
                     </div>
                 </div>
 
+                <div class="settings-section" id="launch-options-section">
+                    <h4>Advanced</h4>
+                    <div class="setting-item">
+                        <label for="launch-options-input">Launch Options:</label>
+                        <input type="text" id="launch-options-input" class="launch-options-input" placeholder="e.g., +set r_fullscreen 0 +devmap mp_nuketown_x" />
+                        <p class="launch-options-hint">Add custom command-line arguments to pass to the game executable</p>
+                    </div>
+                </div>
+
                 <div class="popup-actions">
                     <button class="btn-reset">Reset Game Settings</button>
                     <div style="flex: 1;"></div>
@@ -183,6 +192,13 @@ class GameSettingsPopup {
                 });
                 this.popup.querySelector('#game-path').value = installPath || '';
 
+                // Load launch options (available for all games)
+                const launchOptions = await window.executeCommand('get-game-property', {
+                    game: this.currentGame,
+                    suffix: 'launch-options'
+                });
+                this.popup.querySelector('#launch-options-input').value = launchOptions || '';
+
                 if (this.currentGame === 'bo3') {
                     // Load BO3 cinematic setting
                     const skipIntro = await window.executeCommand('get-game-property', {
@@ -289,6 +305,14 @@ class GameSettingsPopup {
                         });
                     }
                 }
+
+                // Save launch options (available for all games)
+                const launchOptions = this.popup.querySelector('#launch-options-input').value.trim();
+                await window.executeCommand('set-game-property', {
+                    game: this.currentGame,
+                    suffix: 'launch-options',
+                    value: launchOptions
+                });
 
                 this.hide();
             } catch (error) {

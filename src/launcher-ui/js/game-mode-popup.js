@@ -123,14 +123,9 @@ class GameModePopup {
                 if (!folder) {
                     const gameName = this.getGameDisplayName(this.currentGame);
                     if (typeof window.showMessageBox === 'function') {
-                        window.showMessageBox(`⚙ ${gameName} not configured`,
-                            `You have not configured your <b>${gameName} installation</b> path.<br><br>Please do so in the settings!`, ["Ok"]).then(index => {
-                            if (typeof window.showSettings === 'function') {
-                                window.showSettings();
-                            }
-                        });
+                        window.showMessageBox(`${gameName} not configured`, `You have not configured your ${gameName} installation path.`, ["Ok"]);
                     } else {
-                        alert(`${gameName} installation path not configured. Please configure it in settings.`);
+                        alert(`${gameName} installation path not configured.`);
                     }
                 } else {
                     // Launch with progress tracking

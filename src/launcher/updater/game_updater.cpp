@@ -747,7 +747,7 @@ namespace game_updater
 			}
 		}
 
-		// Determine which components are "installed" (>= 75% of files present)
+		// Determine which components are "installed" (>= 90% of files present)
 		std::vector<std::string> installed_components;
 		for (const auto& [comp_id, stats] : component_stats)
 		{
@@ -755,7 +755,7 @@ namespace game_updater
 			if (total > 0)
 			{
 				const auto percentage = (found * 100) / total;
-				if (percentage >= 75)
+				if (percentage >= 90)
 				{
 					installed_components.push_back(comp_id);
 				}

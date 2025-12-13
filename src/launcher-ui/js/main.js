@@ -390,7 +390,7 @@ window.GameStateManager = {
     pollInterval: null,
     isPolling: false,
     gameStates: {},
-    pollIntervalMs: 1000, // Check every second
+    pollIntervalMs: 500, // Check every half second
 
     async checkGameRunning(gameId) {
         // Check if a game is currently running
@@ -589,7 +589,7 @@ window.ProgressManager = {
     },
 
     disableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .unlock-all-button, .setup-button, .stop-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .manage-install-button, .unlock-all-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = true;
         });
@@ -597,7 +597,7 @@ window.ProgressManager = {
     },
 
     enableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .unlock-all-button, .setup-button, .stop-button');
+        const buttons = document.querySelectorAll('.play-button, .verify-button, .manage-install-button, .unlock-all-button, .setup-button, .stop-button');
         buttons.forEach(btn => {
             btn.disabled = false;
         });
@@ -799,19 +799,17 @@ function launchGame(gameId) {
         gamePopups[gameId].gameModePopup.show(gameMapping, gameConfig);
     } else {
         // Launch directly for single-mode games
-        const installProperty = gameConfig.installProperty;
-        window.executeCommand('get-property', installProperty).then(folder => {
+        window.executeCommand('get-game-property', {
+                game: this.currentGame,
+                suffix: 'install'
+        }).then(folder => {
             if (!folder) {
                 const gameName = gameConfig.displayName;
                 if (typeof window.showMessageBox === 'function') {
-                    window.showMessageBox(`⚙ ${gameName} not configured`,
-                        `You have not configured your <b>${gameName} installation</b> path.<br><br>Please do so in the settings!`, ["Ok"]).then(index => {
-                        if (typeof window.showSettings === 'function') {
-                            window.showSettings();
-                        }
-                    });
-                } else {
-                    alert(`${gameName} installation path not configured. Please configure it in settings.`);
+                    window.showMessageBox(`${gameName} not configured`, `You have not configured your ${gameName} installation path.`, ["Ok"]);
+                }
+                else {
+                    alert(`${gameName} installation path not configured.`);
                 }
             } else {
                 // Launch with progress tracking
@@ -1299,20 +1297,24 @@ async function handleCheckForUpdates() {
     const originalText = updateBtn.textContent;
     updateBtn.textContent = 'Checking...';
 
+    // Force the browser to paint the UI changes before the blocking operation
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     try {
         if (typeof executeCommand === 'function') {
             const result = await executeCommand('check-launcher-update');
 
-            if (result && result.updateAvailable) {
+            if (result && result.updateComplete) {
                 await window.showMessageBox(
-                    "Update Available",
-                    `A new version of the launcher is available (${result.version}). The launcher will restart to apply the update.`,
+                    "Launcher Update",
+                    "The launcher is at the latest version!",
                     ["OK"]
                 );
-            } else {
+            }
+            else {
                 await window.showMessageBox(
-                    "No Updates",
-                    "You are running the latest version of the launcher!",
+                    "Launcher Update",
+                    "Update was cancelled or error occurred",
                     ["OK"]
                 );
             }
@@ -1320,7 +1322,7 @@ async function handleCheckForUpdates() {
     } catch (error) {
         console.error('Failed to check for updates:', error);
         await window.showMessageBox(
-            "Update Check Failed",
+            "Launcher Update",
             "Failed to check for updates. Please try again later.",
             ["OK"]
         );

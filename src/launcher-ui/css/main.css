@@ -783,7 +783,7 @@ img {
 }
 
 .settings-actions {
-    margin-top: 20px;
+    margin-top: 10px;
     padding-top: 15px;
     border-top: 1px solid #444;
     display: flex;
@@ -832,6 +832,38 @@ img {
     display: flex;
     align-items: center;
     cursor: pointer;
+}
+
+/* Launch Options input styling */
+.game-settings-popup .launch-options-input {
+    width: 100%;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    transition: border-color 0.2s;
+}
+
+.game-settings-popup .launch-options-input:focus {
+    outline: none;
+    border-color: #0078d4;
+}
+
+.game-settings-popup .launch-options-input::placeholder {
+    color: #666;
+    font-style: italic;
+}
+
+.game-settings-popup .launch-options-hint {
+    margin: 8px 0 0 0;
+    padding: 0;
+    color: #888;
+    font-size: 12px;
+    line-height: 1.4;
+    font-style: italic;
 }
 
 

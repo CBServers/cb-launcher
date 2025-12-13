@@ -114,6 +114,23 @@ class GameUtils {
     }
 
     /**
+     * Get the UI ID from backend ID (reverse mapping)
+     * @param {string} backendId - The backend game identifier (bo3, ghosts, etc.)
+     * @returns {string} The UI game identifier (boiii, iw6x, etc.)
+     */
+    static getUIIdFromBackendId(backendId) {
+        const reverseMapping = {
+            'bo3': 'boiii',
+            'ghosts': 'iw6x',
+            'aw': 's1x',
+            'mwr': 'h1-mod',
+            'iw': 'iw7-mod',
+            'hmw': 'hmw-mod'
+        };
+        return reverseMapping[backendId] || backendId;
+    }
+
+    /**
      * Get mode information with display names and descriptions
      * @returns {object} Mode information object
      */
