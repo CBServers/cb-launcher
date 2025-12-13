@@ -177,13 +177,18 @@ class GameSettingsPopup {
         if (typeof window.executeCommand === 'function') {
             try {
                 // Load installation path
-                const installPath = await window.executeCommand('get-property', this.gameConfig.installProperty);
+                const installPath = await window.executeCommand('get-game-property', {
+                    game: this.currentGame,
+                    suffix: 'install'
+                });
                 this.popup.querySelector('#game-path').value = installPath || '';
 
                 if (this.currentGame === 'bo3') {
                     // Load BO3 cinematic setting
-                    const cinematicKey = this.gameConfig.specialSettings.skipIntroCinematic;
-                    const skipIntro = await window.executeCommand('get-property', cinematicKey);
+                    const skipIntro = await window.executeCommand('get-game-property', {
+                        game: this.currentGame,
+                        suffix: 'skip-intro-cinematic'
+                    });
                     const toggleGroup = this.popup.querySelector('#skip-intro-cinematic-toggle');
                     const buttons = toggleGroup.querySelectorAll('.toggle-btn');
 
@@ -198,8 +203,10 @@ class GameSettingsPopup {
                     }
                 } else {
                     // Load play behavior preference for other games
-                    const behaviorKey = this.gameConfig.gameModeProperty;
-                    const savedBehavior = await window.executeCommand('get-property', behaviorKey);
+                    const savedBehavior = await window.executeCommand('get-game-property', {
+                        game: this.currentGame,
+                        suffix: 'game-mode'
+                    });
 
                     const behaviorSelect = this.popup.querySelector('#play-behavior-select');
                     if (savedBehavior && savedBehavior !== '') {
@@ -253,30 +260,35 @@ class GameSettingsPopup {
                     }
                 }
 
-                // Save other properties using set-property
-                const properties = {};
-
+                // Save other properties using set-game-property
                 if (this.currentGame === 'bo3') {
                     // Save BO3 cinematic setting
                     const toggleGroup = this.popup.querySelector('#skip-intro-cinematic-toggle');
                     const activeButton = toggleGroup.querySelector('.toggle-btn.active');
-                    const cinematicKey = this.gameConfig.specialSettings.skipIntroCinematic;
-                    properties[cinematicKey] = activeButton ? activeButton.dataset.value : 'false';
+                    await window.executeCommand('set-game-property', {
+                        game: this.currentGame,
+                        suffix: 'skip-intro-cinematic',
+                        value: activeButton ? activeButton.dataset.value : 'false'
+                    });
                 } else {
                     // Save play behavior preference for other games
                     const selectedBehavior = this.popup.querySelector('#play-behavior-select').value;
-                    const behaviorKey = `game-mode-${this.currentGame}`;
                     if (selectedBehavior === 'ask') {
                         // For "ask every time", we remove the saved preference
-                        // This will make the game mode popup show up
-                        properties[behaviorKey] = '';
+                        await window.executeCommand('set-game-property', {
+                            game: this.currentGame,
+                            suffix: 'game-mode',
+                            value: ''
+                        });
                     } else {
                         // For specific modes, save the preference
-                        properties[behaviorKey] = selectedBehavior;
+                        await window.executeCommand('set-game-property', {
+                            game: this.currentGame,
+                            suffix: 'game-mode',
+                            value: selectedBehavior
+                        });
                     }
                 }
-
-                await window.executeCommand('set-property', properties);
 
                 this.hide();
             } catch (error) {
@@ -301,21 +313,10 @@ class GameSettingsPopup {
 
             if (result === 1) {
                 try {
-                    // Build properties object to reset
-                    const properties = {};
-                    properties[this.gameConfig.installProperty] = '';
-                    properties[this.gameConfig.isInstalledProperty] = '';
-                    properties[this.gameConfig.isSteamInstallProperty] = '';
-                    properties[this.gameConfig.gameModeProperty] = '';
-
-                    // Add special settings if they exist
-                    if (this.gameConfig.specialSettings) {
-                        Object.values(this.gameConfig.specialSettings).forEach(settingKey => {
-                            properties[settingKey] = '';
-                        });
-                    }
-
-                    await window.executeCommand('set-property', properties);
+                    // Reset all game settings using the reset-game-settings command
+                    await window.executeCommand('reset-game-settings', {
+                        game: this.currentGame
+                    });
 
                     // Trigger UI refresh
                     window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {

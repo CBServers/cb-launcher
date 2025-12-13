@@ -26,10 +26,10 @@ class ComponentSelectionPopup {
                 <button class="popup-close">&times;</button>
             </div>
             <div class="popup-content">
-                <div class="install-download-info-section">
+                <div class="component-selection-section">
                     <div class="section-header">
                         <label>Manage Install</label>
-                        <button class="btn-refresh" title="Refresh component detection">
+                        <button class="btn-refresh" id="btn-refresh" title="Refresh component detection">
                             <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                             </svg>

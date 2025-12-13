@@ -12,6 +12,7 @@
     <script src="./js/game-mode-popup.js"></script>
     <script src="./js/game-settings-popup.js"></script>
     <script src="./js/setup-flow-popup.js"></script>
+    <script src="./js/component-selection-popup.js"></script>
     <script src="./js/main.js"></script>
 </head>
 
@@ -98,16 +99,57 @@
                 <div class="page-section" id="settings-page" style="display: none;">
                     <div class="settings-content">
                         <div class="settings-section">
-                            <h3>Game Settings</h3>
-                            <div class="settings-description">
-                                You can manage settings for installed games here.
+                            <h3>Launcher Settings</h3>
+
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label>Restore Last Viewed Game</label>
+                                    <div class="setting-description">
+                                        When enabled, the launcher will automatically open the last game page you were viewing.
+                                    </div>
+                                </div>
+                                <div class="toggle-group small" id="restore-last-page-toggle">
+                                    <button class="toggle-btn" data-value="false">OFF</button>
+                                    <button class="toggle-btn active" data-value="true">ON</button>
+                                </div>
                             </div>
-                            <div class="games-list" id="games-list">
-                                <!-- Games will be dynamically populated based on installation status -->
+
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label>Skip Hash Verification</label>
+                                    <div class="setting-description">
+                                        When enabled, game file verification will skip hash checks for faster validation. Only use if you trust your game files.
+                                    </div>
+                                </div>
+                                <div class="toggle-group small" id="skip-hash-verification-toggle">
+                                    <button class="toggle-btn active" data-value="false">OFF</button>
+                                    <button class="toggle-btn" data-value="true">ON</button>
+                                </div>
+                            </div>
+
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label>Close Launcher When Game Starts</label>
+                                    <div class="setting-description">
+                                        When enabled, the launcher will automatically close after launching a game to free up system resources.
+                                    </div>
+                                </div>
+                                <div class="toggle-group small" id="close-on-launch-toggle">
+                                    <button class="toggle-btn active" data-value="false">OFF</button>
+                                    <button class="toggle-btn" data-value="true">ON</button>
+                                </div>
                             </div>
                         </div>
+
                         <div class="settings-actions">
-                            <button class="reset-button" onclick="resetAllSettings()">Reset All Game Settings</button>
+                            <button class="settings-action-btn reset-btn" id="reset-all-settings-btn">Reset All Settings</button>
+                            <button class="settings-action-btn update-btn" id="check-updates-btn">Check for Updates</button>
+                        </div>
+
+                        <div class="settings-footer">
+                            <div class="footer-title">CB Servers Launcher</div>
+                            <div class="footer-version" id="version-footer">Version: Loading...</div>
+                            <div class="footer-copyright">© 2025 CB Servers. All rights reserved.</div>
                         </div>
                     </div>
                 </div>

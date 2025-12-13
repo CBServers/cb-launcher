@@ -139,23 +139,33 @@ async function initializeNavigation() {
     const settingsElement = document.querySelector("#settings");
     settingsElement.addEventListener("click", handleSettingsClick);
 
-    // Try to load last game page, otherwise default to home
+    // Try to load last game page if restore setting is enabled
     let pageToLoad = "home";
     try {
         if (typeof window.executeCommand === 'function') {
-            const lastGamePage = await window.executeCommand('get-property', 'last-game-page');
-            // Verify it's a valid game page
-            if (lastGamePage && ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(lastGamePage)) {
-                pageToLoad = lastGamePage;
-                console.log(`Restoring last game page: ${lastGamePage}`);
+            // Check if restore-last-page setting is enabled (default: true)
+            const restoreEnabled = await window.executeCommand('get-property', 'launcher-restore-last-page');
 
-                // Set the appropriate navigation item as active
-                const gameItem = document.querySelector(`.game-item[data-game="${lastGamePage}"]`);
-                if (gameItem) {
-                    removeActiveNavigation();
-                    gameItem.classList.add("active");
-                    gameItem.classList.add(`${lastGamePage}-active`);
+            // Default to true if not set, or if explicitly set to 'true'
+            const shouldRestore = restoreEnabled === null || restoreEnabled === 'true';
+
+            if (shouldRestore) {
+                const lastGamePage = await window.executeCommand('get-property', 'last-game-page');
+                // Verify it's a valid game page
+                if (lastGamePage && ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(lastGamePage)) {
+                    pageToLoad = lastGamePage;
+                    console.log(`Restoring last game page: ${lastGamePage}`);
+
+                    // Set the appropriate navigation item as active
+                    const gameItem = document.querySelector(`.game-item[data-game="${lastGamePage}"]`);
+                    if (gameItem) {
+                        removeActiveNavigation();
+                        gameItem.classList.add("active");
+                        gameItem.classList.add(`${lastGamePage}-active`);
+                    }
                 }
+            } else {
+                console.log('Restore last page disabled, loading home');
             }
         }
     } catch (error) {
@@ -611,7 +621,8 @@ function loadNavigationPage(page) {
         return Promise.reject(`Page not found: ${page}-page`);
     }
 
-    targetPage.style.display = 'block';
+    // Use flex layout for settings page to anchor footer to bottom
+    targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
 
     // Save last game page (exclude home and settings)
     if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
@@ -722,6 +733,9 @@ async function createGameButtons(gameId) {
                     </button>
                     <button class="verify-button" id="${gameId}-verify-button">
                         VERIFY
+                    </button>
+                    <button class="manage-install-button" id="${gameId}-manage-install-button">
+                        MANAGE INSTALL
                     </button>${unlockAllButton}
                 </div>
                 <div class="right-buttons">
@@ -734,6 +748,7 @@ async function createGameButtons(gameId) {
             // Attach event listeners
             document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
             document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
+            document.getElementById(`${gameId}-manage-install-button`).onclick = () => showManageInstall(gameId);
             document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
 
             // Attach unlock all listener for HMW
@@ -875,6 +890,18 @@ function showGameSettings(gameId) {
     const gameMapping = GameUtils.getGameMapping(gameId);
     const gameConfig = GameUtils.getGameConfig(gameMapping);
     gamePopups[gameId].gameSettingsPopup.show(gameMapping, gameConfig);
+}
+
+function showManageInstall(gameId) {
+    console.log(`Manage install button clicked for ${gameId}`);
+
+    if (!gamePopups[gameId].componentSelectionPopup) {
+        gamePopups[gameId].componentSelectionPopup = new ComponentSelectionPopup();
+    }
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+    const gameConfig = GameUtils.getGameConfig(gameMapping);
+    gamePopups[gameId].componentSelectionPopup.show(gameMapping, gameConfig);
 }
 
 function verifyGame(gameId) {
@@ -1075,56 +1102,22 @@ function showSetupFlow(gameId) {
 let settingsPopup;
 
 
-async function resetAllSettings() {
-    const result = await window.showMessageBox(
-        "⚠️ Reset Settings",
-        "Are you sure you want to reset all game settings to defaults? This will clear all game installation paths and settings.",
-        ["Cancel", "Reset"]
-    );
-
-    if (result === 1) {
-        if (typeof executeCommand === 'function') {
-            try {
-                await executeCommand('set-property', GameUtils.getResetProperties());
-
-                await executeCommand('reset-settings');
-
-                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                    detail: { game: 'all' }
-                }));
-
-                window.showMessageBox("Settings Reset", "All game settings have been reset to defaults!", ["OK"]);
-                await initializeSettingsPage();
-            } catch (error) {
-                console.error('Failed to reset settings:', error);
-                window.showMessageBox("Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
-            }
-        }
-    }
-}
-
-function showSettingsGameSettings(gameId) {
-    console.log('Settings game settings button clicked for:', gameId);
-
-    if (!settingsPopup) {
-        settingsPopup = new GameSettingsPopup();
-    }
-
-    const gameMapping = GameUtils.getGameMapping(gameId);
-    const gameConfig = GameUtils.getGameConfig(gameMapping);
-    if (gameConfig) {
-        settingsPopup.show(gameMapping, gameConfig);
-    }
-}
 
 async function checkGameInstallation(gameId) {
+    const gameMapping = GameUtils.getGameMapping(gameId);
     const config = GameUtils.getGameConfigByUIId(gameId);
     if (!config) return { hasAnySetup: false, status: 'not-setup' };
 
     try {
         if (typeof window.executeCommand === 'function') {
-            const isInstalled = await window.executeCommand('get-property', config.isInstalledProperty);
-            const installPath = await window.executeCommand('get-property', config.installProperty);
+            const isInstalled = await window.executeCommand('get-game-property', {
+                game: gameMapping,
+                suffix: 'is-installed'
+            });
+            const installPath = await window.executeCommand('get-game-property', {
+                game: gameMapping,
+                suffix: 'install'
+            });
 
             const fullyInstalled = isInstalled && isInstalled.trim() === 'true';
             const hasPath = installPath && installPath.trim() !== '';
@@ -1146,90 +1139,236 @@ async function checkGameInstallation(gameId) {
     }
 }
 
-async function populateGamesList() {
-    const gamesList = document.getElementById('games-list');
-    if (!gamesList) return;
+async function loadLauncherSettings() {
+    if (typeof window.executeCommand !== 'function') {
+        console.log('Mock: Skipping launcher settings load');
+        return;
+    }
 
-    console.log('Populating games list...');
-    gamesList.innerHTML = '';
+    try {
+        // Load "Restore Last Page" setting
+        const restoreLastPage = await window.executeCommand('get-property', 'launcher-restore-last-page');
+        const restoreToggle = document.getElementById('restore-last-page-toggle');
 
-    let gamesWithSetupCount = 0;
+        if (restoreToggle) {
+            const buttons = restoreToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
 
-    const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
-
-    for (const gameId of gameIds) {
-        console.log(`Checking installation for ${gameId}...`);
-        const installStatus = await checkGameInstallation(gameId);
-        console.log(`${gameId} installation status:`, installStatus);
-
-        if (installStatus.hasAnySetup) {
-            gamesWithSetupCount++;
-            const config = GameUtils.getGameConfigByUIId(gameId);
-            if (!config) continue;
-
-            // Determine badge text and class
-            let badgeText = '';
-            let badgeClass = '';
-            if (installStatus.status === 'installed') {
-                badgeText = 'Installed';
-                badgeClass = 'installed';
-            } else if (installStatus.status === 'partial') {
-                badgeText = 'Partial';
-                badgeClass = 'partial';
+            // Default to "true" if not set
+            const targetValue = (restoreLastPage === null || restoreLastPage === 'true') ? 'true' : 'false';
+            const targetButton = restoreToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
             }
+        }
 
-            const gameItem = document.createElement('div');
-            gameItem.className = 'game-settings-item';
-            gameItem.setAttribute('data-game', gameId);
+        // Load "Skip Hash Verification" setting
+        const skipHashVerification = await window.executeCommand('get-property', 'launcher-skip-hash-verification');
+        const skipHashToggle = document.getElementById('skip-hash-verification-toggle');
 
-            gameItem.innerHTML = `
-                <div class="game-settings-info">
-                    <div class="game-settings-name">
-                        ${config.displayName} - ${config.codeName}
-                        <span class="game-status-badge ${badgeClass}">${badgeText}</span>
-                    </div>
-                </div>
-                <button class="game-settings-btn" data-game="${gameId}" title="Game Settings">
-                    <div class="settings-icon"></div>
-                </button>
-            `;
+        if (skipHashToggle) {
+            const buttons = skipHashToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
 
-            gamesList.appendChild(gameItem);
+            // Default to "false" if not set
+            const targetValue = (skipHashVerification === 'true') ? 'true' : 'false';
+            const targetButton = skipHashToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
 
-            const settingsButton = gameItem.querySelector('.game-settings-btn');
-            settingsButton.addEventListener('click', function() {
-                const gameKey = this.getAttribute('data-game');
-                showSettingsGameSettings(gameKey);
-            });
+        // Load "Close on Launch" setting
+        const closeOnLaunch = await window.executeCommand('get-property', 'launcher-close-on-launch');
+        const closeOnLaunchToggle = document.getElementById('close-on-launch-toggle');
+
+        if (closeOnLaunchToggle) {
+            const buttons = closeOnLaunchToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Default to "false" if not set
+            const targetValue = (closeOnLaunch === 'true') ? 'true' : 'false';
+            const targetButton = closeOnLaunchToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
+        console.log('Launcher settings loaded');
+    } catch (error) {
+        console.error('Failed to load launcher settings:', error);
+    }
+}
+
+function setupLauncherSettingsToggles() {
+    const settingsPage = document.getElementById('settings-page');
+    if (!settingsPage) return;
+
+    // Event delegation for all toggle buttons in settings page
+    settingsPage.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('toggle-btn')) {
+            const toggleGroup = e.target.parentElement;
+            const buttons = toggleGroup.querySelectorAll('.toggle-btn');
+            const clickedValue = e.target.dataset.value;
+
+            // Update UI immediately
+            buttons.forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+
+            // Determine which setting was changed
+            const settingId = toggleGroup.id;
+
+            if (typeof window.executeCommand === 'function') {
+                try {
+                    if (settingId === 'restore-last-page-toggle') {
+                        await window.executeCommand('set-property', {
+                            'launcher-restore-last-page': clickedValue
+                        });
+                        console.log(`Restore last page set to: ${clickedValue}`);
+                    } else if (settingId === 'skip-hash-verification-toggle') {
+                        await window.executeCommand('set-property', {
+                            'launcher-skip-hash-verification': clickedValue
+                        });
+                        console.log(`Skip hash verification set to: ${clickedValue}`);
+                    } else if (settingId === 'close-on-launch-toggle') {
+                        await window.executeCommand('set-property', {
+                            'launcher-close-on-launch': clickedValue
+                        });
+                        console.log(`Close on launch set to: ${clickedValue}`);
+                    }
+                } catch (error) {
+                    console.error('Failed to save launcher setting:', error);
+                    // Revert UI on error
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    const revertButton = toggleGroup.querySelector(`[data-value="${clickedValue === 'true' ? 'false' : 'true'}"]`);
+                    if (revertButton) {
+                        revertButton.classList.add('active');
+                    }
+                }
+            }
+        }
+    });
+
+    console.log('Launcher settings toggle listeners setup');
+}
+
+async function handleResetAllSettings() {
+    // Show confirmation dialog
+    const result = await window.showMessageBox(
+        "Reset All Settings",
+        "Are you sure you want to reset all launcher and game settings to defaults? This will clear all settings including game installation paths.",
+        ["Cancel", "Reset"]
+    );
+
+    if (result === 1) {
+        if (typeof executeCommand === 'function') {
+            try {
+                // Reset launcher settings
+                await executeCommand('set-property', {
+                    'launcher-restore-last-page': 'true',
+                    'launcher-skip-hash-verification': 'false',
+                    'launcher-close-on-launch': 'false'
+                });
+
+                // Reset all game settings using reset-game-settings command
+                await executeCommand('reset-game-settings', { game: 'all' });
+
+                // Dispatch event for game installation updates
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                    detail: { game: 'all' }
+                }));
+
+                await window.showMessageBox("Settings Reset", "All settings have been reset to defaults!", ["OK"]);
+
+                // Reload settings page to show defaults
+                await initializeSettingsPage();
+            } catch (error) {
+                console.error('Failed to reset settings:', error);
+                await window.showMessageBox("Reset Failed", "Failed to reset settings. Please try again.", ["OK"]);
+            }
         }
     }
+}
 
-    // Update description and reset button visibility based on games with setup
-    const descriptionEl = document.querySelector('.settings-description');
-    const resetButton = document.querySelector('.reset-button');
+async function handleCheckForUpdates() {
+    const updateBtn = document.getElementById('check-updates-btn');
+    if (!updateBtn) return;
 
-    if (gamesWithSetupCount === 0) {
-        if (descriptionEl) {
-            descriptionEl.textContent = 'No games configured. To set up games, click on a game in the sidebar and then click the SETUP button.';
+    // Disable button during update check
+    updateBtn.disabled = true;
+    const originalText = updateBtn.textContent;
+    updateBtn.textContent = 'Checking...';
+
+    try {
+        if (typeof executeCommand === 'function') {
+            const result = await executeCommand('check-launcher-update');
+
+            if (result && result.updateAvailable) {
+                await window.showMessageBox(
+                    "Update Available",
+                    `A new version of the launcher is available (${result.version}). The launcher will restart to apply the update.`,
+                    ["OK"]
+                );
+            } else {
+                await window.showMessageBox(
+                    "No Updates",
+                    "You are running the latest version of the launcher!",
+                    ["OK"]
+                );
+            }
         }
-        if (resetButton) {
-            resetButton.style.display = 'none';
+    } catch (error) {
+        console.error('Failed to check for updates:', error);
+        await window.showMessageBox(
+            "Update Check Failed",
+            "Failed to check for updates. Please try again later.",
+            ["OK"]
+        );
+    } finally {
+        // Re-enable button
+        updateBtn.disabled = false;
+        updateBtn.textContent = originalText;
+    }
+}
+
+async function loadVersion() {
+    try {
+        const response = await window.executeCommand('get-version');
+        const versionElement = document.getElementById('version-footer');
+
+        if (response && response.version) {
+            // Display the full git describe version
+            versionElement.textContent = `Version: ${response.version}`;
+
+            // Add tooltip with more details
+            versionElement.title = `File Version: ${response.versionFile}\nCommit: ${response.gitHash.substring(0, 8)}\nBranch: ${response.gitBranch}`;
         }
-    } else {
-        if (descriptionEl) {
-            descriptionEl.textContent = 'You can manage settings for configured games here.';
-        }
-        if (resetButton) {
-            resetButton.style.display = 'block';
+    } catch (error) {
+        console.error('Failed to load version:', error);
+        const versionElement = document.getElementById('version-footer');
+        if (versionElement) {
+            versionElement.textContent = 'Version: Unknown';
         }
     }
-
-    console.log('Games list populated');
 }
 
 async function initializeSettingsPage() {
     console.log('=== Initializing settings page ===');
-    await populateGamesList();
+    await loadLauncherSettings();
+    setupLauncherSettingsToggles();
+
+    // Setup action button listeners
+    const resetBtn = document.getElementById('reset-all-settings-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', handleResetAllSettings);
+    }
+
+    const updateBtn = document.getElementById('check-updates-btn');
+    if (updateBtn) {
+        updateBtn.addEventListener('click', handleCheckForUpdates);
+    }
+
+    await loadVersion();
     console.log('Settings page initialized');
 }
 

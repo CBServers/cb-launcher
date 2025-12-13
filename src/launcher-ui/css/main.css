@@ -1975,3 +1975,699 @@ body:not(.hidden) {
     color: #666;
     cursor: not-allowed;
 }
+
+/* Manage Install Button */
+.manage-install-button {
+    background: #666;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.manage-install-button:hover {
+    background: #777;
+}
+
+.manage-install-button:disabled {
+    background: #444;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.manage-install-button:disabled:hover {
+    background: #444;
+}
+
+/* Component Selection Popup */
+.component-selection-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.component-selection-backdrop.active {
+    opacity: 1;
+}
+
+.component-selection-popup {
+    background: #2a2a2a;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90vw;
+    max-height: 85vh;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.9);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.component-selection-popup.active {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.component-selection-popup .popup-header {
+    padding: 20px;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.component-selection-popup .popup-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.component-selection-popup .popup-close {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.component-selection-popup .popup-close:hover {
+    color: #fff;
+}
+
+.component-selection-popup .popup-content {
+    padding: 25px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.component-selection-popup .component-selection-section {
+    margin-bottom: 20px;
+}
+
+.component-selection-popup .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.component-selection-popup .section-header label {
+    color: #ccc;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.component-selection-popup .btn-refresh {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.component-selection-popup .btn-refresh:hover {
+    color: #0078d4;
+}
+
+.component-selection-popup .btn-refresh .refresh-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.component-selection-popup .components-list {
+    margin-bottom: 20px;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.component-selection-popup .component-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.component-selection-popup .component-item:last-child {
+    margin-bottom: 0;
+}
+
+.component-selection-popup .component-item:hover {
+    background: #333;
+}
+
+.component-selection-popup .component-checkbox {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+}
+
+.component-selection-popup .component-checkbox input[type="checkbox"] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #666;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.component-selection-popup .component-checkbox input[type="checkbox"]:hover:not(:disabled) {
+    border-color: #0078d4;
+}
+
+.component-selection-popup .component-checkbox input[type="checkbox"]:checked {
+    background: #0078d4;
+    border-color: #0078d4;
+}
+
+.component-selection-popup .component-checkbox input[type="checkbox"]:checked::after {
+    content: "✓";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.component-selection-popup .component-checkbox input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.component-selection-popup .component-info {
+    flex: 1;
+}
+
+.component-selection-popup .component-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+}
+
+.component-selection-popup .component-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.component-selection-popup .component-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.component-selection-popup .component-badge.required {
+    background: #dc3545;
+    color: white;
+}
+
+.component-selection-popup .component-badge.installed {
+    background: #28a745;
+    color: white;
+}
+
+.component-selection-popup .component-size {
+    color: #0078d4;
+    font-size: 13px;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.component-selection-popup .install-download-info-section {
+    margin-bottom: 20px;
+}
+
+.component-selection-popup .install-download-info-section label {
+    display: block;
+    color: #ccc;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.component-selection-popup .component-summary {
+    background: #333;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.component-selection-popup .summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    color: #ccc;
+    font-size: 14px;
+}
+
+.component-selection-popup .summary-item:last-child {
+    margin-bottom: 0;
+}
+
+.component-selection-popup .summary-value {
+    color: #fff;
+    font-weight: 600;
+}
+
+.component-selection-popup .popup-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.component-selection-popup .btn-cancel,
+.component-selection-popup .btn-apply {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.component-selection-popup .btn-cancel {
+    background: #444;
+    color: #ccc;
+}
+
+.component-selection-popup .btn-cancel:hover {
+    background: #555;
+    color: #fff;
+}
+
+.component-selection-popup .btn-apply {
+    background: #0078d4;
+    color: white;
+}
+
+.component-selection-popup .btn-apply:hover {
+    background: #106ebe;
+}
+
+.component-selection-popup .btn-apply:disabled {
+    background: #444;
+    color: #666;
+    cursor: not-allowed;
+}
+
+/* Compact component list for install popup */
+.component-selection-section {
+    margin-bottom: 20px;
+}
+
+.component-selection-section label {
+    display: block;
+    color: #ccc;
+    font-size: 14px;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.components-list-compact {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.components-list-compact .component-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.components-list-compact .component-item:last-child {
+    margin-bottom: 0;
+}
+
+.components-list-compact .component-item:hover {
+    background: #333;
+}
+
+.components-list-compact .component-checkbox {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+}
+
+.components-list-compact .component-checkbox input[type="checkbox"] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #666;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.components-list-compact .component-checkbox input[type="checkbox"]:hover:not(:disabled) {
+    border-color: #0078d4;
+}
+
+.components-list-compact .component-checkbox input[type="checkbox"]:checked {
+    background: #0078d4;
+    border-color: #0078d4;
+}
+
+.components-list-compact .component-checkbox input[type="checkbox"]:checked::after {
+    content: "✓";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.components-list-compact .component-checkbox input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.components-list-compact .component-info {
+    flex: 1;
+}
+
+.components-list-compact .component-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+}
+
+.components-list-compact .component-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.components-list-compact .component-size {
+    color: #0078d4;
+    font-size: 13px;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.components-list-compact .component-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.components-list-compact .component-badge.required {
+    background: #dc3545;
+    color: white;
+}
+
+/* Message Box Cancel Button Fix */
+#message-box .mb-buttons button:first-child {
+    margin-left: 0;
+    background: #444;
+    color: #ccc;
+}
+
+#message-box .mb-buttons button:first-child:hover {
+    background: #555;
+    color: #fff;
+}
+
+/* Spinner base styles */
+.spinner {
+    border: 3px solid #333;
+    border-top-color: #0078d4;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.detection-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    text-align: center;
+}
+
+.loading-text {
+    color: #aaa;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.loading-text:first-of-type {
+    margin-top: 15px;
+}
+
+.loading-text + .loading-text {
+    margin-top: 5px;
+}
+
+/* Game-specific spinner colors */
+.spinner.bo3 {
+    border-top-color: #f3751b;
+}
+
+.spinner.ghosts {
+    border-top-color: #3b718c;
+}
+
+.spinner.aw {
+    border-top-color: #f9d406;
+}
+
+.spinner.mwr {
+    border-top-color: #46d744;
+}
+
+.spinner.iw {
+    border-top-color: #ffffff;
+}
+
+.spinner.hmw {
+    border-top-color: #97838a;
+}
+
+/* Launcher settings inline layout */
+#settings-page {
+    flex-direction: column;
+    height: 100%;
+}
+
+.settings-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-content .setting-item.inline-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 20px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.settings-content .setting-item.inline-setting:hover {
+    border-color: #444;
+    background: #222;
+}
+
+.settings-content .setting-info {
+    flex: 1;
+}
+
+.settings-content .setting-info label {
+    display: block;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.settings-content .setting-description {
+    color: #aaa;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+/* Launcher settings toggle controls */
+.settings-content .toggle-group {
+    display: flex;
+    border: 2px solid #444;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.settings-content .toggle-group.small {
+    width: 110px;
+}
+
+.settings-content .toggle-btn {
+    flex: 1;
+    background: #1a1a1a;
+    border: none;
+    padding: 6px 8px;
+    color: #ccc;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-content .toggle-btn:not(:last-child) {
+    border-right: 1px solid #444;
+}
+
+.settings-content .toggle-btn:hover {
+    background: #333;
+    color: #fff;
+}
+
+.settings-content .toggle-btn.active {
+    background: #0078d4;
+    color: #fff;
+}
+
+.settings-content .toggle-btn.active:hover {
+    background: #106ebe;
+}
+
+/* Settings action buttons */
+.settings-actions {
+    justify-content: center;
+}
+
+.settings-action-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    min-width: 150px;
+}
+
+.settings-action-btn.reset-btn {
+    background: #d32f2f;
+    color: white;
+}
+
+.settings-action-btn.reset-btn:hover {
+    background: #b71c1c;
+}
+
+.settings-action-btn.update-btn {
+    background: #0078d4;
+    color: white;
+}
+
+.settings-action-btn.update-btn:hover {
+    background: #106ebe;
+}
+
+.settings-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Settings page footer */
+.settings-footer {
+    margin-top: 15px;
+    padding: 20px;
+    border-top: 1px solid #333;
+    text-align: center;
+}
+
+.settings-footer .footer-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.settings-footer .footer-version {
+    color: #aaa;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.settings-footer .footer-copyright {
+    color: #888;
+    font-size: 12px;
+}

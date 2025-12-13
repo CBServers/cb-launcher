@@ -116,8 +116,10 @@ class GameModePopup {
 
     launchGame(mode) {
         if (typeof window.executeCommand === 'function') {
-            const installProperty = this.getInstallProperty(this.currentGame);
-            window.executeCommand('get-property', installProperty).then(folder => {
+            window.executeCommand('get-game-property', {
+                game: this.currentGame,
+                suffix: 'install'
+            }).then(folder => {
                 if (!folder) {
                     const gameName = this.getGameDisplayName(this.currentGame);
                     if (typeof window.showMessageBox === 'function') {
@@ -235,21 +237,18 @@ class GameModePopup {
         });
     }
 
-    getInstallProperty(game) {
-        const config = GameUtils.getGameConfig(game);
-        return config ? config.installProperty : null;
-    }
-
     getGameDisplayName(game) {
         const config = GameUtils.getGameConfig(game);
         return config ? config.displayName : game;
     }
 
     async getSavedPreference(game) {
-        const key = `game-mode-${game}`;
         if (typeof window.executeCommand === 'function') {
             try {
-                const result = await window.executeCommand('get-property', key);
+                const result = await window.executeCommand('get-game-property', {
+                    game: game,
+                    suffix: 'game-mode'
+                });
                 return result || null;
             } catch (error) {
                 console.log(`No saved preference for ${game}:`, error);
@@ -260,12 +259,13 @@ class GameModePopup {
     }
 
     async savePreference(game, mode) {
-        const key = `game-mode-${game}`;
         if (typeof window.executeCommand === 'function') {
             try {
-                const properties = {};
-                properties[key] = mode;
-                await window.executeCommand('set-property', properties);
+                await window.executeCommand('set-game-property', {
+                    game: game,
+                    suffix: 'game-mode',
+                    value: mode
+                });
                 console.log(`Saved preference for ${game}: ${mode}`);
             } catch (error) {
                 console.error(`Failed to save preference for ${game}:`, error);

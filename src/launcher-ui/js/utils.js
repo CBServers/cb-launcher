@@ -10,92 +10,66 @@ class GameUtils {
         const configs = {
             'bo3': {
                 displayName: 'Black Ops 3',
-                installProperty: 'bo3-install',
-                isInstalledProperty: 'bo3-is-installed',
-                isSteamInstallProperty: "bo3-is-steam-install",
-                gameModeProperty: 'bo3-game-mode',
                 defaultInstallPath: 'bo3_game_files',
                 uiId: 'boiii',
                 hasMultipleModes: false,
                 supportedModes: [],
-                specialSettings: {
-                    skipIntroCinematic: 'bo3-skip-intro-cinematic'
-                },
+                specialSettings: ['skip-intro-cinematic'],
                 codeName: 'BOIII',
                 iconPath: './img/boiii.png',
                 heroImagePath: './img/boiii-hero.png'
             },
             'ghosts': {
                 displayName: 'Ghosts',
-                installProperty: 'ghosts-install',
-                isInstalledProperty: 'ghosts-is-installed',
-                isSteamInstallProperty: "ghosts-is-steam-install",
-                gameModeProperty: 'ghosts-game-mode',
                 defaultInstallPath: 'ghosts_game_files',
                 uiId: 'iw6x',
                 hasMultipleModes: true,
                 supportedModes: ['sp', 'mp'],
-                specialSettings: {},
+                specialSettings: [],
                 codeName: 'IW6X',
                 iconPath: './img/iw6x.png',
                 heroImagePath: './img/iw6x-hero.png'
             },
             'aw': {
                 displayName: 'Advanced Warfare',
-                installProperty: 'aw-install',
-                isInstalledProperty: 'aw-is-installed',
-                isSteamInstallProperty: "aw-is-steam-install",
-                gameModeProperty: 'aw-game-mode',
                 defaultInstallPath: 'aw_game_files',
                 uiId: 's1x',
                 hasMultipleModes: true,
                 supportedModes: ['sp', 'mp', 'zm', 'sv'],
-                specialSettings: {},
+                specialSettings: [],
                 codeName: 'S1X',
                 iconPath: './img/s1x.png',
                 heroImagePath: './img/s1x-hero.png'
             },
             'mwr': {
                 displayName: 'Modern Warfare Remastered',
-                installProperty: 'mwr-install',
-                isInstalledProperty: 'mwr-is-installed',
-                isSteamInstallProperty: "mwr-is-steam-install",
-                gameModeProperty: 'mwr-game-mode',
                 defaultInstallPath: 'mwr_game_files',
                 uiId: 'h1-mod',
                 hasMultipleModes: true,
                 supportedModes: ['sp', 'mp'],
-                specialSettings: {},
+                specialSettings: [],
                 codeName: 'H1-MOD',
                 iconPath: './img/h1-mod.png',
                 heroImagePath: './img/h1-mod-hero.png'
             },
             'iw': {
                 displayName: 'Infinite Warfare',
-                installProperty: 'iw-install',
-                isInstalledProperty: 'iw-is-installed',
-                isSteamInstallProperty: "iw-is-steam-install",
-                gameModeProperty: 'iw-game-mode',
                 defaultInstallPath: 'iw_game_files',
                 uiId: 'iw7-mod',
                 hasMultipleModes: false,
                 supportedModes: [],
-                specialSettings: {},
+                specialSettings: [],
                 codeName: 'IW7-MOD',
                 iconPath: './img/iw7-mod.png',
                 heroImagePath: './img/iw7-mod-hero.png'
             },
             'hmw': {
                 displayName: 'HorizonMW',
-                installProperty: 'mwr-install',
-                isInstalledProperty: 'hmw-is-installed',
-                isSteamInstallProperty: "mwr-is-steam-install",
-                gameModeProperty: 'hmw-game-mode',
                 defaultInstallPath: 'mwr_game_files',
                 uiId: 'hmw-mod',
                 hasMultipleModes: false,
                 supportedModes: [],
-                specialSettings: {},
+                specialSettings: [],
                 codeName: 'HMW-MOD',
                 iconPath: './img/hmw-mod.png',
                 heroImagePath: './img/hmw-mod-hero.png'
@@ -162,34 +136,6 @@ class GameUtils {
                 description: 'Fight hordes of zombies'
             }
         };
-    }
-
-    /**
-     * Get all reset properties for settings reset
-     * @returns {object} Object with all game properties set to empty
-     */
-    static getResetProperties() {
-        const properties = {};
-
-        // Get all game configs and add their properties
-        const games = ['bo3', 'ghosts', 'aw', 'mwr', 'iw', 'hmw'];
-
-        games.forEach(game => {
-            const config = this.getGameConfig(game);
-            if (config) {
-                properties[config.installProperty] = '';
-                properties[config.isInstalledProperty] = '';
-                properties[config.isSteamInstallProperty] = '';
-                properties[config.gameModeProperty] = '';
-
-                // Add special settings
-                Object.values(config.specialSettings).forEach(settingKey => {
-                    properties[settingKey] = '';
-                });
-            }
-        });
-
-        return properties;
     }
 
     /**
