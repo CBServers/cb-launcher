@@ -857,16 +857,6 @@ img {
     font-style: italic;
 }
 
-.game-settings-popup .launch-options-hint {
-    margin: 8px 0 0 0;
-    padding: 0;
-    color: #888;
-    font-size: 12px;
-    line-height: 1.4;
-    font-style: italic;
-}
-
-
 /* Message box styles - keep existing functionality */
 #message-box {
     background: rgba(0, 0, 0, 0.4);

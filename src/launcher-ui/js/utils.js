@@ -215,6 +215,180 @@ class GameUtils {
         const config = this.getGameConfigByUIId(uiId);
         return config ? config.heroImagePath : null;
     }
+
+    /**
+     * Get all game UI IDs
+     * @returns {array} Array of all game UI identifiers
+     */
+    static getAllGameIds() {
+        return ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+    }
+
+    /**
+     * Get all game-specific active CSS classes
+     * @returns {array} Array of active class names for all games
+     */
+    static getGameActiveClasses() {
+        return this.getAllGameIds().map(id => `${id}-active`);
+    }
+
+    /**
+     * Format bytes into human-readable format
+     * @param {number} bytes - Number of bytes
+     * @returns {string} Formatted string (e.g., "1.5 GB")
+     */
+    static formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    /**
+     * Track progress of a backend command with polling
+     * @param {object} config - Configuration object
+     * @param {string} config.gameId - UI game ID (for progress bar theming)
+     * @param {string} config.command - Backend command name
+     * @param {object} config.commandArgs - Arguments to pass to command
+     * @param {string} config.initialMessage - Initial progress message
+     * @param {string} config.completeMessage - Completion message
+     * @param {function} config.onComplete - Optional callback when complete
+     * @param {number} config.pollInterval - Poll interval in ms (default: 100)
+     * @returns {Promise} Promise that resolves when operation completes
+     */
+    static async trackCommandProgress(config) {
+        const {
+            gameId,
+            command,
+            commandArgs = {},
+            initialMessage = 'Processing...',
+            completeMessage = 'Complete!',
+            onComplete = null,
+            pollInterval = 100
+        } = config;
+
+        let pollIntervalId;
+
+        const cancelOperation = () => {
+            if (pollIntervalId) {
+                clearInterval(pollIntervalId);
+                console.log(`${command} cancelled`);
+            }
+            // Call backend to cancel the update
+            window.executeCommand('cancel-update').then(() => {
+                console.log('Cancel command sent to backend');
+            }).catch(error => {
+                console.error('Failed to send cancel command:', error);
+            });
+        };
+
+        // Show progress bar
+        window.ProgressManager.show(gameId, initialMessage, cancelOperation);
+
+        try {
+            // Start command and wait for it to initialize
+            await window.executeCommand(command, commandArgs);
+            console.log(`${command} command handler completed, starting polling`);
+
+            // Poll for progress updates
+            return new Promise((resolve, reject) => {
+                pollIntervalId = setInterval(async () => {
+                    try {
+                        const result = await window.executeCommand('get-update-progress');
+
+                        if (!result) {
+                            console.log('No progress data received');
+                            return;
+                        }
+
+                        if (!result.active) {
+                            console.log(`${command} no longer active - operation complete`);
+                            // Operation complete
+                            clearInterval(pollIntervalId);
+                            window.ProgressManager.update(100, completeMessage);
+
+                            // Call completion callback if provided
+                            if (onComplete) {
+                                onComplete();
+                            }
+
+                            setTimeout(() => {
+                                window.ProgressManager.hide();
+                                resolve();
+                            }, 1000);
+                            return;
+                        }
+
+                        // Update progress
+                        console.log(`Updating progress: ${result.message}, ${result.progress}`);
+                        window.ProgressManager.update(result.progress, result.message);
+                    } catch (error) {
+                        console.error('Error polling progress:', error);
+                        clearInterval(pollIntervalId);
+                        window.ProgressManager.hide();
+                        reject(error);
+                    }
+                }, pollInterval);
+            });
+        } catch (error) {
+            console.error(`Failed to start ${command}:`, error);
+            window.ProgressManager.hide();
+            throw error;
+        }
+    }
+
+    /**
+     * Launch a game with optional mode, handling path validation and progress
+     * @param {string} backendGame - Backend game ID (bo3, ghosts, etc.)
+     * @param {string} uiGameId - UI game ID (boiii, iw6x, etc.) for progress bar
+     * @param {string|null} mode - Game mode (sp, mp, zm, sv) or null for default
+     * @returns {Promise} Promise that resolves when launch completes
+     */
+    static async launchGameWithMode(backendGame, uiGameId, mode = null) {
+        const gameConfig = this.getGameConfig(backendGame);
+        if (!gameConfig) {
+            console.error(`No configuration found for game: ${backendGame}`);
+            throw new Error('Game configuration not found');
+        }
+
+        // Check if game install path is configured
+        const folder = await window.executeCommand('get-game-property', {
+            game: backendGame,
+            suffix: 'install'
+        });
+
+        if (!folder) {
+            const gameName = gameConfig.displayName;
+            if (typeof window.showMessageBox === 'function') {
+                window.showMessageBox(
+                    `${gameName} not configured`,
+                    `You have not configured your ${gameName} installation path.`,
+                    ["Ok"]
+                );
+            } else {
+                alert(`${gameName} installation path not configured.`);
+            }
+            throw new Error('Installation path not configured');
+        }
+
+        // Build command arguments
+        const commandArgs = { game: backendGame };
+        if (mode) {
+            commandArgs.mode = mode;
+        }
+
+        // Track launch progress
+        return this.trackCommandProgress({
+            gameId: uiGameId,
+            command: 'launch-game',
+            commandArgs: commandArgs,
+            initialMessage: `Launching ${gameConfig.displayName}...`,
+            completeMessage: 'Launch complete!'
+        });
+    }
 }
 
 // Make GameUtils available globally

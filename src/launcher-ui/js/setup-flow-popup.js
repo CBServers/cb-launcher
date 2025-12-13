@@ -441,11 +441,11 @@ class SetupFlowPopup {
                     const availableSpace = spaceInfo?.availableSpace || 0;
 
                     // Update projected size
-                    gameSizeEl.textContent = this.formatBytes(projectedSize);
+                    gameSizeEl.textContent = GameUtils.formatBytes(projectedSize);
                     gameSizeEl.classList.remove('loading');
 
                     // Update available space
-                    availableSpaceEl.textContent = this.formatBytes(availableSpace);
+                    availableSpaceEl.textContent = GameUtils.formatBytes(availableSpace);
                     availableSpaceEl.classList.remove('loading');
 
                     // Check if there's enough space
@@ -456,7 +456,7 @@ class SetupFlowPopup {
                         // Show error message
                         if (typeof window.showMessageBox === 'function') {
                             window.showMessageBox("Insufficient Space",
-                                `Not enough space available. You need ${this.formatBytes(projectedSize)} but only have ${this.formatBytes(availableSpace)} available.`, ["OK"]);
+                                `Not enough space available. You need ${GameUtils.formatBytes(projectedSize)} but only have ${GameUtils.formatBytes(availableSpace)} available.`, ["OK"]);
                         }
                     } else if (availableSpace > 0 && availableSpace < projectedSize * 1.1) {
                         // Less than 10% overhead, show warning
@@ -468,7 +468,7 @@ class SetupFlowPopup {
                 } else {
                     // Mock for development
                     console.log('Mock: Would get download info');
-                    gameSizeEl.textContent = this.formatBytes(projectedSize);
+                    gameSizeEl.textContent = GameUtils.formatBytes(projectedSize);
                     gameSizeEl.classList.remove('loading');
                     installBtn.disabled = false;
                 }
@@ -531,7 +531,6 @@ class SetupFlowPopup {
     }
 
     async startGameDownload() {
-        // Get the game ID for the UI
         const gameId = this.getGameIdFromMapping(this.currentGame);
 
         if (!gameId) {
@@ -539,92 +538,23 @@ class SetupFlowPopup {
             return;
         }
 
-        // Show progress bar
-        const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
-
-        let pollInterval;
-
-        const cancelDownload = () => {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                console.log('Download cancelled');
+        return GameUtils.trackCommandProgress({
+            gameId: gameId,
+            command: 'verify-game',
+            commandArgs: { game: this.currentGame },
+            initialMessage: `Downloading ${window.GameInstallationManager.getGameDisplayName(gameId)}...`,
+            completeMessage: 'Download complete!',
+            onComplete: () => {
+                // Trigger UI update to show PLAY buttons now that download is complete
+                this.triggerInstallationUpdate();
             }
-            // Call backend to cancel the update
-            window.executeCommand('cancel-update').then(() => {
-                console.log('Cancel command sent to backend');
-            }).catch(error => {
-                console.error('Failed to send cancel command:', error);
-            });
-        };
-
-        window.ProgressManager.show(gameId, `Downloading ${gameDisplayName}...`, cancelDownload);
-
-        // Start the download via verify-game command and wait for it to initialize
-        window.executeCommand('verify-game', { game: this.currentGame }).then(() => {
-            console.log('Download command handler completed, starting polling');
-
-            // Poll for progress updates - backend has now set is_active=true
-            pollInterval = setInterval(async () => {
-            try {
-                const result = await window.executeCommand('get-update-progress');
-
-                if (!result) {
-                    console.log('No progress data received');
-                    return;
-                }
-
-                if (!result.active) {
-                    console.log('Download no longer active - download complete');
-                    // Download complete
-                    clearInterval(pollInterval);
-                    window.ProgressManager.update(100, 'Download complete!');
-
-                    // Trigger UI update to show PLAY buttons now that download is complete
-                    this.triggerInstallationUpdate();
-
-                    setTimeout(() => {
-                        window.ProgressManager.hide();
-                    }, 1000);
-                    return;
-                }
-
-                // Update progress
-                console.log(`Updating progress: ${result.message}, ${result.progress}`);
-                window.ProgressManager.update(result.progress, result.message);
-            } catch (error) {
-                console.error('Error polling progress:', error);
-                clearInterval(pollInterval);
-                window.ProgressManager.hide();
-            }
-        }, 100); // Poll every 100ms
         }).catch(error => {
             console.error('Failed to start download:', error);
-            window.ProgressManager.hide();
         });
     }
 
     getGameIdFromMapping(gameMapping) {
-        // Reverse lookup: find UI game ID from backend game mapping
-        const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
-
-        for (const gameId of gameIds) {
-            const mapping = GameUtils.getGameMapping(gameId);
-            if (mapping === gameMapping) {
-                return gameId;
-            }
-        }
-
-        return null;
-    }
-
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 Bytes';
-
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        return GameUtils.getUIIdFromBackendId(gameMapping);
     }
 
     triggerInstallationUpdate() {

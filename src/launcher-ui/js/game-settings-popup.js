@@ -59,7 +59,6 @@ class GameSettingsPopup {
                     <div class="setting-item">
                         <label for="launch-options-input">Launch Options:</label>
                         <input type="text" id="launch-options-input" class="launch-options-input" placeholder="e.g., +set r_fullscreen 0 +devmap mp_nuketown_x" />
-                        <p class="launch-options-hint">Add custom command-line arguments to pass to the game executable</p>
                     </div>
                 </div>
 

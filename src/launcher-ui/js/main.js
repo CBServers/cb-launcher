@@ -152,7 +152,7 @@ async function initializeNavigation() {
             if (shouldRestore) {
                 const lastGamePage = await window.executeCommand('get-property', 'last-game-page');
                 // Verify it's a valid game page
-                if (lastGamePage && ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(lastGamePage)) {
+                if (lastGamePage && GameUtils.getAllGameIds().includes(lastGamePage)) {
                     pageToLoad = lastGamePage;
                     console.log(`Restoring last game page: ${lastGamePage}`);
 
@@ -188,7 +188,7 @@ function removeActiveNavigation() {
     if (activeGameItem) {
         activeGameItem.classList.remove("active");
         // Remove all game-specific active classes
-        activeGameItem.classList.remove("iw4x-active", "iw6x-active", "s1x-active", "h1-mod-active", "iw7-mod-active", "hmw-mod-active");
+        activeGameItem.classList.remove(...GameUtils.getGameActiveClasses());
     }
 }
 
@@ -337,7 +337,7 @@ function preloadGameImages() {
 }
 
 function loadSidebarIcons() {
-    const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+    const gameIds = GameUtils.getAllGameIds();
 
     gameIds.forEach(gameId => {
         const thumbnail = document.querySelector(`.${gameId}-thumb`);
@@ -431,7 +431,7 @@ window.GameStateManager = {
     },
 
     async updateAllGameStates() {
-        const gameIds = ['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+        const gameIds = GameUtils.getAllGameIds();
 
         // Find which game page is currently visible
         let visibleGameId = null;
@@ -625,7 +625,7 @@ function loadNavigationPage(page) {
     targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
 
     // Save last game page (exclude home and settings)
-    if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+    if (GameUtils.getAllGameIds().includes(page)) {
         if (typeof window.executeCommand === 'function') {
             window.executeCommand('set-property', { 'last-game-page': page }).catch(error => {
                 console.error('Failed to save last game page:', error);
@@ -636,12 +636,12 @@ function loadNavigationPage(page) {
     // Initialize page-specific functionality
     if (page === 'settings') {
         initializeSettingsPage();
-    } else if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+    } else if (GameUtils.getAllGameIds().includes(page)) {
         initializeGamePage(page);
     }
 
     // Load background images
-    if (['boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'].includes(page)) {
+    if (GameUtils.getAllGameIds().includes(page)) {
         loadBackgroundImage(page);
     } else if (page === 'home') {
         loadHomeBackgroundImage();
@@ -799,81 +799,8 @@ function launchGame(gameId) {
         gamePopups[gameId].gameModePopup.show(gameMapping, gameConfig);
     } else {
         // Launch directly for single-mode games
-        window.executeCommand('get-game-property', {
-                game: this.currentGame,
-                suffix: 'install'
-        }).then(folder => {
-            if (!folder) {
-                const gameName = gameConfig.displayName;
-                if (typeof window.showMessageBox === 'function') {
-                    window.showMessageBox(`${gameName} not configured`, `You have not configured your ${gameName} installation path.`, ["Ok"]);
-                }
-                else {
-                    alert(`${gameName} installation path not configured.`);
-                }
-            } else {
-                // Launch with progress tracking
-                let pollInterval;
-                const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
-
-                const cancelLaunch = () => {
-                    if (pollInterval) {
-                        clearInterval(pollInterval);
-                        console.log('Launch cancelled');
-                    }
-                    // Call backend to cancel the update
-                    window.executeCommand('cancel-update').then(() => {
-                        console.log('Cancel command sent to backend');
-                    }).catch(error => {
-                        console.error('Failed to send cancel command:', error);
-                    });
-                };
-
-                // Show progress bar
-                window.ProgressManager.show(gameId, `Launching ${gameDisplayName}...`, cancelLaunch);
-
-                // Use launch-game command for all games
-                window.executeCommand('launch-game', { game: gameMapping }).then(() => {
-                    console.log('Launch command handler completed, starting polling');
-
-                    // Poll for progress updates - backend has now set is_active=true
-                    pollInterval = setInterval(async () => {
-                        try {
-                            const result = await window.executeCommand('get-update-progress');
-
-                            if (!result) {
-                                console.log('No progress data received');
-                                return;
-                            }
-
-                            if (!result.active) {
-                                console.log('Update no longer active - launch complete');
-                                // Launch complete
-                                clearInterval(pollInterval);
-                                window.ProgressManager.update(100, 'Launch complete!');
-
-                                setTimeout(() => {
-                                    window.ProgressManager.hide();
-                                }, 1000);
-                                return;
-                            }
-
-                            // Update progress
-                            console.log(`Updating progress: ${result.message}, ${result.progress}`);
-                            window.ProgressManager.update(result.progress, result.message);
-                        } catch (error) {
-                            console.error('Error polling progress:', error);
-                            clearInterval(pollInterval);
-                            window.ProgressManager.hide();
-                        }
-                    }, 100); // Poll every 100ms
-                }).catch(error => {
-                    console.error(`Failed to launch ${gameId}:`, error);
-                    window.ProgressManager.hide();
-                });
-            }
-        }).catch(error => {
-            console.error(`Failed to get ${gameId} install property:`, error);
+        GameUtils.launchGameWithMode(gameMapping, gameId, null).catch(error => {
+            console.error(`Failed to launch ${gameId}:`, error);
         });
     }
 }
@@ -906,69 +833,21 @@ function verifyGame(gameId) {
     console.log(`Verify button clicked for ${gameId}`);
 
     const gameMapping = GameUtils.getGameMapping(gameId);
-    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
 
-    let pollInterval;
-
-    const cancelVerification = () => {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            console.log('Verification cancelled');
+    GameUtils.trackCommandProgress({
+        gameId: gameId,
+        command: 'verify-game',
+        commandArgs: { game: gameMapping },
+        initialMessage: `Verifying ${window.GameInstallationManager.getGameDisplayName(gameId)}...`,
+        completeMessage: 'Verification complete!',
+        onComplete: () => {
+            // Trigger UI update in case verification installed missing files
+            window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                detail: { game: gameMapping }
+            }));
         }
-        // Call backend to cancel the update
-        window.executeCommand('cancel-update').then(() => {
-            console.log('Cancel command sent to backend');
-        }).catch(error => {
-            console.error('Failed to send cancel command:', error);
-        });
-    };
-
-    // Show progress bar
-    window.ProgressManager.show(gameId, `Verifying ${gameDisplayName}...`, cancelVerification);
-
-    // Start verification command and wait for it to initialize
-    window.executeCommand('verify-game', { game: gameMapping }).then(() => {
-        console.log('Verify command handler completed, starting polling');
-
-        // Poll for progress updates - backend has now set is_active=true
-        pollInterval = setInterval(async () => {
-        try {
-            const result = await window.executeCommand('get-update-progress');
-
-            if (!result) {
-                console.log('No progress data received');
-                return;
-            }
-
-            if (!result.active) {
-                console.log('Update no longer active - verification complete');
-                // Verification complete
-                clearInterval(pollInterval);
-                window.ProgressManager.update(100, 'Verification complete!');
-
-                // Trigger UI update in case verification installed missing files
-                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                    detail: { game: gameMapping }
-                }));
-
-                setTimeout(() => {
-                    window.ProgressManager.hide();
-                }, 1000);
-                return;
-            }
-
-            // Update progress
-            console.log(`Updating progress: ${result.message}, ${result.progress}`);
-            window.ProgressManager.update(result.progress, result.message);
-        } catch (error) {
-            console.error('Error polling progress:', error);
-            clearInterval(pollInterval);
-            window.ProgressManager.hide();
-        }
-    }, 100); // Poll every 100ms
     }).catch(error => {
         console.error('Failed to start verification:', error);
-        window.ProgressManager.hide();
     });
 }
 
@@ -993,71 +872,19 @@ async function unlockAllGame(gameId) {
         }
     }
 
-    let pollInterval;
-
-    const cancelUnlockAll = () => {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            console.log('Unlock All cancelled');
-        }
-        // Call backend to cancel the update
-        window.executeCommand('cancel-update').then(() => {
-            console.log('Cancel command sent to backend');
-        }).catch(error => {
-            console.error('Failed to send cancel command:', error);
-        });
-    };
-
-    // Show progress bar
-    window.ProgressManager.show(gameId, `Unlocking all for ${gameDisplayName}...`, cancelUnlockAll);
-
-    // Start unlock all command and wait for it to initialize
-    window.executeCommand('unlock-all', { game: gameMapping }).then(() => {
-        console.log('Unlock All command handler completed, starting polling');
-
-        // Poll for progress updates - backend has now set is_active=true
-        pollInterval = setInterval(async () => {
-        try {
-            const result = await window.executeCommand('get-update-progress');
-
-            if (!result) {
-                console.log('No progress data received');
-                return;
-            }
-
-            if (!result.active) {
-                console.log('unlock all no longer active');
-                // Unlock all complete
-                clearInterval(pollInterval);
-                window.ProgressManager.update(100, 'Unlock all complete!');
-
-                setTimeout(() => {
-                    window.ProgressManager.hide();
-                }, 1000);
-                return;
-            }
-
-            // Update progress
-            console.log(`Updating progress: ${result.message}, ${result.progress}`);
-            window.ProgressManager.update(result.progress, result.message);
-        } catch (error) {
-            console.error('Error polling progress:', error);
-            clearInterval(pollInterval);
-            window.ProgressManager.hide();
-            // Show error message
-            if (typeof window.showMessageBox === 'function') {
-                window.showMessageBox("Unlock All Failed",
-                    `Failed to unlock all for ${gameDisplayName}. Please try again.`, ["OK"]);
-            }
-        }
-    }, 100); // Poll every 100ms
+    // Show progress and start unlock all
+    GameUtils.trackCommandProgress({
+        gameId: gameId,
+        command: 'unlock-all',
+        commandArgs: { game: gameMapping },
+        initialMessage: `Unlocking all for ${gameDisplayName}...`,
+        completeMessage: 'Unlock all complete!'
     }).catch(error => {
         console.error('Failed to start unlock all:', error);
-        window.ProgressManager.hide();
         // Show error message
         if (typeof window.showMessageBox === 'function') {
             window.showMessageBox("Unlock All Failed",
-                `Failed to start unlock all process: ${error}`, ["OK"]);
+                `Failed to unlock all for ${gameDisplayName}. Please try again.`, ["OK"]);
         }
     });
 }
