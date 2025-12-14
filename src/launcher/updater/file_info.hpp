@@ -22,7 +22,6 @@ namespace game_updater
 	{
 		std::string id;
 		std::string display_name;
-		std::string description;
 		bool required;
 		bool default_enabled;
 		bool show; // Whether to show this component in the UI

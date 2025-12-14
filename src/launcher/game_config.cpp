@@ -147,7 +147,7 @@ namespace game_config
 			"bo3",
 			{
 				.game_key = "bo3",
-				.display_name = "Black Ops 3",
+				.display_name = "BO3",
 				.id = "boiii",
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
@@ -184,7 +184,7 @@ namespace game_config
 			"aw",
 			{
 				.game_key = "aw",
-				.display_name = "Advanced Warfare",
+				.display_name = "AW",
 				.id = "s1x",
 				.exe_name = "s1x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
@@ -206,7 +206,7 @@ namespace game_config
 			"mwr",
 			{
 				.game_key = "mwr",
-				.display_name = "Modern Warfare Remastered",
+				.display_name = "MWR",
 				.id = "h1-mod",
 				.exe_name = "h1-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
@@ -226,7 +226,7 @@ namespace game_config
 			"iw",
 			{
 				.game_key = "iw",
-				.display_name = "Infinite Warfare",
+				.display_name = "IW",
 				.id = "iw7-mod",
 				.exe_name = "iw7-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
@@ -243,7 +243,7 @@ namespace game_config
 			"hmw",
 			{
 				.game_key = "hmw",
-				.display_name = "HorizonMW",
+				.display_name = "HMW",
 				.id = "hmw-mod",
 				.exe_name = "hmw-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",

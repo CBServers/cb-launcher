@@ -682,7 +682,53 @@ namespace
 
 			// Create single updater instance (fetches manifest once)
 			const game_updater::game_updater updater(*config);
-			const auto components = updater.get_available_components();
+			auto components = updater.get_available_components();
+
+			// If this game depends on a base game, add a virtual component for the base game files
+			if (!config->base_game.empty())
+			{
+				const auto base_config = game_config::get_game_config(config->base_game);
+				if (base_config)
+				{
+					try
+					{
+						// Create updater for base game
+						const game_updater::game_updater base_updater(*base_config);
+						const auto base_components = base_updater.get_available_components();
+
+						// Filter to required or default components
+						std::vector<std::string> base_component_ids;
+						for (const auto& comp : base_components)
+						{
+							if (comp.required || comp.default_enabled)
+							{
+								base_component_ids.push_back(comp.id);
+							}
+						}
+
+						// Calculate total size of base game components
+						const auto base_total_size = base_updater.calculate_component_size(base_component_ids);
+
+						// Create virtual component representing the base game
+						game_updater::component_info virtual_comp;
+						virtual_comp.id = "base_game_" + config->base_game;
+						virtual_comp.display_name = "Base Game (" + base_config->display_name + ")";
+						virtual_comp.required = true;
+						virtual_comp.default_enabled = true;
+						virtual_comp.show = true;
+						virtual_comp.total_size = base_total_size;
+
+						// Prepend virtual component to the list so it appears first
+						components.insert(components.begin(), virtual_comp);
+					}
+					catch (const std::exception& e)
+					{
+						// If base game component aggregation fails, continue without it
+						// The backend will still download base game files correctly
+						printf("Warning: Failed to aggregate base game components: %s\n", e.what());
+					}
+				}
+			}
 
 			// Only detect installed components if requested (expensive operation, skip for setup/download flow)
 			bool detection_in_progress = false;
@@ -743,10 +789,6 @@ namespace
 				displayName.SetString(comp.display_name.c_str(), static_cast<rapidjson::SizeType>(comp.display_name.length()), allocator);
 				compObj.AddMember("displayName", displayName, allocator);
 
-				rapidjson::Value description;
-				description.SetString(comp.description.c_str(), static_cast<rapidjson::SizeType>(comp.description.length()), allocator);
-				compObj.AddMember("description", description, allocator);
-
 				compObj.AddMember("required", comp.required, allocator);
 				compObj.AddMember("defaultEnabled", comp.default_enabled, allocator);
 
@@ -771,8 +813,17 @@ namespace
 			rapidjson::Value sizesObj(rapidjson::kObjectType);
 			for (const auto& comp : components)
 			{
-				std::vector<std::string> single_component = { comp.id };
-				const auto size = updater.calculate_component_size(single_component);
+				size_t size;
+				// Virtual base game components already have their size calculated, use it directly
+				if (comp.id.starts_with("base_game_"))
+				{
+					size = comp.total_size;
+				}
+				else
+				{
+					std::vector<std::string> single_component = { comp.id };
+					size = updater.calculate_component_size(single_component);
+				}
 
 				rapidjson::Value compId;
 				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);
@@ -839,10 +890,6 @@ namespace
 				rapidjson::Value displayName;
 				displayName.SetString(comp.display_name.c_str(), static_cast<rapidjson::SizeType>(comp.display_name.length()), allocator);
 				compObj.AddMember("displayName", displayName, allocator);
-
-				rapidjson::Value description;
-				description.SetString(comp.description.c_str(), static_cast<rapidjson::SizeType>(comp.description.length()), allocator);
-				compObj.AddMember("description", description, allocator);
 
 				compObj.AddMember("required", comp.required, allocator);
 				compObj.AddMember("defaultEnabled", comp.default_enabled, allocator);
@@ -938,7 +985,46 @@ namespace
 			}
 
 			const game_updater::game_updater updater(*config);
-			const auto components =  updater.get_available_components();
+			auto components = updater.get_available_components();
+
+			// If this game depends on a base game, add a virtual component for the base game files
+			if (!config->base_game.empty())
+			{
+				const auto base_config = game_config::get_game_config(config->base_game);
+				if (base_config)
+				{
+					try
+					{
+						const game_updater::game_updater base_updater(*base_config);
+						const auto base_components = base_updater.get_available_components();
+
+						std::vector<std::string> base_component_ids;
+						for (const auto& comp : base_components)
+						{
+							if (comp.required || comp.default_enabled)
+							{
+								base_component_ids.push_back(comp.id);
+							}
+						}
+
+						const auto base_total_size = base_updater.calculate_component_size(base_component_ids);
+
+						game_updater::component_info virtual_comp;
+						virtual_comp.id = "base_game_" + config->base_game;
+						virtual_comp.display_name = "Base Game (" + base_config->display_name + ")";
+						virtual_comp.required = true;
+						virtual_comp.default_enabled = true;
+						virtual_comp.show = true;
+						virtual_comp.total_size = base_total_size;
+
+						components.insert(components.begin(), virtual_comp);
+					}
+					catch (const std::exception& e)
+					{
+						printf("Warning: Failed to aggregate base game components: %s\n", e.what());
+					}
+				}
+			}
 
 			// Build response as object with component sizes
 			response.SetObject();
@@ -946,8 +1032,17 @@ namespace
 
 			for (const auto& comp : components)
 			{
-				std::vector<std::string> single_component = { comp.id };
-				const auto size = updater.calculate_component_size(single_component);
+				size_t size;
+				// Virtual base game components already have their size calculated, use it directly
+				if (comp.id.starts_with("base_game_"))
+				{
+					size = comp.total_size;
+				}
+				else
+				{
+					std::vector<std::string> single_component = { comp.id };
+					size = updater.calculate_component_size(single_component);
+				}
 
 				rapidjson::Value compId;
 				compId.SetString(comp.id.c_str(), static_cast<rapidjson::SizeType>(comp.id.length()), allocator);

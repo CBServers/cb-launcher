@@ -121,10 +121,6 @@ namespace game_updater
 						{
 							comp.display_name = compData["displayName"].GetString();
 						}
-						if (compData.HasMember("description") && compData["description"].IsString())
-						{
-							comp.description = compData["description"].GetString();
-						}
 						if (compData.HasMember("required") && compData["required"].IsBool())
 						{
 							comp.required = compData["required"].GetBool();
@@ -236,28 +232,37 @@ namespace game_updater
 		// Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
 		std::vector<std::string> selected_components = config_.get_list("selected-components");
 
+		// Remove virtual base game component IDs (they're handled separately in verify-game command)
+		selected_components.erase(
+			std::remove_if(selected_components.begin(), selected_components.end(),
+				[](const std::string& comp_id) {
+					return comp_id.starts_with("base_game_");
+				}),
+			selected_components.end()
+		);
+
 		if (!selected_components.empty())
 		{
-			// Components were loaded from properties
-			printf("Selected components loaded from properties\n");
+			// Delete files from deselected components before verification
+			const auto files_to_delete = this->get_files_to_delete(selected_components);
+			if (!files_to_delete.empty())
+			{
+				this->delete_files(files_to_delete);
+			}
 		}
 		else
 		{
-			// No component selection stored - include all files
-			std::unordered_set<std::string> all_components;
-			for (const auto& file : this->manifest_.files)
+			// No component selection stored - only include required files
+			std::unordered_set<std::string> required_components;
+			for (const auto& component : this->manifest_.components)
 			{
-				all_components.insert(file.component);
+				if (component.second.required || component.second.default_enabled)
+				{
+					required_components.insert(component.first);
+				}
 			}
-			selected_components.assign(all_components.begin(), all_components.end());
-			printf("No component selection found, including all components\n");
-		}
-
-		// Delete files from deselected components before verification
-		const auto files_to_delete = this->get_files_to_delete(selected_components);
-		if (!files_to_delete.empty())
-		{
-			this->delete_files(files_to_delete);
+			selected_components.assign(required_components.begin(), required_components.end());
+			printf("No component selection found, including required components\n");
 		}
 
 		// Filter manifest files by selected components
