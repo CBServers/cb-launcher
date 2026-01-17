@@ -71,7 +71,7 @@ BEGIN
 #endif
             VALUE "FileVersion", VERSION_FILE
             VALUE "InternalName", "launcher"
-            VALUE "LegalCopyright", "Copyright (C) 2025 CB Servers. All rights reserved."
+            VALUE "LegalCopyright", "Copyright (C) 2026 CB Servers. All rights reserved."
             VALUE "Licence", "GPLv3"
             VALUE "Info", "https://cbservers.xyz/"
 			      VALUE "OriginalFilename", "cb-launcher.exe"

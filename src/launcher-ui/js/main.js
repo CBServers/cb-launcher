@@ -12,6 +12,9 @@ if (typeof window.executeCommand === 'function') {
     };
 }
 
+// Session-only console visibility state (resets on launcher restart)
+let consoleVisible = false;
+
 // Game data is now handled individually in each page's HTML file
 
 function sleep(milliseconds) {
@@ -117,6 +120,22 @@ function initialize() {
         }
     };
 
+    // Handle external links on support and game pages - open in default browser
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+
+        // Only handle links within support-page and game pages
+        const isInTargetPage = link.closest('#support-page') || link.closest('.game-page');
+        if (!isInTargetPage) return;
+
+        // Only handle http/https links
+        if (link.href && link.href.startsWith('http')) {
+            e.preventDefault();
+            window.executeCommand('open-url', { url: link.href });
+        }
+    });
+
     adjustChannelElements();
 }
 
@@ -138,6 +157,10 @@ async function initializeNavigation() {
     // Handle settings navigation
     const settingsElement = document.querySelector("#settings");
     settingsElement.addEventListener("click", handleSettingsClick);
+
+    // Handle support navigation
+    const supportElement = document.querySelector("#support");
+    supportElement.addEventListener("click", handleSupportClick);
 
     // Try to load last game page if restore setting is enabled
     let pageToLoad = "home";
@@ -240,6 +263,17 @@ function handleSettingsClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("settings");
+}
+
+function handleSupportClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("support");
 }
 
 // setInnerHTML function removed - no longer needed with single page approach
@@ -558,7 +592,7 @@ window.ProgressManager = {
         }
 
         progressFill.style.width = `${progress}%`;
-        progressPercent.textContent = `${Math.floor(progress)}%`;
+        progressPercent.textContent = `${progress.toFixed(2)}%`;
     },
 
     cancel: function() {
@@ -1123,6 +1157,21 @@ async function handleResetAllSettings() {
     }
 }
 
+async function handleToggleConsole() {
+    const consoleBtn = document.getElementById('show-console-btn');
+    if (!consoleBtn) return;
+
+    consoleVisible = !consoleVisible;
+
+    try {
+        await executeCommand('set-console-visible', { visible: consoleVisible });
+        consoleBtn.textContent = consoleVisible ? 'Hide Console' : 'Show Console';
+    } catch (error) {
+        console.error('Failed to toggle console:', error);
+        consoleVisible = !consoleVisible; // Revert on failure
+    }
+}
+
 async function handleCheckForUpdates() {
     const updateBtn = document.getElementById('check-updates-btn');
     if (!updateBtn) return;
@@ -1203,6 +1252,11 @@ async function initializeSettingsPage() {
     const updateBtn = document.getElementById('check-updates-btn');
     if (updateBtn) {
         updateBtn.addEventListener('click', handleCheckForUpdates);
+    }
+
+    const consoleBtn = document.getElementById('show-console-btn');
+    if (consoleBtn) {
+        consoleBtn.addEventListener('click', handleToggleConsole);
     }
 
     await loadVersion();

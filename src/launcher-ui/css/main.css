@@ -492,6 +492,18 @@ img {
     font-size: 14px;
 }
 
+#support-page .description a,
+.game-page .description a {
+    color: #6db3f2;
+    text-decoration: none;
+}
+
+#support-page .description a:hover,
+.game-page .description a:hover {
+    color: #9dcfff;
+    text-decoration: underline;
+}
+
 .download-bar {
     background: #333;
     padding: 10px 30px;
@@ -704,9 +716,21 @@ img {
     color: #97838a;
 }
 
-.sidebar .settings-section {
+.sidebar .support-section {
     margin-top: auto;
+    margin-bottom: 0;
+}
+
+.sidebar .settings-section {
     margin-bottom: 10px;
+}
+
+.nav-icon.support-icon {
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><path stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M9.5 9a3.5 3.5 0 115.5 2.9c-1 .5-2 1.4-2 2.6m0 4h.01"/></svg>') center/contain;
+}
+
+.hero-section.support {
+    display: none;
 }
 
 .settings-icon {
@@ -2661,6 +2685,15 @@ body:not(.hidden) {
 
 .settings-action-btn.update-btn:hover {
     background: #106ebe;
+}
+
+.settings-action-btn.console-btn {
+    background: #5c6bc0;
+    color: white;
+}
+
+.settings-action-btn.console-btn:hover {
+    background: #3f51b5;
 }
 
 .settings-action-btn:disabled {

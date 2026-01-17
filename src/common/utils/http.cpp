@@ -136,6 +136,9 @@ namespace utils::http
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields.data());
 		}
 
+		CURLcode last_code = CURLE_OK;
+		unsigned int last_response_code = 0;
+
 		// Retry loop
 		for (auto i = 0u; i < retries + 1; ++i)
 		{
@@ -152,6 +155,10 @@ namespace utils::http
 			const auto code = curl_easy_perform(curl);
 			unsigned int response_code{};
 			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+			// Track last error for reporting if all retries fail
+			last_code = code;
+			last_response_code = response_code;
 
 			// Check if operation was cancelled
 			if (code == CURLE_ABORTED_BY_CALLBACK)
@@ -195,10 +202,10 @@ namespace utils::http
 			}
 		}
 
-		// All retries failed
+		// All retries failed - return the actual last error
 		result result;
-		result.code = CURLE_OPERATION_TIMEDOUT;
-		result.response_code = 0;
+		result.code = last_code;
+		result.response_code = last_response_code;
 		return result;
 	}
 
@@ -237,6 +244,9 @@ namespace utils::http
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields.data());
 		}
 
+		CURLcode last_code = CURLE_OK;
+		unsigned int last_response_code = 0;
+
 		// Retry loop
 		for (auto i = 0u; i < retries + 1; ++i)
 		{
@@ -256,6 +266,10 @@ namespace utils::http
 			const auto code = curl_easy_perform(curl);
 			unsigned int response_code{};
 			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+			// Track last error for reporting if all retries fail
+			last_code = code;
+			last_response_code = response_code;
 
 			// Check if operation was cancelled
 			if (code == CURLE_ABORTED_BY_CALLBACK)
@@ -303,10 +317,10 @@ namespace utils::http
 			}
 		}
 
-		// All retries failed
+		// All retries failed - return the actual last error
 		result result;
-		result.code = CURLE_OPERATION_TIMEDOUT;
-		result.response_code = 0;
+		result.code = last_code;
+		result.response_code = last_response_code;
 		return result;
 	}
 

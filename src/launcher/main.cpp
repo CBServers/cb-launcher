@@ -436,6 +436,49 @@ namespace
 			PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
 		});
 
+		cef_ui.add_command("open-url", [](const rapidjson::Value& value, auto&)
+		{
+			if (value.IsObject() && value.HasMember("url") && value["url"].IsString())
+			{
+				const auto url = value["url"].GetString();
+				ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
+			}
+		});
+
+		cef_ui.add_command("set-console-visible", [](const rapidjson::Value& request, rapidjson::Document& response)
+		{
+			static bool console_allocated = false;
+
+			bool visible = false;
+			if (request.HasMember("visible") && request["visible"].IsBool())
+			{
+				visible = request["visible"].GetBool();
+			}
+
+			if (visible)
+			{
+				if (!console_allocated)
+				{
+					AllocConsole();
+					FILE* fp;
+					freopen_s(&fp, "CONOUT$", "w", stdout);
+					freopen_s(&fp, "CONOUT$", "w", stderr);
+					console_allocated = true;
+				}
+				ShowWindow(GetConsoleWindow(), SW_SHOW);
+			}
+			else
+			{
+				if (console_allocated)
+				{
+					ShowWindow(GetConsoleWindow(), SW_HIDE);
+				}
+			}
+
+			response.SetObject();
+			response.AddMember("success", true, response.GetAllocator());
+		});
+
 		cef_ui.add_command("get-property", [](const rapidjson::Value& value, rapidjson::Document& response)
 		{
 			response.SetNull();
