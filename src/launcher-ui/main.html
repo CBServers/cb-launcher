@@ -115,28 +115,46 @@
 
                             <strong>Join Our Discord</strong>
                             <p style="margin-top: 10px; margin-bottom: 20px;">
-                                The best way to get support is through the Discord server where you can:
-                            </p>
-                            <ul style="margin-left: 20px; line-height: 1.8; margin-bottom: 20px;">
-                                <li>Get help from community members and staff</li>
-                                <li>Report bugs and issues</li>
-                                <li>Stay updated on announcements</li>
-                                <li>Connect with other players</li>
-                            </ul>
-
-                            <strong>Important Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 25px;">
-                                This launcher is not affiliated or endorsed by AlterWare, Aurora, or Horizon MW. 
-                                <br>
-                                Please do not bug original client maintainers with support requests in regards to this launcher or its client forks.
+                                The best way to get support is through the Discord server. Press the button below to join.
                             </p>
 
                             <a href="https://cbservers.xyz/discord" target="_blank"
                                style="display: inline-block; background: #5865F2; color: white;
                                       padding: 12px 24px; border-radius: 4px; text-decoration: none;
-                                      font-weight: 600;">
-                                Join Discord Server
+                                      font-weight: 600; border: none; cursor: pointer;">
+                                Discord Server
                             </a>
+
+                            <div style="margin-top: 30px;">
+                                <strong>Install Redistributables</strong>
+                                <p style="margin-top: 10px; margin-bottom: 20px;">
+                                    Various games require Microsoft Visual C++ Redistributables and DirectX to run properly.
+                                    Click the button below to automatically download and install all required redistributables.
+                                    Wait until all installs are complete and the Powershell window closes.
+                                    <br>
+                                    Tool created by <a href="https://chse.sh" target="_blank">Chase</a>.
+                                </p>
+
+                                <button id="install-redist-btn"
+                                   onclick="window.executeCommand('install-redist')"
+                                   style="display: inline-block; background: #28a745; color: white;
+                                          padding: 12px 24px; border-radius: 4px; text-decoration: none;
+                                          font-weight: 600; border: none; cursor: pointer;
+                                          font-family: inherit; font-size: inherit; line-height: inherit;">
+                                    Install Redist
+                                </button>
+                            </div>
+
+                            <div style="margin-top: 30px;">
+                                <strong>Important Note</strong>
+                                <p style="margin-top: 10px; margin-bottom: 0;">
+                                    This launcher is not affiliated or endorsed by AlterWare, Aurora, or Horizon MW.
+                                    <br>
+                                    Please do not bug original client maintainers with support requests in regards to this launcher or its client forks.
+                                    <br>
+                                    You can find the source to all of the client forks on our <a href="https://github.com/CBServers" target="_blank">Github</a>.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

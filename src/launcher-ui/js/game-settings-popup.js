@@ -54,6 +54,17 @@ class GameSettingsPopup {
                     </div>
                 </div>
 
+                <div class="settings-section" id="hmw-cb-extension-section" style="display: none;">
+                    <h4>Game Options</h4>
+                    <div class="setting-item inline-setting">
+                        <label>Disable CB Extension</label>
+                        <div class="toggle-group small" id="disable-cb-extension-toggle">
+                            <button class="toggle-btn" data-value="false">OFF</button>
+                            <button class="toggle-btn" data-value="true">ON</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="settings-section" id="launch-options-section">
                     <h4>Advanced</h4>
                     <div class="setting-item">
@@ -128,20 +139,29 @@ class GameSettingsPopup {
         // Show/hide sections based on game
         const playBehaviorSection = this.popup.querySelector('#play-behavior-section');
         const bo3CinematicSection = this.popup.querySelector('#bo3-cinematic-section');
+        const hmwExtensionSection = this.popup.querySelector('#hmw-cb-extension-section');
 
         if (game === 'bo3') {
             // For BO3, hide play behavior and show cinematic option
             playBehaviorSection.style.display = 'none';
             bo3CinematicSection.style.display = 'block';
+            hmwExtensionSection.style.display = 'none';
+        } else if (game === 'hmw') {
+            // For HMW, show CB extension option
+            playBehaviorSection.style.display = 'none';
+            bo3CinematicSection.style.display = 'none';
+            hmwExtensionSection.style.display = 'block';
         } else if (this.gameConfig.hasMultipleModes) {
             // For games with multiple modes, show play behavior and populate with supported modes
             playBehaviorSection.style.display = 'block';
             bo3CinematicSection.style.display = 'none';
+            hmwExtensionSection.style.display = 'none';
             this.populatePlayBehaviorDropdown();
         } else {
             // For single-mode games (other than BO3), hide play behavior
             playBehaviorSection.style.display = 'none';
             bo3CinematicSection.style.display = 'none';
+            hmwExtensionSection.style.display = 'none';
         }
 
         // Load current settings
@@ -216,6 +236,24 @@ class GameSettingsPopup {
                     if (targetButton) {
                         targetButton.classList.add('active');
                     }
+                } else if (this.currentGame === 'hmw') {
+                    // Load HMW CB extension setting
+                    const disableExt = await window.executeCommand('get-game-property', {
+                        game: this.currentGame,
+                        suffix: 'disable-cb-extension'
+                    });
+                    const toggleGroup = this.popup.querySelector('#disable-cb-extension-toggle');
+                    const buttons = toggleGroup.querySelectorAll('.toggle-btn');
+
+                    // Remove active class from all buttons
+                    buttons.forEach(btn => btn.classList.remove('active'));
+
+                    // Set active button based on saved value
+                    const targetValue = disableExt === 'true' ? 'true' : 'false';
+                    const targetButton = toggleGroup.querySelector(`[data-value="${targetValue}"]`);
+                    if (targetButton) {
+                        targetButton.classList.add('active');
+                    }
                 } else {
                     // Load play behavior preference for other games
                     const savedBehavior = await window.executeCommand('get-game-property', {
@@ -283,6 +321,15 @@ class GameSettingsPopup {
                     await window.executeCommand('set-game-property', {
                         game: this.currentGame,
                         suffix: 'skip-intro-cinematic',
+                        value: activeButton ? activeButton.dataset.value : 'false'
+                    });
+                } else if (this.currentGame === 'hmw') {
+                    // Save HMW CB extension setting
+                    const toggleGroup = this.popup.querySelector('#disable-cb-extension-toggle');
+                    const activeButton = toggleGroup.querySelector('.toggle-btn.active');
+                    await window.executeCommand('set-game-property', {
+                        game: this.currentGame,
+                        suffix: 'disable-cb-extension',
                         value: activeButton ? activeButton.dataset.value : 'false'
                     });
                 } else {

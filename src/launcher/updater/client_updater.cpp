@@ -117,8 +117,8 @@ namespace client_updater
 		}
 	}
 
-	client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
-		: progress_listener_(listener)
+	client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener, const std::vector<std::string>& skip_files)
+		: skip_files_(skip_files), progress_listener_(listener)
 	{
 		const auto install_path_prop = config.get_install_path();
 		if (!install_path_prop || install_path_prop->empty())
@@ -133,7 +133,16 @@ namespace client_updater
 
 		this->update_manifest_url = config.update_manifest_url;
 		this->update_folder_url = config.update_folder_url;
-		this->files_to_update = config.required_updater_files;
+
+		// Filter out files that should be skipped
+		std::unordered_set<std::string> skip_set(skip_files.begin(), skip_files.end());
+		for (const auto& file : config.required_updater_files)
+		{
+			if (skip_set.find(file) == skip_set.end())
+			{
+				this->files_to_update.push_back(file);
+			}
+		}
 	}
 
 	void client_updater::run() const

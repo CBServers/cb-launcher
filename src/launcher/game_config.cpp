@@ -260,7 +260,8 @@ namespace game_config
 					{"is-installed", "hmw"},
 					{"detected-components", "hmw"},
 					{"selected-components", "hmw"},
-					{"launch-options", "hmw"}
+					{"launch-options", "hmw"},
+					{"disable-cb-extension", "hmw"}
 				}
 			}
 		}

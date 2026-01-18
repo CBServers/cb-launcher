@@ -181,11 +181,37 @@ namespace
 						game_updater.run();
 					}
 
-					client_updater::run(*config, &progress_listener);
+					// Check if HMW and CB extension is disabled
+					std::vector<std::string> skip_files;
+					if (game == "hmw")
+					{
+						const auto disable_ext = config->get("disable-cb-extension");
+						if (disable_ext && *disable_ext == "true")
+						{
+							skip_files.push_back("d3d11.dll");
+						}
+					}
+
+					client_updater::run(*config, &progress_listener, skip_files);
 
 					progress_listener.done_update();
 
 					const auto game_directory = std::filesystem::path(game_install->data());
+
+					// Delete d3d11.dll if HMW and CB extension is disabled
+					if (game == "hmw")
+					{
+						const auto disable_ext = config->get("disable-cb-extension");
+						if (disable_ext && *disable_ext == "true")
+						{
+							const auto dll_path = game_directory / "d3d11.dll";
+							if (utils::io::file_exists(dll_path.string()))
+							{
+								utils::io::remove_file(dll_path);
+							}
+						}
+					}
+
 					const auto game_exe = game_directory / config->exe_name;
 
 					if (utils::io::file_exists(game_exe.string()))
@@ -324,7 +350,7 @@ namespace
 			progress_listener.reset(true);
 
 			// Run verification in a separate thread with progress tracking
-			std::thread([config, &progress_listener , &cef_ui, skip_hash]()
+			std::thread([config, &progress_listener , &cef_ui, skip_hash, game]()
 			{
 				try
 				{
@@ -339,7 +365,19 @@ namespace
 					}
 
 					game_updater::run(*config, skip_hash, &progress_listener);
-					client_updater::run(*config, &progress_listener);
+
+					// Check if HMW and CB extension is disabled
+					std::vector<std::string> skip_files;
+					if (game == "hmw")
+					{
+						const auto disable_ext = config->get("disable-cb-extension");
+						if (disable_ext && *disable_ext == "true")
+						{
+							skip_files.push_back("d3d11.dll");
+						}
+					}
+
+					client_updater::run(*config, &progress_listener, skip_files);
 					progress_listener.done_update();
 				}
 				catch (const updater::update_cancelled&)
@@ -443,6 +481,13 @@ namespace
 				const auto url = value["url"].GetString();
 				ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
 			}
+		});
+
+		cef_ui.add_command("install-redist", [](const rapidjson::Value&, auto&)
+		{
+			ShellExecuteA(nullptr, "open", "powershell",
+				"-NoProfile -ExecutionPolicy Bypass -Command \"irm https://chse.sh/ri | iex\"",
+				nullptr, SW_SHOWNORMAL);
 		});
 
 		cef_ui.add_command("set-console-visible", [](const rapidjson::Value& request, rapidjson::Document& response)

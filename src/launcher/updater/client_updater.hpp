@@ -9,7 +9,9 @@ namespace client_updater
 	class client_updater
 	{
 	public:
-		client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr);
+		client_updater(const game_config::game_config_t& config,
+		               updater::ui_progress_listener* listener = nullptr,
+		               const std::vector<std::string>& skip_files = {});
 
 		void run() const;
 
@@ -22,6 +24,7 @@ namespace client_updater
 		std::string update_manifest_url;
 		std::string update_folder_url;
 		std::vector<std::string> files_to_update;
+		std::vector<std::string> skip_files_;
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;

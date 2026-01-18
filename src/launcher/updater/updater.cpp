@@ -37,9 +37,9 @@ namespace game_updater
 
 namespace client_updater
 {
-	void run(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
+	void run(const game_config::game_config_t& config, updater::ui_progress_listener* listener, const std::vector<std::string>& skip_files)
 	{
-		const client_updater client_updater{config, listener};
+		const client_updater client_updater{config, listener, skip_files};
 		client_updater.run();
 	}
 }
