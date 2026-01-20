@@ -744,7 +744,7 @@ img {
 }
 
 .settings-section {
-    margin-bottom: 40px;
+    margin-bottom: 25px;
 }
 
 .settings-section h3 {
@@ -808,8 +808,9 @@ img {
 
 .settings-actions {
     margin-top: 10px;
-    padding-top: 15px;
+    padding: 15px 0;
     border-top: 1px solid #444;
+    border-bottom: 1px solid #333;
     display: flex;
     gap: 15px;
 }
@@ -2577,13 +2578,13 @@ body:not(.hidden) {
 .settings-content .setting-item.inline-setting {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 20px;
-    padding: 20px;
+    padding: 12px 16px;
     background: #1a1a1a;
     border: 1px solid #333;
     border-radius: 4px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .settings-content .setting-item.inline-setting:hover {
@@ -2600,7 +2601,7 @@ body:not(.hidden) {
     color: #fff;
     font-size: 15px;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 0;
 }
 
 .settings-content .setting-description {
@@ -2653,6 +2654,91 @@ body:not(.hidden) {
     background: #106ebe;
 }
 
+/* CDN Server Selection */
+.cdn-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.cdn-select {
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 4px;
+    padding: 6px 12px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    min-width: 200px;
+    transition: border-color 0.2s;
+    appearance: none;
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px;
+    padding-right: 32px;
+}
+
+.cdn-select:hover {
+    border-color: #555;
+}
+
+.cdn-select:focus {
+    outline: none;
+    border-color: #0078d4;
+}
+
+.cdn-select option {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 8px;
+}
+
+.cdn-test-btn {
+    width: 32px;
+    height: 32px;
+    background: #444;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    padding: 0;
+}
+
+.cdn-test-btn:hover {
+    background: #555;
+}
+
+.cdn-test-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cdn-refresh-icon {
+    width: 18px;
+    height: 18px;
+    color: #ccc;
+    transition: color 0.2s;
+}
+
+.cdn-test-btn:hover .cdn-refresh-icon {
+    color: #fff;
+}
+
+.cdn-test-btn.testing .cdn-refresh-icon {
+    animation: cdn-spin 1s linear infinite;
+}
+
+@keyframes cdn-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* Settings action buttons */
 .settings-actions {
     justify-content: center;
@@ -2703,9 +2789,8 @@ body:not(.hidden) {
 
 /* Settings page footer */
 .settings-footer {
-    margin-top: 15px;
-    padding: 20px;
-    border-top: 1px solid #333;
+    margin-top: auto;
+    padding: 15px;
     text-align: center;
 }
 

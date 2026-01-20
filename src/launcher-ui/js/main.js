@@ -1061,9 +1061,131 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load CDN settings
+        await initCdnSettings();
+
         console.log('Launcher settings loaded');
     } catch (error) {
         console.error('Failed to load launcher settings:', error);
+    }
+}
+
+// CDN Settings Management
+async function initCdnSettings() {
+    const cdnSelect = document.getElementById('cdn-server-select');
+    const cdnTestBtn = document.getElementById('cdn-test-btn');
+
+    if (!cdnSelect || !cdnTestBtn) {
+        console.log('CDN settings elements not found');
+        return;
+    }
+
+    try {
+        // Get current CDN servers and preference from backend
+        const cdnData = await window.executeCommand('get-cdn-servers');
+
+        if (cdnData) {
+            // Set the dropdown to current preference
+            cdnSelect.value = cdnData.preference || 'auto';
+
+            // Update dropdown labels with latency info if available
+            updateCdnDropdownLabels(cdnData);
+
+            console.log('CDN settings loaded:', cdnData);
+        }
+    } catch (error) {
+        console.error('Failed to load CDN settings:', error);
+    }
+
+    // Add event listener for dropdown change
+    cdnSelect.addEventListener('change', async (e) => {
+        const region = e.target.value;
+        try {
+            await window.executeCommand('set-cdn-preference', { region: region });
+            console.log(`CDN preference set to: ${region}`);
+        } catch (error) {
+            console.error('Failed to set CDN preference:', error);
+        }
+    });
+
+    // Add event listener for test button
+    cdnTestBtn.addEventListener('click', handleCdnTest);
+}
+
+function updateCdnDropdownLabels(cdnData) {
+    const cdnSelect = document.getElementById('cdn-server-select');
+    if (!cdnSelect || !cdnData) return;
+
+    // Get latency values from servers array
+    let naLatency = null;
+    let euLatency = null;
+
+    if (cdnData.servers) {
+        for (const server of cdnData.servers) {
+            if (server.region === 'na' && server.latency !== null) {
+                naLatency = Math.round(server.latency);
+            } else if (server.region === 'eu' && server.latency !== null) {
+                euLatency = Math.round(server.latency);
+            }
+        }
+    }
+
+    // Update option labels
+    const options = cdnSelect.options;
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        const baseText = getBaseOptionText(option.value);
+
+        if (option.value === 'auto' && cdnData.recommended) {
+            // Show which server was selected for auto mode
+            const recommendedName = cdnData.recommended === 'eu' ? 'EU' : 'NA';
+            option.textContent = `${baseText} (${recommendedName})`;
+        } else if (option.value === 'na' && naLatency !== null) {
+            option.textContent = `${baseText} (${naLatency}ms)`;
+        } else if (option.value === 'eu' && euLatency !== null) {
+            option.textContent = `${baseText} (${euLatency}ms)`;
+        } else {
+            option.textContent = baseText;
+        }
+    }
+}
+
+function getBaseOptionText(value) {
+    switch (value) {
+        case 'auto': return 'Auto';
+        case 'na': return 'North America';
+        case 'eu': return 'Europe';
+        default: return value;
+    }
+}
+
+async function handleCdnTest() {
+    const cdnTestBtn = document.getElementById('cdn-test-btn');
+    const cdnSelect = document.getElementById('cdn-server-select');
+
+    if (!cdnTestBtn || !cdnSelect) return;
+
+    // Disable button and show spinning animation
+    cdnTestBtn.disabled = true;
+    cdnTestBtn.classList.add('testing');
+
+    try {
+        // Run latency test
+        const result = await window.executeCommand('test-cdn-latency');
+
+        if (result && result.success) {
+            // Update dropdown labels with new latency values
+            updateCdnDropdownLabels(result);
+            console.log('CDN latency test complete:', result);
+        } else {
+            console.error('CDN latency test failed');
+        }
+    } catch (error) {
+        console.error('Failed to test CDN latency:', error);
+    } finally {
+        // Re-enable button and stop spinning
+        cdnTestBtn.disabled = false;
+        cdnTestBtn.classList.remove('testing');
     }
 }
 
@@ -1136,6 +1258,9 @@ async function handleResetAllSettings() {
                     'launcher-skip-hash-verification': 'false',
                     'launcher-close-on-launch': 'false'
                 });
+
+                // Reset CDN preference to auto
+                await executeCommand('set-cdn-preference', { region: 'auto' });
 
                 // Reset all game settings using reset-game-settings command
                 await executeCommand('reset-game-settings', { game: 'all' });

@@ -43,7 +43,7 @@ namespace game_config
 		std::vector<std::string> required_updater_files;
 		std::vector<std::string> valid_game_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
-		std::string base_url;
+		std::string base_folder;
 		std::string base_game;
 		bool check_for_game_updates = false;
 		std::string unlock_url_folder;
@@ -68,4 +68,7 @@ namespace game_config
 	std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
 	bool validate_game_path(const std::string& game, const std::filesystem::path& path);
 	void reset_all_games();
+
+	// Get the resolved base URL for a game config using the active CDN
+	std::string get_resolved_base_url(const game_config_t& config);
 }

@@ -210,7 +210,7 @@ namespace game_updater
 		}
 
 		this->is_steam_install = config.is_steam_install();
-		this->base_url = config.base_url;
+		this->base_url = game_config::get_resolved_base_url(config);
 		this->skip_hash_check = skip_hash;
 
 		this->manifest_ = get_manifest(this->base_url + "/" + MANIFEST_FILE);

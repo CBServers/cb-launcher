@@ -2,9 +2,9 @@
 #include "game_config.hpp"
 #include <utils/properties.hpp>
 #include <utils/io.hpp>
+#include <utils/cdn.hpp>
 
 #define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
-#define GAME_UPDATE_SERVER "https://cdn.cbservers.xyz/"
 
 namespace game_config
 {
@@ -155,7 +155,7 @@ namespace game_config
 				.required_updater_files = {"boiii.exe"},
 				.valid_game_exes = {"BlackOps3.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "bo3_game_files",
+				.base_folder = "bo3_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -175,7 +175,7 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = GAME_UPDATE_SERVER "ghosts_game_files",
+				.base_folder = "ghosts_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -197,7 +197,7 @@ namespace game_config
 					{"zm", "-zombies"},
 					{"sv", "-survival"}
 				},
-				.base_url = GAME_UPDATE_SERVER "aw_game_files",
+				.base_folder = "aw_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -217,7 +217,7 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
-				.base_url = GAME_UPDATE_SERVER "mwr_game_files",
+				.base_folder = "mwr_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -234,7 +234,7 @@ namespace game_config
 				.required_updater_files = {"iw7-mod.exe"},
 				.valid_game_exes = {"iw7_ship.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "iw_game_files",
+				.base_folder = "iw_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -251,7 +251,7 @@ namespace game_config
 				.required_updater_files = {"d3d11.dll"},
 				.valid_game_exes = {"h1_mp64_ship.exe"},
 				.mode_arguments = {},
-				.base_url = GAME_UPDATE_SERVER "h2m",
+				.base_folder = "h2m",
 				.base_game = "mwr",
 				.check_for_game_updates = true,
 				.unlock_url_folder = "h2m/",
@@ -375,5 +375,11 @@ namespace game_config
 		{
 			config.reset();
 		}
+	}
+
+	std::string get_resolved_base_url(const game_config_t& config)
+	{
+		const auto active_cdn = utils::cdn::cdn_manager::instance().get_active_cdn_url();
+		return active_cdn + config.base_folder;
 	}
 }
