@@ -376,7 +376,7 @@ class GameSettingsPopup {
     async handleReset() {
         if (typeof window.showMessageBox === 'function') {
             const result = await window.showMessageBox(
-                "⚠️ Reset Game Settings",
+                "Reset Game Settings",
                 `Are you sure you want to reset all settings for ${this.gameConfig.displayName}? This will clear the installation path and all game preferences.`,
                 ["Cancel", "Reset"]
             );

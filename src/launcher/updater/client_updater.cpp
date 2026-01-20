@@ -193,12 +193,16 @@ namespace client_updater
 			this->progress_listener_->begin_file(file);
 		}
 
+		size_t last_progress = 0;
 		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
 		{
 			// Notify progress listener of download progress
+			// Note: progress is cumulative bytes downloaded, so we calculate the delta
 			if (this->progress_listener_)
 			{
-				this->progress_listener_->file_progress(file, progress);
+				const size_t delta = progress - last_progress;
+				last_progress = progress;
+				this->progress_listener_->file_progress(file, delta);
 			}
 
 			return !is_update_cancelled(); // Continue unless cancelled

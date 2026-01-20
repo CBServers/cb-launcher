@@ -351,7 +351,7 @@ namespace
 			progress_listener.reset(true);
 
 			// Run verification in a separate thread with progress tracking
-			std::thread([config, &progress_listener , &cef_ui, skip_hash, game]()
+			std::thread([config, &progress_listener , &cef_ui, skip_hash]()
 			{
 				try
 				{
@@ -369,7 +369,7 @@ namespace
 
 					// Check if HMW and CB extension is disabled
 					std::vector<std::string> skip_files;
-					if (game == "hmw")
+					if (config->game_key == "hmw")
 					{
 						const auto disable_ext = config->get("disable-cb-extension");
 						if (disable_ext && *disable_ext == "true")
@@ -380,6 +380,8 @@ namespace
 
 					client_updater::run(*config, &progress_listener, skip_files);
 					progress_listener.done_update();
+
+					cef_ui.show_message_box("Update Complete", config->display_name + " download/verification has completed successfully!");
 				}
 				catch (const updater::update_cancelled&)
 				{

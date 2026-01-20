@@ -535,8 +535,7 @@ namespace game_updater
 				this->progress_listener_->update_files(pending_files, updater::progress_mode::verifying);
 			}
 
-			const auto failed_files = this->get_outdated_files(pending_files);
-			pending_files = std::move(failed_files);
+			pending_files = this->get_outdated_files(pending_files);
 			++attempt;
 		}
 
@@ -834,6 +833,11 @@ namespace game_updater
 		if (this->install_path.empty())
 		{
 			return {};
+		}
+
+		if (this->progress_listener_)
+		{
+			this->progress_listener_->update_files(this->manifest_.files, updater::progress_mode::verifying);
 		}
 
 		// Detect which components are currently installed

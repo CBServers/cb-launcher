@@ -76,7 +76,11 @@ namespace updater
 		// Update the display to show the next file (or clear if none)
 		this->update_current_file_display();
 
-		this->state_.completed_files++;
+		if (this->state_.completed_files < this->state_.total_files)
+		{
+			this->state_.completed_files++;
+		}
+
 		this->recalculate_progress();
 	}
 
