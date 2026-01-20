@@ -20,7 +20,6 @@ namespace game_updater
 
 		[[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
 
-		void update_files(const std::vector<updater::file_info>& outdated_files) const;
 		bool needs_to_update(const std::string& hash) const;
 
 		// Component management methods
@@ -41,6 +40,10 @@ namespace game_updater
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;
+
+		// Download with retry support
+		void update_and_verify_with_retry(const std::vector<updater::file_info>& files) const;
+		void update_files_no_verify(const std::vector<updater::file_info>& files) const;
 
 		std::size_t get_update_size(const std::vector<updater::file_info>& files) const;
 		std::size_t get_available_drive_space() const;

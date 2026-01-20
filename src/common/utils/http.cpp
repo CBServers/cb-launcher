@@ -131,6 +131,13 @@ namespace utils::http
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
 
+		// Connection timeout - fail if can't connect within 30 seconds
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+
+		// Stall detection - abort if speed drops below 1000 bytes/sec for 60 seconds
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1000L);
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+
 		if (!fields.empty())
 		{
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields.data());
@@ -238,6 +245,13 @@ namespace utils::http
 		curl_easy_setopt(curl, CURLOPT_URL, url.data());
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
+
+		// Connection timeout - fail if can't connect within 30 seconds
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+
+		// Stall detection - abort if speed drops below 1000 bytes/sec for 60 seconds
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1000L);
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
 
 		if (!fields.empty())
 		{

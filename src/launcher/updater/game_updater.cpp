@@ -14,6 +14,8 @@
 
 #define MANIFEST_FILE "manifest_v2.json"
 
+//#define MULTITHREAD_DOWNLOAD
+
 namespace game_updater
 {
 	namespace
@@ -214,7 +216,7 @@ namespace game_updater
 		this->manifest_ = get_manifest(this->base_url + "/" + MANIFEST_FILE);
 		if (this->manifest_.empty())
 		{
-			throw std::runtime_error("Failed to download or parse manifest for " + config.display_name);
+			throw std::runtime_error("Failed to download or parse manifest for " + config.display_name + ". Please try again.");
 		}
 	}
 
@@ -313,14 +315,7 @@ namespace game_updater
 
 		check_cancelled();
 
-		// Reset progress tracking for download phase with only outdated files
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
-		}
-
-
-		this->update_files(outdated_files);
+		this->update_and_verify_with_retry(outdated_files);
 
 		check_cancelled();
 
@@ -415,42 +410,20 @@ namespace game_updater
 			throw std::runtime_error("Failed to download: " + url + " - Data has no value");
 		}
 
-		try
+		const auto& result = data.value();
+		if (result.code == CURLE_ABORTED_BY_CALLBACK && this->is_update_cancelled())
 		{
-			const auto& result = data.value();
-			if (result.code == CURLE_ABORTED_BY_CALLBACK && this->is_update_cancelled())
-			{
-				// Download was cancelled, return silently
-				return;
-			}
-
-			if (result.code != CURLE_OK)
-			{
-				throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
-					url.data(), result.code, curl_easy_strerror(result.code)));
-			}
-
-			if (utils::io::file_size(out_file) != file.size)
-			{
-				throw std::runtime_error("Downloaded file size mismatch: " + out_file);
-			}
-
-			if (!this->skip_hash_check)
-			{
-				if (utils::hash::get_file_hash(out_file) != file.hash)
-				{
-					throw std::runtime_error("Downloaded file hash mismatch: " + out_file);
-				}
-			}
+			// Download was cancelled, return silently
+			return;
 		}
-		catch (const std::exception&)
+
+		if (result.code != CURLE_OK)
 		{
-			throw;  // Re-throw the original exception
+			throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
+				url.data(), result.code, curl_easy_strerror(result.code)));
 		}
-		catch (...)
-		{
-			throw std::runtime_error("Unknown error occurred while updating: " + url);
-		}
+
+		// Note: Size/hash verification is handled in the retry loop's verification phase
 	}
 
 	std::vector<updater::file_info> game_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
@@ -529,85 +502,132 @@ namespace game_updater
 		return spaceInfo.available;
 	}
 
-	void game_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
+	void game_updater::update_and_verify_with_retry(const std::vector<updater::file_info>& files_to_download) const
 	{
-		printf("Found outdated files! Downloading/updating files...\n");
+		const int MAX_RETRIES = 5;
+		std::vector<updater::file_info> pending_files = files_to_download;
+		int attempt = 0;
 
-		const auto thread_count = get_optimal_concurrent_download_count(outdated_files.size());
+		while (!pending_files.empty() && attempt < MAX_RETRIES)
+		{
+			check_cancelled();
 
+			if (attempt > 0)
+			{
+				printf("Retry attempt %d for %zu files...\n", attempt, pending_files.size());
+			}
+
+			// Reset progress tracking for download phase
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->update_files(pending_files, updater::progress_mode::downloading);
+			}
+
+			// Phase 1: Download all pending files (no per-file verification)
+			this->update_files_no_verify(pending_files);
+
+			check_cancelled();
+
+			// Phase 2: Verify downloaded files
+			printf("Verifying downloaded files...\n");
+			if (this->progress_listener_)
+			{
+				this->progress_listener_->update_files(pending_files, updater::progress_mode::verifying);
+			}
+
+			const auto failed_files = this->get_outdated_files(pending_files);
+			pending_files = std::move(failed_files);
+			++attempt;
+		}
+
+		if (!pending_files.empty())
+		{
+			throw std::runtime_error("Failed to download " + std::to_string(pending_files.size()) +
+				" file(s) after " + std::to_string(MAX_RETRIES) + " retry attempts");
+		}
+	}
+
+	void game_updater::update_files_no_verify(const std::vector<updater::file_info>& files) const
+	{
+		printf("Downloading %zu files...\n", files.size());
+
+#ifdef MULTITHREAD_DOWNLOAD
+		// Thread pool version - catches exceptions per-file instead of storing and rethrowing
+		// Allows download to continue even if individual files fail
+		const auto thread_count = get_optimal_concurrent_download_count(files.size());
 		std::vector<std::thread> threads{};
-		std::atomic<size_t> current_index{ 0 };
-		std::atomic<size_t> completed_files{ 0 };
-
-		utils::concurrency::container<std::exception_ptr> exception{};
+		std::atomic<size_t> current_index{0};
 
 		for (size_t i = 0; i < thread_count; ++i)
 		{
 			threads.emplace_back([&]()
+			{
+				while (true)
 				{
-					while (!exception.access<bool>([](const std::exception_ptr& ptr)
+					if (is_update_cancelled()) break;
+
+					const auto index = current_index++;
+					if (index >= files.size()) break;
+
+					const auto& file = files[index];
+					try
 					{
-						return static_cast<bool>(ptr);
-					}))
-					{
-						const auto index = current_index++;
-						if (index >= outdated_files.size())
-						{
-							break;
-						}
+						if (this->progress_listener_)
+							this->progress_listener_->begin_file(file);
 
-						try
-						{
-							check_cancelled();
+						this->update_file(file);
 
-							const auto& file = outdated_files[index];
-
-							// Notify progress listener that file download is beginning
-							if (this->progress_listener_)
-							{
-								this->progress_listener_->begin_file(file);
-							}
-
-							this->update_file(file);
-
-							// Notify progress listener that file is complete
-							if (this->progress_listener_)
-							{
-								this->progress_listener_->end_file(file);
-							}
-
-							++completed_files;
-						}
-						catch (...)
-						{
-							exception.access([](std::exception_ptr& ptr)
-							{
-								ptr = std::current_exception();
-							});
-
-							return;
-						}
+						if (this->progress_listener_)
+							this->progress_listener_->end_file(file);
 					}
-				});
+					catch (const updater::update_cancelled&)
+					{
+						break;  // Exit thread on cancellation
+					}
+					catch (const std::exception& e)
+					{
+						printf("Warning: Download failed for %s: %s (will retry)\n",
+							file.name.c_str(), e.what());
+						// Don't rethrow - file will be caught in verification phase
+					}
+				}
+			});
 		}
 
 		for (auto& thread : threads)
 		{
 			if (thread.joinable())
-			{
 				thread.join();
-			}
 		}
 
-		exception.access([](const std::exception_ptr& ptr)
-		{
-			if (ptr)
-			{
-				std::rethrow_exception(ptr);
-			}
-		});
+		check_cancelled();
 
-		printf("Finished downloading/updating files\n");
+#else
+		// Single-threaded version
+		for (const auto& file : files)
+		{
+			check_cancelled();
+
+			if (this->progress_listener_)
+				this->progress_listener_->begin_file(file);
+
+			try
+			{
+				this->update_file(file);
+			}
+			catch (const std::exception& e)
+			{
+				printf("Warning: Download failed for %s: %s (will retry)\n",
+					file.name.c_str(), e.what());
+				// Don't throw - file will be caught in verification phase
+			}
+
+			if (this->progress_listener_)
+				this->progress_listener_->end_file(file);
+		}
+#endif
+
+		printf("Finished downloading files\n");
 	}
 
 	bool game_updater::is_outdated_file(const updater::file_info& file) const

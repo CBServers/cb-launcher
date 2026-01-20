@@ -8,7 +8,8 @@
       "WebFetch(domain:cdn.cbservers.xyz)",
       "Bash(git grep:*)",
       "Bash(git describe:*)",
-      "Bash(git rev-list:*)"
+      "Bash(git rev-list:*)",
+      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"build/cb-launcher.sln\" -t:Build -p:Configuration=Release -p:Platform=x64 -m -v:minimal)"
     ],
     "deny": [],
     "ask": []
