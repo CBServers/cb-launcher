@@ -130,6 +130,71 @@ namespace
 
 		return std::format("{} {}", arg, options.value());
 	}
+	
+	void launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
+	{
+		// Get launch arguments using the utility
+		const auto launch_args = game_config::get_launch_arguments(game, mode);
+		if (launch_args.empty() && config.mode_arguments.size() > 0)
+		{
+			cef_ui.show_message_box("Game Launch Error", "Failed to get required mode launch arg.");
+			return;
+		}
+
+		// Get game installation path
+		const auto game_install = config.get_install_path();
+		if (!game_install)
+		{
+			cef_ui.show_message_box("Game Launch Error", "Failed to get game install path.");
+			return;
+		}
+
+		const auto game_directory = std::filesystem::path(game_install->data());
+		// Delete d3d11.dll if HMW and CB extension is disabled
+		if (game == "hmw")
+		{
+			const auto disable_ext = config.get("disable-cb-extension");
+			if (disable_ext && *disable_ext == "true")
+			{
+				const auto dll_path = game_directory / "d3d11.dll";
+				if (utils::io::file_exists(dll_path.string()))
+				{
+					utils::io::remove_file(dll_path);
+				}
+			}
+		}
+
+		const auto game_exe = game_directory / config.exe_name;
+		if (utils::io::file_exists(game_exe.string()))
+		{
+			if (!try_lock_termination_barrier())
+			{
+				cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
+				return;
+			}
+
+			const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, config), game_directory);
+
+			// Check if launcher should close after game starts
+			const auto close_on_launch = utils::properties::load("launcher-close-on-launch");
+			if (close_on_launch && *close_on_launch == "true")
+			{
+				printf("Close on launch enabled - closing launcher\n");
+				// Close the launcher browser window
+				cef_ui.close_browser();
+				return;
+			}
+
+			// Spawn watchdog thread to unlock barrier when game exits
+			std::thread([pid]()
+				{
+					if (utils::nt::wait_for_process(pid))
+					{
+						unlock_termination_barrier();
+					}
+				}).detach();
+		}
+	}
 
 	void add_commands(cef::cef_ui& cef_ui)
 	{
@@ -152,25 +217,11 @@ namespace
 				return; // Invalid game
 			}
 
-			// Get launch arguments using the utility
-			const auto launch_args = game_config::get_launch_arguments(game, mode);
-			if (launch_args.empty() && config->mode_arguments.size() > 0)
-			{
-				return; // Mode required but not provided or invalid
-			}
-
-			// Get game installation path
-			const auto game_install = config->get_install_path();
-			if (!game_install)
-			{
-				return;
-			}
-
 			updater::ui_progress_listener progress_listener;
 			progress_listener.reset(true);
 
 			// Run update and launch in a separate thread with progress tracking
-			std::thread([config, mode, game, game_install, launch_args, &progress_listener, &cef_ui]()
+			std::thread([config, mode, game, &progress_listener, &cef_ui]()
 			{
 				try
 				{
@@ -178,7 +229,7 @@ namespace
 					game_updater::game_updater game_updater(*config, false, &progress_listener);
 					if (config->check_for_game_updates && game_updater.is_update_needed())
 					{
-						cef_ui.show_message_box("Game Update Required", "This game requires an update. Please wait for update to complete before you can start playing.");
+						cef_ui.show_message_box("Game Update Required", config->display_name + " requires an update. Please wait for update to complete before you can start playing.");
 						game_updater.run();
 					}
 
@@ -194,56 +245,9 @@ namespace
 					}
 
 					client_updater::run(*config, &progress_listener, skip_files);
-
 					progress_listener.done_update();
 
-					const auto game_directory = std::filesystem::path(game_install->data());
-
-					// Delete d3d11.dll if HMW and CB extension is disabled
-					if (game == "hmw")
-					{
-						const auto disable_ext = config->get("disable-cb-extension");
-						if (disable_ext && *disable_ext == "true")
-						{
-							const auto dll_path = game_directory / "d3d11.dll";
-							if (utils::io::file_exists(dll_path.string()))
-							{
-								utils::io::remove_file(dll_path);
-							}
-						}
-					}
-
-					const auto game_exe = game_directory / config->exe_name;
-
-					if (utils::io::file_exists(game_exe.string()))
-					{
-						if (!try_lock_termination_barrier())
-						{
-							cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
-							return;
-						}
-
-						const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, *config), game_directory);
-
-						// Check if launcher should close after game starts
-						const auto close_on_launch = utils::properties::load("launcher-close-on-launch");
-						if (close_on_launch && *close_on_launch == "true")
-						{
-							printf("Close on launch enabled - closing launcher\n");
-							// Close the launcher browser window
-							cef_ui.close_browser();
-							return;
-						}
-
-						// Spawn watchdog thread to unlock barrier when game exits
-						std::thread([pid]()
-						{
-							if (utils::nt::wait_for_process(pid))
-							{
-								unlock_termination_barrier();
-							}
-						}).detach();
-					}
+					launch_game(*config, game, mode, cef_ui);
 				}
 				catch (const updater::update_cancelled&)
 				{
@@ -255,14 +259,18 @@ namespace
 					// Set error in progress tracker and show error popup in UI
 					progress_listener.cancel_update();
 					printf("Launch error: %s\n", e.what());
-					cef_ui.show_message_box("Launch Error", e.what());
+					cef_ui.show_message_box("Game Launch Error", e.what());
+
+					launch_game(*config, game, mode, cef_ui); //Attempt to launch game even if error in update
 				}
 				catch (...)
 				{
 					// Set generic error for unknown exceptions
 					progress_listener.cancel_update();
 					printf("Unknown launch error\n");
-					cef_ui.show_message_box("Launch Error", "An unknown error occurred during game launch");
+					cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
+
+					launch_game(*config, game, mode, cef_ui); //Attempt to launch game even if error in update
 				}
 			}).detach();
 		});

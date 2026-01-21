@@ -58,7 +58,7 @@ namespace client_updater
 
 		std::vector<updater::file_info> get_file_infos(const std::string& manifest_url)
 		{
-			const auto json = utils::http::get_data(manifest_url + get_cache_buster());
+			const auto json = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
 			if (!json || !json.has_value())
 			{
 				return {};

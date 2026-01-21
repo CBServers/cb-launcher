@@ -170,7 +170,7 @@ namespace game_updater
 
 		update_manifest get_manifest(const std::string& manifest_url)
 		{
-			const auto data = utils::http::get_data(manifest_url + get_cache_buster());
+			const auto data = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
 			if (!data || !data.has_value())
 			{
 				return {};
