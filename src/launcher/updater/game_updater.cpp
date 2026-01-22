@@ -374,7 +374,7 @@ namespace game_updater
 		}
 
 		int currentPercent = 0;
-		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
+		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, size_t speed) -> bool
 		{
 			auto progressRatio = (total_size > 0 && progress >= 0) ? static_cast<double>(progress) / total_size : 0.0;
 			auto progressPercent = int(progressRatio * 100.0);
@@ -382,7 +382,12 @@ namespace game_updater
 				return !is_update_cancelled(); // Continue unless cancelled
 
 			currentPercent = progressPercent;
-			printf("Updating: %s (%d%%)\n", get_filename(file.name).data(), progressPercent);
+			printf("Updating file: %s (%.2f/%.2f MB) %d%% @ %.2f MB/s\n",
+			get_filename(file.name).data(),
+			progress / (1024.0 * 1024.0),
+			total_size / (1024.0 * 1024.0),
+			progressPercent,
+			speed / (1024.0 * 1024.0));
 			return !is_update_cancelled(); // Continue unless cancelled
 		},
 		[&](const char* chunk, size_t size) -> bool
@@ -631,7 +636,7 @@ namespace game_updater
 
 	bool game_updater::is_outdated_file(const updater::file_info& file) const
 	{
-		printf("Verifying: %s\n", get_filename(file.name).data());
+		printf("Verifying file: %s\n", get_filename(file.name).data());
 		const auto drive_name = this->get_drive_filename(file);
 		if (!utils::io::file_exists(drive_name))
 		{

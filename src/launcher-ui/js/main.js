@@ -989,7 +989,7 @@ async function checkGameInstallation(gameId) {
             const fullyInstalled = isInstalled && isInstalled.trim() === 'true';
             const hasPath = installPath && installPath.trim() !== '';
 
-            if (fullyInstalled) {
+            if (fullyInstalled && hasPath) {
                 return { hasAnySetup: true, status: 'installed' };
             } else if (hasPath) {
                 return { hasAnySetup: true, status: 'partial' };

@@ -225,12 +225,15 @@ namespace
 			{
 				try
 				{
-					// Check for game updates if configured
-					game_updater::game_updater game_updater(*config, false, &progress_listener);
-					if (config->check_for_game_updates && game_updater.is_update_needed())
+					// Check for game updates if configured (reduce unnecessary manifest fetch) 
+					if (config->check_for_game_updates)
 					{
-						cef_ui.show_message_box("Game Update Required", config->display_name + " requires an update. Please wait for update to complete before you can start playing.");
-						game_updater.run();
+						game_updater::game_updater game_updater(*config, false, &progress_listener);
+						if (game_updater.is_update_needed())
+						{
+							cef_ui.show_message_box("Game Update Required", config->display_name + " requires an update. Please wait for update to complete before you can start playing.");
+							game_updater.run();
+						}
 					}
 
 					// Check if HMW and CB extension is disabled

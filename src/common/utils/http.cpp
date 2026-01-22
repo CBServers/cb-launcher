@@ -21,6 +21,7 @@ namespace utils::http
 		{
 			const std::function<bool(const char*, size_t)>* callback{};
 			std::exception_ptr exception{};
+			curl_off_t bytes_written{};  // Track total bytes written across retries for resume support
 		};
 
 		int progress_callback(void* clientp, const curl_off_t dltotal, const curl_off_t dlnow, const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
@@ -76,6 +77,8 @@ namespace utils::http
 						return 0; // Abort transfer
 					}
 				}
+				// Track bytes written for resume support across retries
+				write_helper->bytes_written += total_size;
 			}
 			catch (...)
 			{
@@ -94,8 +97,14 @@ namespace utils::http
 				return false;
 			}
 
-			// Don't retry if request succeeded
+			// Don't retry if request succeeded (200-299 or 206 Partial Content)
 			if (code == CURLE_OK && response_code >= 200 && response_code < 300)
+			{
+				return false;
+			}
+
+			// Don't retry HTTP 416 Range Not Satisfiable - caller should delete partial and start fresh
+			if (code == CURLE_OK && response_code == 416)
 			{
 				return false;
 			}
@@ -167,24 +176,6 @@ namespace utils::http
 			last_code = code;
 			last_response_code = response_code;
 
-			// Check if operation was cancelled
-			if (code == CURLE_ABORTED_BY_CALLBACK)
-			{
-				result result;
-				result.code = code;
-				result.response_code = response_code;
-				return result; // Return early on cancellation
-			}
-
-			if (code == CURLE_OK)
-			{
-				result result;
-				result.code = code;
-				result.response_code = response_code;
-				result.buffer = std::move(buffer);
-				return result;
-			}
-
 			if (helper.exception)
 			{
 				std::rethrow_exception(helper.exception);
@@ -203,9 +194,9 @@ namespace utils::http
 			// If we have more retries left, wait a bit before trying again
 			if (i < retries)
 			{
-				printf("HTTP request failed for %s (code: %d, response: %u), retrying in 500ms... (attempt %u/%u)\n",
+				printf("HTTP request failed for %s (code: %d, response: %u), retrying in 1s... (attempt %u/%u)\n",
 					url.data(), code, response_code, i + 1, retries);
-				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 			}
 		}
 
@@ -261,15 +252,23 @@ namespace utils::http
 		CURLcode last_code = CURLE_OK;
 		unsigned int last_response_code = 0;
 
+		// Keep stream_helper outside retry loop so bytes_written accumulates across retries
+		stream_helper write_helper{};
+		write_helper.callback = &stream_callback;
+
 		// Retry loop
 		for (auto i = 0u; i < retries + 1; ++i)
 		{
-			// Reset helpers for each attempt
+			// Reset progress helper for each attempt (speed calculation needs reset)
 			progress_helper helper{};
 			helper.callback = &progress_callback_;
+			helper.start = std::chrono::high_resolution_clock::now();
 
-			stream_helper write_helper{};
-			write_helper.callback = &stream_callback;
+			// Resume from bytes already written in this session (for internal retries)
+			if (write_helper.bytes_written > 0)
+			{
+				curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, write_helper.bytes_written);
+			}
 
 			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback_stream);
 			curl_easy_setopt(curl, CURLOPT_WRITEDATA, &write_helper);
@@ -284,23 +283,6 @@ namespace utils::http
 			// Track last error for reporting if all retries fail
 			last_code = code;
 			last_response_code = response_code;
-
-			// Check if operation was cancelled
-			if (code == CURLE_ABORTED_BY_CALLBACK)
-			{
-				result result;
-				result.code = code;
-				result.response_code = response_code;
-				return result; // Return early on cancellation
-			}
-
-			if (code == CURLE_OK)
-			{
-				result result;
-				result.code = code;
-				result.response_code = response_code;
-				return result;
-			}
 
 			// Handle exceptions from callbacks
 			if (helper.exception)
@@ -325,9 +307,9 @@ namespace utils::http
 			// If we have more retries left, wait a bit before trying again
 			if (i < retries)
 			{
-				printf("HTTP stream request failed for %s (code: %d, response: %u), retrying in 500ms... (attempt %u/%u)\n",
+				printf("HTTP stream request failed for %s (code: %d, response: %u), retrying in 1s... (attempt %u/%u)\n",
 					url.data(), code, response_code, i + 1, retries);
-				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 			}
 		}
 
