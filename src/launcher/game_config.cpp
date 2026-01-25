@@ -144,6 +144,40 @@ namespace game_config
 	// Game configurations
 	const std::unordered_map<std::string, game_config_t> game_configs_ = {
 		{
+			"iw4x",
+			{
+				.game_key = "iw4x",
+				.display_name = "MW2",
+				.id = "iw4x",
+				.exe_name = "iw4x-launcher.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "iw4x.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "iw4x/",
+				.required_updater_files = {"iw4x-launcher.exe"},
+				.valid_game_exes = {"binkw32.dll"},
+				.mode_arguments = {},
+				.base_folder = "mw2_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
+			}
+		},
+		{
+			"t6",
+			{
+				.game_key = "t6",
+				.display_name = "BO2",
+				.id = "t6",
+				.exe_name = "plutonium.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "pluto.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "pluto/",
+				.required_updater_files = {"plutonium.exe"},
+				.valid_game_exes = {"binkw32.dll"},
+				.mode_arguments = {},
+				.base_folder = "bo2_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
+			}
+		},
+		{
 			"bo3",
 			{
 				.game_key = "bo3",
@@ -268,6 +302,8 @@ namespace game_config
 	};
 
 	const std::unordered_map<std::string, std::string> ui_to_backend_mapping_ = {
+		{"iw4x", "iw4x"},
+		{"t6", "t6"},
 		{"boiii", "bo3"},
 		{"iw6x", "ghosts"},
 		{"s1x", "aw"},

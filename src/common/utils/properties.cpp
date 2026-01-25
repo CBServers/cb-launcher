@@ -78,6 +78,23 @@ namespace utils::properties
 		return appdata;
 	}
 
+	std::filesystem::path get_appdata_folder_path(const std::string& folder)
+	{
+		PWSTR path;
+		if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
+		{
+			throw std::runtime_error("Failed to read APPDATA path!");
+		}
+
+		auto _ = finally([&path]
+		{
+			CoTaskMemFree(path);
+		});
+
+		static auto appdata = std::filesystem::path(path) / folder;
+		return appdata;
+	}
+
 	std::unique_lock<named_mutex> lock()
 	{
 		static named_mutex mutex{"cb-properties-lock"};
