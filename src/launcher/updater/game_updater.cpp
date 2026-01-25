@@ -382,12 +382,11 @@ namespace game_updater
 				return !is_update_cancelled(); // Continue unless cancelled
 
 			currentPercent = progressPercent;
-			printf("Updating file: %s (%.2f/%.2f MB) %d%% @ %.2f MB/s\n",
+			printf("Updating file: %s (%.2f/%.2f MB) %d%%\n",
 			get_filename(file.name).data(),
 			progress / (1024.0 * 1024.0),
 			total_size / (1024.0 * 1024.0),
-			progressPercent,
-			speed / (1024.0 * 1024.0));
+			progressPercent);
 			return !is_update_cancelled(); // Continue unless cancelled
 		},
 		[&](const char* chunk, size_t size) -> bool
@@ -591,7 +590,7 @@ namespace game_updater
 					catch (const std::exception& e)
 					{
 						printf("Warning: Download failed for %s: %s (will retry)\n",
-							file.name.c_str(), e.what());
+							file.name.data(), e.what());
 						// Don't rethrow - file will be caught in verification phase
 					}
 				}
@@ -622,7 +621,7 @@ namespace game_updater
 			catch (const std::exception& e)
 			{
 				printf("Warning: Download failed for %s: %s (will retry)\n",
-					file.name.c_str(), e.what());
+					file.name.data(), e.what());
 				// Don't throw - file will be caught in verification phase
 			}
 
@@ -919,7 +918,7 @@ namespace game_updater
 			{
 				if (!utils::io::remove_file(drive_name))
 				{
-					printf("Warning: Failed to delete file: %s\n", drive_name.c_str());
+					printf("Warning: Failed to delete file: %s\n", drive_name.data());
 				}
 			}
 

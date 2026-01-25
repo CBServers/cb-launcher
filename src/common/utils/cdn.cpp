@@ -47,7 +47,7 @@ namespace utils::cdn
 				if (result.success)
 				{
 					printf("CDN latency test complete. Recommended: %s\n",
-						this->region_to_string(result.recommended).c_str());
+						this->region_to_string(result.recommended).data());
 				}
 				else
 				{
@@ -80,7 +80,7 @@ namespace utils::cdn
 			return std::nullopt;
 		}
 
-		curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+		curl_easy_setopt(curl, CURLOPT_URL, url.data());
 		curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // HEAD request
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(LATENCY_TIMEOUT_SECONDS));

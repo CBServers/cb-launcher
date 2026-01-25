@@ -163,14 +163,14 @@ namespace unlockall
 		if (actual_size != file_info.size)
 		{
 			printf("Size mismatch for %s: expected %zu, got %zu\n",
-				file_info.name.c_str(), file_info.size, actual_size);
+				file_info.name.data(), file_info.size, actual_size);
 			return false;
 		}
 
 		const auto actual_hash = get_file_hash(file_path);
 		if (actual_hash != file_info.hash)
 		{
-			printf("Hash mismatch for %s\n", file_info.name.c_str());
+			printf("Hash mismatch for %s\n", file_info.name.data());
 			return false;
 		}
 
@@ -187,7 +187,7 @@ namespace unlockall
 
 		const auto url = this->unlock_url + file.name + "?" + file.hash;
 
-		printf("Downloading: %s...\n", file.name.c_str());
+		printf("Downloading: %s...\n", file.name.data());
 
 		int currentPercent = 0;
 		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
@@ -203,7 +203,7 @@ namespace unlockall
 					return !this->is_update_cancelled();
 
 				currentPercent = progressPercent;
-				printf("Downloading: %s (%d%%)\n", file.name.c_str(), progressPercent);
+				printf("Downloading: %s (%d%%)\n", file.name.data(), progressPercent);
 				return !this->is_update_cancelled(); // Continue unless cancelled
 			});
 
