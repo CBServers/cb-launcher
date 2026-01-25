@@ -4,6 +4,18 @@
     box-sizing: border-box;
 }
 
+:root {
+    /* Game accent colors */
+    --game-color-boiii: #f3751b;
+    --game-color-iw6x: #3b718c;
+    --game-color-s1x: #f9d406;
+    --game-color-h1-mod: #46d744;
+    --game-color-iw7-mod: #ffffff;
+    --game-color-hmw-mod: #97838a;
+    --game-color-iw4x: #86bc25;
+    --game-color-t6: #e26f01;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #1a1a1a;
@@ -158,42 +170,42 @@ img {
 
 .game-item.active.boiii-active {
     background: rgba(243, 117, 27, 0.1);
-    border-left: 3px solid #f3751b;
+    border-left: 3px solid var(--game-color-boiii);
 }
 
 .game-item.active.iw6x-active {
     background: rgba(59, 113, 140, 0.1);
-    border-left: 3px solid #3b718c;
+    border-left: 3px solid var(--game-color-iw6x);
 }
 
 .game-item.active.s1x-active {
     background: rgba(249, 212, 6, 0.1);
-    border-left: 3px solid #f9d406;
+    border-left: 3px solid var(--game-color-s1x);
 }
 
 .game-item.active.h1-mod-active {
     background: rgba(70, 215, 68, 0.1);
-    border-left: 3px solid #46d744;
+    border-left: 3px solid var(--game-color-h1-mod);
 }
 
 .game-item.active.iw7-mod-active {
     background: rgba(255, 255, 255, 0.1);
-    border-left: 3px solid #ffffff;
+    border-left: 3px solid var(--game-color-iw7-mod);
 }
 
 .game-item.active.hmw-mod-active {
     background: rgba(151, 131, 138, 0.1);
-    border-left: 3px solid #97838a;
+    border-left: 3px solid var(--game-color-hmw-mod);
 }
 
 .game-item.active.iw4x-active {
     background: rgba(134, 188, 37, 0.1);
-    border-left: 3px solid #86bc25;
+    border-left: 3px solid var(--game-color-iw4x);
 }
 
 .game-item.active.t6-active {
     background: rgba(226, 111, 1, 0.1);
-    border-left: 3px solid #e26f01;
+    border-left: 3px solid var(--game-color-t6);
 }
 
 .game-thumbnail {
@@ -207,35 +219,35 @@ img {
 }
 
 .boiii-thumb {
-    background-image: linear-gradient(45deg, #f3751b, #f3751b);
+    background-image: linear-gradient(45deg, var(--game-color-boiii), var(--game-color-boiii));
 }
 
 .iw6x-thumb {
-    background-image: linear-gradient(45deg, #3b718c, #3b718c);
+    background-image: linear-gradient(45deg, var(--game-color-iw6x), var(--game-color-iw6x));
 }
 
 .s1x-thumb {
-    background-image: linear-gradient(45deg, #f9d406, #f9d406);
+    background-image: linear-gradient(45deg, var(--game-color-s1x), var(--game-color-s1x));
 }
 
 .h1-mod-thumb {
-    background-image: linear-gradient(45deg, #46d744, #46d744);
+    background-image: linear-gradient(45deg, var(--game-color-h1-mod), var(--game-color-h1-mod));
 }
 
 .iw7-mod-thumb {
-    background-image: linear-gradient(45deg, #ffffff, #ffffff);
+    background-image: linear-gradient(45deg, var(--game-color-iw7-mod), var(--game-color-iw7-mod));
 }
 
 .hmw-mod-thumb {
-    background-image: linear-gradient(45deg, #97838a, #97838a);
+    background-image: linear-gradient(45deg, var(--game-color-hmw-mod), var(--game-color-hmw-mod));
 }
 
 .iw4x-thumb {
-    background-image: linear-gradient(45deg, #86bc25, #86bc25);
+    background-image: linear-gradient(45deg, var(--game-color-iw4x), var(--game-color-iw4x));
 }
 
 .t6-thumb {
-    background-image: linear-gradient(45deg, #e26f01, #e26f01);
+    background-image: linear-gradient(45deg, var(--game-color-t6), var(--game-color-t6));
 }
 
 .game-name {
@@ -574,35 +586,35 @@ img {
 }
 
 .progress-game-icon.boiii {
-    background-image: linear-gradient(45deg, #f3751b, #f3751b);
+    background-image: linear-gradient(45deg, var(--game-color-boiii), var(--game-color-boiii));
 }
 
 .progress-game-icon.iw6x {
-    background-image: linear-gradient(45deg, #3b718c, #3b718c);
+    background-image: linear-gradient(45deg, var(--game-color-iw6x), var(--game-color-iw6x));
 }
 
 .progress-game-icon.s1x {
-    background-image: linear-gradient(45deg, #f9d406, #f9d406);
+    background-image: linear-gradient(45deg, var(--game-color-s1x), var(--game-color-s1x));
 }
 
 .progress-game-icon.h1-mod {
-    background-image: linear-gradient(45deg, #46d744, #46d744);
+    background-image: linear-gradient(45deg, var(--game-color-h1-mod), var(--game-color-h1-mod));
 }
 
 .progress-game-icon.iw7-mod {
-    background-image: linear-gradient(45deg, #ffffff, #ffffff);
+    background-image: linear-gradient(45deg, var(--game-color-iw7-mod), var(--game-color-iw7-mod));
 }
 
 .progress-game-icon.hmw-mod {
-    background-image: linear-gradient(45deg, #97838a, #97838a);
+    background-image: linear-gradient(45deg, var(--game-color-hmw-mod), var(--game-color-hmw-mod));
 }
 
 .progress-game-icon.iw4x {
-    background-image: linear-gradient(45deg, #86bc25, #86bc25);
+    background-image: linear-gradient(45deg, var(--game-color-iw4x), var(--game-color-iw4x));
 }
 
 .progress-game-icon.t6 {
-    background-image: linear-gradient(45deg, #e26f01, #e26f01);
+    background-image: linear-gradient(45deg, var(--game-color-t6), var(--game-color-t6));
 }
 
 .download-info {
@@ -679,99 +691,99 @@ img {
 
 /* Game-specific progress bar theming */
 .global-progress-bar.boiii {
-    border-top-color: #f3751b;
+    border-top-color: var(--game-color-boiii);
 }
 
 .global-progress-bar.boiii .progress-fill {
-    background: linear-gradient(90deg, #f3751b, #f3751b);
+    background: linear-gradient(90deg, var(--game-color-boiii), var(--game-color-boiii));
 }
 
 .global-progress-bar.boiii .progress-percent {
-    color: #f3751b;
+    color: var(--game-color-boiii);
 }
 
 .global-progress-bar.iw6x {
-    border-top-color: #3b718c;
+    border-top-color: var(--game-color-iw6x);
 }
 
 .global-progress-bar.iw6x .progress-fill {
-    background: linear-gradient(90deg, #3b718c, #3b718c);
+    background: linear-gradient(90deg, var(--game-color-iw6x), var(--game-color-iw6x));
 }
 
 .global-progress-bar.iw6x .progress-percent {
-    color: #3b718c;
+    color: var(--game-color-iw6x);
 }
 
 .global-progress-bar.s1x {
-    border-top-color: #f9d406;
+    border-top-color: var(--game-color-s1x);
 }
 
 .global-progress-bar.s1x .progress-fill {
-    background: linear-gradient(90deg, #f9d406, #f9d406);
+    background: linear-gradient(90deg, var(--game-color-s1x), var(--game-color-s1x));
 }
 
 .global-progress-bar.s1x .progress-percent {
-    color: #f9d406;
+    color: var(--game-color-s1x);
 }
 
 .global-progress-bar.h1-mod {
-    border-top-color: #46d744;
+    border-top-color: var(--game-color-h1-mod);
 }
 
 .global-progress-bar.h1-mod .progress-fill {
-    background: linear-gradient(90deg, #46d744, #46d744);
+    background: linear-gradient(90deg, var(--game-color-h1-mod), var(--game-color-h1-mod));
 }
 
 .global-progress-bar.h1-mod .progress-percent {
-    color: #46d744;
+    color: var(--game-color-h1-mod);
 }
 
 .global-progress-bar.iw7-mod {
-    border-top-color: #ffffff;
+    border-top-color: var(--game-color-iw7-mod);
 }
 
 .global-progress-bar.iw7-mod .progress-fill {
-    background: linear-gradient(90deg, #ffffff, #ffffff);
+    background: linear-gradient(90deg, var(--game-color-iw7-mod), var(--game-color-iw7-mod));
 }
 
 .global-progress-bar.iw7-mod .progress-percent {
-    color: #ffffff;
+    color: var(--game-color-iw7-mod);
 }
 
 .global-progress-bar.hmw-mod {
-    border-top-color: #97838a;
+    border-top-color: var(--game-color-hmw-mod);
 }
 
 .global-progress-bar.hmw-mod .progress-fill {
-    background: linear-gradient(90deg, #97838a, #97838a);
+    background: linear-gradient(90deg, var(--game-color-hmw-mod), var(--game-color-hmw-mod));
 }
 
 .global-progress-bar.hmw-mod .progress-percent {
-    color: #97838a;
+    color: var(--game-color-hmw-mod);
 }
 
 .global-progress-bar.iw4x {
-    border-top-color: #86bc25;
+    border-top-color: var(--game-color-iw4x);
 }
 
 .global-progress-bar.iw4x .progress-fill {
-    background: linear-gradient(90deg, #86bc25, #86bc25);
+    background: linear-gradient(90deg, var(--game-color-iw4x), var(--game-color-iw4x));
 }
 
 .global-progress-bar.iw4x .progress-percent {
-    color: #86bc25;
+    color: var(--game-color-iw4x);
 }
 
 .global-progress-bar.t6 {
-    border-top-color: #e26f01;
+    border-top-color: var(--game-color-t6);
 }
 
 .global-progress-bar.t6 .progress-fill {
-    background: linear-gradient(90deg, #e26f01, #e26f01);
+    background: linear-gradient(90deg, var(--game-color-t6), var(--game-color-t6));
 }
 
 .global-progress-bar.t6 .progress-percent {
-    color: #e26f01;
+    color: var(--game-color-t6);
 }
 
 .sidebar .support-section {
@@ -2599,35 +2611,35 @@ body:not(.hidden) {
 
 /* Game-specific spinner colors */
 .spinner.bo3 {
-    border-top-color: #f3751b;
+    border-top-color: var(--game-color-boiii);
 }
 
 .spinner.ghosts {
-    border-top-color: #3b718c;
+    border-top-color: var(--game-color-iw6x);
 }
 
 .spinner.aw {
-    border-top-color: #f9d406;
+    border-top-color: var(--game-color-s1x);
 }
 
 .spinner.mwr {
-    border-top-color: #46d744;
+    border-top-color: var(--game-color-h1-mod);
 }
 
 .spinner.iw {
-    border-top-color: #ffffff;
+    border-top-color: var(--game-color-iw7-mod);
 }
 
 .spinner.hmw {
-    border-top-color: #97838a;
+    border-top-color: var(--game-color-hmw-mod);
 }
 
 .spinner.iw4x {
-    border-top-color: #86bc25;
+    border-top-color: var(--game-color-iw4x);
 }
 
 .spinner.t6 {
-    border-top-color: #e26f01;
+    border-top-color: var(--game-color-t6);
 }
 
 /* Launcher settings inline layout */

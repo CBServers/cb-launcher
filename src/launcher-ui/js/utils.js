@@ -1,6 +1,23 @@
 // Shared utility functions for the CB Servers Launcher
 
 class GameUtils {
+    // Single source of truth for game ID mappings (UI ID -> backend ID)
+    static UI_TO_BACKEND_MAP = {
+        'iw4x': 'iw4x',
+        't6': 't6',
+        'boiii': 'bo3',
+        'iw6x': 'ghosts',
+        's1x': 'aw',
+        'h1-mod': 'mwr',
+        'iw7-mod': 'iw',
+        'hmw-mod': 'hmw'
+    };
+
+    // Generated reverse mapping (backend ID -> UI ID)
+    static BACKEND_TO_UI_MAP = Object.fromEntries(
+        Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
+    );
+
     /**
      * Get comprehensive game configuration
      * @param {string} game - The game identifier (backend ID like 'bo3', 'aw', etc.)
@@ -106,17 +123,7 @@ class GameUtils {
      * @returns {object} Complete game configuration object
      */
     static getGameConfigByUIId(uiId) {
-        const mapping = {
-            'iw4x': 'iw4x',
-            't6': 't6',
-            'boiii': 'bo3',
-            'iw6x': 'ghosts',
-            's1x': 'aw',
-            'h1-mod': 'mwr',
-            'iw7-mod': 'iw',
-            'hmw-mod': 'hmw'
-        };
-        const backendId = mapping[uiId] || uiId;
+        const backendId = this.UI_TO_BACKEND_MAP[uiId] || uiId;
         return this.getGameConfig(backendId);
     }
 
@@ -126,17 +133,7 @@ class GameUtils {
      * @returns {string} The backend game identifier
      */
     static getGameMapping(gameId) {
-        const mapping = {
-            'iw4x': 'iw4x',
-            't6': 't6',
-            'boiii': 'bo3',
-            'iw6x': 'ghosts',
-            's1x': 'aw',
-            'h1-mod': 'mwr',
-            'iw7-mod': 'iw',
-            'hmw-mod': 'hmw'
-        };
-        return mapping[gameId] || gameId;
+        return this.UI_TO_BACKEND_MAP[gameId] || gameId;
     }
 
     /**
@@ -145,17 +142,7 @@ class GameUtils {
      * @returns {string} The UI game identifier (boiii, iw6x, etc.)
      */
     static getUIIdFromBackendId(backendId) {
-        const reverseMapping = {
-            'iw4x': 'iw4x',
-            't6': 't6',
-            'bo3': 'boiii',
-            'ghosts': 'iw6x',
-            'aw': 's1x',
-            'mwr': 'h1-mod',
-            'iw': 'iw7-mod',
-            'hmw': 'hmw-mod'
-        };
-        return reverseMapping[backendId] || backendId;
+        return this.BACKEND_TO_UI_MAP[backendId] || backendId;
     }
 
     /**
