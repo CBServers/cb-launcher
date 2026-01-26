@@ -41,8 +41,11 @@ namespace game_config
 		std::string update_manifest_url;
 		std::string update_folder_url;
 		std::vector<std::string> required_updater_files;
-		std::vector<std::string> valid_game_exes;
+		std::vector<std::string> valid_game_files;
+		std::vector<std::string> check_running_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
+		std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
+		std::string pluto_path_key;
 		std::string base_folder;
 		std::string base_game;
 		bool check_for_game_updates = false;
@@ -66,6 +69,7 @@ namespace game_config
 	bool has_multiple_modes(const std::string& game);
 	std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
 	std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
+	std::string get_exe_for_mode(const std::string& game, const std::string& mode);
 	bool validate_game_path(const std::string& game, const std::filesystem::path& path);
 	void reset_all_games();
 

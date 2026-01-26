@@ -92,6 +92,68 @@ namespace game_config
 		this->set(property_suffix, joined);
 	}
 
+	// Helper function to update Plutonium config.json
+	void set_plutonium_path(const std::string& key, const std::string& path)
+	{
+		const auto pluto_folder = utils::properties::get_appdata_folder_path("Plutonium");
+		const auto config_path = pluto_folder / "config.json";
+
+		if (!utils::io::directory_exists(pluto_folder))
+		{
+			utils::io::create_directory(pluto_folder);
+		}
+		
+		// Read existing config (or start with empty object)
+		rapidjson::Document doc;
+		doc.SetObject();
+
+		std::string data;
+		if (utils::io::read_file(config_path.string(), &data))
+		{
+			rapidjson::Document existing;
+			if (!existing.Parse(data).HasParseError() && existing.IsObject())
+			{
+				doc = std::move(existing);
+			}
+		}
+
+		auto& allocator = doc.GetAllocator();
+
+		// Ensure all required fields exist for valid Plutonium config
+		const char* required_fields[] = {"iw5Path", "t4Path", "t5Path", "t6Path", "token"};
+		for (const auto& field : required_fields)
+		{
+			if (!doc.HasMember(field))
+			{
+				rapidjson::Value field_key;
+				field_key.SetString(field, allocator);
+				doc.AddMember(field_key, "", allocator);
+			}
+		}
+
+		// Update the specific path key
+		if (doc.HasMember(key))
+		{
+			doc.RemoveMember(key);
+		}
+
+		rapidjson::Value json_key;
+		json_key.SetString(key, allocator);
+
+		rapidjson::Value json_value;
+		json_value.SetString(path, allocator);
+
+		doc.AddMember(json_key, json_value, allocator);
+
+		// Write back
+		rapidjson::StringBuffer buffer;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+		doc.Accept(writer);
+
+		utils::io::write_file(config_path.string(),
+			std::string(buffer.GetString(), buffer.GetLength()));
+	}
+
 	// Convenience methods
 	std::optional<std::string> game_config_t::get_install_path() const
 	{
@@ -101,6 +163,11 @@ namespace game_config
 	void game_config_t::set_install_path(const std::string& path) const
 	{
 		this->set("install", path);
+
+		if (!this->pluto_path_key.empty())
+		{
+			set_plutonium_path(this->pluto_path_key, path);
+		}
 	}
 
 	bool game_config_t::is_installed() const
@@ -150,11 +217,19 @@ namespace game_config
 				.display_name = "MW2",
 				.id = "iw4x",
 				.exe_name = "iw4x-launcher.exe",
-				.update_manifest_url = CLIENT_UPDATE_SERVER "iw4x.json",
-				.update_folder_url = CLIENT_UPDATE_SERVER "iw4x/",
-				.required_updater_files = {"iw4x-launcher.exe"},
-				.valid_game_exes = {"binkw32.dll"},
-				.mode_arguments = {},
+				.update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+				.required_updater_files = {"iw4x-launcher.exe", "alterware-launcher.exe"},
+				.valid_game_files = {"binkw32.dll"},
+				.check_running_exes = {"alterware-launcher.exe", "iw4x.exe", "iw4x-sp.exe"},
+				.mode_arguments = {
+					{"sp", "iw4x-sp"},
+					{"mp", ""}
+				},
+				.mode_executables = {
+					{"sp", "alterware-launcher.exe"},
+					{"mp", "iw4x-launcher.exe"}
+				},
 				.base_folder = "mw2_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
@@ -167,12 +242,40 @@ namespace game_config
 				.display_name = "BO2",
 				.id = "t6",
 				.exe_name = "plutonium.exe",
-				.update_manifest_url = CLIENT_UPDATE_SERVER "pluto.json",
-				.update_folder_url = CLIENT_UPDATE_SERVER "pluto/",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
 				.required_updater_files = {"plutonium.exe"},
-				.valid_game_exes = {"binkw32.dll"},
+				.valid_game_files = {"binkw32.dll"},
+				.check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
 				.mode_arguments = {},
+				.pluto_path_key = "t6Path",
 				.base_folder = "bo2_game_files",
+				.base_properties_game = "",
+				.property_overrides = {}
+			}
+		},
+		{
+			"iw5",
+			{
+				.game_key = "iw5",
+				.display_name = "MW3",
+				.id = "iw5",
+				.exe_name = "plutonium.exe",
+				.update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
+				.update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+				.required_updater_files = {"plutonium.exe", "alterware-launcher.exe"},
+				.valid_game_files = {"binkw32.dll", "iw5mp.exe", "iw5sp.exe"},
+				.check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe", "alterware-launcher.exe", "iw5-mod.exe"},
+				.mode_arguments = {
+					{"sp", "iw5-mod --pass -singleplayer"},
+					{"mp", ""}
+				},
+				.mode_executables = {
+					{"sp", "alterware-launcher.exe"},
+					{"mp", "plutonium.exe"}
+				},
+				.pluto_path_key = "iw5Path",
+				.base_folder = "mw3_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
 			}
@@ -187,7 +290,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
 				.required_updater_files = {"boiii.exe"},
-				.valid_game_exes = {"BlackOps3.exe"},
+				.valid_game_files = {"BlackOps3.exe"},
 				.mode_arguments = {},
 				.base_folder = "bo3_game_files",
 				.base_properties_game = "",
@@ -204,7 +307,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
 				.required_updater_files = {"iw6x.exe"},
-				.valid_game_exes = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
+				.valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
@@ -224,7 +327,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
 				.required_updater_files = {"s1x.exe"},
-				.valid_game_exes = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
+				.valid_game_files = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"},
@@ -246,7 +349,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
 				.required_updater_files = {"h1-mod.exe"},
-				.valid_game_exes = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
+				.valid_game_files = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
@@ -266,7 +369,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
 				.required_updater_files = {"iw7-mod.exe"},
-				.valid_game_exes = {"iw7_ship.exe"},
+				.valid_game_files = {"iw7_ship.exe"},
 				.mode_arguments = {},
 				.base_folder = "iw_game_files",
 				.base_properties_game = "",
@@ -283,7 +386,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
 				.required_updater_files = {"d3d11.dll"},
-				.valid_game_exes = {"h1_mp64_ship.exe"},
+				.valid_game_files = {"h1_mp64_ship.exe"},
 				.mode_arguments = {},
 				.base_folder = "h2m",
 				.base_game = "mwr",
@@ -303,6 +406,7 @@ namespace game_config
 
 	const std::unordered_map<std::string, std::string> ui_to_backend_mapping_ = {
 		{"iw4x", "iw4x"},
+		{"iw5", "iw5"},
 		{"t6", "t6"},
 		{"boiii", "bo3"},
 		{"iw6x", "ghosts"},
@@ -325,7 +429,9 @@ namespace game_config
 	bool has_multiple_modes(const std::string& game)
 	{
 		const auto config = get_game_config(game);
-		return config ? config->mode_arguments.size() > 0 : false;
+		const auto has_mode_args = config ? config->mode_arguments.size() > 0 : false;
+		const auto has_mode_exes = config ? config->mode_executables.size() > 0 : false;
+		return has_mode_args || has_mode_exes;
 	}
 
 	std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode)
@@ -383,6 +489,28 @@ namespace game_config
 		}
 	}
 
+	std::string get_exe_for_mode(const std::string& game, const std::string& mode)
+	{
+		const auto config = get_game_config(game);
+		if (!config)
+		{
+			return "";
+		}
+
+		// Check mode-specific executable first
+		if (!mode.empty())
+		{
+			const auto it = config->mode_executables.find(mode);
+			if (it != config->mode_executables.end())
+			{
+				return it->second;
+			}
+		}
+
+		// Fall back to default exe_name
+		return config->exe_name;
+	}
+
 	bool validate_game_path(const std::string& game, const std::filesystem::path& path)
 	{
 		const auto config = get_game_config(game);
@@ -392,7 +520,7 @@ namespace game_config
 		}
 
 		// Check if any of the valid game executables exist
-		for (const auto& exe : config->valid_game_exes)
+		for (const auto& exe : config->valid_game_files)
 		{
 			const auto exe_path = path / exe;
 			if (utils::io::file_exists(exe_path.string()))

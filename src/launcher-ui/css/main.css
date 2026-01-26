@@ -12,8 +12,9 @@
     --game-color-h1-mod: #46d744;
     --game-color-iw7-mod: #ffffff;
     --game-color-hmw-mod: #97838a;
-    --game-color-iw4x: #86bc25;
-    --game-color-t6: #e26f01;
+    --game-color-iw4x: #f2c662;
+    --game-color-t6: #fe890a;
+    --game-color-iw5: #09ff00;
 }
 
 body {
@@ -199,13 +200,18 @@ img {
 }
 
 .game-item.active.iw4x-active {
-    background: rgba(134, 188, 37, 0.1);
+    background: rgba(242, 198, 98, 0.1);
     border-left: 3px solid var(--game-color-iw4x);
 }
 
 .game-item.active.t6-active {
-    background: rgba(226, 111, 1, 0.1);
+    background: rgba(254, 137, 10, 0.1);
     border-left: 3px solid var(--game-color-t6);
+}
+
+.game-item.active.iw5-active {
+    background: rgba(9, 255, 0, 0.1);
+    border-left: 3px solid var(--game-color-iw5);
 }
 
 .game-thumbnail {
@@ -248,6 +254,10 @@ img {
 
 .t6-thumb {
     background-image: linear-gradient(45deg, var(--game-color-t6), var(--game-color-t6));
+}
+
+.iw5-thumb {
+    background-image: linear-gradient(45deg, var(--game-color-iw5), var(--game-color-iw5));
 }
 
 .game-name {
@@ -322,11 +332,15 @@ img {
 }
 
 .hero-section.iw4x::after {
-    background: linear-gradient(135deg, rgba(134, 188, 37, 0.3) 0%, rgba(134, 188, 37, 0.2) 25%, transparent 50%);
+    background: linear-gradient(135deg, rgba(242, 198, 98, 0.3) 0%, rgba(242, 198, 98, 0.2) 25%, transparent 50%);
 }
 
 .hero-section.t6::after {
-    background: linear-gradient(135deg, rgba(226, 111, 1, 0.3) 0%, rgba(226, 111, 1, 0.2) 25%, transparent 50%);
+    background: linear-gradient(135deg, rgba(254, 137, 10, 0.3) 0%, rgba(254, 137, 10, 0.2) 25%, transparent 50%);
+}
+
+.hero-section.iw5::after {
+    background: linear-gradient(135deg, rgba(9, 255, 0, 0.3) 0%, rgba(9, 255, 0, 0.2) 25%, transparent 50%);
 }
 
 .hero-section.home::before,
@@ -617,6 +631,10 @@ img {
     background-image: linear-gradient(45deg, var(--game-color-t6), var(--game-color-t6));
 }
 
+.progress-game-icon.iw5 {
+    background-image: linear-gradient(45deg, var(--game-color-iw5), var(--game-color-iw5));
+}
+
 .download-info {
     flex: 1;
     font-size: 14px;
@@ -784,6 +802,18 @@ img {
 
 .global-progress-bar.t6 .progress-percent {
     color: var(--game-color-t6);
+}
+
+.global-progress-bar.iw5 {
+    border-top-color: var(--game-color-iw5);
+}
+
+.global-progress-bar.iw5 .progress-fill {
+    background: linear-gradient(90deg, var(--game-color-iw5), var(--game-color-iw5));
+}
+
+.global-progress-bar.iw5 .progress-percent {
+    color: var(--game-color-iw5);
 }
 
 .sidebar .support-section {
@@ -2640,6 +2670,10 @@ body:not(.hidden) {
 
 .spinner.t6 {
     border-top-color: var(--game-color-t6);
+}
+
+.spinner.iw5 {
+    border-top-color: var(--game-color-iw5);
 }
 
 /* Launcher settings inline layout */

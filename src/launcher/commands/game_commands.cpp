@@ -49,12 +49,13 @@ namespace commands::game_commands
 
 		void launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
 		{
-			// Get launch arguments using the utility
-			const auto launch_args = game_config::get_launch_arguments(game, mode);
-			if (launch_args.empty() && config.mode_arguments.size() > 0)
+			if (config.mode_arguments.size() > 0 && !mode.empty())
 			{
-				cef_ui.show_message_box("Game Launch Error", "Failed to get required mode launch arg.");
-				return;
+				if (config.mode_arguments.find(mode) == config.mode_arguments.end())
+				{
+					cef_ui.show_message_box("Game Launch Error", "Unknown game mode: " + mode);
+					return;
+				}
 			}
 
 			// Get game installation path
@@ -80,7 +81,8 @@ namespace commands::game_commands
 				}
 			}
 
-			const auto game_exe = game_directory / config.exe_name;
+			const auto exe_name = game_config::get_exe_for_mode(game, mode);
+			const auto game_exe = game_directory / exe_name;
 			if (utils::io::file_exists(game_exe.string()))
 			{
 				if (!try_lock_termination_barrier())
@@ -89,7 +91,10 @@ namespace commands::game_commands
 					return;
 				}
 
-				const auto pid = utils::nt::launch_process(game_exe, get_launch_options(launch_args, config), game_directory);
+				const auto launch_args = get_launch_options(game_config::get_launch_arguments(game, mode), config);
+
+				printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+				const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
 
 				// Check if launcher should close after game starts
 				const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
@@ -112,7 +117,7 @@ namespace commands::game_commands
 			}
 			else
 			{
-				cef_ui.show_message_box("Game Launch Error", "Could not find: " + game_exe.string());
+				cef_ui.show_message_box("Game Launch Error", "Could not find: " + exe_name);
 			}
 		}
 	}
@@ -195,8 +200,19 @@ namespace commands::game_commands
 				return;
 			}
 
-			// Check if the game process is running
-			const bool is_running = utils::nt::is_process_running(config->exe_name);
+			// Check if any of the game's executables are running
+			bool is_running = utils::nt::is_process_running(config->exe_name);
+			if (!is_running && !config->check_running_exes.empty())
+			{
+				for (const auto& exe : config->check_running_exes)
+				{
+					if (utils::nt::is_process_running(exe))
+					{
+						is_running = true;
+						break;
+					}
+				}
+			}
 			response.SetBool(is_running);
 		});
 
@@ -210,8 +226,18 @@ namespace commands::game_commands
 				return;
 			}
 
-			// Attempt to stop the game process
-			const bool stopped = utils::nt::stop_process(config->exe_name);
+			// Attempt to stop any of the game's executables
+			bool stopped = utils::nt::stop_process(config->exe_name);
+			if (!config->check_running_exes.empty())
+			{
+				for (const auto& exe : config->check_running_exes)
+				{
+					if (utils::nt::stop_process(exe))
+					{
+						stopped = true;
+					}
+				}
+			}
 			response.SetBool(stopped);
 
 			// If we successfully stopped the game, unlock the termination barrier

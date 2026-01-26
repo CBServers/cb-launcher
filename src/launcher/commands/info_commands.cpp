@@ -2,7 +2,6 @@
 #include "info_commands.hpp"
 #include "cef/cef_ui.hpp"
 
-#include <utils/io.hpp>
 #include <utils/properties.hpp>
 #include <game_config.hpp>
 #include <version.hpp>
@@ -44,63 +43,6 @@ namespace commands::info_commands
 
 			updater::progress_tracker::instance().cancel_update();
 			response.SetBool(true);
-		});
-
-		cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
-		{
-			response.SetBool(false); // Default to failure
-
-			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path") || !value.HasMember("existing_install"))
-			{
-				return;
-			}
-
-			const auto game = std::string{ value["game"].GetString() };
-			const auto path = std::filesystem::path{ value["path"].GetString() };
-			const auto existing_install = value["existing_install"].GetBool();
-
-			// Get game config
-			const auto config = game_config::get_game_config(game);
-			if (!config)
-			{
-				return;
-			}
-
-			if (existing_install)
-			{
-				if (!game_config::validate_game_path(game, path))
-				{
-					return; // Invalid - no valid game exe found
-				}
-
-				const auto has_zone_folder = utils::io::directory_exists(path / "zone");
-				const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
-				if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
-				{
-					config->set_steam_install(true);
-				}
-				else
-				{
-					config->set_steam_install(false);
-				}
-
-				// Mark as installed since validation passed
-				config->set_installed(true);
-			}
-			else
-			{
-				// For new downloads, mark as not installed yet
-				config->set_installed(false);
-			}
-
-			if (!utils::io::directory_exists(path))
-			{
-				utils::io::create_directory(path);
-			}
-
-			// Path is valid, store it
-			config->set_install_path(path.string());
-			response.SetBool(true); // Success
 		});
 
 		cef_ui.add_command("get-version", [](const rapidjson::Value&, rapidjson::Document& response)

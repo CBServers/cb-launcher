@@ -44,12 +44,25 @@ namespace commands::component_commands
 				config->set_list(property_keys::DETECTED_COMPONENTS, {});
 			}
 
-			// Create single updater instance (fetches manifest once)
-			const game_updater::game_updater updater(*config);
-			auto components = updater.get_available_components();
+			std::vector<game_updater::component_info> components;
+			std::optional<game_updater::game_updater> updater;
 
-			// If this game depends on a base game, add a virtual component for the base game files
-			ctx.aggregate_base_game_components(*config, components);
+			try {
+				updater.emplace(*config);
+				components = updater->get_available_components();
+
+				// If this game depends on a base game, add a virtual component for the base game files
+				ctx.aggregate_base_game_components(*config, components);
+			}
+			catch (const updater::update_cancelled&) {
+				updater::progress_tracker::instance().cancel_update();
+				return;
+			}
+			catch (const std::exception& e) {
+				updater::progress_tracker::instance().cancel_update();
+				cef_ui.show_message_box("Manage Install Error", e.what());
+				return;
+			}
 
 			// Only detect installed components if requested (expensive operation, skip for setup/download flow)
 			bool detection_in_progress = false;
@@ -73,8 +86,8 @@ namespace commands::component_commands
 							updater::ui_progress_listener listener;
 							listener.reset(true);
 
-							game_updater::game_updater updater(config, false, &listener);
-							const auto detected = updater.detect_installed_components();
+							const game_updater::game_updater thread_updater(config, false, &listener);
+							const auto detected = thread_updater.detect_installed_components();
 
 							// Cache results
 							config.set_list(property_keys::DETECTED_COMPONENTS, detected);
@@ -90,7 +103,7 @@ namespace commands::component_commands
 						}
 						catch (const std::exception& e) {
 							updater::progress_tracker::instance().cancel_update();
-							cef_ui.show_message_box("Detection Error", e.what());
+							cef_ui.show_message_box("Manage Install Error", e.what());
 						}
 					}).detach();
 				}
@@ -143,7 +156,7 @@ namespace commands::component_commands
 				else
 				{
 					std::vector<std::string> single_component = { comp.id };
-					size = updater.calculate_component_size(single_component);
+					size = updater->calculate_component_size(single_component);
 				}
 
 				rapidjson::Value compId;

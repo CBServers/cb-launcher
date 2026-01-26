@@ -358,7 +358,7 @@ namespace game_updater
 	{
 		check_cancelled();
 
-		const auto url = this->base_url + "/" + file.name + "?" + file.hash;
+		const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
 		const auto out_file = this->get_drive_filename(file);
 
 		std::string empty{};
@@ -374,7 +374,7 @@ namespace game_updater
 		}
 
 		int currentPercent = 0;
-		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, size_t speed) -> bool
+		const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
 		{
 			auto progressRatio = (total_size > 0 && progress >= 0) ? static_cast<double>(progress) / total_size : 0.0;
 			auto progressPercent = int(progressRatio * 100.0);

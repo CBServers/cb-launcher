@@ -4,6 +4,7 @@ class GameUtils {
     // Single source of truth for game ID mappings (UI ID -> backend ID)
     static UI_TO_BACKEND_MAP = {
         'iw4x': 'iw4x',
+        'iw5': 'iw5',
         't6': 't6',
         'boiii': 'bo3',
         'iw6x': 'ghosts',
@@ -29,10 +30,10 @@ class GameUtils {
                 displayName: 'Modern Warfare 2',
                 defaultInstallPath: 'mw2_game_files',
                 uiId: 'iw4x',
-                hasMultipleModes: false,
-                supportedModes: [],
+                hasMultipleModes: true,
+                supportedModes: ['sp', 'mp'],
                 specialSettings: [],
-                codeName: 'IW4X',
+                codeName: 'IW4X/IW4-SP',
                 iconPath: './img/iw4x.png',
                 heroImagePath: './img/iw4x-hero.png'
             },
@@ -46,6 +47,17 @@ class GameUtils {
                 codeName: 'PLUTO T6',
                 iconPath: './img/t6.png',
                 heroImagePath: './img/t6-hero.png'
+            },
+            'iw5': {
+                displayName: 'Modern Warfare 3',
+                defaultInstallPath: 'mw3_game_files',
+                uiId: 'iw5',
+                hasMultipleModes: true,
+                supportedModes: ['sp', 'mp'],
+                specialSettings: [],
+                codeName: 'PLUTO IW5/IW5-MOD',
+                iconPath: './img/iw5.png',
+                heroImagePath: './img/iw5-hero.png'
             },
             'bo3': {
                 displayName: 'Black Ops 3',
@@ -196,7 +208,7 @@ class GameUtils {
      */
     static getAllGameImages() {
         const images = {};
-        const games = ['iw4x', 't6', 'bo3', 'ghosts', 'aw', 'mwr', 'iw', 'hmw'];
+        const games = ['iw4x', 'iw5', 't6', 'bo3', 'ghosts', 'aw', 'mwr', 'iw', 'hmw'];
 
         games.forEach(game => {
             const config = this.getGameConfig(game);
@@ -236,7 +248,7 @@ class GameUtils {
      * @returns {array} Array of all game UI identifiers
      */
     static getAllGameIds() {
-        return ['iw4x', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+        return ['iw4x', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
     }
 
     /**

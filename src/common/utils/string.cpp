@@ -175,4 +175,26 @@ namespace utils::string
 
 		return str;
 	}
+
+	std::string url_encode_path(const std::string& path)
+	{
+		std::string result;
+		result.reserve(path.size());
+
+		for (const unsigned char c : path)
+		{
+			// Keep alphanumeric, hyphen, underscore, period, tilde, and forward slash (path separator)
+			if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~' || c == '/')
+			{
+				result += static_cast<char>(c);
+			}
+			else
+			{
+				// Percent-encode everything else
+				result += va("%%%02X", c);
+			}
+		}
+
+		return result;
+	}
 }
