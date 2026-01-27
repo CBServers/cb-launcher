@@ -15,6 +15,7 @@ namespace game_updater
 		game_updater(const game_config::game_config_t& config, bool skip_hash = false, updater::ui_progress_listener* listener = nullptr);
 
 		void run() const;
+		void delete_game() const;
 		size_t get_game_size() const;
 		bool is_update_needed() const;
 

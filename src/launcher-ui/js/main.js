@@ -752,17 +752,11 @@ async function createGameButtons(gameId) {
             document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
         } else {
             // Show PLAY, VERIFY, and SETTINGS buttons
-            // For HMW, also show UNLOCK ALL button but hide MANAGE INSTALL (all components are required)
+            // For HMW, also show UNLOCK ALL button
             const unlockAllButton = gameId === 'hmw-mod' ? `
                 <button class="unlock-all-button" id="${gameId}-unlock-all-button">
                     UNLOCK ALL
                 </button>
-            ` : '';
-
-            const manageInstallButton = gameId !== 'hmw-mod' ? `
-                    <button class="manage-install-button" id="${gameId}-manage-install-button">
-                        MANAGE INSTALL
-                    </button>
             ` : '';
 
             buttonGroup.innerHTML = `
@@ -773,7 +767,10 @@ async function createGameButtons(gameId) {
                     </button>
                     <button class="verify-button" id="${gameId}-verify-button">
                         VERIFY
-                    </button>${manageInstallButton}${unlockAllButton}
+                    </button>
+                    <button class="manage-install-button" id="${gameId}-manage-install-button">
+                        MANAGE INSTALL
+                    </button>${unlockAllButton}
                 </div>
                 <div class="right-buttons">
                     <button class="game-settings-btn" id="${gameId}-game-settings-btn" title="Game Settings">
@@ -785,12 +782,7 @@ async function createGameButtons(gameId) {
             // Attach event listeners
             document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
             document.getElementById(`${gameId}-verify-button`).onclick = () => verifyGame(gameId);
-
-            // Only attach manage install listener if button exists (not for HMW)
-            if (gameId !== 'hmw-mod') {
-                document.getElementById(`${gameId}-manage-install-button`).onclick = () => showManageInstall(gameId);
-            }
-
+            document.getElementById(`${gameId}-manage-install-button`).onclick = () => showManageInstall(gameId);
             document.getElementById(`${gameId}-game-settings-btn`).onclick = () => showGameSettings(gameId);
 
             // Attach unlock all listener for HMW

@@ -2425,8 +2425,13 @@ body:not(.hidden) {
 
 .component-selection-popup .popup-actions {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.component-selection-popup .popup-actions-right {
+    display: flex;
     gap: 10px;
-    justify-content: flex-end;
 }
 
 .component-selection-popup .btn-cancel,
@@ -2463,6 +2468,22 @@ body:not(.hidden) {
     background: #444;
     color: #666;
     cursor: not-allowed;
+}
+
+.component-selection-popup .btn-uninstall {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #d32f2f;
+    color: white;
+}
+
+.component-selection-popup .btn-uninstall:hover {
+    background: #b71c1c;
 }
 
 /* Compact component list for install popup */

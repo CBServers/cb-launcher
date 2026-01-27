@@ -352,5 +352,71 @@ namespace commands::game_commands
 				}
 			}).detach();
 		});
+
+		cef_ui.add_command("delete-game", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
+		{
+			const auto config = ctx.get_game_config_from_request(value);
+			if (!config)
+			{
+				return;
+			}
+
+			// Check if game is running
+			bool is_running = utils::nt::is_process_running(config->exe_name);
+			if (!config->check_running_exes.empty())
+			{
+				for (const auto& exe : config->check_running_exes)
+				{
+					if (utils::nt::is_process_running(exe))
+					{
+						is_running = true;
+						break;
+					}
+				}
+			}
+
+			if (is_running)
+			{
+				cef_ui.show_message_box("Cannot Uninstall", "Please close the game before uninstalling.");
+				return;
+			}
+
+			updater::ui_progress_listener progress_listener;
+			progress_listener.reset(true);
+
+			std::thread([config = *config, &progress_listener, &cef_ui]()
+			{
+				try
+				{
+					game_updater::game_updater updater(config, true, &progress_listener);
+					updater.delete_game();
+
+					// Clear installation status and component caches
+					config.set_installed(false);
+					config.set_list("detected-components", {});
+					config.set_list("selected-components", {});
+
+					progress_listener.done_update();
+					cef_ui.show_message_box("Uninstall Complete", config.display_name + " has been uninstalled successfully.");
+				}
+				catch (const updater::update_cancelled&)
+				{
+					progress_listener.cancel_update();
+					printf("Uninstall cancelled by user\n");
+				}
+				catch (const std::exception& e)
+				{
+					progress_listener.cancel_update();
+					printf("Uninstall error: %s\n", e.what());
+					cef_ui.show_message_box("Uninstall Error", e.what());
+				}
+				catch (...)
+				{
+					progress_listener.cancel_update();
+					printf("Unknown uninstall error\n");
+					cef_ui.show_message_box("Uninstall Error", "An unknown error occurred during uninstall");
+				}
+			}).detach();
+		});
 	}
 }

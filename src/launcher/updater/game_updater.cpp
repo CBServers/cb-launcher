@@ -885,6 +885,93 @@ namespace game_updater
 		return files_to_delete;
 	}
 
+	void game_updater::delete_game() const
+	{
+		if (this->install_path.empty())
+		{
+			throw std::runtime_error("Install path not set");
+		}
+
+		check_cancelled();
+
+		std::vector<updater::file_info> files_to_delete;
+
+		// Add all manifest files that exist
+		for (const auto& file : this->manifest_.files)
+		{
+			const auto drive_name = this->get_drive_filename(file);
+			if (utils::io::file_exists(drive_name))
+			{
+				files_to_delete.push_back(file);
+			}
+		}
+
+		// Add client updater files (boiii.exe, iw6x.exe, etc.)
+		for (const auto& client_file : this->config_.required_updater_files)
+		{
+			const auto file_path = this->install_path / client_file;
+			if (utils::io::file_exists(file_path.string()))
+			{
+				updater::file_info info;
+				info.name = client_file;
+				info.size = 0;
+				files_to_delete.push_back(info);
+			}
+		}
+
+		// Add latest.manifest
+		const auto manifest_path = this->get_manifest_file_path();
+		if (utils::io::file_exists(manifest_path))
+		{
+			updater::file_info info;
+			info.name = "latest.manifest";
+			info.size = 0;
+			files_to_delete.push_back(info);
+		}
+
+		if (!files_to_delete.empty())
+		{
+			this->delete_files(files_to_delete);
+		}
+
+		// Clean up empty directories (deepest first)
+		// Collect all unique parent directories from deleted files
+		std::set<std::filesystem::path> directories_to_check;
+		for (const auto& file : files_to_delete)
+		{
+			auto file_path = this->install_path / file.name;
+			auto parent = file_path.parent_path();
+
+			// Add all parent directories up to (but not including) install_path
+			while (parent != this->install_path && is_inside_folder(parent, this->install_path))
+			{
+				directories_to_check.insert(parent);
+				parent = parent.parent_path();
+			}
+		}
+
+		// Sort directories by depth (deepest first) and remove empty ones
+		std::vector<std::filesystem::path> sorted_dirs(directories_to_check.begin(), directories_to_check.end());
+		std::sort(sorted_dirs.begin(), sorted_dirs.end(), [](const auto& a, const auto& b) {
+			return std::distance(a.begin(), a.end()) > std::distance(b.begin(), b.end());
+		});
+
+		for (const auto& dir : sorted_dirs)
+		{
+			std::error_code ec;
+			if (std::filesystem::exists(dir, ec) && std::filesystem::is_empty(dir, ec))
+			{
+				std::filesystem::remove(dir, ec);
+				if (!ec)
+				{
+					printf("Removed empty directory: %s\n", dir.filename().string().c_str());
+				}
+			}
+		}
+
+		printf("Game deletion complete\n");
+	}
+
 	void game_updater::delete_files(const std::vector<updater::file_info>& files) const
 	{
 		if (files.empty())

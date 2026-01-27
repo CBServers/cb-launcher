@@ -53,8 +53,11 @@ class ComponentSelectionPopup {
                     </div>
                 </div>
                 <div class="popup-actions">
-                    <button class="btn-cancel">Cancel</button>
-                    <button class="btn-apply">Apply Changes</button>
+                    <button class="btn-uninstall">Uninstall</button>
+                    <div class="popup-actions-right">
+                        <button class="btn-cancel">Cancel</button>
+                        <button class="btn-apply">Apply Changes</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -70,11 +73,13 @@ class ComponentSelectionPopup {
         const cancelBtn = this.popup.querySelector('.btn-cancel');
         const applyBtn = this.popup.querySelector('.btn-apply');
         const refreshBtn = this.popup.querySelector('.btn-refresh');
+        const uninstallBtn = this.popup.querySelector('.btn-uninstall');
 
         closeBtn.addEventListener('click', () => this.hide());
         cancelBtn.addEventListener('click', () => this.hide());
         applyBtn.addEventListener('click', () => this.applyChanges());
         refreshBtn.addEventListener('click', () => this.refreshDetection());
+        uninstallBtn.addEventListener('click', () => this.uninstallGame());
 
         this.backdrop.addEventListener('click', (e) => {
             if (e.target === this.backdrop) {
@@ -179,8 +184,13 @@ class ComponentSelectionPopup {
         if (selectedComponentsStr) {
             this.selectedComponents = new Set(selectedComponentsStr.split(','));
         } else {
-            // Default to only installed components if none selected
-            this.selectedComponents = new Set(this.installedComponents);
+            this.selectedComponents = new Set();
+        }
+
+        // Ensure all installed components are selected (they exist on disk)
+        // This handles cases where detection finds components not in the saved selection
+        for (const comp of this.installedComponents) {
+            this.selectedComponents.add(comp);
         }
 
         // Save original selection for comparison later
@@ -443,6 +453,48 @@ class ComponentSelectionPopup {
         } catch (error) {
             console.error('Failed to save component selection:', error);
             this.showError('Failed to save component selection. Please try again.');
+        }
+    }
+
+    async uninstallGame() {
+        if (typeof window.showMessageBox === 'function') {
+            const result = await window.showMessageBox(
+                "Confirm Uninstall",
+                `Are you sure you want to uninstall ${this.gameConfig.displayName}?\n\n` +
+                "This will permanently delete all game files.\n" +
+                "Your install path and preferences will be preserved.",
+                ["Cancel", "Uninstall"]
+            );
+
+            // User clicked Cancel (button index 0)
+            if (result === 0) {
+                return;
+            }
+        }
+
+        // Close popup
+        this.hide();
+
+        const gameId = GameUtils.getUIIdFromBackendId(this.currentGame);
+        const gameDisplayName = this.gameConfig.displayName;
+
+        // Execute uninstall command with progress tracking
+        try {
+            await GameUtils.trackCommandProgress({
+                gameId: gameId,
+                command: 'delete-game',
+                commandArgs: { game: this.currentGame },
+                initialMessage: `Uninstalling ${gameDisplayName}...`,
+                completeMessage: 'Uninstall complete!',
+                onComplete: () => {
+                    // Refresh game UI
+                    if (gameId && typeof refreshGameStatus === 'function') {
+                        refreshGameStatus(gameId);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Failed to uninstall game:', error);
         }
     }
 
