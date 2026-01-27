@@ -124,4 +124,58 @@ namespace utils::com
 
 		return progress_dialog;
 	}
+
+	std::filesystem::path get_desktop_path()
+	{
+		PWSTR path = nullptr;
+		if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &path)))
+		{
+			return {};
+		}
+
+		const auto _ = finally([&path]
+		{
+			CoTaskMemFree(path);
+		});
+
+		return std::filesystem::path(path);
+	}
+
+	bool create_shortcut(
+		const std::filesystem::path& target_path,
+		const std::filesystem::path& shortcut_path,
+		const std::string& description,
+		const std::filesystem::path& working_directory)
+	{
+		CComPtr<IShellLinkW> shell_link{};
+		if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shell_link))))
+		{
+			return false;
+		}
+
+		shell_link->SetPath(target_path.c_str());
+		shell_link->SetDescription(string::convert(description).c_str());
+
+		if (!working_directory.empty())
+		{
+			shell_link->SetWorkingDirectory(working_directory.c_str());
+		}
+		else
+		{
+			shell_link->SetWorkingDirectory(target_path.parent_path().c_str());
+		}
+
+		CComPtr<IPersistFile> persist_file{};
+		if (FAILED(shell_link->QueryInterface(IID_PPV_ARGS(&persist_file))))
+		{
+			return false;
+		}
+
+		if (FAILED(persist_file->Save(shortcut_path.c_str(), TRUE)))
+		{
+			return false;
+		}
+
+		return true;
+	}
 }

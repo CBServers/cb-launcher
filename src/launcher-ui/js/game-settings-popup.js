@@ -278,12 +278,12 @@ class GameSettingsPopup {
     async handleBrowse() {
         if (typeof window.executeCommand === 'function') {
             try {
-                const folder = await window.executeCommand('browse-folder');
-                if (folder) {
-                    this.popup.querySelector('#game-path').value = folder;
+                const currentPath = this.popup.querySelector('#game-path').value;
+                if (currentPath && currentPath.trim() !== '') {
+                    await window.executeCommand('open-folder', { path: currentPath });
                 }
             } catch (error) {
-                console.error('Failed to browse for folder:', error);
+                console.error('Failed to open folder:', error);
             }
         }
     }

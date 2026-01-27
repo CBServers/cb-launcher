@@ -19,6 +19,16 @@ namespace commands::ui_commands
 			}
 		});
 
+		cef_ui.add_command("open-folder", [](const rapidjson::Value& value, auto&)
+		{
+			if (value.IsObject() && value.HasMember("path") && value["path"].IsString())
+			{
+				const auto path = value["path"].GetString();
+				const auto wide_path = std::wstring(path, path + strlen(path));
+				ShellExecuteW(nullptr, L"explore", wide_path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+			}
+		});
+
 		cef_ui.add_command("close", [&cef_ui](const auto&, auto&)
 		{
 			cef_ui.close_browser();

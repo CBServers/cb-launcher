@@ -7,6 +7,8 @@
 #include <utils/named_mutex.hpp>
 #include <utils/properties.hpp>
 #include <utils/io.hpp>
+#include <utils/com.hpp>
+#include <utils/properties.hpp>
 
 namespace
 {
@@ -94,6 +96,36 @@ namespace
 		cef_ui.create(path / "data" / "launcher-ui", "main.html");
 		cef::cef_ui::work();
 	}
+
+	void create_shortcut()
+	{
+		try
+		{
+			if (utils::properties::load("launcher-shortcut-created") == "true")
+			{
+				return;
+			}
+
+			const auto launcher_path = utils::nt::library{}.get_path();
+			const auto desktop_path = utils::com::get_desktop_path();
+
+			if (desktop_path.empty())
+			{
+				return;
+			}
+
+			const auto shortcut_path = desktop_path / "CB Servers Launcher.lnk";
+
+			if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
+			{
+				utils::properties::store("launcher-shortcut-created", "true");
+			}
+		}
+		catch (...)
+		{
+			printf("Error creating shortcut\n");
+		}
+	}
 }
 
 int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
@@ -128,6 +160,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 			launcher_updater::run(path);
 		}
 
+		create_shortcut();
 		show_window(lib, path);
 
 		return 0;
