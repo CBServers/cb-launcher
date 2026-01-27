@@ -74,7 +74,7 @@ class GameSettingsPopup {
                 </div>
 
                 <div class="popup-actions">
-                    <button class="btn-reset">Reset Game Settings</button>
+                    <button class="btn-reset">Reset Settings</button>
                     <div style="flex: 1;"></div>
                     <button class="btn-cancel">Cancel</button>
                     <button class="btn-save">Save Settings</button>
