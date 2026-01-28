@@ -245,7 +245,7 @@ namespace game_config
 				.update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
 				.required_updater_files = {"plutonium.exe"},
-				.valid_game_files = {"binkw32.dll"},
+				.valid_game_files = {"binkw32.dll", "t6mp.exe", "t6zm.exe", "t6sp.exe"},
 				.check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
 				.mode_arguments = {},
 				.pluto_path_key = "t6Path",

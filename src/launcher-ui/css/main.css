@@ -2923,7 +2923,6 @@ body:not(.hidden) {
 /* Settings page footer */
 .settings-footer {
     margin-top: auto;
-    padding: 15px;
     text-align: center;
 }
 
@@ -2940,7 +2939,16 @@ body:not(.hidden) {
     margin-bottom: 8px;
 }
 
-.settings-footer .footer-copyright {
-    color: #888;
-    font-size: 12px;
+.settings-footer .footer-source {
+    font-size: 13px;
+}
+
+.settings-footer .footer-source a {
+    color: #6db3f2;
+    text-decoration: none;
+}
+
+.settings-footer .footer-source a:hover {
+    color: #9dcfff;
+    text-decoration: underline;
 }

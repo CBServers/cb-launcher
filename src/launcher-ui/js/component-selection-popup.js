@@ -467,7 +467,7 @@ class ComponentSelectionPopup {
             const result = await window.showMessageBox(
                 "Confirm Uninstall",
                 `Are you sure you want to uninstall ${this.gameConfig.displayName}?\n\n` +
-                "This will permanently delete all game files.\n" +
+                "This will permanently DELETE all game files.\n" +
                 "Your install path and preferences will be preserved.",
                 ["Cancel", "Uninstall"]
             );

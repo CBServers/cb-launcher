@@ -125,8 +125,8 @@ function initialize() {
         const link = e.target.closest('a[href]');
         if (!link) return;
 
-        // Only handle links within support-page and game pages
-        const isInTargetPage = link.closest('#support-page') || link.closest('.game-page');
+        // Only handle links within support-page, game pages, and settings-page
+        const isInTargetPage = link.closest('#support-page') || link.closest('.game-page') || link.closest('#settings-page');
         if (!isInTargetPage) return;
 
         // Only handle http/https links

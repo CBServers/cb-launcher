@@ -377,7 +377,7 @@ class GameSettingsPopup {
         if (typeof window.showMessageBox === 'function') {
             const result = await window.showMessageBox(
                 "Reset Game Settings",
-                `Are you sure you want to reset all settings for ${this.gameConfig.displayName}? This will clear the installation path and all game preferences.`,
+                `Are you sure you want to reset all settings for ${this.gameConfig.displayName}? This will clear the installation path and game preferences but WILL NOT delete game files.`,
                 ["Cancel", "Reset"]
             );
 
