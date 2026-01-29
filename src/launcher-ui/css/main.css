@@ -12,7 +12,7 @@
     --game-color-h1-mod: #46d744;
     --game-color-iw7-mod: #ffffff;
     --game-color-hmw-mod: #97838a;
-    --game-color-iw4x: #f2c662;
+    --game-color-iw4x: #fbc751;
     --game-color-t6: #fe890a;
     --game-color-iw5: #09ff00;
 }
@@ -200,7 +200,7 @@ img {
 }
 
 .game-item.active.iw4x-active {
-    background: rgba(242, 198, 98, 0.1);
+    background: rgba(251, 199, 81, 0.1);
     border-left: 3px solid var(--game-color-iw4x);
 }
 
@@ -332,7 +332,7 @@ img {
 }
 
 .hero-section.iw4x::after {
-    background: linear-gradient(135deg, rgba(242, 198, 98, 0.3) 0%, rgba(242, 198, 98, 0.2) 25%, transparent 50%);
+    background: linear-gradient(135deg, rgba(251, 199, 81, 0.3) 0%, rgba(251, 199, 81, 0.2) 25%, transparent 50%);
 }
 
 .hero-section.t6::after {
