@@ -1,5 +1,26 @@
 // Shared utility functions for the CB Servers Launcher
 
+// Centralized property key constants
+const PROPERTY_KEYS = {
+    LAUNCHER: {
+        RESTORE_LAST_PAGE: 'launcher-restore-last-page',
+        SKIP_HASH_VERIFICATION: 'launcher-skip-hash-verification',
+        CLOSE_ON_LAUNCH: 'launcher-close-on-launch',
+        SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
+        LAST_GAME_PAGE: 'last-game-page'
+    },
+    GAME: {
+        INSTALL: 'install',
+        IS_INSTALLED: 'is-installed',
+        LAUNCH_OPTIONS: 'launch-options',
+        GAME_MODE: 'game-mode',
+        SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
+        DISABLE_CB_EXTENSION: 'disable-cb-extension',
+        DETECTED_COMPONENTS: 'detected-components',
+        SELECTED_COMPONENTS: 'selected-components'
+    }
+};
+
 class GameUtils {
     // Single source of truth for game ID mappings (UI ID -> backend ID)
     static UI_TO_BACKEND_MAP = {
@@ -384,7 +405,7 @@ class GameUtils {
         // Check if game install path is configured
         const folder = await window.executeCommand('get-game-property', {
             game: backendGame,
-            suffix: 'install'
+            suffix: PROPERTY_KEYS.GAME.INSTALL
         });
 
         if (!folder) {

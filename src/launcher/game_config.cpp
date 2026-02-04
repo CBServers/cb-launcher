@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "game_config.hpp"
 #include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 #include <utils/io.hpp>
 #include <utils/cdn.hpp>
 
@@ -157,12 +158,12 @@ namespace game_config
 	// Convenience methods
 	std::optional<std::string> game_config_t::get_install_path() const
 	{
-		return this->get("install");
+		return this->get(property_keys::INSTALL);
 	}
 
 	void game_config_t::set_install_path(const std::string& path) const
 	{
-		this->set("install", path);
+		this->set(property_keys::INSTALL, path);
 
 		if (!this->pluto_path_key.empty())
 		{
@@ -172,40 +173,40 @@ namespace game_config
 
 	bool game_config_t::is_installed() const
 	{
-		auto value = this->get("is-installed");
+		auto value = this->get(property_keys::IS_INSTALLED);
 		return value && value.value() == "true";
 	}
 
 	void game_config_t::set_installed(bool installed) const
 	{
-		this->set("is-installed", installed ? "true" : "false");
+		this->set(property_keys::IS_INSTALLED, installed ? "true" : "false");
 	}
 
 	bool game_config_t::is_steam_install() const
 	{
-		auto value = this->get("is-steam-install");
+		auto value = this->get(property_keys::IS_STEAM_INSTALL);
 		return value && value.value() == "true";
 	}
 
 	void game_config_t::set_steam_install(bool is_steam) const
 	{
-		this->set("is-steam-install", is_steam ? "true" : "false");
+		this->set(property_keys::IS_STEAM_INSTALL, is_steam ? "true" : "false");
 	}
 
 	std::optional<std::string> game_config_t::get_launch_options() const
 	{
-		return this->get("launch-options");
+		return this->get(property_keys::LAUNCH_OPTIONS);
 	}
 
 	void game_config_t::reset() const
 	{
 		// Clear all properties for this game
-		this->set("install", "");
-		this->set("is-installed", "");
-		this->set("is-steam-install", "");
-		this->set_list("detected-components", {});
-		this->set_list("selected-components", {});
-		this->set("launch-options", "");
+		this->set(property_keys::INSTALL, "");
+		this->set(property_keys::IS_INSTALLED, "");
+		this->set(property_keys::IS_STEAM_INSTALL, "");
+		this->set_list(property_keys::DETECTED_COMPONENTS, {});
+		this->set_list(property_keys::SELECTED_COMPONENTS, {});
+		this->set(property_keys::LAUNCH_OPTIONS, "");
 	}
 
 	// Game configurations
@@ -394,11 +395,11 @@ namespace game_config
 				.unlock_url_folder = "h2m/",
 				.base_properties_game = "mwr",
 				.property_overrides = {
-					{"is-installed", "hmw"},
-					{"detected-components", "hmw"},
-					{"selected-components", "hmw"},
-					{"launch-options", "hmw"},
-					{"disable-cb-extension", "hmw"}
+					{property_keys::IS_INSTALLED, "hmw"},
+					{property_keys::DETECTED_COMPONENTS, "hmw"},
+					{property_keys::SELECTED_COMPONENTS, "hmw"},
+					{property_keys::LAUNCH_OPTIONS, "hmw"},
+					{property_keys::DISABLE_CB_EXTENSION, "hmw"}
 				}
 			}
 		}
@@ -477,7 +478,7 @@ namespace game_config
 			{
 				std::string launch_args = "-launch";
 
-				const auto cinematic_setting = utils::properties::load("bo3-skip-intro-cinematic");
+				const auto cinematic_setting = utils::properties::load(property_keys::BO3_SKIP_INTRO_CINEMATIC);
 				if (cinematic_setting && cinematic_setting->data() == std::string("true"))
 				{
 					launch_args += " -nointro";

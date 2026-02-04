@@ -207,14 +207,14 @@ class GameSettingsPopup {
                 // Load installation path
                 const installPath = await window.executeCommand('get-game-property', {
                     game: this.currentGame,
-                    suffix: 'install'
+                    suffix: PROPERTY_KEYS.GAME.INSTALL
                 });
                 this.popup.querySelector('#game-path').value = installPath || '';
 
                 // Load launch options (available for all games)
                 const launchOptions = await window.executeCommand('get-game-property', {
                     game: this.currentGame,
-                    suffix: 'launch-options'
+                    suffix: PROPERTY_KEYS.GAME.LAUNCH_OPTIONS
                 });
                 this.popup.querySelector('#launch-options-input').value = launchOptions || '';
 
@@ -222,7 +222,7 @@ class GameSettingsPopup {
                     // Load BO3 cinematic setting
                     const skipIntro = await window.executeCommand('get-game-property', {
                         game: this.currentGame,
-                        suffix: 'skip-intro-cinematic'
+                        suffix: PROPERTY_KEYS.GAME.SKIP_INTRO_CINEMATIC
                     });
                     const toggleGroup = this.popup.querySelector('#skip-intro-cinematic-toggle');
                     const buttons = toggleGroup.querySelectorAll('.toggle-btn');
@@ -240,7 +240,7 @@ class GameSettingsPopup {
                     // Load HMW CB extension setting
                     const disableExt = await window.executeCommand('get-game-property', {
                         game: this.currentGame,
-                        suffix: 'disable-cb-extension'
+                        suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION
                     });
                     const toggleGroup = this.popup.querySelector('#disable-cb-extension-toggle');
                     const buttons = toggleGroup.querySelectorAll('.toggle-btn');
@@ -258,7 +258,7 @@ class GameSettingsPopup {
                     // Load play behavior preference for other games
                     const savedBehavior = await window.executeCommand('get-game-property', {
                         game: this.currentGame,
-                        suffix: 'game-mode'
+                        suffix: PROPERTY_KEYS.GAME.GAME_MODE
                     });
 
                     const behaviorSelect = this.popup.querySelector('#play-behavior-select');
@@ -320,7 +320,7 @@ class GameSettingsPopup {
                     const activeButton = toggleGroup.querySelector('.toggle-btn.active');
                     await window.executeCommand('set-game-property', {
                         game: this.currentGame,
-                        suffix: 'skip-intro-cinematic',
+                        suffix: PROPERTY_KEYS.GAME.SKIP_INTRO_CINEMATIC,
                         value: activeButton ? activeButton.dataset.value : 'false'
                     });
                 } else if (this.currentGame === 'hmw') {
@@ -329,7 +329,7 @@ class GameSettingsPopup {
                     const activeButton = toggleGroup.querySelector('.toggle-btn.active');
                     await window.executeCommand('set-game-property', {
                         game: this.currentGame,
-                        suffix: 'disable-cb-extension',
+                        suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION,
                         value: activeButton ? activeButton.dataset.value : 'false'
                     });
                 } else {
@@ -339,14 +339,14 @@ class GameSettingsPopup {
                         // For "ask every time", we remove the saved preference
                         await window.executeCommand('set-game-property', {
                             game: this.currentGame,
-                            suffix: 'game-mode',
+                            suffix: PROPERTY_KEYS.GAME.GAME_MODE,
                             value: ''
                         });
                     } else {
                         // For specific modes, save the preference
                         await window.executeCommand('set-game-property', {
                             game: this.currentGame,
-                            suffix: 'game-mode',
+                            suffix: PROPERTY_KEYS.GAME.GAME_MODE,
                             value: selectedBehavior
                         });
                     }
@@ -356,7 +356,7 @@ class GameSettingsPopup {
                 const launchOptions = this.popup.querySelector('#launch-options-input').value.trim();
                 await window.executeCommand('set-game-property', {
                     game: this.currentGame,
-                    suffix: 'launch-options',
+                    suffix: PROPERTY_KEYS.GAME.LAUNCH_OPTIONS,
                     value: launchOptions
                 });
 

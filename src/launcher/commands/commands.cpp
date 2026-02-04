@@ -1,6 +1,6 @@
 #include "std_include.hpp"
 #include "commands.hpp"
-#include "property_keys.hpp"
+#include <utils/property_keys.hpp>
 #include "cef/cef_ui.hpp"
 #include "updater/game_updater.hpp"
 

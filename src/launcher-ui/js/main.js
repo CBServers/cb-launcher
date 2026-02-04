@@ -167,13 +167,13 @@ async function initializeNavigation() {
     try {
         if (typeof window.executeCommand === 'function') {
             // Check if restore-last-page setting is enabled (default: true)
-            const restoreEnabled = await window.executeCommand('get-property', 'launcher-restore-last-page');
+            const restoreEnabled = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE);
 
             // Default to true if not set, or if explicitly set to 'true'
             const shouldRestore = restoreEnabled === null || restoreEnabled === 'true';
 
             if (shouldRestore) {
-                const lastGamePage = await window.executeCommand('get-property', 'last-game-page');
+                const lastGamePage = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.LAST_GAME_PAGE);
                 // Verify it's a valid game page
                 if (lastGamePage && GameUtils.getAllGameIds().includes(lastGamePage)) {
                     pageToLoad = lastGamePage;
@@ -661,7 +661,7 @@ function loadNavigationPage(page) {
     // Save last game page (exclude home and settings)
     if (GameUtils.getAllGameIds().includes(page)) {
         if (typeof window.executeCommand === 'function') {
-            window.executeCommand('set-property', { 'last-game-page': page }).catch(error => {
+            window.executeCommand('set-property', { [PROPERTY_KEYS.LAUNCHER.LAST_GAME_PAGE]: page }).catch(error => {
                 console.error('Failed to save last game page:', error);
             });
         }
@@ -971,11 +971,11 @@ async function checkGameInstallation(gameId) {
         if (typeof window.executeCommand === 'function') {
             const isInstalled = await window.executeCommand('get-game-property', {
                 game: gameMapping,
-                suffix: 'is-installed'
+                suffix: PROPERTY_KEYS.GAME.IS_INSTALLED
             });
             const installPath = await window.executeCommand('get-game-property', {
                 game: gameMapping,
-                suffix: 'install'
+                suffix: PROPERTY_KEYS.GAME.INSTALL
             });
 
             const fullyInstalled = isInstalled && isInstalled.trim() === 'true';
@@ -1006,7 +1006,7 @@ async function loadLauncherSettings() {
 
     try {
         // Load "Restore Last Page" setting
-        const restoreLastPage = await window.executeCommand('get-property', 'launcher-restore-last-page');
+        const restoreLastPage = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE);
         const restoreToggle = document.getElementById('restore-last-page-toggle');
 
         if (restoreToggle) {
@@ -1022,7 +1022,7 @@ async function loadLauncherSettings() {
         }
 
         // Load "Skip Hash Verification" setting
-        const skipHashVerification = await window.executeCommand('get-property', 'launcher-skip-hash-verification');
+        const skipHashVerification = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION);
         const skipHashToggle = document.getElementById('skip-hash-verification-toggle');
 
         if (skipHashToggle) {
@@ -1038,7 +1038,7 @@ async function loadLauncherSettings() {
         }
 
         // Load "Close on Launch" setting
-        const closeOnLaunch = await window.executeCommand('get-property', 'launcher-close-on-launch');
+        const closeOnLaunch = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH);
         const closeOnLaunchToggle = document.getElementById('close-on-launch-toggle');
 
         if (closeOnLaunchToggle) {
@@ -1054,7 +1054,7 @@ async function loadLauncherSettings() {
         }
 
         // Load "Skip Client Update" setting
-        const skipClientUpdate = await window.executeCommand('get-property', 'launcher-skip-client-update');
+        const skipClientUpdate = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE);
         const skipClientUpdateToggle = document.getElementById('skip-client-update-toggle');
 
         if (skipClientUpdateToggle) {
@@ -1219,22 +1219,22 @@ function setupLauncherSettingsToggles() {
                 try {
                     if (settingId === 'restore-last-page-toggle') {
                         await window.executeCommand('set-property', {
-                            'launcher-restore-last-page': clickedValue
+                            [PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE]: clickedValue
                         });
                         console.log(`Restore last page set to: ${clickedValue}`);
                     } else if (settingId === 'skip-hash-verification-toggle') {
                         await window.executeCommand('set-property', {
-                            'launcher-skip-hash-verification': clickedValue
+                            [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: clickedValue
                         });
                         console.log(`Skip hash verification set to: ${clickedValue}`);
                     } else if (settingId === 'close-on-launch-toggle') {
                         await window.executeCommand('set-property', {
-                            'launcher-close-on-launch': clickedValue
+                            [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: clickedValue
                         });
                         console.log(`Close on launch set to: ${clickedValue}`);
                     } else if (settingId === 'skip-client-update-toggle') {
                         await window.executeCommand('set-property', {
-                            'launcher-skip-client-update': clickedValue
+                            [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: clickedValue
                         });
                         console.log(`Skip client update set to: ${clickedValue}`);
                     }
@@ -1267,10 +1267,10 @@ async function handleResetAllSettings() {
             try {
                 // Reset launcher settings
                 await executeCommand('set-property', {
-                    'launcher-restore-last-page': 'true',
-                    'launcher-skip-hash-verification': 'false',
-                    'launcher-close-on-launch': 'false',
-                    'launcher-skip-client-update': 'false'
+                    [PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE]: 'true',
+                    [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false'
                 });
 
                 // Reset CDN preference to auto

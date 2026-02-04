@@ -166,7 +166,7 @@ namespace utils::cdn
 
 	void cdn_manager::load_preference()
 	{
-		const auto value = properties::load(PREFERENCE_KEY);
+		const auto value = properties::load(property_keys::CDN_PREFERENCE);
 		if (value.has_value())
 		{
 			this->preference_ = string_to_region(value.value());
@@ -179,7 +179,7 @@ namespace utils::cdn
 
 	void cdn_manager::save_preference()
 	{
-		properties::store(PREFERENCE_KEY, region_to_string(this->preference_));
+		properties::store(property_keys::CDN_PREFERENCE, region_to_string(this->preference_));
 	}
 
 	const latency_result& cdn_manager::get_cached_latency() const

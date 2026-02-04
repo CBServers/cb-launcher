@@ -172,7 +172,7 @@ class SetupFlowPopup {
                 // Check for existing install path
                 const existingPath = await window.executeCommand('get-game-property', {
                     game: this.currentGame,
-                    suffix: 'install'
+                    suffix: PROPERTY_KEYS.GAME.INSTALL
                 });
 
                 if (existingPath && existingPath.trim() !== '') {

@@ -170,7 +170,7 @@ class ComponentSelectionPopup {
         // Get install path and available space
         const installPath = await window.executeCommand('get-game-property', {
             game: this.currentGame,
-            suffix: 'install'
+            suffix: PROPERTY_KEYS.GAME.INSTALL
         });
         this.availableSpace = 0;
         if (installPath) {

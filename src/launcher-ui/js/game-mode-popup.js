@@ -163,7 +163,7 @@ class GameModePopup {
             try {
                 const result = await window.executeCommand('get-game-property', {
                     game: game,
-                    suffix: 'game-mode'
+                    suffix: PROPERTY_KEYS.GAME.GAME_MODE
                 });
                 return result || null;
             } catch (error) {
@@ -179,7 +179,7 @@ class GameModePopup {
             try {
                 await window.executeCommand('set-game-property', {
                     game: game,
-                    suffix: 'game-mode',
+                    suffix: PROPERTY_KEYS.GAME.GAME_MODE,
                     value: mode
                 });
                 console.log(`Saved preference for ${game}: ${mode}`);

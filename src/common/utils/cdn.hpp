@@ -4,6 +4,8 @@
 #include <optional>
 #include <vector>
 
+#include "property_keys.hpp"
+
 namespace utils::cdn
 {
 	enum class cdn_region
@@ -72,7 +74,6 @@ namespace utils::cdn
 
 		static constexpr const char* CDN_NA_URL = "https://cdn.cbservers.xyz/";
 		static constexpr const char* CDN_EU_URL = "https://cdn-eu.cbservers.xyz/";
-		static constexpr const char* PREFERENCE_KEY = "launcher-cdn-preference";
 		static constexpr int LATENCY_TIMEOUT_SECONDS = 5;
 	};
 }

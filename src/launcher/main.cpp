@@ -6,9 +6,9 @@
 #include <utils/flags.hpp>
 #include <utils/named_mutex.hpp>
 #include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 #include <utils/io.hpp>
 #include <utils/com.hpp>
-#include <utils/properties.hpp>
 
 namespace
 {
@@ -101,7 +101,7 @@ namespace
 	{
 		try
 		{
-			if (utils::properties::load("launcher-shortcut-created") == "true")
+			if (utils::properties::load(property_keys::SHORTCUT_CREATED) == "true")
 			{
 				return;
 			}
@@ -118,7 +118,7 @@ namespace
 
 			if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
 			{
-				utils::properties::store("launcher-shortcut-created", "true");
+				utils::properties::store(property_keys::SHORTCUT_CREATED, "true");
 			}
 		}
 		catch (...)
