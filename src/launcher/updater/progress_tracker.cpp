@@ -23,7 +23,11 @@ namespace updater
 		this->state_.completed_files = 0;
 		this->state_.downloaded_bytes = 0;
 		this->state_.current_file.clear();
-		this->state_.status_message = "Starting update...";
+
+		const char* action = (mode == progress_mode::verifying) ? "verification"
+			: (mode == progress_mode::deleting) ? "deletion" : "download";
+		this->state_.status_message = utils::string::va("Starting %s...", action);
+
 		this->state_.progress_percent = 0.0f;
 		this->mode_ = mode;
 		this->files_in_progress_.clear();

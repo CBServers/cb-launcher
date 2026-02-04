@@ -5,6 +5,7 @@ namespace commands::property_keys
 	// Launcher settings
 	constexpr const char* CLOSE_ON_LAUNCH = "launcher-close-on-launch";
 	constexpr const char* SKIP_HASH_VERIFICATION = "launcher-skip-hash-verification";
+	constexpr const char* SKIP_CLIENT_UPDATE = "launcher-skip-client-update";
 
 	// Game component settings (used with game config get/set)
 	constexpr const char* DETECTED_COMPONENTS = "detected-components";

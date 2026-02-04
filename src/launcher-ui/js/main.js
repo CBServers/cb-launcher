@@ -1053,6 +1053,22 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Skip Client Update" setting
+        const skipClientUpdate = await window.executeCommand('get-property', 'launcher-skip-client-update');
+        const skipClientUpdateToggle = document.getElementById('skip-client-update-toggle');
+
+        if (skipClientUpdateToggle) {
+            const buttons = skipClientUpdateToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Default to "false" if not set
+            const targetValue = (skipClientUpdate === 'true') ? 'true' : 'false';
+            const targetButton = skipClientUpdateToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
         // Load CDN settings
         await initCdnSettings();
 
@@ -1216,6 +1232,11 @@ function setupLauncherSettingsToggles() {
                             'launcher-close-on-launch': clickedValue
                         });
                         console.log(`Close on launch set to: ${clickedValue}`);
+                    } else if (settingId === 'skip-client-update-toggle') {
+                        await window.executeCommand('set-property', {
+                            'launcher-skip-client-update': clickedValue
+                        });
+                        console.log(`Skip client update set to: ${clickedValue}`);
                     }
                 } catch (error) {
                     console.error('Failed to save launcher setting:', error);
@@ -1248,7 +1269,8 @@ async function handleResetAllSettings() {
                 await executeCommand('set-property', {
                     'launcher-restore-last-page': 'true',
                     'launcher-skip-hash-verification': 'false',
-                    'launcher-close-on-launch': 'false'
+                    'launcher-close-on-launch': 'false',
+                    'launcher-skip-client-update': 'false'
                 });
 
                 // Reset CDN preference to auto

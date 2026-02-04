@@ -156,10 +156,21 @@ namespace commands::game_commands
 						}
 					}
 
-					// Get files to skip based on game configuration
-					const auto skip_files = ctx.get_skip_files(game, config);
+					// Check if client update should be skipped
+					const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
+					const bool skip_client_update = skip_client_update_prop && *skip_client_update_prop == "true";
 
-					client_updater::run(config, &progress_listener, skip_files);
+					if (skip_client_update)
+					{
+						printf("Skip client update enabled - skipping client update check\n");
+					}
+					else
+					{
+						// Get files to skip based on game configuration
+						const auto skip_files = ctx.get_skip_files(game, config);
+
+						client_updater::run(config, &progress_listener, skip_files);
+					}
 					progress_listener.done_update();
 
 					launch_game(config, game, mode, cef_ui);
