@@ -12,7 +12,7 @@ namespace launcher_updater
 
 namespace game_updater
 {
-	void run(const game_config::game_config_t& config, bool skip_hash = false, updater::ui_progress_listener* listener = nullptr);
+	void run(const game_config::game_config_t& config, bool skip_hash = false, bool delete_deselected = false, updater::ui_progress_listener* listener = nullptr);
 }
 
 namespace client_updater

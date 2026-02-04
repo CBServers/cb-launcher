@@ -12,7 +12,7 @@ namespace game_updater
 	class game_updater
 	{
 	public:
-		game_updater(const game_config::game_config_t& config, bool skip_hash = false, updater::ui_progress_listener* listener = nullptr);
+		game_updater(const game_config::game_config_t& config, bool skip_hash = false, bool delete_deselected = false, updater::ui_progress_listener* listener = nullptr);
 
 		void run() const;
 		void delete_game() const;
@@ -37,7 +37,8 @@ namespace game_updater
 		std::string base_url;
 		update_manifest manifest_;
 		bool is_steam_install;
-		bool skip_hash_check;
+		bool skip_hash_check_;
+		bool delete_deselected_;
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;

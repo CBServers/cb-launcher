@@ -28,9 +28,9 @@ namespace launcher_updater
 
 namespace game_updater
 {
-	void run(const game_config::game_config_t& config, bool skip_hash, updater::ui_progress_listener* listener)
+	void run(const game_config::game_config_t& config, bool skip_hash, bool delete_deselected, updater::ui_progress_listener* listener)
 	{
-		const game_updater game_updater{config, skip_hash, listener};
+		const game_updater game_updater{config, skip_hash, delete_deselected, listener};
 		game_updater.run();
 	}
 }

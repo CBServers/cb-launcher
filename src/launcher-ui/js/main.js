@@ -863,15 +863,15 @@ function showManageInstall(gameId) {
     gamePopups[gameId].componentSelectionPopup.show(gameMapping, gameConfig);
 }
 
-function verifyGame(gameId) {
-    console.log(`Verify button clicked for ${gameId}`);
+function verifyGame(gameId, deleteComponents = false) {
+    console.log(`Verify button clicked for ${gameId}, deleteComponents: ${deleteComponents}`);
 
     const gameMapping = GameUtils.getGameMapping(gameId);
 
     GameUtils.trackCommandProgress({
         gameId: gameId,
         command: 'verify-game',
-        commandArgs: { game: gameMapping },
+        commandArgs: { game: gameMapping, delete_components: deleteComponents },
         initialMessage: `Verifying ${window.GameInstallationManager.getGameDisplayName(gameId)}...`,
         completeMessage: 'Verification complete!',
         onComplete: () => {

@@ -200,8 +200,8 @@ namespace game_updater
 		}
 	}
 
-	game_updater::game_updater(const game_config::game_config_t& config, bool skip_hash, updater::ui_progress_listener* listener)
-		: config_(config), progress_listener_(listener)
+	game_updater::game_updater(const game_config::game_config_t& config, bool skip_hash, bool delete_deselected, updater::ui_progress_listener* listener)
+		: config_(config), skip_hash_check_(skip_hash), delete_deselected_(delete_deselected), progress_listener_(listener)
 	{
 		const auto install_path_prop = config.get_install_path();
 		if (install_path_prop.has_value())
@@ -211,7 +211,6 @@ namespace game_updater
 
 		this->is_steam_install = config.is_steam_install();
 		this->base_url = game_config::get_resolved_base_url(config);
-		this->skip_hash_check = skip_hash;
 
 		this->manifest_ = get_manifest(this->base_url + "/" + MANIFEST_FILE);
 		if (this->manifest_.empty())
@@ -245,11 +244,14 @@ namespace game_updater
 
 		if (!selected_components.empty())
 		{
-			// Delete files from deselected components before verification
-			const auto files_to_delete = this->get_files_to_delete(selected_components);
-			if (!files_to_delete.empty())
+			// Only delete files from deselected components if explicitly requested
+			if (this->delete_deselected_)
 			{
-				this->delete_files(files_to_delete);
+				const auto files_to_delete = this->get_files_to_delete(selected_components);
+				if (!files_to_delete.empty())
+				{
+					this->delete_files(files_to_delete);
+				}
 			}
 		}
 		else
@@ -282,11 +284,6 @@ namespace game_updater
 
 		if (outdated_files.empty())
 		{
-			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
-
-			// Mark game as fully installed
-			config_.set_installed(true);
-
 			printf("All files are up to date!\n");
 
 			// Detect and cache installed components
@@ -302,6 +299,10 @@ namespace game_updater
 			{
 				config_.set_list("selected-components", detected);
 			}
+
+			// Mark game as fully installed
+			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
+			config_.set_installed(true);
 			return;
 		}
 
@@ -321,11 +322,6 @@ namespace game_updater
 
 		if (!this->is_update_cancelled())
 		{
-			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
-
-			// Mark game as fully installed
-			config_.set_installed(true);
-
 			// Detect and cache installed components
 			if (this->progress_listener_)
 			{
@@ -339,6 +335,10 @@ namespace game_updater
 			{
 				config_.set_list("selected-components", detected);
 			}
+
+			// Mark game as fully installed
+			utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
+			config_.set_installed(true);
 		}
 
 		printf("Update complete!\n");
@@ -432,7 +432,7 @@ namespace game_updater
 
 	std::vector<updater::file_info> game_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
 	{
-		printf("Verifying files, please wait...\n");
+		printf("Verifying %zu files, please wait...\n", files.size());
 
 		std::vector<updater::file_info> outdated_files{};
 		for (const auto& info : files)
@@ -647,7 +647,7 @@ namespace game_updater
 			return true;
 		}
 
-		if (!this->skip_hash_check)
+		if (!this->skip_hash_check_)
 		{
 			const auto hash = utils::hash::get_file_hash(drive_name);
 			return hash != file.hash;

@@ -450,10 +450,10 @@ class ComponentSelectionPopup {
             // Close popup
             this.hide();
 
-            // Auto-start verification
+            // Auto-start verification (pass willDeleteFiles to enable component deletion)
             const gameId = GameUtils.getUIIdFromBackendId(this.currentGame);
             if (gameId) {
-                verifyGame(gameId);
+                verifyGame(gameId, willDeleteFiles);
             }
 
         } catch (error) {

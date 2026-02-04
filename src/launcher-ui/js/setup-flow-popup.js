@@ -541,7 +541,7 @@ class SetupFlowPopup {
         return GameUtils.trackCommandProgress({
             gameId: gameId,
             command: 'verify-game',
-            commandArgs: { game: this.currentGame },
+            commandArgs: { game: this.currentGame, delete_components: false },
             initialMessage: `Downloading ${window.GameInstallationManager.getGameDisplayName(gameId)}...`,
             completeMessage: 'Download complete!',
             onComplete: () => {

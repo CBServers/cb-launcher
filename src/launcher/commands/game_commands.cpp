@@ -148,7 +148,7 @@ namespace commands::game_commands
 					// Check for game updates if configured (reduce unnecessary manifest fetch)
 					if (config.check_for_game_updates)
 					{
-						game_updater::game_updater game_updater(config, false, &progress_listener);
+						game_updater::game_updater game_updater(config, false, false, &progress_listener);
 						if (game_updater.is_update_needed())
 						{
 							cef_ui.show_message_box("Game Update Required", config.display_name + " requires an update. Please wait for update to complete before you can start playing.");
@@ -277,6 +277,13 @@ namespace commands::game_commands
 				printf("Skip hash verification enabled\n");
 			}
 
+			// Check if deselected components should be deleted
+			bool delete_deselected = false;
+			if (value.HasMember("delete_components") && value["delete_components"].IsBool())
+			{
+				delete_deselected = value["delete_components"].GetBool();
+			}
+
 			// Clear component cache before verification
 			config->set(property_keys::DETECTED_COMPONENTS, "");
 
@@ -284,7 +291,7 @@ namespace commands::game_commands
 			progress_listener.reset(true);
 
 			// Run verification in a separate thread with progress tracking
-			std::thread([config = *config, &progress_listener, &cef_ui, skip_hash, game, &ctx]()
+			std::thread([config = *config, &progress_listener, &cef_ui, skip_hash, delete_deselected, game, &ctx]()
 			{
 				try
 				{
@@ -294,11 +301,11 @@ namespace commands::game_commands
 						const auto base_config = game_config::get_game_config(config.base_game);
 						if (base_config)
 						{
-							game_updater::run(*base_config, skip_hash, &progress_listener);
+							game_updater::run(*base_config, skip_hash, delete_deselected, &progress_listener);
 						}
 					}
 
-					game_updater::run(config, skip_hash, &progress_listener);
+					game_updater::run(config, skip_hash, delete_deselected, &progress_listener);
 
 					// Get files to skip based on game configuration
 					const auto skip_files = ctx.get_skip_files(game, config);
@@ -399,7 +406,7 @@ namespace commands::game_commands
 			{
 				try
 				{
-					game_updater::game_updater updater(config, true, &progress_listener);
+					game_updater::game_updater updater(config, true, false, &progress_listener);
 					updater.delete_game();
 
 					// Clear installation status and component caches
