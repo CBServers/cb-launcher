@@ -472,20 +472,21 @@ namespace game_config
 		}
 		else
 		{
-			// Games with no modes use -launch argument
-			std::string launch_args = "-launch";
-
-			// Special handling for BO3 cinematic setting
+			// Only BO3 uses -launch argument
 			if (game == "bo3")
 			{
+				std::string launch_args = "-launch";
+
 				const auto cinematic_setting = utils::properties::load("bo3-skip-intro-cinematic");
 				if (cinematic_setting && cinematic_setting->data() == std::string("true"))
 				{
 					launch_args += " -nointro";
 				}
+
+				return launch_args;
 			}
 
-			return launch_args;
+			return "";
 		}
 	}
 
