@@ -290,7 +290,7 @@ namespace game_config
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
-				.required_updater_files = {"boiii.exe"},
+				.required_updater_files = {"boiii.exe", "BlackOps3.exe"},
 				.valid_game_files = {"BlackOps3.exe"},
 				.mode_arguments = {},
 				.base_folder = "bo3_game_files",
