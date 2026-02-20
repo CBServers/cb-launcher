@@ -11,6 +11,7 @@
 #include <utils/hash.hpp>
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 
 #define MANIFEST_FILE "manifest_v2.json"
 
@@ -231,7 +232,7 @@ namespace game_updater
 		check_cancelled();
 
 		// Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
-		std::vector<std::string> selected_components = config_.get_list("selected-components");
+		std::vector<std::string> selected_components = config_.get_list(property_keys::SELECTED_COMPONENTS);
 
 		// Remove virtual base game component IDs (they're handled separately in verify-game command)
 		selected_components.erase(
@@ -294,10 +295,10 @@ namespace game_updater
 
 			printf("Detecting installed components...\n");
 			const auto detected = this->detect_installed_components();
-			config_.set_list("detected-components", detected);
-			if (config_.get_list("selected-components").empty())
+			config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
+			if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
 			{
-				config_.set_list("selected-components", detected);
+				config_.set_list(property_keys::SELECTED_COMPONENTS, detected);
 			}
 
 			// Mark game as fully installed
@@ -330,10 +331,10 @@ namespace game_updater
 
 			printf("Detecting installed components...\n");
 			const auto detected = this->detect_installed_components();
-			config_.set_list("detected-components", detected);
-			if (config_.get_list("selected-components").empty())
+			config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
+			if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
 			{
-				config_.set_list("selected-components", detected);
+				config_.set_list(property_keys::SELECTED_COMPONENTS, detected);
 			}
 
 			// Mark game as fully installed

@@ -411,8 +411,8 @@ namespace commands::game_commands
 
 					// Clear installation status and component caches
 					config.set_installed(false);
-					config.set_list("detected-components", {});
-					config.set_list("selected-components", {});
+					config.set_list(property_keys::DETECTED_COMPONENTS, {});
+					config.set_list(property_keys::SELECTED_COMPONENTS, {});
 
 					progress_listener.done_update();
 					cef_ui.show_message_box("Uninstall Complete", config.display_name + " has been uninstalled successfully.");
