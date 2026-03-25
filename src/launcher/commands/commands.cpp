@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "commands.hpp"
 #include <utils/property_keys.hpp>
+#include <utils/nt.hpp>
 #include "cef/cef_ui.hpp"
 #include "updater/game_updater.hpp"
 
@@ -31,11 +32,11 @@ namespace commands
 	{
 		std::vector<std::string> skip_files;
 
-		// Check if HMW and CB extension is disabled
+		// Check if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
 		if (game == "hmw")
 		{
 			const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
-			if (disable_ext && *disable_ext == "true")
+			if (utils::nt::is_wine_environment() || (disable_ext && *disable_ext == "true"))
 			{
 				skip_files.push_back("d3d11.dll");
 			}

@@ -67,12 +67,17 @@ namespace commands::game_commands
 			}
 
 			const auto game_directory = std::filesystem::path(game_install->data());
-			// Delete d3d11.dll if HMW and CB extension is disabled
+			// Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
 			if (game == "hmw")
 			{
 				const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
-				if (disable_ext && *disable_ext == "true")
+				const bool force_disable = utils::nt::is_wine_environment();
+				if (force_disable || (disable_ext && *disable_ext == "true"))
 				{
+					if (force_disable)
+					{
+						printf("[Wine] Disabling CB Extension (d3d11 proxy) - not compatible with Wine/Proton\n");
+					}
 					const auto dll_path = game_directory / "d3d11.dll";
 					if (utils::io::file_exists(dll_path.string()))
 					{
@@ -93,8 +98,26 @@ namespace commands::game_commands
 
 				const auto launch_args = get_launch_options(game_config::get_launch_arguments(game, mode), config);
 
-				printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+				if (utils::nt::is_wine_environment())
+				{
+					printf("[Wine] Launching game: exe=%s, working_dir=%s, args=%s\n",
+						game_exe.string().data(), game_directory.string().data(), launch_args.data());
+				}
+				else
+				{
+					printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+				}
+
 				const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
+
+				if (pid == 0)
+				{
+					unlock_termination_barrier();
+					const auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, GetLastError());
+					printf("Launch failed: %s\n", error_msg.data());
+					cef_ui.show_message_box("Game Launch Error", error_msg);
+					return;
+				}
 
 				// Check if launcher should close after game starts
 				const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);

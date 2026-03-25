@@ -18,16 +18,27 @@ namespace launcher_updater
 		this->downloaded_files_.clear();
 		this->downloading_files_.clear();
 
-		this->progress_ui_ = {};
-		this->progress_ui_.set_title("CB Servers Updater");
-		this->progress_ui_.show();
+		try
+		{
+			this->progress_ui_.emplace();
+			this->progress_ui_->set_title("CB Servers Updater");
+			this->progress_ui_->show();
+		}
+		catch (...)
+		{
+			this->progress_ui_.reset();
+			printf("[Wine] Progress dialog unavailable, updates will continue silently\n");
+		}
 	}
 
 	void updater_ui::done_update()
 	{
 		std::lock_guard<std::recursive_mutex> _{this->mutex_};
 
-		this->progress_ui_.set_progress(1, 1);
+		if (this->progress_ui_)
+		{
+			this->progress_ui_->set_progress(1, 1);
+		}
 		this->update_file_name();
 
 		this->total_files_.clear();
@@ -76,7 +87,7 @@ namespace launcher_updater
 
 	void updater_ui::handle_cancellation() const
 	{
-		if (this->progress_ui_.is_cancelled())
+		if (this->progress_ui_ && this->progress_ui_->is_cancelled())
 		{
 			throw updater::update_cancelled();
 		}
@@ -85,27 +96,31 @@ namespace launcher_updater
 	void updater_ui::update_progress() const
 	{
 		std::lock_guard<std::recursive_mutex> _{this->mutex_};
-		this->progress_ui_.set_progress(this->get_downloaded_size(), this->get_total_size());
+		if (this->progress_ui_)
+		{
+			this->progress_ui_->set_progress(this->get_downloaded_size(), this->get_total_size());
+		}
 	}
 
 	void updater_ui::update_file_name() const
 	{
 		std::lock_guard<std::recursive_mutex> _{this->mutex_};
+		if (!this->progress_ui_) return;
 
 		const auto downloaded_file_count = this->get_downloaded_files();
 		const auto total_file_count = this->get_total_files();
 
 		if (downloaded_file_count == total_file_count)
 		{
-			this->progress_ui_.set_line(1, "Update successful.");
+			this->progress_ui_->set_line(1, "Update successful.");
 		}
 		else
 		{
-			this->progress_ui_.set_line(1, utils::string::va("Updating files... (%zu/%zu)", downloaded_file_count,
-			                                                 total_file_count));
+			this->progress_ui_->set_line(1, utils::string::va("Updating files... (%zu/%zu)", downloaded_file_count,
+			                                                  total_file_count));
 		}
 
-		this->progress_ui_.set_line(2, this->get_relevant_file_name());
+		this->progress_ui_->set_line(2, this->get_relevant_file_name());
 	}
 
 	size_t updater_ui::get_total_size() const
