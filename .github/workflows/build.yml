@@ -100,16 +100,24 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/download/v1.0.0/update-hasher.exe" -OutFile "update-hasher.exe"
 
+      - name: Set artifact folder name
+        run: |
+          if ("${{ github.ref }}" -eq "refs/heads/develop") {
+            echo "ARTIFACT_FOLDER=cb-launcher-dev" >> $env:GITHUB_ENV
+          } else {
+            echo "ARTIFACT_FOLDER=cb-launcher" >> $env:GITHUB_ENV
+          }
+
       - name: Generate hashed.json
         run: |
           .\update-hasher.exe
 
-      - name: Move files to cb-launcher folder and rename hashes
+      - name: Move files to artifact folder and rename hashes
         run: |
-          mkdir cb-launcher
-          Move-Item -Path .\cb-launcher.exe -Destination .\cb-launcher\
-          Move-Item -Path .\data -Destination .\cb-launcher\
-          mv hashed.json cb-launcher.json
+          mkdir ${{ env.ARTIFACT_FOLDER }}
+          Move-Item -Path .\cb-launcher.exe -Destination .\${{ env.ARTIFACT_FOLDER }}\
+          Move-Item -Path .\data -Destination .\${{ env.ARTIFACT_FOLDER }}\
+          mv hashed.json ${{ env.ARTIFACT_FOLDER }}.json
 
       - name: Clone updater
         run: |
@@ -123,10 +131,10 @@ jobs:
 
       - name: Copy files to updater and cleanup
         run: |
-          Copy-Item -Path .\cb-launcher.json -Destination .\updater\updater\ -Force
-          Copy-Item -Path .\cb-launcher -Destination .\updater\updater\ -Recurse -Force
-          Remove-Item -Path .\cb-launcher.json -Force
-          Remove-Item -Path .\cb-launcher -Recurse -Force
+          Copy-Item -Path .\${{ env.ARTIFACT_FOLDER }}.json -Destination .\updater\updater\ -Force
+          Copy-Item -Path .\${{ env.ARTIFACT_FOLDER }} -Destination .\updater\updater\ -Recurse -Force
+          Remove-Item -Path .\${{ env.ARTIFACT_FOLDER }}.json -Force
+          Remove-Item -Path .\${{ env.ARTIFACT_FOLDER }} -Recurse -Force
           Remove-Item -Path .\update-hasher.exe -Force
 
       - name: Push changes to updater

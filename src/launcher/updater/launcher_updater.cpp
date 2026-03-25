@@ -17,6 +17,8 @@
 
 #define UPDATE_FILE_MAIN UPDATE_SERVER "cb-launcher.json"
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "cb-launcher/"
+#define UPDATE_FILE_DEV UPDATE_SERVER "cb-launcher-dev.json"
+#define UPDATE_FOLDER_DEV UPDATE_SERVER "cb-launcher-dev/"
 #define UPDATE_HOST_BINARY "cb-launcher.exe"
 
 namespace launcher_updater
@@ -25,11 +27,19 @@ namespace launcher_updater
 	{
 		std::string get_update_file()
 		{
+			if (GIT_BRANCH == "develop"s)
+			{
+				return UPDATE_FILE_DEV;
+			}
 			return UPDATE_FILE_MAIN;
 		}
 
 		std::string get_update_folder()
 		{
+			if (GIT_BRANCH == "develop"s)
+			{
+				return UPDATE_FOLDER_DEV;
+			}
 			return UPDATE_FOLDER_MAIN;
 		}
 
