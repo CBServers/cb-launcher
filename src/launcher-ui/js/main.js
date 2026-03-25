@@ -1363,7 +1363,8 @@ async function loadVersion() {
 
         if (response && response.version) {
             // Display the full git describe version
-            versionElement.textContent = `Version: ${response.version}`;
+            const branchSuffix = response.gitBranch === 'develop' ? ' (develop)' : '';
+            versionElement.textContent = `Version: ${response.version}${branchSuffix}`;
 
             // Add tooltip with more details
             versionElement.title = `File Version: ${response.versionFile}\nCommit: ${response.gitHash.substring(0, 8)}\nBranch: ${response.gitBranch}`;
