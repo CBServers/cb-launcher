@@ -242,6 +242,15 @@ namespace utils::nt
 		}
 	}
 
+	bool is_wine_environment()
+	{
+		static const auto result = []() -> bool {
+			const library ntdll("ntdll.dll");
+			return ntdll.get_proc<void*>("wine_get_version") != nullptr;
+		}();
+		return result;
+	}
+
 	void raise_hard_exception()
 	{
 		int data = false;
@@ -275,8 +284,13 @@ namespace utils::nt
 
 		// Prepend exe path to command line for proper argv[0] parsing
 		const auto full_command_line = "\"" + process.string() + "\" " + command_line;
-		CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, current_dir,
+		const auto success = CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, current_dir,
 		               &startup_info, &process_info);
+
+		if (!success)
+		{
+			printf("CreateProcessW failed (error %lu): %s\n", GetLastError(), process.string().data());
+		}
 
 		if (process_info.hThread && process_info.hThread != INVALID_HANDLE_VALUE) CloseHandle(process_info.hThread);
 		if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
@@ -293,8 +307,14 @@ namespace utils::nt
 
 		// Prepend exe path to command line for proper argv[0] parsing
 		const auto full_command_line = "\"" + process.string() + "\" " + command_line;
-		CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, working_directory.wstring().data(),
+		const auto success = CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, working_directory.wstring().data(),
 		               &startup_info, &process_info);
+
+		if (!success)
+		{
+			printf("CreateProcessW failed (error %lu): %s (working dir: %s)\n",
+				GetLastError(), process.string().data(), working_directory.string().data());
+		}
 
 		const auto pid = process_info.dwProcessId;
 

@@ -8,6 +8,7 @@
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
+#include <utils/nt.hpp>
 #include <utils/com.hpp>
 
 namespace
@@ -160,7 +161,15 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 			launcher_updater::run(path);
 		}
 
-		create_shortcut();
+		if (!utils::nt::is_wine_environment())
+		{
+			create_shortcut();
+		}
+		else
+		{
+			printf("[Wine/Proton] Running under Wine - some Windows-specific features are disabled\n");
+		}
+
 		show_window(lib, path);
 
 		return 0;

@@ -3,6 +3,7 @@
 #include "progress_ui.hpp"
 #include "progress_listener.hpp"
 
+#include <optional>
 #include <utils/concurrency.hpp>
 
 namespace launcher_updater
@@ -19,7 +20,7 @@ namespace launcher_updater
 		std::vector<updater::file_info> downloaded_files_{};
 		std::unordered_map<std::string, std::pair<size_t, size_t>> downloading_files_{};
 
-		progress_ui progress_ui_{};
+		std::optional<progress_ui> progress_ui_{};
 
 		void update_files(const std::vector<updater::file_info>& files) override;
 		void done_update() override;

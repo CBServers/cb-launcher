@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 
 #include <utils/properties.hpp>
+#include <utils/nt.hpp>
 #include <game_config.hpp>
 #include <version.hpp>
 
@@ -56,6 +57,11 @@ namespace commands::info_commands
 			response.AddMember("gitHash", GIT_HASH, allocator);
 			response.AddMember("gitBranch", GIT_BRANCH, allocator);
 			response.AddMember("gitDirty", GIT_DIRTY, allocator);
+		});
+
+		cef_ui.add_command("is-wine-environment", [](const rapidjson::Value&, rapidjson::Document& response)
+		{
+			response.SetBool(utils::nt::is_wine_environment());
 		});
 
 		cef_ui.add_command("check-launcher-update", [](const rapidjson::Value&, rapidjson::Document& response)
