@@ -10,6 +10,7 @@
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
 #include <utils/string.hpp>
+#include <version.hpp>
 
 #include <rapidjson/writer.h>
 
