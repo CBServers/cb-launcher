@@ -98,14 +98,14 @@ namespace commands::game_commands
 
 				const auto launch_args = get_launch_options(game_config::get_launch_arguments(game, mode), config);
 
+				printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+
 				if (utils::nt::is_wine_environment())
 				{
-					printf("[Wine] Launching game: exe=%s, working_dir=%s, args=%s\n",
-						game_exe.string().data(), game_directory.string().data(), launch_args.data());
-				}
-				else
-				{
-					printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+					cef_ui.show_message_box("Wine/Proton Warning",
+						"Launching games directly from the launcher is not fully supported under Wine/Proton, you may experience issues.\n"
+						"It is recommended to launch '" + exe_name + "' separately under Proton instead.\n"
+						 "For now, use the launcher for downloading and verifying game files on Linux.");
 				}
 
 				const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
@@ -131,12 +131,12 @@ namespace commands::game_commands
 
 				// Spawn watchdog thread to unlock barrier when game exits
 				std::thread([pid]()
+				{
+					if (utils::nt::wait_for_process(pid))
 					{
-						if (utils::nt::wait_for_process(pid))
-						{
-							unlock_termination_barrier();
-						}
-					}).detach();
+						unlock_termination_barrier();
+					}
+				}).detach();
 			}
 			else
 			{
