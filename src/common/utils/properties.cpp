@@ -91,7 +91,7 @@ namespace utils::properties
 			CoTaskMemFree(path);
 		});
 
-		static auto appdata = std::filesystem::path(path) / folder;
+		auto appdata = std::filesystem::path(path) / folder;
 		return appdata;
 	}
 

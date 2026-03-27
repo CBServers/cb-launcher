@@ -2,8 +2,10 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <optional>
+#include <filesystem>
 
 namespace game_config
 {
@@ -55,6 +57,11 @@ namespace game_config
 		std::string base_properties_game;
 		// Property overrides for specific properties (e.g., HMW-specific overrides)
 		std::unordered_map<std::string, std::string> property_overrides;
+
+		// Default directory for client files. Empty = use install_path (current behavior).
+		std::filesystem::path client_default_path;
+		// Files that always go to install_path even when client_default_path is set
+		std::unordered_set<std::string> client_install_path_files;
 
 		// Helper to construct full property key (public to maintain aggregate status)
 		std::string make_property_key(const std::string& suffix) const;

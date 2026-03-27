@@ -290,12 +290,14 @@ namespace game_config
 				.exe_name = "boiii.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
-				.required_updater_files = {"boiii.exe", "BlackOps3.exe"},
+				.required_updater_files = {},
 				.valid_game_files = {"BlackOps3.exe"},
 				.mode_arguments = {},
 				.base_folder = "bo3_game_files",
 				.base_properties_game = "",
-				.property_overrides = {}
+				.property_overrides = {},
+				.client_default_path = utils::properties::get_appdata_folder_path("boiii"),
+				.client_install_path_files = {"boiii.exe", "BlackOps3.exe"}
 			}
 		},
 		{
@@ -307,7 +309,7 @@ namespace game_config
 				.exe_name = "iw6x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
-				.required_updater_files = {"iw6x.exe"},
+				.required_updater_files = {},
 				.valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
@@ -327,7 +329,7 @@ namespace game_config
 				.exe_name = "s1x.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
-				.required_updater_files = {"s1x.exe"},
+				.required_updater_files = {},
 				.valid_game_files = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
@@ -349,7 +351,7 @@ namespace game_config
 				.exe_name = "h1-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
-				.required_updater_files = {"h1-mod.exe"},
+				.required_updater_files = {},
 				.valid_game_files = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
 				.mode_arguments = {
 					{"sp", "-singleplayer"},
@@ -357,7 +359,9 @@ namespace game_config
 				},
 				.base_folder = "mwr_game_files",
 				.base_properties_game = "",
-				.property_overrides = {}
+				.property_overrides = {},
+				.client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
+				.client_install_path_files = {"h1-mod.exe"}
 			}
 		},
 		{
@@ -369,12 +373,14 @@ namespace game_config
 				.exe_name = "iw7-mod.exe",
 				.update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
 				.update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
-				.required_updater_files = {"iw7-mod.exe"},
+				.required_updater_files = {},
 				.valid_game_files = {"iw7_ship.exe"},
 				.mode_arguments = {},
 				.base_folder = "iw_game_files",
 				.base_properties_game = "",
-				.property_overrides = {}
+				.property_overrides = {},
+				.client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
+				.client_install_path_files = {"iw7-mod.exe"}
 			}
 		},
 		{

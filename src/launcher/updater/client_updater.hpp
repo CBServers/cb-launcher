@@ -21,10 +21,12 @@ namespace client_updater
 
 	private:
 		std::filesystem::path install_path;
+		std::filesystem::path client_default_path_;
 		std::string update_manifest_url;
 		std::string update_folder_url;
 		std::vector<std::string> files_to_update;
 		std::vector<std::string> skip_files_;
+		std::unordered_set<std::string> client_install_path_files_;
 		updater::ui_progress_listener* progress_listener_;
 
 		void update_file(const updater::file_info& file) const;

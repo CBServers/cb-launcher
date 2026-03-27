@@ -131,6 +131,9 @@ namespace client_updater
 			this->install_path = std::filesystem::path(install_path_prop->data());
 		}
 
+		this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
+		this->client_install_path_files_ = config.client_install_path_files;
+
 		this->update_manifest_url = config.update_manifest_url;
 		this->update_folder_url = config.update_folder_url;
 
@@ -153,7 +156,7 @@ namespace client_updater
 			return;
 		}
 
-		const auto valid_files = find_file_infos(this->files_to_update, files);
+		const auto valid_files = this->files_to_update.empty() ? files : find_file_infos(this->files_to_update, files);
 		if (valid_files.empty())
 		{
 			return;
@@ -364,7 +367,12 @@ namespace client_updater
 
 	std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
 	{
-		return this->install_path / file.name;
+		if (!this->client_install_path_files_.empty() && this->client_install_path_files_.contains(file.name))
+		{
+			return this->install_path / file.name;
+		}
+
+		return this->client_default_path_ / file.name;
 	}
 
 	bool client_updater::is_update_cancelled() const
