@@ -293,6 +293,7 @@ namespace game_config
 				.required_updater_files = {},
 				.valid_game_files = {"BlackOps3.exe"},
 				.mode_arguments = {},
+				.default_args = "-launch -noupdate",
 				.base_folder = "bo3_game_files",
 				.base_properties_game = "",
 				.property_overrides = {},
@@ -315,6 +316,7 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
+				.default_args = "-noupdate",
 				.base_folder = "ghosts_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
@@ -337,6 +339,7 @@ namespace game_config
 					{"zm", "-zombies"},
 					{"sv", "-survival"}
 				},
+				.default_args = "-noupdate",
 				.base_folder = "aw_game_files",
 				.base_properties_game = "",
 				.property_overrides = {}
@@ -357,6 +360,7 @@ namespace game_config
 					{"sp", "-singleplayer"},
 					{"mp", "-multiplayer"}
 				},
+				.default_args = "-noupdate",
 				.base_folder = "mwr_game_files",
 				.base_properties_game = "",
 				.property_overrides = {},
@@ -376,6 +380,7 @@ namespace game_config
 				.required_updater_files = {},
 				.valid_game_files = {"iw7_ship.exe"},
 				.mode_arguments = {},
+				.default_args = "-noupdate",
 				.base_folder = "iw_game_files",
 				.base_properties_game = "",
 				.property_overrides = {},
@@ -466,7 +471,9 @@ namespace game_config
 			return "";
 		}
 
-		// For games with modes
+		std::string args = config->default_args;
+
+		// Append mode-specific arguments if applicable
 		if (config->mode_arguments.size() > 0)
 		{
 			if (mode.empty())
@@ -475,26 +482,25 @@ namespace game_config
 			}
 
 			const auto mode_arg = get_mode_argument(game, mode);
-			return mode_arg.value_or("");
-		}
-		else
-		{
-			// Only BO3 uses -launch argument
-			if (game == "bo3")
+			if (mode_arg.has_value() && !mode_arg->empty())
 			{
-				std::string launch_args = "-launch";
-
-				const auto cinematic_setting = utils::properties::load(property_keys::BO3_SKIP_INTRO_CINEMATIC);
-				if (cinematic_setting && cinematic_setting->data() == std::string("true"))
-				{
-					launch_args += " -nointro";
-				}
-
-				return launch_args;
+				if (!args.empty()) args += " ";
+				args += mode_arg.value();
 			}
-
-			return "";
 		}
+
+		// BO3-specific: append -nointro if user has enabled skip intro cinematic
+		if (game == "bo3")
+		{
+			const auto cinematic_setting = utils::properties::load(property_keys::BO3_SKIP_INTRO_CINEMATIC);
+			if (cinematic_setting && cinematic_setting->data() == std::string("true"))
+			{
+				if (!args.empty()) args += " ";
+				args += "-nointro";
+			}
+		}
+
+		return args;
 	}
 
 	std::string get_exe_for_mode(const std::string& game, const std::string& mode)

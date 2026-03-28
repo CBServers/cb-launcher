@@ -47,6 +47,7 @@ namespace game_config
 		std::vector<std::string> check_running_exes;
 		std::unordered_map<std::string, std::string> mode_arguments;
 		std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
+		std::string default_args;  // Arguments always passed when launching, regardless of mode
 		std::string pluto_path_key;
 		std::string base_folder;
 		std::string base_game;
