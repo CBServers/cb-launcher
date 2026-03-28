@@ -7,180 +7,180 @@
 
 namespace commands::property_commands
 {
-	void register_commands(cef::cef_ui& cef_ui, command_context&)
-	{
-		cef_ui.add_command("get-property", [](const rapidjson::Value& value, rapidjson::Document& response)
-		{
-			response.SetNull();
+    void register_commands(cef::cef_ui& cef_ui, command_context&)
+    {
+        cef_ui.add_command("get-property", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetNull();
 
-			if (!value.IsString())
-			{
-				return;
-			}
+            if (!value.IsString())
+            {
+                return;
+            }
 
-			const auto key = std::string{ value.GetString() };
-			const auto property = utils::properties::load(key);
-			if (!property)
-			{
-				return;
-			}
+            const auto key = std::string{ value.GetString() };
+            const auto property = utils::properties::load(key);
+            if (!property)
+            {
+                return;
+            }
 
-			response.SetString(*property, response.GetAllocator());
-		});
+            response.SetString(*property, response.GetAllocator());
+        });
 
-		cef_ui.add_command("set-property", [](const rapidjson::Value& value, auto&)
-		{
-			if (!value.IsObject())
-			{
-				return;
-			}
+        cef_ui.add_command("set-property", [](const rapidjson::Value& value, auto&)
+        {
+            if (!value.IsObject())
+            {
+                return;
+            }
 
-			const auto _ = utils::properties::lock();
+            const auto _ = utils::properties::lock();
 
-			for (auto i = value.MemberBegin(); i != value.MemberEnd(); ++i)
-			{
-				if (!i->value.IsString())
-				{
-					continue;
-				}
+            for (auto i = value.MemberBegin(); i != value.MemberEnd(); ++i)
+            {
+                if (!i->value.IsString())
+                {
+                    continue;
+                }
 
-				const auto key = std::string{ i->name.GetString() };
-				const auto val = std::string{ i->value.GetString() };
+                const auto key = std::string{ i->name.GetString() };
+                const auto val = std::string{ i->value.GetString() };
 
-				utils::properties::store(key, val);
-			}
-		});
+                utils::properties::store(key, val);
+            }
+        });
 
-		cef_ui.add_command("set-game-property", [](const rapidjson::Value& value, auto&)
-		{
-			if (!value.IsObject() || !value.HasMember("game") ||
-				!value.HasMember("suffix") || !value.HasMember("value"))
-			{
-				return;
-			}
+        cef_ui.add_command("set-game-property", [](const rapidjson::Value& value, auto&)
+        {
+            if (!value.IsObject() || !value.HasMember("game") ||
+                !value.HasMember("suffix") || !value.HasMember("value"))
+            {
+                return;
+            }
 
-			const auto game = std::string{ value["game"].GetString() };
-			const auto suffix = std::string{ value["suffix"].GetString() };
-			const auto val = std::string{ value["value"].GetString() };
+            const auto game = std::string{ value["game"].GetString() };
+            const auto suffix = std::string{ value["suffix"].GetString() };
+            const auto val = std::string{ value["value"].GetString() };
 
-			const auto config = game_config::get_game_config(game);
-			if (!config)
-			{
-				return; // Invalid game
-			}
+            const auto config = game_config::get_game_config(game);
+            if (!config)
+            {
+                return; // Invalid game
+            }
 
-			config->set(suffix, val);
-		});
+            config->set(suffix, val);
+        });
 
-		cef_ui.add_command("get-game-property", [](const rapidjson::Value& value, rapidjson::Document& response)
-		{
-			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("suffix"))
-			{
-				response.SetNull();
-				return;
-			}
+        cef_ui.add_command("get-game-property", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("suffix"))
+            {
+                response.SetNull();
+                return;
+            }
 
-			const auto game = std::string{ value["game"].GetString() };
-			const auto suffix = std::string{ value["suffix"].GetString() };
+            const auto game = std::string{ value["game"].GetString() };
+            const auto suffix = std::string{ value["suffix"].GetString() };
 
-			const auto config = game_config::get_game_config(game);
-			if (!config)
-			{
-				response.SetNull();
-				return;
-			}
+            const auto config = game_config::get_game_config(game);
+            if (!config)
+            {
+                response.SetNull();
+                return;
+            }
 
-			const auto result = config->get(suffix);
-			if (result.has_value())
-			{
-				response.SetString(result->data(), static_cast<rapidjson::SizeType>(result->length()), response.GetAllocator());
-			}
-			else
-			{
-				response.SetNull();
-			}
-		});
+            const auto result = config->get(suffix);
+            if (result.has_value())
+            {
+                response.SetString(result->data(), static_cast<rapidjson::SizeType>(result->length()), response.GetAllocator());
+            }
+            else
+            {
+                response.SetNull();
+            }
+        });
 
-		cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
-		{
-			response.SetBool(false); // Default to failure
+        cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetBool(false); // Default to failure
 
-			if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path") || !value.HasMember("existing_install"))
-			{
-				return;
-			}
+            if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path") || !value.HasMember("existing_install"))
+            {
+                return;
+            }
 
-			const auto game = std::string{ value["game"].GetString() };
-			const auto path = std::filesystem::path{ value["path"].GetString() };
-			const auto existing_install = value["existing_install"].GetBool();
+            const auto game = std::string{ value["game"].GetString() };
+            const auto path = std::filesystem::path{ value["path"].GetString() };
+            const auto existing_install = value["existing_install"].GetBool();
 
-			// Get game config
-			const auto config = game_config::get_game_config(game);
-			if (!config)
-			{
-				return;
-			}
+            // Get game config
+            const auto config = game_config::get_game_config(game);
+            if (!config)
+            {
+                return;
+            }
 
-			if (existing_install)
-			{
-				if (!game_config::validate_game_path(game, path))
-				{
-					return; // Invalid - no valid game exe found
-				}
+            if (existing_install)
+            {
+                if (!game_config::validate_game_path(game, path))
+                {
+                    return; // Invalid - no valid game exe found
+                }
 
-				const auto has_zone_folder = utils::io::directory_exists(path / "zone");
-				const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
-				if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
-				{
-					config->set_steam_install(true);
-				}
-				else
-				{
-					config->set_steam_install(false);
-				}
+                const auto has_zone_folder = utils::io::directory_exists(path / "zone");
+                const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
+                if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
+                {
+                    config->set_steam_install(true);
+                }
+                else
+                {
+                    config->set_steam_install(false);
+                }
 
-				// Mark as installed since validation passed
-				config->set_installed(true);
-			}
-			else
-			{
-				// For new downloads, mark as not installed yet
-				config->set_installed(false);
-			}
+                // Mark as installed since validation passed
+                config->set_installed(true);
+            }
+            else
+            {
+                // For new downloads, mark as not installed yet
+                config->set_installed(false);
+            }
 
-			if (!utils::io::directory_exists(path))
-			{
-				utils::io::create_directory(path);
-			}
+            if (!utils::io::directory_exists(path))
+            {
+                utils::io::create_directory(path);
+            }
 
-			// Path is valid, store it
-			config->set_install_path(path.string());
-			response.SetBool(true); // Success
-		});
+            // Path is valid, store it
+            config->set_install_path(path.string());
+            response.SetBool(true); // Success
+        });
 
-		cef_ui.add_command("reset-game-settings", [](const rapidjson::Value& value, auto&)
-		{
-			if (!value.IsObject() || !value.HasMember("game"))
-			{
-				return;
-			}
+        cef_ui.add_command("reset-game-settings", [](const rapidjson::Value& value, auto&)
+        {
+            if (!value.IsObject() || !value.HasMember("game"))
+            {
+                return;
+            }
 
-			const auto game = std::string{ value["game"].GetString() };
+            const auto game = std::string{ value["game"].GetString() };
 
-			if (game == "all")
-			{
-				game_config::reset_all_games();
-			}
-			else
-			{
-				const auto config = game_config::get_game_config(game);
-				if (!config)
-				{
-					return; // Invalid game
-				}
+            if (game == "all")
+            {
+                game_config::reset_all_games();
+            }
+            else
+            {
+                const auto config = game_config::get_game_config(game);
+                if (!config)
+                {
+                    return; // Invalid game
+                }
 
-				config->reset();
-			}
-		});
-	}
+                config->reset();
+            }
+        });
+    }
 }

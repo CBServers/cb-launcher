@@ -3,5 +3,5 @@
 
 namespace utils
 {
-	void at_exit(std::function<void()> callback);
+    void at_exit(std::function<void()> callback);
 }

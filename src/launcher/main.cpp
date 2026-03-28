@@ -13,179 +13,179 @@
 
 namespace
 {
-	void set_working_directory()
-	{
-		const auto appdata = utils::properties::get_appdata_path();
+    void set_working_directory()
+    {
+        const auto appdata = utils::properties::get_appdata_path();
 
-		if (!utils::io::directory_exists(appdata / "data"))
-		{
-			utils::io::create_directory(appdata / "data");
-		}
+        if (!utils::io::directory_exists(appdata / "data"))
+        {
+            utils::io::create_directory(appdata / "data");
+        }
 
-		std::filesystem::current_path(appdata);
-	}
+        std::filesystem::current_path(appdata);
+    }
 
-	void enable_dpi_awareness()
-	{
-		const utils::nt::library user32{"user32.dll"};
+    void enable_dpi_awareness()
+    {
+        const utils::nt::library user32{"user32.dll"};
 
-		const auto set_dpi_awareness_context = user32
-			? user32.get_proc<BOOL(WINAPI*)(DPI_AWARENESS_CONTEXT)>("SetProcessDpiAwarenessContext")
-			: nullptr;
+        const auto set_dpi_awareness_context = user32
+            ? user32.get_proc<BOOL(WINAPI*)(DPI_AWARENESS_CONTEXT)>("SetProcessDpiAwarenessContext")
+            : nullptr;
 
-		// Minimum: Windows 10, version 1703
-		if (set_dpi_awareness_context)
-		{
-			set_dpi_awareness_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-			return;
-		}
+        // Minimum: Windows 10, version 1703
+        if (set_dpi_awareness_context)
+        {
+            set_dpi_awareness_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            return;
+        }
 
-		const utils::nt::library shcore{"shcore.dll"};
+        const utils::nt::library shcore{"shcore.dll"};
 
-		const auto set_dpi_awareness = shcore
-			? shcore.get_proc<HRESULT(WINAPI*)(PROCESS_DPI_AWARENESS)>("SetProcessDpiAwareness")
-			: nullptr;
+        const auto set_dpi_awareness = shcore
+            ? shcore.get_proc<HRESULT(WINAPI*)(PROCESS_DPI_AWARENESS)>("SetProcessDpiAwareness")
+            : nullptr;
 
-		// Minimum: Windows 8.1
-		if (set_dpi_awareness)
-		{
-			set_dpi_awareness(PROCESS_PER_MONITOR_DPI_AWARE);
-			return;
-		}
+        // Minimum: Windows 8.1
+        if (set_dpi_awareness)
+        {
+            set_dpi_awareness(PROCESS_PER_MONITOR_DPI_AWARE);
+            return;
+        }
 
-		// Call vista function if nothing else was not resolved
-		SetProcessDPIAware();
-	}
+        // Call vista function if nothing else was not resolved
+        SetProcessDPIAware();
+    }
 
-	void run_as_singleton()
-	{
-		static utils::named_mutex mutex{"cb-launcher"};
-		if (!mutex.try_lock(3s))
-		{
-			throw std::runtime_error{"CB Servers Launcher is already running"};
-		}
-	}
+    void run_as_singleton()
+    {
+        static utils::named_mutex mutex{"cb-launcher"};
+        if (!mutex.try_lock(3s))
+        {
+            throw std::runtime_error{"CB Servers Launcher is already running"};
+        }
+    }
 
-	bool is_subprocess()
-	{
-		return strstr(GetCommandLineA(), "--cb-subprocess");
-	}
+    bool is_subprocess()
+    {
+        return strstr(GetCommandLineA(), "--cb-subprocess");
+    }
 
-	void run_watchdog()
-	{
-		std::thread([]()
-		{
-			const auto parent = utils::nt::get_parent_pid();
-			if (utils::nt::wait_for_process(parent))
-			{
-				std::this_thread::sleep_for(3s);
-				utils::nt::terminate();
-			}
-		}).detach();
-	}
+    void run_watchdog()
+    {
+        std::thread([]()
+        {
+            const auto parent = utils::nt::get_parent_pid();
+            if (utils::nt::wait_for_process(parent))
+            {
+                std::this_thread::sleep_for(3s);
+                utils::nt::terminate();
+            }
+        }).detach();
+    }
 
-	int run_subprocess(const utils::nt::library& process, const std::filesystem::path& path)
-	{
-		const cef::cef_ui cef_ui{process, path};
-		return cef_ui.run_process();
-	}
+    int run_subprocess(const utils::nt::library& process, const std::filesystem::path& path)
+    {
+        const cef::cef_ui cef_ui{process, path};
+        return cef_ui.run_process();
+    }
 
-	void show_window(const utils::nt::library& process, const std::filesystem::path& path)
-	{
-		cef::cef_ui cef_ui{process, path};
-		commands::register_all_commands(cef_ui);
-		cef_ui.create(path / "data" / "launcher-ui", "main.html");
-		cef::cef_ui::work();
-	}
+    void show_window(const utils::nt::library& process, const std::filesystem::path& path)
+    {
+        cef::cef_ui cef_ui{process, path};
+        commands::register_all_commands(cef_ui);
+        cef_ui.create(path / "data" / "launcher-ui", "main.html");
+        cef::cef_ui::work();
+    }
 
-	void create_shortcut()
-	{
-		try
-		{
-			if (utils::properties::load(property_keys::SHORTCUT_CREATED) == "true")
-			{
-				return;
-			}
+    void create_shortcut()
+    {
+        try
+        {
+            if (utils::properties::load(property_keys::SHORTCUT_CREATED) == "true")
+            {
+                return;
+            }
 
-			const auto launcher_path = utils::nt::library{}.get_path();
-			const auto desktop_path = utils::com::get_desktop_path();
+            const auto launcher_path = utils::nt::library{}.get_path();
+            const auto desktop_path = utils::com::get_desktop_path();
 
-			if (desktop_path.empty())
-			{
-				return;
-			}
+            if (desktop_path.empty())
+            {
+                return;
+            }
 
-			const auto shortcut_path = desktop_path / "CB Servers Launcher.lnk";
+            const auto shortcut_path = desktop_path / "CB Servers Launcher.lnk";
 
-			if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
-			{
-				utils::properties::store(property_keys::SHORTCUT_CREATED, "true");
-			}
-		}
-		catch (...)
-		{
-			printf("Error creating shortcut\n");
-		}
-	}
+            if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
+            {
+                utils::properties::store(property_keys::SHORTCUT_CREATED, "true");
+            }
+        }
+        catch (...)
+        {
+            printf("Error creating shortcut\n");
+        }
+    }
 }
 
 int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
-	try
-	{
-		set_working_directory();
+    try
+    {
+        set_working_directory();
 
-		const utils::nt::library lib{instance};
-		const auto path = utils::properties::get_appdata_path();
+        const utils::nt::library lib{instance};
+        const auto path = utils::properties::get_appdata_path();
 
-		if (is_subprocess())
-		{
-			run_watchdog();
-			return run_subprocess(lib, path);
-		}
+        if (is_subprocess())
+        {
+            run_watchdog();
+            return run_subprocess(lib, path);
+        }
 
-		enable_dpi_awareness();
+        enable_dpi_awareness();
 
 #if !defined(DEBUG)
-		run_as_singleton();
+        run_as_singleton();
 #else
-		AllocConsole();
-		FILE* fp;
-		freopen_s(&fp, "CONOUT$", "w", stdout);
-		freopen_s(&fp, "CONOUT$", "w", stderr);
-		printf("Debug console enabled\n");
+        AllocConsole();
+        FILE* fp;
+        freopen_s(&fp, "CONOUT$", "w", stdout);
+        freopen_s(&fp, "CONOUT$", "w", stderr);
+        printf("Debug console enabled\n");
 #endif
 
-		if (!utils::flags::has_flag("noupdate"))
-		{
-			launcher_updater::run(path);
-		}
+        if (!utils::flags::has_flag("noupdate"))
+        {
+            launcher_updater::run(path);
+        }
 
-		if (!utils::nt::is_wine_environment())
-		{
-			create_shortcut();
-		}
-		else
-		{
-			printf("[Wine/Proton] Running under Wine - some Windows-specific features are disabled\n");
-		}
+        if (!utils::nt::is_wine_environment())
+        {
+            create_shortcut();
+        }
+        else
+        {
+            printf("[Wine/Proton] Running under Wine - some Windows-specific features are disabled\n");
+        }
 
-		show_window(lib, path);
+        show_window(lib, path);
 
-		return 0;
-	}
-	catch (updater::update_cancelled&)
-	{
-		return 0;
-	}
-	catch (std::exception& e)
-	{
-		MessageBoxA(nullptr, e.what(), "ERROR", MB_ICONERROR);
-	}
-	catch (...)
-	{
-		MessageBoxA(nullptr, "An unknown error occurred", "ERROR", MB_ICONERROR);
-	}
+        return 0;
+    }
+    catch (updater::update_cancelled&)
+    {
+        return 0;
+    }
+    catch (std::exception& e)
+    {
+        MessageBoxA(nullptr, e.what(), "ERROR", MB_ICONERROR);
+    }
+    catch (...)
+    {
+        MessageBoxA(nullptr, "An unknown error occurred", "ERROR", MB_ICONERROR);
+    }
 
-	return 1;
+    return 1;
 }

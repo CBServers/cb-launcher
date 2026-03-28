@@ -8,38 +8,38 @@
 
 namespace launcher_updater
 {
-	class updater_ui : public updater::progress_listener
-	{
-	public:
-		updater_ui();
-		~updater_ui();
+    class updater_ui : public updater::progress_listener
+    {
+    public:
+        updater_ui();
+        ~updater_ui();
 
-	private:
-		mutable std::recursive_mutex mutex_;
-		std::vector<updater::file_info> total_files_{};
-		std::vector<updater::file_info> downloaded_files_{};
-		std::unordered_map<std::string, std::pair<size_t, size_t>> downloading_files_{};
+    private:
+        mutable std::recursive_mutex mutex_;
+        std::vector<updater::file_info> total_files_{};
+        std::vector<updater::file_info> downloaded_files_{};
+        std::unordered_map<std::string, std::pair<size_t, size_t>> downloading_files_{};
 
-		std::optional<progress_ui> progress_ui_{};
+        std::optional<progress_ui> progress_ui_{};
 
-		void update_files(const std::vector<updater::file_info>& files) override;
-		void done_update() override;
+        void update_files(const std::vector<updater::file_info>& files) override;
+        void done_update() override;
 
-		void begin_file(const updater::file_info& file) override;
-		void end_file(const updater::file_info& file) override;
+        void begin_file(const updater::file_info& file) override;
+        void end_file(const updater::file_info& file) override;
 
-		void file_progress(const updater::file_info& file, size_t progress) override;
+        void file_progress(const updater::file_info& file, size_t progress) override;
 
-		void handle_cancellation() const;
-		void update_progress() const;
-		void update_file_name() const;
+        void handle_cancellation() const;
+        void update_progress() const;
+        void update_file_name() const;
 
-		size_t get_total_size() const;
-		size_t get_downloaded_size() const;
+        size_t get_total_size() const;
+        size_t get_downloaded_size() const;
 
-		size_t get_total_files() const;
-		size_t get_downloaded_files() const;
+        size_t get_total_files() const;
+        size_t get_downloaded_files() const;
 
-		std::string get_relevant_file_name() const;
-	};
+        std::string get_relevant_file_name() const;
+    };
 }

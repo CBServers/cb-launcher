@@ -15,368 +15,368 @@
 
 namespace client_updater
 {
-	namespace
-	{
-		std::vector<updater::file_info> parse_file_infos(const std::string& json)
-		{
-			rapidjson::Document doc{};
-			doc.Parse(json.data(), json.size());
+    namespace
+    {
+        std::vector<updater::file_info> parse_file_infos(const std::string& json)
+        {
+            rapidjson::Document doc{};
+            doc.Parse(json.data(), json.size());
 
-			if (!doc.IsArray())
-			{
-				return {};
-			}
+            if (!doc.IsArray())
+            {
+                return {};
+            }
 
-			std::vector<updater::file_info> files{};
+            std::vector<updater::file_info> files{};
 
-			for (const auto& element : doc.GetArray())
-			{
-				if (!element.IsArray())
-				{
-					continue;
-				}
+            for (const auto& element : doc.GetArray())
+            {
+                if (!element.IsArray())
+                {
+                    continue;
+                }
 
-				auto array = element.GetArray();
+                auto array = element.GetArray();
 
-				updater::file_info info{};
-				info.name.assign(array[0].GetString(), array[0].GetStringLength());
-				info.size = array[1].GetInt64();
-				info.hash.assign(array[2].GetString(), array[2].GetStringLength());
+                updater::file_info info{};
+                info.name.assign(array[0].GetString(), array[0].GetStringLength());
+                info.size = array[1].GetInt64();
+                info.hash.assign(array[2].GetString(), array[2].GetStringLength());
 
-				files.emplace_back(std::move(info));
-			}
+                files.emplace_back(std::move(info));
+            }
 
-			return files;
-		}
+            return files;
+        }
 
-		std::string get_cache_buster()
-		{
-			return "?" + std::to_string(
-				std::chrono::duration_cast<std::chrono::nanoseconds>(
-					std::chrono::system_clock::now().time_since_epoch()).count());
-		}
+        std::string get_cache_buster()
+        {
+            return "?" + std::to_string(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count());
+        }
 
-		std::vector<updater::file_info> get_file_infos(const std::string& manifest_url)
-		{
-			const auto json = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
-			if (!json || !json.has_value())
-			{
-				return {};
-			}
+        std::vector<updater::file_info> get_file_infos(const std::string& manifest_url)
+        {
+            const auto json = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
+            if (!json || !json.has_value())
+            {
+                return {};
+            }
 
-			try
-			{
-				const auto& result = json.value();
-				if (result.code != CURLE_OK)
-				{
-					return {};
-				}
+            try
+            {
+                const auto& result = json.value();
+                if (result.code != CURLE_OK)
+                {
+                    return {};
+                }
 
-				return parse_file_infos(result.buffer);
-			}
-			catch (...)
-			{
-				return {};
-			}
-		}
+                return parse_file_infos(result.buffer);
+            }
+            catch (...)
+            {
+                return {};
+            }
+        }
 
-		std::string get_hash(const std::string& data)
-		{
-			return utils::cryptography::sha1::compute(data, true);
-		}
+        std::string get_hash(const std::string& data)
+        {
+            return utils::cryptography::sha1::compute(data, true);
+        }
 
-		std::vector<updater::file_info> find_file_infos(const std::vector<std::string>& file_names, const std::vector<updater::file_info>& files)
-		{
-			std::unordered_set<std::string> name_set(file_names.begin(), file_names.end());
-			std::vector<updater::file_info> file_infos{};
-			file_infos.reserve(file_names.size());
+        std::vector<updater::file_info> find_file_infos(const std::vector<std::string>& file_names, const std::vector<updater::file_info>& files)
+        {
+            std::unordered_set<std::string> name_set(file_names.begin(), file_names.end());
+            std::vector<updater::file_info> file_infos{};
+            file_infos.reserve(file_names.size());
 
-			for (const auto& file : files)
-			{
-				if (name_set.find(file.name) != name_set.end())
-				{
-					file_infos.emplace_back(file);
-				}
-			}
+            for (const auto& file : files)
+            {
+                if (name_set.find(file.name) != name_set.end())
+                {
+                    file_infos.emplace_back(file);
+                }
+            }
 
-			return file_infos;
-		}
+            return file_infos;
+        }
 
-		size_t get_optimal_concurrent_download_count(const size_t file_count)
-		{
-			size_t cores = std::thread::hardware_concurrency();
-			cores = (cores * 2) / 3;
-			return std::max(1ull, std::min(cores, file_count));
-		}
+        size_t get_optimal_concurrent_download_count(const size_t file_count)
+        {
+            size_t cores = std::thread::hardware_concurrency();
+            cores = (cores * 2) / 3;
+            return std::max(1ull, std::min(cores, file_count));
+        }
 
-		bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
-		{
-			const auto relative = std::filesystem::relative(file, folder);
-			const auto start = relative.begin();
-			return start != relative.end() && start->string() != "..";
-		}
-	}
+        bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
+        {
+            const auto relative = std::filesystem::relative(file, folder);
+            const auto start = relative.begin();
+            return start != relative.end() && start->string() != "..";
+        }
+    }
 
-	client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener, const std::vector<std::string>& skip_files)
-		: skip_files_(skip_files), progress_listener_(listener)
-	{
-		const auto install_path_prop = config.get_install_path();
-		if (!install_path_prop || install_path_prop->empty())
-		{
-			throw std::runtime_error("Game install path not set for: " + config.id);
-		}
+    client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener, const std::vector<std::string>& skip_files)
+        : skip_files_(skip_files), progress_listener_(listener)
+    {
+        const auto install_path_prop = config.get_install_path();
+        if (!install_path_prop || install_path_prop->empty())
+        {
+            throw std::runtime_error("Game install path not set for: " + config.id);
+        }
 
-		if (install_path_prop.has_value())
-		{
-			this->install_path = std::filesystem::path(install_path_prop->data());
-		}
+        if (install_path_prop.has_value())
+        {
+            this->install_path = std::filesystem::path(install_path_prop->data());
+        }
 
-		this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
-		this->client_install_path_files_ = config.client_install_path_files;
+        this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
+        this->client_install_path_files_ = config.client_install_path_files;
 
-		this->update_manifest_url = config.update_manifest_url;
-		this->update_folder_url = config.update_folder_url;
+        this->update_manifest_url = config.update_manifest_url;
+        this->update_folder_url = config.update_folder_url;
 
-		// Filter out files that should be skipped
-		std::unordered_set<std::string> skip_set(skip_files.begin(), skip_files.end());
-		for (const auto& file : config.required_updater_files)
-		{
-			if (skip_set.find(file) == skip_set.end())
-			{
-				this->files_to_update.push_back(file);
-			}
-		}
-	}
+        // Filter out files that should be skipped
+        std::unordered_set<std::string> skip_set(skip_files.begin(), skip_files.end());
+        for (const auto& file : config.required_updater_files)
+        {
+            if (skip_set.find(file) == skip_set.end())
+            {
+                this->files_to_update.push_back(file);
+            }
+        }
+    }
 
-	void client_updater::run() const
-	{
-		const auto files = get_file_infos(this->update_manifest_url);
-		if (files.empty())
-		{
-			return;
-		}
+    void client_updater::run() const
+    {
+        const auto files = get_file_infos(this->update_manifest_url);
+        if (files.empty())
+        {
+            return;
+        }
 
-		const auto valid_files = this->files_to_update.empty() ? files : find_file_infos(this->files_to_update, files);
-		if (valid_files.empty())
-		{
-			return;
-		}
+        const auto valid_files = this->files_to_update.empty() ? files : find_file_infos(this->files_to_update, files);
+        if (valid_files.empty())
+        {
+            return;
+        }
 
-		// Initialize progress tracking for verification phase
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->update_files(valid_files, updater::progress_mode::verifying);
-		}
+        // Initialize progress tracking for verification phase
+        if (this->progress_listener_)
+        {
+            this->progress_listener_->update_files(valid_files, updater::progress_mode::verifying);
+        }
 
-		const auto outdated_files = this->get_outdated_files(valid_files);
-		if (outdated_files.empty())
-		{
-			return;
-		}
+        const auto outdated_files = this->get_outdated_files(valid_files);
+        if (outdated_files.empty())
+        {
+            return;
+        }
 
-		// Reset progress tracking for download phase with only outdated files
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
-		}
+        // Reset progress tracking for download phase with only outdated files
+        if (this->progress_listener_)
+        {
+            this->progress_listener_->update_files(outdated_files, updater::progress_mode::downloading);
+        }
 
-		this->update_files(outdated_files);
+        this->update_files(outdated_files);
 
-		std::this_thread::sleep_for(1s);
-	}
+        std::this_thread::sleep_for(1s);
+    }
 
-	void client_updater::update_file(const updater::file_info& file) const
-	{
-		auto url = this->update_folder_url + file.name + "?" + file.hash;
-		utils::logger::write("Updating file {}", url);
+    void client_updater::update_file(const updater::file_info& file) const
+    {
+        auto url = this->update_folder_url + file.name + "?" + file.hash;
+        utils::logger::write("Updating file {}", url);
 
-		// Notify progress listener that file download is beginning
-		if (this->progress_listener_)
-		{
-			this->progress_listener_->begin_file(file);
-		}
+        // Notify progress listener that file download is beginning
+        if (this->progress_listener_)
+        {
+            this->progress_listener_->begin_file(file);
+        }
 
-		size_t last_progress = 0;
-		const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
-		{
-			// Notify progress listener of download progress
-			// Note: progress is cumulative bytes downloaded, so we calculate the delta
-			if (this->progress_listener_)
-			{
-				const size_t delta = progress - last_progress;
-				last_progress = progress;
-				this->progress_listener_->file_progress(file, delta);
-			}
+        size_t last_progress = 0;
+        const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
+        {
+            // Notify progress listener of download progress
+            // Note: progress is cumulative bytes downloaded, so we calculate the delta
+            if (this->progress_listener_)
+            {
+                const size_t delta = progress - last_progress;
+                last_progress = progress;
+                this->progress_listener_->file_progress(file, delta);
+            }
 
-			return !is_update_cancelled(); // Continue unless cancelled
-		});
+            return !is_update_cancelled(); // Continue unless cancelled
+        });
 
-		if (!data || !data.has_value())
-		{
-			throw std::runtime_error(utils::string::va("Failed to download: %s - Data has no value", url.data()));
-		}
+        if (!data || !data.has_value())
+        {
+            throw std::runtime_error(utils::string::va("Failed to download: %s - Data has no value", url.data()));
+        }
 
-		try
-		{
-			const auto& result = data.value();
-			if (result.code == CURLE_ABORTED_BY_CALLBACK)
-			{
-				return;
-			}
+        try
+        {
+            const auto& result = data.value();
+            if (result.code == CURLE_ABORTED_BY_CALLBACK)
+            {
+                return;
+            }
 
-			if (result.code != CURLE_OK || result.buffer.size() != file.size || get_hash(result.buffer) != file.hash)
-			{
-				throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code", url.data()));
-			}
+            if (result.code != CURLE_OK || result.buffer.size() != file.size || get_hash(result.buffer) != file.hash)
+            {
+                throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code", url.data()));
+            }
 
-			const auto out_file = this->get_drive_filename(file);
-			if (!utils::io::write_file(out_file.string(), result.buffer, false))
-			{
-				utils::logger::write("Failed to write {}. Error code: ", file.name,
-					std::system_category().message(static_cast<int>(::GetLastError())));
-				throw std::runtime_error(utils::string::va("Failed to write: %s", out_file.string().data()));
-			}
+            const auto out_file = this->get_drive_filename(file);
+            if (!utils::io::write_file(out_file.string(), result.buffer, false))
+            {
+                utils::logger::write("Failed to write {}. Error code: ", file.name,
+                    std::system_category().message(static_cast<int>(::GetLastError())));
+                throw std::runtime_error(utils::string::va("Failed to write: %s", out_file.string().data()));
+            }
 
-			utils::logger::write("Done updating file {}", file.name);
+            utils::logger::write("Done updating file {}", file.name);
 
-			// Notify progress listener that file is complete
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->end_file(file);
-			}
-		}
-		catch (const std::exception& e)
-		{
-			throw std::runtime_error(utils::string::va("Failed to update host file: %s", e.what()));
-		}
-		catch (...)
-		{
-			throw std::runtime_error("Unknown error occurred while updating host file");
-		}
-	}
+            // Notify progress listener that file is complete
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->end_file(file);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            throw std::runtime_error(utils::string::va("Failed to update host file: %s", e.what()));
+        }
+        catch (...)
+        {
+            throw std::runtime_error("Unknown error occurred while updating host file");
+        }
+    }
 
-	std::vector<updater::file_info> client_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
-	{
-		std::vector<updater::file_info> outdated_files{};
+    std::vector<updater::file_info> client_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
+    {
+        std::vector<updater::file_info> outdated_files{};
 
-		for (const auto& info : files)
-		{
-			// Report that we're starting to verify this file
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->begin_file(info);
-			}
+        for (const auto& info : files)
+        {
+            // Report that we're starting to verify this file
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->begin_file(info);
+            }
 
-			if (this->is_outdated_file(info))
-			{
-				outdated_files.emplace_back(info);
-			}
+            if (this->is_outdated_file(info))
+            {
+                outdated_files.emplace_back(info);
+            }
 
-			// Mark file as verified by adding its size to progress
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->file_progress(info, info.size);
-			}
+            // Mark file as verified by adding its size to progress
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->file_progress(info, info.size);
+            }
 
-			// Report that we've finished verifying this file
-			if (this->progress_listener_)
-			{
-				this->progress_listener_->end_file(info);
-			}
-		}
+            // Report that we've finished verifying this file
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->end_file(info);
+            }
+        }
 
-		return outdated_files;
-	}
+        return outdated_files;
+    }
 
-	void client_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
-	{
-		const auto thread_count = get_optimal_concurrent_download_count(outdated_files.size());
+    void client_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
+    {
+        const auto thread_count = get_optimal_concurrent_download_count(outdated_files.size());
 
-		std::vector<std::thread> threads{};
-		std::atomic<size_t> current_index{0};
+        std::vector<std::thread> threads{};
+        std::atomic<size_t> current_index{0};
 
-		utils::concurrency::container<std::exception_ptr> exception{};
+        utils::concurrency::container<std::exception_ptr> exception{};
 
-		for (size_t i = 0; i < thread_count; ++i)
-		{
-			threads.emplace_back([&]()
-			{
-				while (!exception.access<bool>([](const std::exception_ptr& ptr)
-				{
-					return static_cast<bool>(ptr);
-				}))
-				{
-					const auto index = current_index++;
-					if (index >= outdated_files.size())
-					{
-						break;
-					}
+        for (size_t i = 0; i < thread_count; ++i)
+        {
+            threads.emplace_back([&]()
+            {
+                while (!exception.access<bool>([](const std::exception_ptr& ptr)
+                {
+                    return static_cast<bool>(ptr);
+                }))
+                {
+                    const auto index = current_index++;
+                    if (index >= outdated_files.size())
+                    {
+                        break;
+                    }
 
-					try
-					{
-						const auto& file = outdated_files[index];
-						this->update_file(file);
-					}
-					catch (...)
-					{
-						exception.access([](std::exception_ptr& ptr)
-						{
-							ptr = std::current_exception();
-						});
+                    try
+                    {
+                        const auto& file = outdated_files[index];
+                        this->update_file(file);
+                    }
+                    catch (...)
+                    {
+                        exception.access([](std::exception_ptr& ptr)
+                        {
+                            ptr = std::current_exception();
+                        });
 
-						return;
-					}
-				}
-			});
-		}
+                        return;
+                    }
+                }
+            });
+        }
 
-		for (auto& thread : threads)
-		{
-			if (thread.joinable())
-			{
-				thread.join();
-			}
-		}
+        for (auto& thread : threads)
+        {
+            if (thread.joinable())
+            {
+                thread.join();
+            }
+        }
 
-		exception.access([](const std::exception_ptr& ptr)
-		{
-			if (ptr)
-			{
-				std::rethrow_exception(ptr);
-			}
-		});
-	}
+        exception.access([](const std::exception_ptr& ptr)
+        {
+            if (ptr)
+            {
+                std::rethrow_exception(ptr);
+            }
+        });
+    }
 
-	bool client_updater::is_outdated_file(const updater::file_info& file) const
-	{
-		std::string data{};
-		const auto drive_name = this->get_drive_filename(file);
-		if (!utils::io::read_file(drive_name.string(), &data))
-		{
-			return true;
-		}
+    bool client_updater::is_outdated_file(const updater::file_info& file) const
+    {
+        std::string data{};
+        const auto drive_name = this->get_drive_filename(file);
+        if (!utils::io::read_file(drive_name.string(), &data))
+        {
+            return true;
+        }
 
-		if (data.size() != file.size)
-		{
-			return true;
-		}
+        if (data.size() != file.size)
+        {
+            return true;
+        }
 
-		const auto hash = get_hash(data);
-		return hash != file.hash;
-	}
+        const auto hash = get_hash(data);
+        return hash != file.hash;
+    }
 
-	std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
-	{
-		if (!this->client_install_path_files_.empty() && this->client_install_path_files_.contains(file.name))
-		{
-			return this->install_path / file.name;
-		}
+    std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
+    {
+        if (!this->client_install_path_files_.empty() && this->client_install_path_files_.contains(file.name))
+        {
+            return this->install_path / file.name;
+        }
 
-		return this->client_default_path_ / file.name;
-	}
+        return this->client_default_path_ / file.name;
+    }
 
-	bool client_updater::is_update_cancelled() const
-	{
-		return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
-	}
+    bool client_updater::is_update_cancelled() const
+    {
+        return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
+    }
 }

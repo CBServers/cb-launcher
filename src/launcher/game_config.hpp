@@ -9,78 +9,78 @@
 
 namespace game_config
 {
-	class game_config_t
-	{
-	public:
-		// Generic property access methods
-		std::optional<std::string> get(const std::string& property_suffix) const;
-		void set(const std::string& property_suffix, const std::string& value) const;
+    class game_config_t
+    {
+    public:
+        // Generic property access methods
+        std::optional<std::string> get(const std::string& property_suffix) const;
+        void set(const std::string& property_suffix, const std::string& value) const;
 
-		// List parsing/joining methods
-		std::vector<std::string> get_list(const std::string& property_suffix) const;
-		void set_list(const std::string& property_suffix, const std::vector<std::string>& values) const;
+        // List parsing/joining methods
+        std::vector<std::string> get_list(const std::string& property_suffix) const;
+        void set_list(const std::string& property_suffix, const std::vector<std::string>& values) const;
 
-		// Convenience methods for common properties
-		std::optional<std::string> get_install_path() const;
-		void set_install_path(const std::string& path) const;
-		bool is_installed() const;
-		void set_installed(bool installed) const;
-		bool is_steam_install() const;
-		void set_steam_install(bool is_steam) const;
-		std::optional<std::string> get_launch_options() const;
+        // Convenience methods for common properties
+        std::optional<std::string> get_install_path() const;
+        void set_install_path(const std::string& path) const;
+        bool is_installed() const;
+        void set_installed(bool installed) const;
+        bool is_steam_install() const;
+        void set_steam_install(bool is_steam) const;
+        std::optional<std::string> get_launch_options() const;
 
-		// Reset all properties for this game
-		void reset() const;
+        // Reset all properties for this game
+        void reset() const;
 
-		// Get the game key used for this config
-		const std::string& get_game_key() const { return game_key; }
+        // Get the game key used for this config
+        const std::string& get_game_key() const { return game_key; }
 
-		// Public fields
-		std::string game_key;  // The map key ("bo3", "ghosts", "hmw", etc.) - must be initialized first
-		std::string display_name;
-		std::string id;
-		std::string exe_name;
-		std::string update_manifest_url;
-		std::string update_folder_url;
-		std::vector<std::string> required_updater_files;
-		std::vector<std::string> valid_game_files;
-		std::vector<std::string> check_running_exes;
-		std::unordered_map<std::string, std::string> mode_arguments;
-		std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
-		std::string default_args;  // Arguments always passed when launching, regardless of mode
-		std::string pluto_path_key;
-		std::string base_folder;
-		std::string base_game;
-		bool check_for_game_updates = false;
-		std::string unlock_url_folder;
+        // Public fields
+        std::string game_key;  // The map key ("bo3", "ghosts", "hmw", etc.) - must be initialized first
+        std::string display_name;
+        std::string id;
+        std::string exe_name;
+        std::string update_manifest_url;
+        std::string update_folder_url;
+        std::vector<std::string> required_updater_files;
+        std::vector<std::string> valid_game_files;
+        std::vector<std::string> check_running_exes;
+        std::unordered_map<std::string, std::string> mode_arguments;
+        std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
+        std::string default_args;  // Arguments always passed when launching, regardless of mode
+        std::string pluto_path_key;
+        std::string base_folder;
+        std::string base_game;
+        bool check_for_game_updates = false;
+        std::string unlock_url_folder;
 
-		// Base properties game for property sharing (e.g., HMW shares with MWR)
-		std::string base_properties_game;
-		// Property overrides for specific properties (e.g., HMW-specific overrides)
-		std::unordered_map<std::string, std::string> property_overrides;
+        // Base properties game for property sharing (e.g., HMW shares with MWR)
+        std::string base_properties_game;
+        // Property overrides for specific properties (e.g., HMW-specific overrides)
+        std::unordered_map<std::string, std::string> property_overrides;
 
-		// Default directory for client files. Empty = use install_path (current behavior).
-		std::filesystem::path client_default_path;
-		// Files that always go to install_path even when client_default_path is set
-		std::unordered_set<std::string> client_install_path_files;
+        // Default directory for client files. Empty = use install_path (current behavior).
+        std::filesystem::path client_default_path;
+        // Files that always go to install_path even when client_default_path is set
+        std::unordered_set<std::string> client_install_path_files;
 
-		// Helper to construct full property key (public to maintain aggregate status)
-		std::string make_property_key(const std::string& suffix) const;
-	};
+        // Helper to construct full property key (public to maintain aggregate status)
+        std::string make_property_key(const std::string& suffix) const;
+    };
 
-	// Forward declarations
-	extern const std::unordered_map<std::string, game_config_t> game_configs_;
-	extern const std::unordered_map<std::string, std::string> ui_to_backend_mapping_;
+    // Forward declarations
+    extern const std::unordered_map<std::string, game_config_t> game_configs_;
+    extern const std::unordered_map<std::string, std::string> ui_to_backend_mapping_;
 
-	// Function declarations
-	std::optional<game_config_t> get_game_config(const std::string& game);
-	bool has_multiple_modes(const std::string& game);
-	std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
-	std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
-	std::string get_exe_for_mode(const std::string& game, const std::string& mode);
-	bool validate_game_path(const std::string& game, const std::filesystem::path& path);
-	void reset_all_games();
+    // Function declarations
+    std::optional<game_config_t> get_game_config(const std::string& game);
+    bool has_multiple_modes(const std::string& game);
+    std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
+    std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
+    std::string get_exe_for_mode(const std::string& game, const std::string& mode);
+    bool validate_game_path(const std::string& game, const std::filesystem::path& path);
+    void reset_all_games();
 
-	// Get the resolved base URL for a game config using the active CDN
-	std::string get_resolved_base_url(const game_config_t& config);
+    // Get the resolved base URL for a game config using the active CDN
+    std::string get_resolved_base_url(const game_config_t& config);
 }
