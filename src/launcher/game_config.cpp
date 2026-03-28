@@ -217,19 +217,19 @@ namespace game_config
                 .game_key = "iw4x",
                 .display_name = "MW2",
                 .id = "iw4x",
-                .exe_name = "iw4x-launcher.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
-                .required_updater_files = {"iw4x-launcher.exe", "alterware-launcher.exe"},
-                .valid_game_files = {"binkw32.dll"},
+                .exe_name = "iw4x.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "iw4x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "iw4x/",
+                .required_updater_files = {},
+                .valid_game_files = {"binkw32.dll", "iw4mp.exe", "iw4sp.exe"},
                 .check_running_exes = {"alterware-launcher.exe", "iw4x.exe", "iw4x-sp.exe"},
                 .mode_arguments = {
                     {"sp", "iw4x-sp --skip-launcher-update"},
-                    {"mp", "--no-self-update"}
+                    {"mp", ""}
                 },
                 .mode_executables = {
                     {"sp", "alterware-launcher.exe"},
-                    {"mp", "iw4x-launcher.exe"}
+                    {"mp", "iw4x.exe"}
                 },
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
