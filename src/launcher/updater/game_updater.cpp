@@ -907,19 +907,6 @@ namespace game_updater
             }
         }
 
-        // Add client updater files (boiii.exe, iw6x.exe, etc.)
-        for (const auto& client_file : this->config_.required_updater_files)
-        {
-            const auto file_path = this->install_path / client_file;
-            if (utils::io::file_exists(file_path.string()))
-            {
-                updater::file_info info;
-                info.name = client_file;
-                info.size = 0;
-                files_to_delete.push_back(info);
-            }
-        }
-
         // Add latest.manifest
         const auto manifest_path = this->get_manifest_file_path();
         if (utils::io::file_exists(manifest_path))

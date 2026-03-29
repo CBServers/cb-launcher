@@ -10,6 +10,7 @@
 
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
+#include "updater/client_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
 #include "unlockall/unlockall.hpp"
 
@@ -192,7 +193,7 @@ namespace commands::game_commands
                         // Get files to skip based on game configuration
                         const auto skip_files = ctx.get_skip_files(game, config);
 
-                        client_updater::run(config, &progress_listener, skip_files);
+                        client_updater::run(config, skip_files, &progress_listener);
                     }
                     progress_listener.done_update();
 
@@ -333,7 +334,7 @@ namespace commands::game_commands
                     // Get files to skip based on game configuration
                     const auto skip_files = ctx.get_skip_files(game, config);
 
-                    client_updater::run(config, &progress_listener, skip_files);
+                    client_updater::run(config, skip_files, &progress_listener);
                     progress_listener.done_update();
 
                     cef_ui.show_message_box("Update Complete", config.display_name + " download/verification has completed successfully!");
@@ -429,8 +430,11 @@ namespace commands::game_commands
             {
                 try
                 {
-                    game_updater::game_updater updater(config, true, false, &progress_listener);
-                    updater.delete_game();
+                    game_updater::game_updater game_updater(config, true, false, &progress_listener);
+                    game_updater.delete_game();
+
+                    client_updater::client_updater client_updater(config, {}, &progress_listener);
+                    client_updater.delete_client();
 
                     // Clear installation status and component caches
                     config.set_installed(false);

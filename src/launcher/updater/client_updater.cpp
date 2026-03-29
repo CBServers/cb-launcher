@@ -117,7 +117,7 @@ namespace client_updater
         }
     }
 
-    client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener, const std::vector<std::string>& skip_files)
+    client_updater::client_updater(const game_config::game_config_t& config, const std::vector<std::string>& skip_files, updater::ui_progress_listener* listener)
         : skip_files_(skip_files), progress_listener_(listener)
     {
         const auto install_path_prop = config.get_install_path();
@@ -134,30 +134,27 @@ namespace client_updater
         this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
         this->client_install_path_files_ = config.client_install_path_files;
 
-        this->update_manifest_url = config.update_manifest_url;
-        this->update_folder_url = config.update_folder_url;
+        this->update_manifest_url_ = config.update_manifest_url;
+        this->update_folder_url_ = config.update_folder_url;
+
+        // Fetch manifest and compute valid files
+        const auto manifest_files = get_file_infos(this->update_manifest_url_);
+        this->valid_files_ = config.required_updater_files.empty() ? manifest_files : find_file_infos(config.required_updater_files, manifest_files);
 
         // Filter out files that should be skipped
         std::unordered_set<std::string> skip_set(skip_files.begin(), skip_files.end());
-        for (const auto& file : config.required_updater_files)
+        if (!skip_set.empty())
         {
-            if (skip_set.find(file) == skip_set.end())
+            std::erase_if(this->valid_files_, [&skip_set](const updater::file_info& file)
             {
-                this->files_to_update.push_back(file);
-            }
+                return skip_set.contains(file.name);
+            });
         }
     }
 
     void client_updater::run() const
     {
-        const auto files = get_file_infos(this->update_manifest_url);
-        if (files.empty())
-        {
-            return;
-        }
-
-        const auto valid_files = this->files_to_update.empty() ? files : find_file_infos(this->files_to_update, files);
-        if (valid_files.empty())
+        if (this->valid_files_.empty())
         {
             return;
         }
@@ -165,10 +162,10 @@ namespace client_updater
         // Initialize progress tracking for verification phase
         if (this->progress_listener_)
         {
-            this->progress_listener_->update_files(valid_files, updater::progress_mode::verifying);
+            this->progress_listener_->update_files(this->valid_files_, updater::progress_mode::verifying);
         }
 
-        const auto outdated_files = this->get_outdated_files(valid_files);
+        const auto outdated_files = this->get_outdated_files(this->valid_files_);
         if (outdated_files.empty())
         {
             return;
@@ -187,7 +184,7 @@ namespace client_updater
 
     void client_updater::update_file(const updater::file_info& file) const
     {
-        auto url = this->update_folder_url + file.name + "?" + file.hash;
+        auto url = this->update_folder_url_ + file.name + "?" + file.hash;
         utils::logger::write("Updating file {}", url);
 
         // Notify progress listener that file download is beginning
@@ -373,6 +370,90 @@ namespace client_updater
         }
 
         return this->client_default_path_ / file.name;
+    }
+
+    void client_updater::delete_client() const
+    {
+        if (this->valid_files_.empty())
+        {
+            return;
+        }
+
+        // Collect files that exist on disk
+        std::vector<updater::file_info> files_to_delete;
+        for (const auto& file : this->valid_files_)
+        {
+            const auto drive_name = this->get_drive_filename(file);
+            if (utils::io::file_exists(drive_name.string()))
+            {
+                files_to_delete.push_back(file);
+            }
+        }
+
+        if (files_to_delete.empty())
+        {
+            return;
+        }
+
+        // Initialize progress tracking for deletion phase
+        if (this->progress_listener_)
+        {
+            this->progress_listener_->update_files(files_to_delete, updater::progress_mode::deleting);
+        }
+
+        for (const auto& file : files_to_delete)
+        {
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->begin_file(file);
+            }
+
+            const auto drive_name = this->get_drive_filename(file);
+            if (!utils::io::remove_file(drive_name.string()))
+            {
+                printf("Warning: Failed to delete client file: %s\n", drive_name.string().data());
+            }
+
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->file_progress(file, file.size);
+                this->progress_listener_->end_file(file);
+            }
+        }
+
+        // Clean up empty directories (deepest first)
+        std::set<std::filesystem::path> directories_to_check;
+        for (const auto& file : files_to_delete)
+        {
+            const auto file_path = this->get_drive_filename(file);
+            auto parent = file_path.parent_path();
+            const auto& base = (this->client_install_path_files_.contains(file.name))
+                ? this->install_path : this->client_default_path_;
+
+            while (parent != base && is_inside_folder(parent, base))
+            {
+                directories_to_check.insert(parent);
+                parent = parent.parent_path();
+            }
+        }
+
+        std::vector<std::filesystem::path> sorted_dirs(directories_to_check.begin(), directories_to_check.end());
+        std::sort(sorted_dirs.begin(), sorted_dirs.end(), [](const auto& a, const auto& b) {
+            return std::distance(a.begin(), a.end()) > std::distance(b.begin(), b.end());
+        });
+
+        for (const auto& dir : sorted_dirs)
+        {
+            std::error_code ec;
+            if (std::filesystem::exists(dir, ec) && std::filesystem::is_empty(dir, ec))
+            {
+                std::filesystem::remove(dir, ec);
+                if (!ec)
+                {
+                    printf("Removed empty directory: %s\n", dir.filename().string().c_str());
+                }
+            }
+        }
     }
 
     bool client_updater::is_update_cancelled() const
