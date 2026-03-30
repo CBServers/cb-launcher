@@ -15,6 +15,8 @@
     --game-color-iw4x: #fbc751;
     --game-color-t6: #fe890a;
     --game-color-iw5: #09ff00;
+    --game-color-t4: #b94e14;
+    --game-color-t5: #186ac6;
 }
 
 body {
@@ -155,7 +157,7 @@ img {
 .game-item {
     display: flex;
     align-items: center;
-    padding: 10px 20px;
+    padding: 7px 17px;
     cursor: pointer;
     transition: background 0.2s;
 }
@@ -214,9 +216,19 @@ img {
     border-left: 3px solid var(--game-color-iw5);
 }
 
+.game-item.active.t4-active {
+    background: rgba(185, 78, 20, 0.1);
+    border-left: 3px solid var(--game-color-t4);
+}
+
+.game-item.active.t5-active {
+    background: rgba(24, 106, 198, 0.1);
+    border-left: 3px solid var(--game-color-t5);
+}
+
 .game-thumbnail {
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     background: linear-gradient(45deg, #1a1a1a, #333);
     border-radius: 4px;
     margin-right: 12px;
@@ -258,6 +270,14 @@ img {
 
 .iw5-thumb {
     background-image: linear-gradient(45deg, var(--game-color-iw5), var(--game-color-iw5));
+}
+
+.t4-thumb {
+    background-image: linear-gradient(45deg, var(--game-color-t4), var(--game-color-t4));
+}
+
+.t5-thumb {
+    background-image: linear-gradient(45deg, var(--game-color-t5), var(--game-color-t5));
 }
 
 .game-name {
@@ -341,6 +361,14 @@ img {
 
 .hero-section.iw5::after {
     background: linear-gradient(135deg, rgba(9, 255, 0, 0.3) 0%, rgba(9, 255, 0, 0.2) 25%, transparent 50%);
+}
+
+.hero-section.t4::after {
+    background: linear-gradient(135deg, rgba(185, 78, 20, 0.3) 0%, rgba(185, 78, 20, 0.2) 25%, transparent 50%);
+}
+
+.hero-section.t5::after {
+    background: linear-gradient(135deg, rgba(24, 106, 198, 0.3) 0%, rgba(24, 106, 198, 0.2) 25%, transparent 50%);
 }
 
 .hero-section.home::before,
@@ -635,6 +663,14 @@ img {
     background-image: linear-gradient(45deg, var(--game-color-iw5), var(--game-color-iw5));
 }
 
+.progress-game-icon.t4 {
+    background-image: linear-gradient(45deg, var(--game-color-t4), var(--game-color-t4));
+}
+
+.progress-game-icon.t5 {
+    background-image: linear-gradient(45deg, var(--game-color-t5), var(--game-color-t5));
+}
+
 .download-info {
     flex: 1;
     font-size: 14px;
@@ -814,6 +850,30 @@ img {
 
 .global-progress-bar.iw5 .progress-percent {
     color: var(--game-color-iw5);
+}
+
+.global-progress-bar.t4 {
+    border-top-color: var(--game-color-t4);
+}
+
+.global-progress-bar.t4 .progress-fill {
+    background: linear-gradient(90deg, var(--game-color-t4), var(--game-color-t4));
+}
+
+.global-progress-bar.t4 .progress-percent {
+    color: var(--game-color-t4);
+}
+
+.global-progress-bar.t5 {
+    border-top-color: var(--game-color-t5);
+}
+
+.global-progress-bar.t5 .progress-fill {
+    background: linear-gradient(90deg, var(--game-color-t5), var(--game-color-t5));
+}
+
+.global-progress-bar.t5 .progress-percent {
+    color: var(--game-color-t5);
 }
 
 .sidebar .support-section {
@@ -2695,6 +2755,14 @@ body:not(.hidden) {
 
 .spinner.iw5 {
     border-top-color: var(--game-color-iw5);
+}
+
+.spinner.t4 {
+    border-top-color: var(--game-color-t4);
+}
+
+.spinner.t5 {
+    border-top-color: var(--game-color-t5);
 }
 
 /* Launcher settings inline layout */

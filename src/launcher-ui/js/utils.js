@@ -24,6 +24,8 @@ const PROPERTY_KEYS = {
 class GameUtils {
     // Single source of truth for game ID mappings (UI ID -> backend ID)
     static UI_TO_BACKEND_MAP = {
+        't4': 't4',
+        't5': 't5',
         'iw4x': 'iw4x',
         'iw5': 'iw5',
         't6': 't6',
@@ -47,6 +49,28 @@ class GameUtils {
      */
     static getGameConfig(game) {
         const configs = {
+            't4': {
+                displayName: 'World at War',
+                defaultInstallPath: 'waw_game_files',
+                uiId: 't4',
+                hasMultipleModes: false,
+                supportedModes: [],
+                specialSettings: [],
+                codeName: 'PLUTO T4',
+                iconPath: './img/t4.png',
+                heroImagePath: './img/t4-hero.png'
+            },
+            't5': {
+                displayName: 'Black Ops',
+                defaultInstallPath: 'bo1_game_files',
+                uiId: 't5',
+                hasMultipleModes: false,
+                supportedModes: [],
+                specialSettings: [],
+                codeName: 'PLUTO T5',
+                iconPath: './img/t5.png',
+                heroImagePath: './img/t5-hero.png'
+            },
             'iw4x': {
                 displayName: 'Modern Warfare 2',
                 defaultInstallPath: 'mw2_game_files',
@@ -229,7 +253,7 @@ class GameUtils {
      */
     static getAllGameImages() {
         const images = {};
-        const games = ['iw4x', 'iw5', 't6', 'bo3', 'ghosts', 'aw', 'mwr', 'iw', 'hmw'];
+        const games = ['t4', 't5', 'iw4x', 'iw5', 't6', 'bo3', 'ghosts', 'aw', 'mwr', 'iw', 'hmw'];
 
         games.forEach(game => {
             const config = this.getGameConfig(game);
@@ -269,7 +293,7 @@ class GameUtils {
      * @returns {array} Array of all game UI identifiers
      */
     static getAllGameIds() {
-        return ['iw4x', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+        return ['t4', 't5', 'iw4x', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
     }
 
     /**

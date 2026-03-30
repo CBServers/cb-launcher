@@ -212,6 +212,44 @@ namespace game_config
     // Game configurations
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {
+            "t4",
+            {
+                .game_key = "t4",
+                .display_name = "WAW",
+                .id = "t4",
+                .exe_name = "plutonium.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .required_updater_files = {"plutonium.exe"},
+                .valid_game_files = {"binkw32.dll", "CoDWaW.exe", "CoDWaWmp.exe"},
+                .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
+                .mode_arguments = {},
+                .pluto_path_key = "t4Path",
+                .base_folder = "waw_game_files",
+                .base_properties_game = "",
+                .property_overrides = {}
+            }
+        },
+        {
+            "t5",
+            {
+                .game_key = "t5",
+                .display_name = "BO1",
+                .id = "t5",
+                .exe_name = "plutonium.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .required_updater_files = {"plutonium.exe"},
+                .valid_game_files = {"binkw32.dll", "BlackOps.exe", "BlackOpsMP.exe"},
+                .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
+                .mode_arguments = {},
+                .pluto_path_key = "t5Path",
+                .base_folder = "bo1_game_files",
+                .base_properties_game = "",
+                .property_overrides = {}
+            }
+        },
+        {
             "iw4x",
             {
                 .game_key = "iw4x",
@@ -417,6 +455,8 @@ namespace game_config
     };
 
     const std::unordered_map<std::string, std::string> ui_to_backend_mapping_ = {
+        {"t4", "t4"},
+        {"t5", "t5"},
         {"iw4x", "iw4x"},
         {"iw5", "iw5"},
         {"t6", "t6"},
