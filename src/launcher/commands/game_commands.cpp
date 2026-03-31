@@ -101,13 +101,13 @@ namespace commands::game_commands
 
                 printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
 
-                if (utils::nt::is_wine_environment())
+                /*if (utils::nt::is_wine_environment())
                 {
                     cef_ui.show_message_box("Wine/Proton Warning",
                         "Launching games directly from the launcher is not fully supported under Wine/Proton, you may experience issues.\n"
                         "It is recommended to launch '" + exe_name + "' separately under Proton instead.\n"
                          "For now, use the launcher for downloading and verifying game files on Linux.");
-                }
+                }*/
 
                 const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
 
