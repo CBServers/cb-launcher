@@ -5,239 +5,230 @@
     <title>CB Servers Launcher</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="./css/main.css" rel="stylesheet" />
-    <script src="./js/utils.js"></script>
-    <script src="./js/command.js"></script>
-    <script src="./js/message-box.js"></script>
-    <script src="./js/game-mode-popup.js"></script>
-    <script src="./js/game-settings-popup.js"></script>
-    <script src="./js/setup-flow-popup.js"></script>
-    <script src="./js/component-selection-popup.js"></script>
-    <script src="./js/main.js"></script>
+    <link href="./assets/css/main.css" rel="stylesheet" />
+    <script src="./assets/js/core/utils.js"></script>
+    <script src="./assets/js/core/i18n.js"></script>
+    <script src="./assets/js/core/command.js"></script>
+    <script src="./assets/js/ui/message-box.js"></script>
+    <script src="./assets/js/popups/game-mode-popup.js"></script>
+    <script src="./assets/js/popups/game-settings-popup.js"></script>
+    <script src="./assets/js/popups/setup-flow-popup.js"></script>
+    <script src="./assets/js/popups/component-selection-popup.js"></script>
+    <script src="./assets/js/app/views.js"></script>
+    <script src="./assets/js/app/main.js"></script>
 </head>
 
-<body>
+<body class="hidden">
     <div class="window">
         <div class="title-bar">
             <span class="title-text">CB SERVERS LAUNCHER</span>
             <div class="window-controls">
-                <button class="control-btn" id="minimize-button">−</button>
-                <button class="control-btn" id="close-button">×</button>
+                <button class="control-btn" id="minimize-button" data-i18n-title="window.minimize" title="Minimize">-</button>
+                <button class="control-btn" id="close-button" data-i18n-title="window.close" title="Close">x</button>
             </div>
         </div>
 
         <div class="main-container">
-            <div class="sidebar">
-                <div class="nav-section">
+            <aside class="sidebar">
+                <div class="sidebar-brand">
+                    <div class="sidebar-logo">
+                        <img src="./assets/img/brand/cb-hero.png" alt="CB Launcher">
+                    </div>
+                    <div class="sidebar-brand-text">
+                        <span class="sidebar-brand-title">CB Launcher</span>
+                        <span class="sidebar-brand-sub" data-i18n="brand.servers">Servers</span>
+                    </div>
+                </div>
+
+                <nav class="nav-list">
                     <div class="nav-item active" id="home">
                         <div class="nav-icon home-icon"></div>
-                        <span>Home</span>
+                        <span class="nav-label" data-i18n="nav.home">Home</span>
                     </div>
-                </div>
-
-                <div class="nav-section">
-                    <div class="game-item" id="t4" data-game="t4">
-                        <div class="game-thumbnail t4-thumb"></div>
-                        <div class="game-name">World at War</div>
+                    <div class="nav-item" id="library">
+                        <div class="nav-icon library-icon"></div>
+                        <span class="nav-label" data-i18n="nav.library">Library</span>
                     </div>
-                    <div class="game-item" id="iw4x" data-game="iw4x">
-                        <div class="game-thumbnail iw4x-thumb"></div>
-                        <div class="game-name">Modern Warfare 2</div>
-                    </div>
-                    <div class="game-item" id="t5" data-game="t5">
-                        <div class="game-thumbnail t5-thumb"></div>
-                        <div class="game-name">Black Ops</div>
-                    </div>
-                    <div class="game-item" id="iw5" data-game="iw5">
-                        <div class="game-thumbnail iw5-thumb"></div>
-                        <div class="game-name">Modern Warfare 3</div>
-                    </div>
-                    <div class="game-item" id="t6" data-game="t6">
-                        <div class="game-thumbnail t6-thumb"></div>
-                        <div class="game-name">Black Ops 2</div>
-                    </div>
-                    <div class="game-item" id="iw6x" data-game="iw6x">
-                        <div class="game-thumbnail iw6x-thumb"></div>
-                        <div class="game-name">Ghosts</div>
-                    </div>
-                    <div class="game-item" id="s1x" data-game="s1x">
-                        <div class="game-thumbnail s1x-thumb"></div>
-                        <div class="game-name">Advanced Warfare</div>
-                    </div>
-                    <div class="game-item" id="boiii" data-game="boiii">
-                        <div class="game-thumbnail boiii-thumb"></div>
-                        <div class="game-name">Black Ops 3</div>
-                    </div>
-                    <div class="game-item" id="h1-mod" data-game="h1-mod">
-                        <div class="game-thumbnail h1-mod-thumb"></div>
-                        <div class="game-name">Modern Warfare Remastered</div>
-                    </div>
-                    <div class="game-item" id="iw7-mod" data-game="iw7-mod">
-                        <div class="game-thumbnail iw7-mod-thumb"></div>
-                        <div class="game-name">Infinite Warfare</div>
-                    </div>
-                    <div class="game-item" id="hmw-mod" data-game="hmw-mod">
-                        <div class="game-thumbnail hmw-mod-thumb"></div>
-                        <div class="game-name">HorizonMW</div>
-                    </div>
-                </div>
-
-                <div class="support-section">
                     <div class="nav-item" id="support">
                         <div class="nav-icon support-icon"></div>
-                        <span>Support</span>
+                        <span class="nav-label" data-i18n="nav.support">Support</span>
                     </div>
-                </div>
-
-                <div class="settings-section">
                     <div class="nav-item" id="settings">
                         <div class="nav-icon settings-icon"></div>
-                        <span>Settings</span>
+                        <span class="nav-label" data-i18n="nav.settings">Settings</span>
                     </div>
-                </div>
-            </div>
+                </nav>
 
-            <div class="content-area">
-                <!-- Home Page -->
+                <div class="game-list">
+                    <div class="game-item" id="t4" data-game="t4"></div>
+                    <div class="game-item" id="iw4x" data-game="iw4x"></div>
+                    <div class="game-item" id="t5" data-game="t5"></div>
+                    <div class="game-item" id="iw5" data-game="iw5"></div>
+                    <div class="game-item" id="t6" data-game="t6"></div>
+                    <div class="game-item" id="iw6x" data-game="iw6x"></div>
+                    <div class="game-item" id="s1x" data-game="s1x"></div>
+                    <div class="game-item" id="boiii" data-game="boiii"></div>
+                    <div class="game-item" id="h1-mod" data-game="h1-mod"></div>
+                    <div class="game-item" id="iw7-mod" data-game="iw7-mod"></div>
+                    <div class="game-item" id="hmw-mod" data-game="hmw-mod"></div>
+                </div>
+            </aside>
+
+            <main class="content-area">
                 <div class="page-section" id="home-page">
-                    <div class="hero-section home">
-                    </div>
-                    <div class="game-details">
-                        <div class="description">
-                            Welcome to CB Servers Launcher! Select a game from the sidebar to get started. This launcher provides unified access to all game clients with host servers on:
-                            <br>
-                            <ul style="margin-top: 15px; margin-left: 20px; color: #bbb; line-height: 1.8;">
-                                <li><strong>World at War</strong> - Enhanced with Plutonium T4 modifications</li>
-                                <li><strong>Modern Warfare 2</strong> - Enhanced with IW4x (MP) and IW4-SP (SP) modifications</li>
-                                <li><strong>Black Ops</strong> - Enhanced with Plutonium T5 modifications</li>
-                                <li><strong>Modern Warfare 3</strong> - Enhanced with Plutonium (MP) and IW5-Mod (SP) modifications</li>
-                                <li><strong>Black Ops 2</strong> - Enhanced with Plutonium (MP/ZM) modifications</li>
-                                <li><strong>Ghosts</strong> - Enhanced with IW6x modifications</li>
-                                <li><strong>Advanced Warfare</strong> - Enhanced with S1x modifications</li>
-                                <li><strong>Black Ops 3</strong> - Enhanced with BOIII modifications</li>
-                                <li><strong>Modern Warfare Remastered</strong> - Enhanced with H1-Mod features</li>
-                                <li><strong>Infinite Warfare</strong> - Enhanced with IW7-Mod features</li>
-                                <li><strong>HorizonMW</strong> - faithful MW2 MP remaster with extra content</li>
-                            </ul>
-                            <br>
-                            NOTE: This launcher is not affiliated or endorsed by IW4x, Plutonium, AlterWare, Aurora, or Horizon MW.
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Support Page -->
-                <div class="page-section" id="support-page" style="display: none;">
-                    <div class="hero-section support"></div>
-                    <div class="game-details">
-                        <div class="description">
-                            <h2 style="color: #fff; margin-bottom: 15px;">Need Help?</h2>
-                            <p style="margin-bottom: 20px;">
-                                If you're experiencing issues with the launcher or any of the game clients, we are here to help!
-                            </p>
-
-                            <strong>Join Our Discord</strong>
-                            <p style="margin-top: 10px; margin-bottom: 20px;">
-                                The best way to get support is through the Discord server. Press the button below to join.
-                            </p>
-
-                            <a href="https://cbservers.xyz/discord" target="_blank"
-                               style="display: inline-block; background: #5865F2; color: white;
-                                      padding: 12px 24px; border-radius: 4px; text-decoration: none;
-                                      font-weight: 600; border: none; cursor: pointer;">
-                                Discord Server
-                            </a>
-
-                            <div style="margin-top: 30px;">
-                                <strong>Install Redistributables</strong>
-                                <p style="margin-top: 10px; margin-bottom: 20px;">
-                                    Various games require Microsoft Visual C++ Redistributables and DirectX to run properly.
-                                    Click the button below to automatically download and install all required redistributables.
-                                    Wait until all installs are complete and the Powershell window closes.
-                                    <br>
-                                    Tool created by <a href="https://chse.sh" target="_blank">Chase</a>.
-                                </p>
-
-                                <button id="install-redist-btn"
-                                   onclick="window.executeCommand('install-redist')"
-                                   style="display: inline-block; background: #28a745; color: white;
-                                          padding: 12px 24px; border-radius: 4px; text-decoration: none;
-                                          font-weight: 600; border: none; cursor: pointer;
-                                          font-family: inherit; font-size: inherit; line-height: inherit;">
-                                    Install Redist
+                    <div class="hub-hero" id="hub-hero">
+                        <div class="hub-hero-content">
+                            <div class="hub-hero-info">
+                                <img class="hub-hero-logo" id="hub-hero-logo" alt="">
+                                <div class="hub-hero-title" id="hub-hero-title">CB Launcher</div>
+                                <p class="hub-hero-sub" id="hub-hero-sub">A unified launcher for Call of Duty community clients.</p>
+                            </div>
+                            <div class="hub-hero-action">
+                                <button class="play-button" id="hub-hero-play">
+                                    <span class="play-icon"></span>
+                                    Play
                                 </button>
                             </div>
-
-                            <div style="margin-top: 30px;">
-                                <strong>Important Note</strong>
-                                <p style="margin-top: 10px; margin-bottom: 0;">
-                                    This launcher is not affiliated or endorsed by IW4x, Plutonium, AlterWare, Aurora, or Horizon MW.
-                                    <br>
-                                    Please do not bug original client maintainers with support requests in regards to this launcher or its client forks.
-                                    <br>
-                                    You can find the source to all of the client forks and this launcher on our <a href="https://github.com/CBServers" target="_blank">Github</a> page.
-                                </p>
-                            </div>
                         </div>
+                    </div>
+
+                    <section class="section">
+                        <div class="section-head">
+                            <div class="section-title" data-i18n="home.readyToPlay">Ready to Play</div>
+                        </div>
+                        <div class="client-row" id="home-ready-row"></div>
+                    </section>
+
+                    <section class="section">
+                        <div class="section-head">
+                            <div class="section-title" data-i18n="home.notInstalled">Not Installed</div>
+                        </div>
+                        <div class="client-row" id="home-not-installed-row"></div>
+                    </section>
+                </div>
+
+                <div class="page-section" id="library-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="library.title">Library</div>
+                        <div class="page-subtitle" data-i18n="library.subtitle">Call of Duty clients available through CB Launcher.</div>
+                    </div>
+
+                    <div class="library-toolbar">
+                        <div class="filter-chips" id="library-filters">
+                            <span class="chip active" data-filter="all" data-i18n="library.filterAll">All</span>
+                            <span class="chip" data-filter="installed" data-i18n="library.filterInstalled">Installed</span>
+                            <span class="chip" data-filter="not-installed" data-i18n="library.filterNotInstalled">Not installed</span>
+                            <span class="chip" data-filter="plutonium" data-i18n="library.filterPlutonium">Plutonium</span>
+                            <span class="chip" data-filter="alterware" data-i18n="library.filterAlterWare">AlterWare</span>
+                            <span class="chip" data-filter="others" data-i18n="library.filterOthers">Others</span>
+                        </div>
+                        <div class="search-field">
+                            <input type="text" id="library-search" data-i18n-placeholder="library.searchPlaceholder" placeholder="Search clients..." />
+                        </div>
+                    </div>
+
+                    <div class="library-grid" id="library-grid"></div>
+                </div>
+
+                <div class="page-section" id="support-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="support.title">Support</div>
+                        <div class="page-subtitle" data-i18n="support.subtitle">Troubleshooting, redistributables and community help.</div>
+                    </div>
+                    <div class="support-layout">
+                        <section class="support-panel">
+                            <h2 data-i18n="support.communityTitle">Community support</h2>
+                            <p data-i18n="support.communityBody">The Discord is the fastest place to get help with launcher setup, client installs and server access.</p>
+                            <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank" data-i18n="support.discordServer">Discord Server</a>
+                        </section>
+                        <section class="support-panel">
+                            <h2 data-i18n="support.redistTitle">Redistributables</h2>
+                            <p data-i18n="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.</p>
+                            <button class="support-action" id="install-redist-btn" onclick="window.executeCommand('install-redist')">
+                                <span data-i18n="support.installRedist">Install Redistributables</span>
+                            </button>
+                        </section>
+                        <section class="support-panel wide">
+                            <h2 data-i18n="support.noteTitle">Important note</h2>
+                            <p data-i18n="support.noteBody">This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.</p>
+                            <a class="support-link" href="https://github.com/CBServers" target="_blank" data-i18n="support.github">CB Servers GitHub</a>
+                        </section>
                     </div>
                 </div>
 
-                <!-- Settings Page -->
                 <div class="page-section" id="settings-page" style="display: none;">
-                    <div class="settings-content">
-                        <div class="settings-section">
-                            <h3>Launcher Settings</h3>
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="settings.title">Settings</div>
+                        <div class="page-subtitle" data-i18n="settings.subtitle">Launcher preferences, network and game directories.</div>
+                    </div>
 
+                    <div class="settings-content">
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.launcher">Launcher</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label>Restore Last Viewed Game</label>
+                                    <label data-i18n="settings.language">Language</label>
+                                    <span class="setting-description" data-i18n="settings.languageBody">Choose the interface language used by the launcher.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <select class="cdn-select" id="language-select">
+                                        <option value="en" data-i18n="settings.languageEnglish">English</option>
+                                        <option value="fr" data-i18n="settings.languageFrench">French</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.restoreLastViewedPage">Restore last viewed page</label>
                                 </div>
                                 <div class="toggle-group small" id="restore-last-page-toggle">
                                     <button class="toggle-btn" data-value="false">OFF</button>
                                     <button class="toggle-btn active" data-value="true">ON</button>
                                 </div>
                             </div>
-
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label>Skip Hash Verification</label>
+                                    <label data-i18n="settings.skipHashVerification">Skip hash verification</label>
                                 </div>
                                 <div class="toggle-group small" id="skip-hash-verification-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
                                     <button class="toggle-btn" data-value="true">ON</button>
                                 </div>
                             </div>
-
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label>Close Launcher After Game Launch</label>
+                                    <label data-i18n="settings.closeLauncherAfterLaunch">Close launcher after game launch</label>
                                 </div>
                                 <div class="toggle-group small" id="close-on-launch-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
                                     <button class="toggle-btn" data-value="true">ON</button>
                                 </div>
                             </div>
-
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label>Skip Client Update on Game Launch</label>
+                                    <label data-i18n="settings.skipClientUpdate">Skip client update on launch</label>
                                 </div>
                                 <div class="toggle-group small" id="skip-client-update-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
                                     <button class="toggle-btn" data-value="true">ON</button>
                                 </div>
                             </div>
+                        </section>
 
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.network">Network</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label>Download Server</label>
+                                    <label data-i18n="settings.downloadServer">Download server</label>
+                                    <span class="setting-description" data-i18n="settings.downloadServerBody">Choose a CDN region or let the launcher pick the fastest one.</span>
                                 </div>
                                 <div class="cdn-control">
                                     <select class="cdn-select" id="cdn-server-select">
-                                        <option value="auto">Auto</option>
-                                        <option value="na">North America</option>
-                                        <option value="eu">Europe</option>
+                                        <option value="auto" data-i18n="cdn.auto">Auto</option>
+                                        <option value="na" data-i18n="cdn.na">North America</option>
+                                        <option value="eu" data-i18n="cdn.eu">Europe</option>
                                     </select>
-                                    <button class="cdn-test-btn" id="cdn-test-btn" title="Re-test server speeds">
+                                    <button class="cdn-test-btn" id="cdn-test-btn" data-i18n-title="cdn.retest" title="Re-test server speeds">
                                         <svg class="cdn-refresh-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                                             <path d="M21 3v5h-5"/>
@@ -245,339 +236,44 @@
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div class="settings-actions">
-                            <button class="settings-action-btn reset-btn" id="reset-all-settings-btn">Reset All Settings</button>
-                            <button class="settings-action-btn console-btn" id="show-console-btn">Show Console</button>
-                            <button class="settings-action-btn update-btn" id="check-updates-btn">Check for Updates</button>
-                        </div>
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.gameDirectories">Game directories</h3>
+                            <p class="settings-description" data-i18n="settings.gameDirectoriesBody">Link each custom client to its Steam base game directory.</p>
+                            <div class="directory-list" id="settings-directory-list"></div>
+                        </section>
 
-                        <div class="settings-footer">
-                            <div class="footer-title">CB Servers Launcher</div>
-                            <div class="footer-version" id="version-footer">Version: Loading...</div>
-                            <div class="footer-source"><a href="https://github.com/CBServers/cb-launcher" target="_blank">Source</a></div>
-                        </div>
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.about">About</h3>
+                            <div class="settings-actions">
+                                <button class="settings-action-btn reset-btn" id="reset-all-settings-btn" data-i18n="settings.resetAllSettings">Reset All Settings</button>
+                                <button class="settings-action-btn console-btn" id="show-console-btn">Show Console</button>
+                                <button class="settings-action-btn update-btn" id="check-updates-btn" data-i18n="settings.checkForUpdates">Check for Updates</button>
+                            </div>
+                            <div class="settings-footer">
+                                <div class="footer-title">CB Servers Launcher</div>
+                                <div class="footer-version" id="version-footer">Version: Loading...</div>
+                                <div class="footer-source"><a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="settings.source">Source</a></div>
+                                <div class="footer-design"><a href="https://github.com/Riiyua" target="_blank" data-i18n="settings.designBy">Design by Riyu</a></div>
+                            </div>
+                        </section>
                     </div>
                 </div>
 
-                <!-- Game Pages -->
-                <div class="page-section game-page" id="t4-page" style="display: none;">
-                    <div class="hero-section t4">
-                        <div class="hero-content">
-                            <div class="game-logo">WORLD AT WAR</div>
-                            <div class="game-mod">PLUTO T4</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="t4-button-group"></div>
-                        <div class="description">
-                            Call of Duty: World at War enhanced with Plutonium T4 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.
-                            <br><br>
-                            Plutonium will require an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Campaign, Multiplayer, and Zombies are provided by the T4 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="iw4x-page" style="display: none;">
-                    <div class="hero-section iw4x">
-                        <div class="hero-content">
-                            <div class="game-logo">MODERN WARFARE 2</div>
-                            <div class="game-mod">IW4X/IW4-SP</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="iw4x-button-group"></div>
-                        <div class="description">
-                            Call of Duty: Modern Warfare 2 enhanced with IW4X and IW4-SP modifications. Experience the classic campaign and multiplayer with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Multiplayer is provided by the IW4x Client and developed by the <a href="https://iw4x.io/" target="_blank">IW4x Project</a>.
-                                <br>
-                                Singleplayer is provided by the IW4-SP Client and developed by <a href="https://alterware.dev/" target="_blank">AlterWare</a>.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="t5-page" style="display: none;">
-                    <div class="hero-section t5">
-                        <div class="hero-content">
-                            <div class="game-logo">BLACK OPS</div>
-                            <div class="game-mod">PLUTO T5</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="t5-button-group"></div>
-                        <div class="description">
-                            Call of Duty: Black Ops enhanced with Plutonium T5 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.
-                            <br><br>
-                            Plutonium will require an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Campaign, Multiplayer, and Zombies are provided by the T5 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="iw5-page" style="display: none;">
-                    <div class="hero-section iw5">
-                        <div class="hero-content">
-                            <div class="game-logo">MODERN WARFARE 3</div>
-                            <div class="game-mod">PLUTO IW5/IW5-MOD</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="iw5-button-group"></div>
-                        <div class="description">
-                            Call of Duty: Modern Warfare 3 enhanced with Plutonium and IW5-Mod modifications. Experience the campaign and multiplayer with improved stability and additional features.
-                            <br><br>
-                            Plutonium will require an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Multiplayer is provided by the IW5 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.
-                                <br>
-                                Singleplayer is provided by the IW5-Mod Client and developed by <a href="https://alterware.dev/" target="_blank">AlterWare</a>.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="t6-page" style="display: none;">
-                    <div class="hero-section t6">
-                        <div class="hero-content">
-                            <div class="game-logo">BLACK OPS 2</div>
-                            <div class="game-mod">PLUTO T6</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="t6-button-group"></div>
-                        <div class="description">
-                            Call of Duty: Black Ops 2 enhanced with Plutonium T6 modifications. Experience multiplayer and zombies modes with improved stability and additional features.
-                            <br><br>
-                            Plutonium will require an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Multiplayer and Zombies are provided by the T6 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="boiii-page" style="display: none;">
-                    <div class="hero-section boiii">
-                        <div class="hero-content">
-                            <div class="game-logo">BLACK OPS 3</div>
-                            <div class="game-mod">BOIII</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="boiii-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            Call of Duty: Black Ops 3 enhanced with BOIII modifications. Experience the full campaign, multiplayer, and zombies modes with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/boiii" target="_blank">fork</a> of the original BOIII/T7x Client developed by 
-                                <a href="https://github.com/momo5502" target="_blank">momo5502</a> and <a href="https://alterware.dev" target="_blank">AlterWare</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="iw6x-page" style="display: none;">
-                    <div class="hero-section iw6x">
-                        <div class="hero-content">
-                            <div class="game-logo">GHOSTS</div>
-                            <div class="game-mod">IW6X</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="iw6x-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            Call of Duty: Ghosts enhanced with IW6x modifications. Experience the campaign and multiplayer with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/iw6-mod" target="_blank">fork</a> of the original IW6x/iw6-mod Client developed by 
-                                <a href="https://alterware.dev" target="_blank">AlterWare</a> and <a href="https://xlabs.dev" target="_blank">X Labs</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="s1x-page" style="display: none;">
-                    <div class="hero-section s1x">
-                        <div class="hero-content">
-                            <div class="game-logo">ADVANCED WARFARE</div>
-                            <div class="game-mod">S1X</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="s1x-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            Call of Duty: Advanced Warfare enhanced with S1x modifications. Experience the futuristic warfare campaign and multiplayer with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/s1-mod" target="_blank">fork</a> of the original S1x/s1-mod Client developed by 
-                                <a href="https://alterware.dev" target="_blank">AlterWare</a> and <a href="https://xlabs.dev" target="_blank">X Labs</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="h1-mod-page" style="display: none;">
-                    <div class="hero-section h1-mod">
-                        <div class="hero-content">
-                            <div class="game-logo">MODERN WARFARE REMASTERED</div>
-                            <div class="game-mod">H1-MOD</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="h1-mod-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            Call of Duty: Modern Warfare Remastered enhanced with H1-Mod features. Experience the classic campaign and multiplayer with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/h1-mod" target="_blank">fork</a> of the original H1-Mod Client developed by 
-                                <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="iw7-mod-page" style="display: none;">
-                    <div class="hero-section iw7-mod">
-                        <div class="hero-content">
-                            <div class="game-logo">INFINITE WARFARE</div>
-                            <div class="game-mod">IW7-MOD</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="iw7-mod-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            Call of Duty: Infinite Warfare enhanced with IW7-Mod features. Experience the space warfare campaign, multiplayer and zombies with improved stability and additional features.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> of the original IW7-Mod Client developed by 
-                                <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="page-section game-page" id="hmw-mod-page" style="display: none;">
-                    <div class="hero-section hmw-mod">
-                        <div class="hero-content">
-                            <div class="game-logo">HORIZONMW</div>
-                            <div class="game-mod">HMW-MOD</div>
-                        </div>
-                    </div>
-                    <div class="game-details">
-                        <div class="button-group" id="hmw-mod-button-group">
-                            <!-- Buttons will be dynamically generated based on installation status -->
-                        </div>
-                        <div class="description">
-                            HorizonMW. A faithful community remaster of Modern Warfare 2's Multiplayer with additional content from MW3.
-                            <br><br>
-                            <strong>Credits</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                This is a <a href="https://github.com/CBServers/HorizonMW-Client" target="_blank">fork</a> of the original HMW-Mod Client developed by 
-                                <a href="https://horizonmw.org/" target="_blank">HorizonMW</a> with added CB patches.
-                            </p>
-                            <br>
-                            <strong>Note</strong>
-                            <p style="margin-top: 10px; margin-bottom: 0px;">
-                                Do not bug original client maintainers with support requests when using this client fork or launcher, join our <a href="https://cbservers.xyz/discord" target="_blank">discord</a> instead.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                <div id="game-pages"></div>
+                <div class="page-section" id="component-library-page" style="display: none;"></div>
+            </main>
         </div>
 
-        <!-- Global progress bar - always persists -->
         <div class="global-progress-bar" id="global-progress-bar" style="display: none;">
             <div class="progress-game-icon" id="progress-game-icon"></div>
-            <div class="progress-info" id="progress-info">Ready to play</div>
+            <div class="progress-info" id="progress-info" data-i18n="progress.readyToPlay">Ready to play</div>
             <div class="progress-bar-container">
                 <div class="progress-fill" id="global-progress-fill"></div>
             </div>
             <div class="progress-percent" id="global-progress-percent">100%</div>
-            <button class="progress-cancel-btn" id="progress-cancel-btn" title="Cancel">×</button>
+            <button class="progress-cancel-btn" id="progress-cancel-btn" data-i18n-title="common.cancel" title="Cancel">x</button>
         </div>
     </div>
 
@@ -591,9 +287,7 @@
         </span>
     </span>
 
-    <!-- This is necessary to load preferred mode (if changed) on opening launcher -->
-    <dark-mode-toggle hidden permanent="true">
-    </dark-mode-toggle>
+    <dark-mode-toggle hidden permanent="true"></dark-mode-toggle>
 </body>
 
 </html>
