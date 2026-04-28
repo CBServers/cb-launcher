@@ -3,6 +3,13 @@
 (function() {
     const HOME_HERO_SLIDE_INTERVAL = 6500;
 
+    const NEWS_ITEMS = [
+        { tag: 'Client Update', title: 'BOIII updated to v1.6.2',    body: 'Stability fixes and improved anti-cheat compatibility.',               time: '2 hours ago', accent: '#F3751B' },
+        { tag: 'Client Update', title: 'IW4x r3492 released',        body: 'Improved matchmaking and fixed MW2 crash on large lobbies.',           time: '1 day ago',   accent: '#FBC751' },
+        { tag: 'Announcement',  title: 'EU CDN now live',             body: 'European download server is online — expect faster installs.',         time: '3 days ago',  accent: '#6C63FF' },
+        { tag: 'Client Update', title: 'Plutonium T6 patch',          body: 'Resolved zombie matchmaking desync and lobby crash issues.',           time: '5 days ago',  accent: '#FE890A' },
+    ];
+
     let homeHeroStates = [];
     let homeHeroSlideIndex = 0;
     let homeHeroTimer = null;
@@ -42,6 +49,12 @@
         return window.LauncherI18n
             ? window.LauncherI18n.getGameText(config.uiId, 'credits', config.credits)
             : config.credits;
+    }
+
+    function gameDescriptionNote(config) {
+        return window.LauncherI18n
+            ? window.LauncherI18n.getGameText(config.uiId, 'descriptionNote', '')
+            : '';
     }
 
     function navigateTo(pageOrGameId) {
@@ -101,7 +114,6 @@
         const isInstalled = normalizedStatus === 'installed';
         const hero = document.getElementById('hub-hero');
         const logo = document.getElementById('hub-hero-logo');
-        const title = document.getElementById('hub-hero-title');
         const sub = document.getElementById('hub-hero-sub');
         const cta = document.getElementById('hub-hero-play');
 
@@ -118,7 +130,6 @@
             logo.src = config.logoPath;
             logo.alt = config.displayName;
         }
-        if (title) title.textContent = config.displayName;
         if (sub) sub.textContent = gameDescription(config);
         if (cta) {
             const label = homeActionLabel(normalizedStatus);
@@ -188,10 +199,6 @@
 
         renderHomeClientCards('home-ready-row', safeStates
             .filter(({ config, status }) => config && status === 'installed')
-            .map(({ config }) => config));
-
-        renderHomeClientCards('home-not-installed-row', safeStates
-            .filter(({ config, status }) => config && status !== 'installed')
             .map(({ config }) => config));
 
         setHomeHeroStates(safeStates);
@@ -332,13 +339,46 @@
         }
     }
 
+    function renderNewsSection() {
+        const grid = document.getElementById('news-grid');
+        if (!grid) return;
+
+        grid.innerHTML = NEWS_ITEMS.map(item => `
+            <div class="news-card" style="--news-accent: ${escapeHtml(item.accent)}">
+                <div class="news-card-header">
+                    <span class="news-card-tag" style="color:${escapeHtml(item.accent)};background:${escapeHtml(item.accent)}22;border:1px solid ${escapeHtml(item.accent)}44">${escapeHtml(item.tag)}</span>
+                    <span class="news-card-time">${escapeHtml(item.time)}</span>
+                </div>
+                <div class="news-card-title">${escapeHtml(item.title)}</div>
+                <div class="news-card-body">${escapeHtml(item.body)}</div>
+            </div>
+        `).join('');
+    }
+
+    function updateSidebarRecentGames(recentIds) {
+        const gameItems = document.querySelectorAll('.sidebar .game-item');
+        let visibleCount = 0;
+
+        gameItems.forEach(item => {
+            const gameId = item.dataset.game || item.id;
+            const isRecent = Array.isArray(recentIds) && recentIds.includes(gameId);
+            item.style.display = isRecent ? '' : 'none';
+            if (isRecent) visibleCount++;
+        });
+
+        const label = document.querySelector('.game-list-label');
+        if (label) {
+            label.style.display = visibleCount > 0 ? '' : 'none';
+        }
+    }
+
     function renderHome() {
         const featured = GameUtils.getFeaturedGame();
         if (!featured) return;
 
         renderHomeHero(featured, 'not-setup');
         renderHomeClientCards('home-ready-row', []);
-        renderHomeClientCards('home-not-installed-row', GameUtils.getAllGameConfigs());
+        renderNewsSection();
 
         const openLibrary = document.getElementById('home-view-library');
         if (openLibrary) openLibrary.onclick = () => navigateTo('library');
@@ -526,11 +566,9 @@
 
         host.innerHTML = GameUtils.getAllGameConfigs().map(config => `
             <div class="page-section game-page" id="${escapeHtml(config.uiId)}-page" style="display: none;">
-                <div class="game-detail-bg" style="background-image: ${cssUrl(config.heroImagePath)}"></div>
                 <div class="hero-section ${escapeHtml(config.uiId)}" style="--hero-image: ${cssUrl(config.heroImagePath)}">
-                    <div class="hero-content detail-glass-panel">
+                    <div class="hero-bottom-content">
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
-                        <p class="game-summary">${escapeHtml(gameDescription(config))}</p>
                         <div class="game-meta-row">
                             <span>${escapeHtml(config.codeName)}</span>
                             <span>${escapeHtml(config.localSize)}</span>
@@ -541,27 +579,30 @@
                 <div class="game-details">
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
 
-                    <div class="detail-tabs" data-tabs="${escapeHtml(config.uiId)}">
-                        <button class="detail-tab active" data-tab="overview">${escapeHtml(t('detail.overview'))}</button>
-                        <button class="detail-tab" data-tab="mods">${escapeHtml(t('detail.modsScripts'))}</button>
-                    </div>
-
                     <div class="detail-panel-grid">
-                        <section class="description tab-panel active" data-panel="overview">
+                        <section class="description">
                             <strong>${escapeHtml(config.displayName)}</strong>
                             <p>${escapeHtml(gameDescription(config))}</p>
+                            ${gameDescriptionNote(config) ? `<br><p>${gameDescriptionNote(config)}</p>` : ''}
                             <br>
                             <strong>${escapeHtml(t('detail.credits'))}</strong>
-                            <p>${escapeHtml(gameCredits(config))}</p>
+                            <p>${gameCredits(config)}</p>
                             <br>
                             <strong>${escapeHtml(t('detail.note'))}</strong>
                             <p>${escapeHtml(t('detail.noteBody'))}</p>
                         </section>
-                        ${renderClientSettingsPanel(config)}
 
                         <aside class="detail-actions-panel">
-                            <button class="secondary-action detail-manage-install-action" data-game="${escapeHtml(config.uiId)}">
+                            <button class="secondary-action detail-browse-files-action" data-game="${escapeHtml(config.uiId)}">
                                 <span class="secondary-action-icon folder-icon"></span>
+                                ${escapeHtml(t('common.browseLocalFiles'))}
+                            </button>
+                            <button class="secondary-action detail-verify-action" data-game="${escapeHtml(config.uiId)}">
+                                <span class="secondary-action-icon verify-icon"></span>
+                                ${escapeHtml(t('common.verify'))}
+                            </button>
+                            <button class="secondary-action detail-manage-install-action" data-game="${escapeHtml(config.uiId)}">
+                                <span class="secondary-action-icon files-icon"></span>
                                 ${escapeHtml(t('common.manageInstall'))}
                             </button>
                             <button class="secondary-action detail-settings-action" data-game="${escapeHtml(config.uiId)}">
@@ -569,12 +610,12 @@
                                 ${escapeHtml(t('detail.clientSettings'))}
                             </button>
                             <div class="detail-stat">
-                                <span>${escapeHtml(t('detail.steamAppId'))}</span>
-                                <strong>${config.steamAppId ? escapeHtml(config.steamAppId) : escapeHtml(t('detail.customClient'))}</strong>
-                            </div>
-                            <div class="detail-stat">
                                 <span>${escapeHtml(t('detail.client'))}</span>
                                 <strong>${escapeHtml(config.client)}</strong>
+                            </div>
+                            <div class="detail-stat">
+                                <span>${escapeHtml(t('detail.provider'))}</span>
+                                <strong>${escapeHtml(config.provider)}</strong>
                             </div>
                         </aside>
                     </div>
@@ -582,26 +623,33 @@
             </div>
         `).join('');
 
-        host.querySelectorAll('.detail-tabs').forEach(tabGroup => {
-            tabGroup.addEventListener('click', async event => {
-                const tab = event.target.closest('.detail-tab');
-                if (!tab) return;
-                const gameId = tabGroup.dataset.tabs;
-
-                if (tab.dataset.tab === 'mods') {
-                    if (window.GameDetailPage && typeof window.GameDetailPage.openModsScriptsFolder === 'function') {
-                        await window.GameDetailPage.openModsScriptsFolder(gameId);
-                    }
-                    return;
+        host.querySelectorAll('.detail-browse-files-action').forEach(button => {
+            button.addEventListener('click', async () => {
+                if (typeof window.executeCommand !== 'function') return;
+                const backendGame = GameUtils.getGameMapping(button.dataset.game);
+                const path = await window.executeCommand('get-game-property', {
+                    game: backendGame,
+                    suffix: PROPERTY_KEYS.GAME.INSTALL
+                });
+                if (path) {
+                    window.executeCommand('open-folder', { path });
                 }
+            });
+        });
 
-                activateGameDetailPanel(gameId, tab.dataset.tab);
+        host.querySelectorAll('.detail-verify-action').forEach(button => {
+            button.addEventListener('click', () => {
+                if (typeof verifyGame === 'function') {
+                    verifyGame(button.dataset.game);
+                }
             });
         });
 
         host.querySelectorAll('.detail-settings-action').forEach(button => {
             button.addEventListener('click', () => {
-                activateGameDetailPanel(button.dataset.game, 'client-settings');
+                if (typeof showGameSettings === 'function') {
+                    showGameSettings(button.dataset.game);
+                }
             });
         });
 
@@ -610,48 +658,6 @@
                 if (typeof showManageInstall === 'function') {
                     showManageInstall(button.dataset.game);
                 }
-            });
-        });
-
-        host.querySelectorAll('.inline-settings-browse').forEach(button => {
-            button.addEventListener('click', () => {
-                if (window.GameDetailPage && typeof window.GameDetailPage.browseClientSettingsPath === 'function') {
-                    window.GameDetailPage.browseClientSettingsPath(button.dataset.game);
-                }
-            });
-        });
-
-        host.querySelectorAll('.inline-settings-save').forEach(button => {
-            button.addEventListener('click', () => {
-                if (window.GameDetailPage && typeof window.GameDetailPage.saveClientSettings === 'function') {
-                    window.GameDetailPage.saveClientSettings(button.dataset.game);
-                }
-            });
-        });
-
-        host.querySelectorAll('.inline-settings-reset').forEach(button => {
-            button.addEventListener('click', () => {
-                if (window.GameDetailPage && typeof window.GameDetailPage.resetClientSettings === 'function') {
-                    window.GameDetailPage.resetClientSettings(button.dataset.game);
-                }
-            });
-        });
-
-        host.querySelectorAll('.inline-settings-verify').forEach(button => {
-            button.addEventListener('click', () => {
-                if (window.GameDetailPage && typeof window.GameDetailPage.verifyConfiguredGame === 'function') {
-                    window.GameDetailPage.verifyConfiguredGame(button.dataset.game);
-                }
-            });
-        });
-
-        host.querySelectorAll('.inline-game-settings .toggle-group').forEach(toggleGroup => {
-            toggleGroup.addEventListener('click', event => {
-                const button = event.target.closest('.toggle-btn');
-                if (!button) return;
-
-                toggleGroup.querySelectorAll('.toggle-btn').forEach(item => item.classList.remove('active'));
-                button.classList.add('active');
             });
         });
     }
@@ -770,6 +776,8 @@
         refreshHomeInstalledClients,
         updateLibraryCard,
         navigateTo,
-        activateGameDetailPanel
+        activateGameDetailPanel,
+        updateSidebarRecentGames,
+        renderNewsSection
     };
 })();

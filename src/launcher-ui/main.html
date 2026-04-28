@@ -35,8 +35,8 @@
                         <img src="./assets/img/brand/cb-hero.png" alt="CB Launcher">
                     </div>
                     <div class="sidebar-brand-text">
-                        <span class="sidebar-brand-title">CB Launcher</span>
-                        <span class="sidebar-brand-sub" data-i18n="brand.servers">Servers</span>
+                        <span class="sidebar-brand-title">CB Servers</span>
+                        <span class="sidebar-brand-sub" data-i18n="brand.launcher">Launcher</span>
                     </div>
                 </div>
 
@@ -53,24 +53,28 @@
                         <div class="nav-icon support-icon"></div>
                         <span class="nav-label" data-i18n="nav.support">Support</span>
                     </div>
+                </nav>
+
+                <div class="game-list">
+                    <div class="game-list-label">Recent Games</div>
+                    <div class="game-item" id="t4" data-game="t4" style="display:none"></div>
+                    <div class="game-item" id="iw4x" data-game="iw4x" style="display:none"></div>
+                    <div class="game-item" id="t5" data-game="t5" style="display:none"></div>
+                    <div class="game-item" id="iw5" data-game="iw5" style="display:none"></div>
+                    <div class="game-item" id="t6" data-game="t6" style="display:none"></div>
+                    <div class="game-item" id="iw6x" data-game="iw6x" style="display:none"></div>
+                    <div class="game-item" id="s1x" data-game="s1x" style="display:none"></div>
+                    <div class="game-item" id="boiii" data-game="boiii" style="display:none"></div>
+                    <div class="game-item" id="h1-mod" data-game="h1-mod" style="display:none"></div>
+                    <div class="game-item" id="iw7-mod" data-game="iw7-mod" style="display:none"></div>
+                    <div class="game-item" id="hmw-mod" data-game="hmw-mod" style="display:none"></div>
+                </div>
+
+                <div class="sidebar-bottom">
                     <div class="nav-item" id="settings">
                         <div class="nav-icon settings-icon"></div>
                         <span class="nav-label" data-i18n="nav.settings">Settings</span>
                     </div>
-                </nav>
-
-                <div class="game-list">
-                    <div class="game-item" id="t4" data-game="t4"></div>
-                    <div class="game-item" id="iw4x" data-game="iw4x"></div>
-                    <div class="game-item" id="t5" data-game="t5"></div>
-                    <div class="game-item" id="iw5" data-game="iw5"></div>
-                    <div class="game-item" id="t6" data-game="t6"></div>
-                    <div class="game-item" id="iw6x" data-game="iw6x"></div>
-                    <div class="game-item" id="s1x" data-game="s1x"></div>
-                    <div class="game-item" id="boiii" data-game="boiii"></div>
-                    <div class="game-item" id="h1-mod" data-game="h1-mod"></div>
-                    <div class="game-item" id="iw7-mod" data-game="iw7-mod"></div>
-                    <div class="game-item" id="hmw-mod" data-game="hmw-mod"></div>
                 </div>
             </aside>
 
@@ -80,7 +84,6 @@
                         <div class="hub-hero-content">
                             <div class="hub-hero-info">
                                 <img class="hub-hero-logo" id="hub-hero-logo" alt="">
-                                <div class="hub-hero-title" id="hub-hero-title">CB Launcher</div>
                                 <p class="hub-hero-sub" id="hub-hero-sub">A unified launcher for Call of Duty community clients.</p>
                             </div>
                             <div class="hub-hero-action">
@@ -99,11 +102,12 @@
                         <div class="client-row" id="home-ready-row"></div>
                     </section>
 
-                    <section class="section">
+                    <section class="section" id="news-section">
                         <div class="section-head">
-                            <div class="section-title" data-i18n="home.notInstalled">Not Installed</div>
+                            <div class="section-title">News &amp; Updates</div>
+                            <span class="section-link">View all</span>
                         </div>
-                        <div class="client-row" id="home-not-installed-row"></div>
+                        <div class="news-grid" id="news-grid"></div>
                     </section>
                 </div>
 
@@ -120,7 +124,8 @@
                             <span class="chip" data-filter="not-installed" data-i18n="library.filterNotInstalled">Not installed</span>
                             <span class="chip" data-filter="plutonium" data-i18n="library.filterPlutonium">Plutonium</span>
                             <span class="chip" data-filter="alterware" data-i18n="library.filterAlterWare">AlterWare</span>
-                            <span class="chip" data-filter="others" data-i18n="library.filterOthers">Others</span>
+                            <span class="chip" data-filter="aurora" data-i18n="library.filterAurora">Aurora</span>
+                            <span class="chip" data-filter="horizonmw" data-i18n="library.filterHorizonMW">HorizonMW</span>
                         </div>
                         <div class="search-field">
                             <input type="text" id="library-search" data-i18n-placeholder="library.searchPlaceholder" placeholder="Search clients..." />
@@ -159,7 +164,7 @@
                 <div class="page-section" id="settings-page" style="display: none;">
                     <div class="page-header">
                         <div class="page-title" data-i18n="settings.title">Settings</div>
-                        <div class="page-subtitle" data-i18n="settings.subtitle">Launcher preferences, network and game directories.</div>
+                        <div class="page-subtitle" data-i18n="settings.subtitle">Launcher preferences and network settings.</div>
                     </div>
 
                     <div class="settings-content">
@@ -174,6 +179,18 @@
                                     <select class="cdn-select" id="language-select">
                                         <option value="en" data-i18n="settings.languageEnglish">English</option>
                                         <option value="fr" data-i18n="settings.languageFrench">French</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.theme">Theme</label>
+                                </div>
+                                <div class="cdn-control">
+                                    <select class="cdn-select" id="theme-select">
+                                        <option value="dark" data-i18n="settings.themeDark">Classic</option>
+                                        <option value="navy" data-i18n="settings.themeNavy">Navy Dark</option>
+                                        <option value="navy-gradient" data-i18n="settings.themeNavyGradient">Navy Gradient</option>
                                     </select>
                                 </div>
                             </div>
@@ -239,25 +256,22 @@
                         </section>
 
                         <section class="settings-section">
-                            <h3 data-i18n="settings.gameDirectories">Game directories</h3>
-                            <p class="settings-description" data-i18n="settings.gameDirectoriesBody">Link each custom client to its Steam base game directory.</p>
-                            <div class="directory-list" id="settings-directory-list"></div>
-                        </section>
-
-                        <section class="settings-section">
-                            <h3 data-i18n="settings.about">About</h3>
+                            <h3 data-i18n="settings.maintenance">Maintenance</h3>
                             <div class="settings-actions">
                                 <button class="settings-action-btn reset-btn" id="reset-all-settings-btn" data-i18n="settings.resetAllSettings">Reset All Settings</button>
                                 <button class="settings-action-btn console-btn" id="show-console-btn">Show Console</button>
                                 <button class="settings-action-btn update-btn" id="check-updates-btn" data-i18n="settings.checkForUpdates">Check for Updates</button>
                             </div>
-                            <div class="settings-footer">
-                                <div class="footer-title">CB Servers Launcher</div>
-                                <div class="footer-version" id="version-footer">Version: Loading...</div>
-                                <div class="footer-source"><a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="settings.source">Source</a></div>
-                                <div class="footer-design"><a href="https://github.com/Riiyua" target="_blank" data-i18n="settings.designBy">Design by Riyu</a></div>
-                            </div>
                         </section>
+                    </div>
+
+                    <div class="settings-footer">
+                        <div class="footer-title">CB Servers Launcher</div>
+                        <div class="footer-version" id="version-footer">Version: Loading...</div>
+                        <div class="footer-links">
+                            <div class="footer-source"><a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="settings.source">Source</a></div>
+                            <div class="footer-design"><a href="https://github.com/Riiyua" target="_blank" data-i18n="settings.designBy">Design by Riyu</a></div>
+                        </div>
                     </div>
                 </div>
 

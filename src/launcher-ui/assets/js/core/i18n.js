@@ -9,7 +9,7 @@
                 close: 'Close'
             },
             brand: {
-                servers: 'Servers'
+                launcher: 'Launcher'
             },
             nav: {
                 home: 'Home',
@@ -22,7 +22,7 @@
                 cancel: 'Cancel',
                 confirm: 'Confirm',
                 play: 'Play',
-                verify: 'Verify',
+                verify: 'Verify Files',
                 install: 'Install',
                 manage: 'Manage',
                 manageInstall: 'Manage Install',
@@ -34,6 +34,7 @@
                 applyChanges: 'Apply Changes',
                 configure: 'Configure',
                 browse: 'Browse',
+                browseLocalFiles: 'Browse Local Files',
                 saveSettings: 'Save Settings',
                 resetSettings: 'Reset Settings',
                 continue: 'Continue',
@@ -56,7 +57,8 @@
                 filterNotInstalled: 'Not installed',
                 filterPlutonium: 'Plutonium',
                 filterAlterWare: 'AlterWare',
-                filterOthers: 'Others',
+                filterAurora: 'Aurora',
+                filterHorizonMW: 'HorizonMW',
                 searchPlaceholder: 'Search clients...',
                 noMatches: 'No clients match this filter.'
             },
@@ -75,7 +77,7 @@
             },
             settings: {
                 title: 'Settings',
-                subtitle: 'Launcher preferences, network and game directories.',
+                subtitle: 'Launcher preferences and network settings.',
                 gameDirectories: 'Game directories',
                 gameDirectoriesBody: 'Link each custom client to its Steam base game directory.',
                 notConfiguredPath: 'No folder configured',
@@ -92,6 +94,11 @@
                 closeLauncherAfterLaunch: 'Close launcher after game launch',
                 skipClientUpdate: 'Skip client update on launch',
                 about: 'About',
+                maintenance: 'Maintenance',
+                theme: 'Theme',
+                themeNavy: 'Navy Dark',
+                themeDark: 'Classic',
+                themeNavyGradient: 'Navy Gradient',
                 resetAllSettings: 'Reset All Settings',
                 showConsole: 'Show Console',
                 hideConsole: 'Hide Console',
@@ -134,8 +141,8 @@
                 note: 'Note',
                 noteBody: 'Do not contact original client maintainers for support requests related to this launcher. Use the CB Servers Discord instead.',
                 verifySteamFiles: 'Verify Steam files',
-                steamAppId: 'Steam App ID',
                 client: 'Client',
+                provider: 'Provider',
                 customClient: 'Custom client'
             },
             componentLibrary: {
@@ -272,48 +279,52 @@
             },
             game: {
                 't4': {
-                    description: 'Call of Duty: World at War enhanced with Plutonium T4. Campaign, multiplayer and zombies stay close to the original game with modern stability patches.',
-                    credits: 'Campaign, Multiplayer, and Zombies are provided by the T4 client and developed by Plutonium.'
+                    description: 'Call of Duty: World at War enhanced with Plutonium T4 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.',
+                    descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Campaign, Multiplayer, and Zombies are provided by the T4 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 't5': {
-                    description: 'Call of Duty: Black Ops enhanced with Plutonium T5. Campaign, multiplayer and zombies are grouped in one clean client flow.',
-                    credits: 'Campaign, Multiplayer, and Zombies are provided by the T5 client and developed by Plutonium.'
+                    description: 'Call of Duty: Black Ops enhanced with Plutonium T5 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.',
+                    descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Campaign, Multiplayer, and Zombies are provided by the T5 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 'iw4x': {
-                    description: 'Modern Warfare 2 with IW4x multiplayer and IW4-SP support. Built for fast access to classic MW2 sessions and client maintenance.',
-                    credits: 'Multiplayer is provided by IW4x. Singleplayer is provided by IW4-SP and developed by AlterWare.'
+                    description: 'Call of Duty: Modern Warfare 2 enhanced with IW4X and IW4-SP modifications. Experience the classic campaign and multiplayer with improved stability and additional features.',
+                    credits: 'Multiplayer is provided by the IW4x Client and developed by the <a href="https://iw4x.io/" target="_blank">IW4x Project</a>.<br>Singleplayer is provided by the IW4-SP Client and developed by <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 'iw5': {
-                    description: 'Modern Warfare 3 with Plutonium multiplayer and IW5-Mod singleplayer support. Pick a mode only when the client actually needs it.',
-                    credits: 'Multiplayer is provided by Plutonium. Singleplayer is provided by IW5-Mod and developed by AlterWare.'
+                    description: 'Call of Duty: Modern Warfare 3 enhanced with Plutonium and IW5-Mod modifications. Experience the campaign and multiplayer with improved stability and additional features.',
+                    descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Multiplayer is provided by the IW5 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>Singleplayer is provided by the IW5-Mod Client and developed by <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 't6': {
-                    description: 'Black Ops II multiplayer and zombies through Plutonium T6, with client updates, verification and base-game linking handled from one detail view.',
-                    credits: 'Multiplayer and Zombies are provided by the T6 client and developed by Plutonium.'
+                    description: 'Call of Duty: Black Ops 2 enhanced with Plutonium T6 modifications. Experience multiplayer and zombies modes with improved stability and additional features.',
+                    descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Multiplayer and Zombies are provided by the T6 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 'boiii': {
-                    description: 'Black Ops III with BOIII client support for campaign, multiplayer and zombies. Includes client-specific settings such as intro-skip behavior.',
-                    credits: 'BOIII is a CB Servers fork of the original BOIII/T7x client developed by momo5502 and AlterWare.'
+                    description: 'Call of Duty: Black Ops 3 enhanced with BOIII modifications. Experience the full campaign, multiplayer, and zombies modes with improved stability and additional features.',
+                    credits: 'This is a <a href="https://github.com/CBServers/boiii" target="_blank">fork</a> of the original BOIII/T7x Client developed by <a href="https://github.com/momo5502" target="_blank">momo5502</a> and <a href="https://alterware.dev" target="_blank">AlterWare</a> with added CB patches.'
                 },
                 'iw6x': {
-                    description: 'Call of Duty: Ghosts with IW6x support for campaign and multiplayer. The launcher keeps install setup and client updates in the same place.',
-                    credits: 'IW6x is a CB Servers fork of the original IW6x/iw6-mod client developed by AlterWare.'
+                    description: 'Call of Duty: Ghosts enhanced with IW6x modifications. Experience the campaign and multiplayer with improved stability and additional features.',
+                    credits: 'This is a <a href="https://github.com/CBServers/iw6-mod" target="_blank">fork</a> of the original IW6x/iw6-mod Client developed by <a href="https://alterware.dev" target="_blank">AlterWare</a> and <a href="https://xlabs.dev" target="_blank">X Labs</a> with added CB patches.'
                 },
                 's1x': {
-                    description: 'Advanced Warfare through S1x, with campaign, multiplayer, zombies and survival mode choices presented only when relevant.',
-                    credits: 'S1x is a CB Servers fork of the original S1x/s1-mod client developed by AlterWare.'
+                    description: 'Call of Duty: Advanced Warfare enhanced with S1x modifications. Experience the futuristic warfare campaign and multiplayer with improved stability and additional features.',
+                    credits: 'This is a <a href="https://github.com/CBServers/s1-mod" target="_blank">fork</a> of the original S1x/s1-mod Client developed by <a href="https://alterware.dev" target="_blank">AlterWare</a> and <a href="https://xlabs.dev" target="_blank">X Labs</a> with added CB patches.'
                 },
                 'h1-mod': {
-                    description: 'Modern Warfare Remastered with H1-Mod support. Campaign and multiplayer launch modes stay behind one focused client page.',
-                    credits: 'H1-Mod is a CB Servers fork of the original H1-Mod client developed by Aurora.'
+                    description: 'Call of Duty: Modern Warfare Remastered enhanced with H1-Mod features. Experience the classic campaign and multiplayer with improved stability and additional features.',
+                    credits: 'This is a <a href="https://github.com/CBServers/h1-mod" target="_blank">fork</a> of the original H1-Mod Client developed by <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.'
                 },
                 'iw7-mod': {
-                    description: 'Infinite Warfare through IW7-Mod, with campaign and multiplayer options exposed without overloading the main launcher flow.',
-                    credits: 'IW7-Mod is a CB Servers fork of the original IW7-Mod client developed by AlterWare.'
+                    description: 'Call of Duty: Infinite Warfare enhanced with IW7-Mod features. Experience the space warfare campaign, multiplayer and zombies with improved stability and additional features.',
+                    credits: 'This is a <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> of the original IW7-Mod Client developed by <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.'
                 },
                 'hmw-mod': {
-                    description: 'HorizonMW focuses on Modern Warfare Remastered multiplayer with custom progression and unlock management from the launcher.',
-                    credits: 'HorizonMW is developed independently from AlterWare and is distributed through CB Servers.'
+                    description: "HorizonMW. A faithful community remaster of Modern Warfare 2's Multiplayer with additional content from MW3.",
+                    credits: 'This is a <a href="https://github.com/CBServers/HorizonMW-Client" target="_blank">fork</a> of the original HMW-Mod Client developed by <a href="https://horizonmw.org/" target="_blank">HorizonMW</a> with added CB patches.'
                 }
             }
         },
@@ -326,7 +337,7 @@
                 close: 'Fermer'
             },
             brand: {
-                servers: 'Serveurs'
+                launcher: 'Lanceur'
             },
             nav: {
                 home: 'Accueil',
@@ -339,7 +350,7 @@
                 cancel: 'Annuler',
                 confirm: 'Confirmer',
                 play: 'Jouer',
-                verify: 'Verifier',
+                verify: 'Verifier les fichiers',
                 install: 'Installer',
                 manage: 'Gerer',
                 manageInstall: "Gerer l'installation",
@@ -351,6 +362,7 @@
                 applyChanges: 'Appliquer les modifications',
                 configure: 'Configurer',
                 browse: 'Parcourir',
+                browseLocalFiles: 'Parcourir les fichiers locaux',
                 saveSettings: 'Enregistrer',
                 resetSettings: 'Reinitialiser',
                 continue: 'Continuer',
@@ -373,7 +385,8 @@
                 filterNotInstalled: 'Non installes',
                 filterPlutonium: 'Plutonium',
                 filterAlterWare: 'AlterWare',
-                filterOthers: 'Autres',
+                filterAurora: 'Aurora',
+                filterHorizonMW: 'HorizonMW',
                 searchPlaceholder: 'Rechercher un client...',
                 noMatches: 'Aucun client ne correspond a ce filtre.'
             },
@@ -392,7 +405,7 @@
             },
             settings: {
                 title: 'Parametres',
-                subtitle: 'Preferences du launcher, reseau et repertoires des jeux.',
+                subtitle: 'Preferences du launcher et parametres reseau.',
                 gameDirectories: 'Repertoires des jeux',
                 gameDirectoriesBody: 'Associez chaque client personnalise a son dossier de jeu Steam.',
                 notConfiguredPath: 'Aucun dossier configure',
@@ -409,6 +422,11 @@
                 closeLauncherAfterLaunch: 'Fermer le launcher apres le lancement du jeu',
                 skipClientUpdate: 'Ignorer la mise a jour du client au lancement',
                 about: 'A propos',
+                maintenance: 'Maintenance',
+                theme: 'Theme',
+                themeNavy: 'Navy Sombre',
+                themeDark: 'Classique',
+                themeNavyGradient: 'Degrade Marine',
                 resetAllSettings: 'Reinitialiser tous les parametres',
                 showConsole: 'Afficher la console',
                 hideConsole: 'Masquer la console',
@@ -451,8 +469,8 @@
                 note: 'Note',
                 noteBody: "Ne contactez pas les mainteneurs originaux du client pour des demandes de support liees a ce launcher. Utilisez plutot le Discord CB Servers.",
                 verifySteamFiles: 'Verifier les fichiers Steam',
-                steamAppId: 'App ID Steam',
                 client: 'Client',
+                provider: 'Fournisseur',
                 customClient: 'Client personnalise'
             },
             componentLibrary: {
@@ -589,48 +607,52 @@
             },
             game: {
                 't4': {
-                    description: 'Call of Duty: World at War avec Plutonium T4. Campagne, multijoueur et zombies restent proches du jeu original avec des correctifs de stabilite modernes.',
-                    credits: 'La campagne, le multijoueur et les zombies sont fournis par le client T4 et developpes par Plutonium.'
+                    description: 'Call of Duty: World at War ameliore avec les modifications de Plutonium T4. Profitez de la campagne, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'La campagne, le multijoueur et les zombies sont fournis par le client T4 et developpes par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 't5': {
-                    description: 'Call of Duty: Black Ops avec Plutonium T5. Campagne, multijoueur et zombies sont regroupes dans un flux client plus propre.',
-                    credits: 'La campagne, le multijoueur et les zombies sont fournis par le client T5 et developpes par Plutonium.'
+                    description: 'Call of Duty: Black Ops ameliore avec les modifications de Plutonium T5. Profitez de la campagne, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'La campagne, le multijoueur et les zombies sont fournis par le client T5 et developpes par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 'iw4x': {
-                    description: 'Modern Warfare 2 avec prise en charge IW4x pour le multijoueur et IW4-SP pour le solo. Le launcher garde un acces rapide aux sessions MW2 classiques.',
-                    credits: 'Le multijoueur est fourni par IW4x. Le solo est fourni par IW4-SP et developpe par AlterWare.'
+                    description: 'Call of Duty: Modern Warfare 2 ameliore avec les modifications IW4X et IW4-SP. Profitez de la campagne classique et du multijoueur avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Le multijoueur est fourni par le client IW4x et developpe par le <a href="https://iw4x.io/" target="_blank">Projet IW4x</a>.<br>Le solo est fourni par le client IW4-SP et developpe par <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 'iw5': {
-                    description: 'Modern Warfare 3 avec Plutonium pour le multijoueur et IW5-Mod pour le solo. Le choix du mode n apparait que lorsqu il est necessaire.',
-                    credits: 'Le multijoueur est fourni par Plutonium. Le solo est fourni par IW5-Mod et developpe par AlterWare.'
+                    description: 'Call of Duty: Modern Warfare 3 ameliore avec les modifications Plutonium et IW5-Mod. Profitez de la campagne et du multijoueur avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Le multijoueur est fourni par le client IW5 et developpe par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>Le solo est fourni par le client IW5-Mod et developpe par <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 't6': {
-                    description: 'Black Ops II multijoueur et zombies via Plutonium T6, avec mises a jour du client, verification et liaison du jeu de base dans une seule vue.',
-                    credits: 'Le multijoueur et les zombies sont fournis par le client T6 et developpes par Plutonium.'
+                    description: 'Call of Duty: Black Ops 2 ameliore avec les modifications de Plutonium T6. Profitez du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'Le multijoueur et les zombies sont fournis par le client T6 et developpes par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
                 },
                 'boiii': {
-                    description: 'Black Ops III avec le client BOIII pour la campagne, le multijoueur et les zombies. Inclut des options specifiques comme le saut de cinematique.',
-                    credits: 'BOIII est un fork CB Servers du client BOIII/T7x original developpe par momo5502 et AlterWare.'
+                    description: 'Call of Duty: Black Ops 3 ameliore avec les modifications BOIII. Profitez de la campagne complete, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/boiii" target="_blank">fork</a> du client BOIII/T7x original developpe par <a href="https://github.com/momo5502" target="_blank">momo5502</a> et <a href="https://alterware.dev" target="_blank">AlterWare</a> avec des correctifs CB.'
                 },
                 'iw6x': {
-                    description: 'Call of Duty: Ghosts avec prise en charge IW6x pour la campagne et le multijoueur. Le launcher garde la configuration et les mises a jour au meme endroit.',
-                    credits: 'IW6x est un fork CB Servers du client IW6x/iw6-mod original developpe par AlterWare.'
+                    description: 'Call of Duty: Ghosts ameliore avec les modifications IW6x. Profitez de la campagne et du multijoueur avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/iw6-mod" target="_blank">fork</a> du client IW6x/iw6-mod original developpe par <a href="https://alterware.dev" target="_blank">AlterWare</a> et <a href="https://xlabs.dev" target="_blank">X Labs</a> avec des correctifs CB.'
                 },
                 's1x': {
-                    description: 'Advanced Warfare via S1x, avec les modes campagne, multijoueur, zombies et survie proposes seulement quand ils sont utiles.',
-                    credits: 'S1x est un fork CB Servers du client S1x/s1-mod original developpe par AlterWare.'
+                    description: 'Call of Duty: Advanced Warfare ameliore avec les modifications S1x. Profitez de la campagne de guerre futuriste et du multijoueur avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/s1-mod" target="_blank">fork</a> du client S1x/s1-mod original developpe par <a href="https://alterware.dev" target="_blank">AlterWare</a> et <a href="https://xlabs.dev" target="_blank">X Labs</a> avec des correctifs CB.'
                 },
                 'h1-mod': {
-                    description: 'Modern Warfare Remastered avec prise en charge H1-Mod. Les modes campagne et multijoueur restent regroupes sur une page client claire.',
-                    credits: 'H1-Mod est un fork CB Servers du client H1-Mod original developpe par Aurora.'
+                    description: 'Call of Duty: Modern Warfare Remastered ameliore avec les fonctionnalites H1-Mod. Profitez de la campagne classique et du multijoueur avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/h1-mod" target="_blank">fork</a> du client H1-Mod original developpe par <a href="https://auroramod.dev" target="_blank">Aurora</a> avec des correctifs CB.'
                 },
                 'iw7-mod': {
-                    description: 'Infinite Warfare via IW7-Mod, avec les options campagne et multijoueur exposees sans alourdir le flux principal du launcher.',
-                    credits: 'IW7-Mod est un fork CB Servers du client IW7-Mod original developpe par AlterWare.'
+                    description: 'Call of Duty: Infinite Warfare ameliore avec les fonctionnalites IW7-Mod. Profitez de la campagne de guerre spatiale, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> du client IW7-Mod original developpe par <a href="https://auroramod.dev" target="_blank">Aurora</a> avec des correctifs CB.'
                 },
                 'hmw-mod': {
-                    description: 'HorizonMW se concentre sur le multijoueur de Modern Warfare Remastered avec progression personnalisee et gestion des debloquages depuis le launcher.',
-                    credits: 'HorizonMW est developpe independamment d AlterWare et distribue via CB Servers.'
+                    description: "HorizonMW. Un remaster communautaire fideale du multijoueur de Modern Warfare 2 avec du contenu supplementaire de MW3.",
+                    credits: 'Ceci est un <a href="https://github.com/CBServers/HorizonMW-Client" target="_blank">fork</a> du client HMW-Mod original developpe par <a href="https://horizonmw.org/" target="_blank">HorizonMW</a> avec des correctifs CB.'
                 }
             }
         }

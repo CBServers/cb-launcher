@@ -15,6 +15,30 @@ if (typeof window.executeCommand === 'function') {
 // Session-only console visibility state (resets on launcher restart)
 let consoleVisible = false;
 
+// Recent games tracking — persisted to localStorage
+const RECENT_GAMES_KEY = 'cb_recent_games';
+const RECENT_GAMES_MAX = 5;
+let recentGames = [];
+
+function loadRecentGames() {
+    try {
+        const saved = localStorage.getItem(RECENT_GAMES_KEY);
+        recentGames = saved ? JSON.parse(saved) : [];
+    } catch (_) {
+        recentGames = [];
+    }
+}
+
+function addRecentGame(gameId) {
+    recentGames = [gameId, ...recentGames.filter(id => id !== gameId)].slice(0, RECENT_GAMES_MAX);
+    try {
+        localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(recentGames));
+    } catch (_) {}
+    if (window.AppViews && typeof window.AppViews.updateSidebarRecentGames === 'function') {
+        window.AppViews.updateSidebarRecentGames(recentGames);
+    }
+}
+
 function t(key, variables) {
     return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;
 }
@@ -66,6 +90,7 @@ async function refreshLocalizedUI(targetPage) {
 
     if (window.AppViews) {
         window.AppViews.renderAll();
+        window.AppViews.updateSidebarRecentGames(recentGames);
     }
 
     await loadNavigationPage(targetPage || getActivePageId());
@@ -136,15 +161,34 @@ function adjustChannelElements() {
 
 // All game-specific functionality is now handled in individual page files
 
+function applyTheme(theme) {
+    if (theme === 'dark' || theme === 'navy-gradient') {
+        document.documentElement.setAttribute('data-theme', theme);
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+}
+
 async function initialize() {
+    // Apply saved theme before rendering to avoid flash
+    if (typeof window.executeCommand === 'function') {
+        try {
+            const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
+            applyTheme(savedTheme || 'navy');
+        } catch (_) {}
+    }
+
     await initializeLanguage();
 
     if (window.LauncherI18n) {
         window.LauncherI18n.applyStaticTranslations();
     }
 
+    loadRecentGames();
+
     if (window.AppViews) {
         window.AppViews.renderAll();
+        window.AppViews.updateSidebarRecentGames(recentGames);
     }
 
     syncConsoleButtonLabel();
@@ -300,6 +344,8 @@ function handleGameClick(e) {
         if (el.classList.contains("active")) {
             return;
         }
+
+        addRecentGame(gameId);
 
         removeActiveNavigation();
         el.classList.add("active");
@@ -1156,6 +1202,14 @@ async function createGameButtons(gameId) {
         document.getElementById(`${gameId}-setup-button`).onclick = () => showSetupFlow(gameId);
     }
 
+    // Disable secondary action buttons when game is not fully installed
+    const detailPage = document.getElementById(`${gameId}-page`);
+    if (detailPage) {
+        const secondaryButtons = detailPage.querySelectorAll('.detail-actions-panel .secondary-action');
+        const notInstalled = gameState.installStatus !== 'installed';
+        secondaryButtons.forEach(btn => { btn.disabled = notInstalled; });
+    }
+
     // Handle progress manager state
     if (window.ProgressManager && window.ProgressManager.isActive) {
         const buttons = buttonGroup.querySelectorAll('button:not(.game-settings-btn)');
@@ -1438,6 +1492,13 @@ async function loadLauncherSettings() {
         // Load CDN settings
         await initCdnSettings();
 
+        // Load theme setting
+        const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
+        const themeSelect = document.getElementById('theme-select');
+        if (themeSelect && savedTheme) {
+            themeSelect.value = savedTheme;
+        }
+
         console.log('Launcher settings loaded');
     } catch (error) {
         console.error('Failed to load launcher settings:', error);
@@ -1570,6 +1631,26 @@ async function setupLanguageSelect() {
             }
         });
     }
+}
+
+function setupThemeSelect() {
+    const themeSelect = document.getElementById('theme-select');
+    if (!themeSelect || themeSelect.dataset.bound) return;
+
+    themeSelect.dataset.bound = 'true';
+    themeSelect.addEventListener('change', async (event) => {
+        const theme = event.target.value;
+        applyTheme(theme);
+        if (typeof window.executeCommand === 'function') {
+            try {
+                await window.executeCommand('set-property', {
+                    [PROPERTY_KEYS.LAUNCHER.THEME]: theme
+                });
+            } catch (error) {
+                console.error('Failed to save theme:', error);
+            }
+        }
+    });
 }
 
 async function handleCdnTest() {
@@ -1812,6 +1893,7 @@ async function initializeSettingsPage() {
     await loadLauncherSettings();
     setupLauncherSettingsToggles();
     await setupLanguageSelect();
+    setupThemeSelect();
 
     // Setup action button listeners
     const resetBtn = document.getElementById('reset-all-settings-btn');
