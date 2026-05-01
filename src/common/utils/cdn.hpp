@@ -72,8 +72,8 @@ namespace utils::cdn
         latency_result cached_latency_{};
         bool latency_tested_{false};
 
-        static constexpr const char* CDN_NA_URL = "https://cdn.cbservers.xyz/";
-        static constexpr const char* CDN_EU_URL = "https://cdn-eu.cbservers.xyz/";
+        static constexpr const char* CDN_NA_URL = "https://cdn-na.cbservers.xyz/";
+        static constexpr const char* CDN_EU_URL = "https://cdn-weu.cbservers.xyz/";
         static constexpr int LATENCY_TIMEOUT_SECONDS = 5;
     };
 }
