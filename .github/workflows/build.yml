@@ -79,6 +79,11 @@ jobs:
     runs-on: windows-2022
     if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
+      - name: Set Git to use LF line endings
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          
       - name: Download Release binaries
         uses: actions/download-artifact@v4.1.8
         with:
@@ -96,10 +101,6 @@ jobs:
           name: Release UI artifacts
           path: data/launcher-ui
 
-      - name: Download hashing executable
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/download/v1.0.0/update-hasher.exe" -OutFile "update-hasher.exe"
-
       - name: Set artifact folder name
         run: |
           if ("${{ github.ref }}" -eq "refs/heads/develop") {
@@ -107,17 +108,6 @@ jobs:
           } else {
             echo "ARTIFACT_FOLDER=cb-launcher" >> $env:GITHUB_ENV
           }
-
-      - name: Generate hashed.json
-        run: |
-          .\update-hasher.exe
-
-      - name: Move files to artifact folder and rename hashes
-        run: |
-          mkdir ${{ env.ARTIFACT_FOLDER }}
-          Move-Item -Path .\cb-launcher.exe -Destination .\${{ env.ARTIFACT_FOLDER }}\
-          Move-Item -Path .\data -Destination .\${{ env.ARTIFACT_FOLDER }}\
-          mv hashed.json ${{ env.ARTIFACT_FOLDER }}.json
 
       - name: Clone updater
         run: |
@@ -129,13 +119,31 @@ jobs:
           $env:GIT_PASSWORD="${{ secrets.REPO_PAT }}"
           git clone https://$env:GIT_USERNAME:$env:GIT_PASSWORD@github.com/CBServers/updater.git
 
-      - name: Copy files to updater and cleanup
+      - name: Replace data folder and exe in updater (preserves manifest)
         run: |
-          Copy-Item -Path .\${{ env.ARTIFACT_FOLDER }}.json -Destination .\updater\updater\ -Force
-          Copy-Item -Path .\${{ env.ARTIFACT_FOLDER }} -Destination .\updater\updater\ -Recurse -Force
-          Remove-Item -Path .\${{ env.ARTIFACT_FOLDER }}.json -Force
-          Remove-Item -Path .\${{ env.ARTIFACT_FOLDER }} -Recurse -Force
-          Remove-Item -Path .\update-hasher.exe -Force
+          $artifactDir = ".\updater\updater\${{ env.ARTIFACT_FOLDER }}"
+          if (-not (Test-Path $artifactDir)) {
+            New-Item -ItemType Directory -Path $artifactDir | Out-Null
+          }
+          if (Test-Path "$artifactDir\data") {
+            Remove-Item -Path "$artifactDir\data" -Recurse -Force
+          }
+          Move-Item -Path .\data -Destination "$artifactDir\data"
+          Move-Item -Path .\cb-launcher.exe -Destination "$artifactDir\cb-launcher.exe" -Force
+
+      - name: Download hashing executable
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/latest/download/update-hasher.exe" -OutFile "update-hasher.exe"
+
+      - name: Generate hashed.json
+        run: |
+          $artifactDir = ".\updater\updater\${{ env.ARTIFACT_FOLDER }}"
+          Move-Item -Path .\update-hasher.exe -Destination "$artifactDir\update-hasher.exe"
+          Set-Location $artifactDir
+          .\update-hasher.exe
+          Set-Location $env:GITHUB_WORKSPACE
+          Move-Item -Path "$artifactDir\hashed.json" -Destination ".\updater\updater\${{ env.ARTIFACT_FOLDER }}.json" -Force
+          Remove-Item -Path "$artifactDir\update-hasher.exe" -Force
 
       - name: Push changes to updater
         run: |

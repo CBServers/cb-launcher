@@ -195,9 +195,21 @@ namespace launcher_updater
                 return;
             }
 
-            if (result.code != CURLE_OK || result.buffer.size() != file.size || get_hash(result.buffer) != file.hash)
+            if (result.code != CURLE_OK)
             {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code", url.data()));
+                throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code (%u)", url.data(), result.code));
+            }
+
+            const auto result_size = result.buffer.size();
+            if (result_size != file.size)
+            {
+                throw std::runtime_error(utils::string::va("Failed to download: %s - %zu != %zu", url.data(), result_size, file.size));
+            }
+
+            const auto result_hash = get_hash(result.buffer);
+            if (result_hash != file.hash)
+            {
+                throw std::runtime_error(utils::string::va("Failed to download: %s - %s != %s", url.data(), result_hash.data(), file.hash.data()));
             }
 
             const auto out_file = this->get_drive_filename(file);
@@ -400,7 +412,7 @@ namespace launcher_updater
         for (const auto& file : existing_files)
         {
             const auto entry = std::filesystem::relative(file, this->base_);
-            if ((entry.string() == "user" || entry.string() == "data") && utils::io::directory_exists(file) || file.ends_with(".key"))
+            if ((entry.string() == "user" || entry.string() == "data" || entry.string() == "manifest") && utils::io::directory_exists(file) || file.ends_with(".key"))
             {
                 continue;
             }
