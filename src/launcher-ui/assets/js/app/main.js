@@ -273,6 +273,12 @@ async function initializeNavigation() {
     const libraryElement = document.querySelector("#library");
     libraryElement.addEventListener("click", handleLibraryClick);
 
+    // Handle downloads navigation
+    const downloadsElement = document.querySelector("#downloads");
+    if (downloadsElement) {
+        downloadsElement.addEventListener("click", handleDownloadsClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -329,6 +335,17 @@ function handleLibraryClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("library");
+}
+
+function handleDownloadsClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("downloads");
 }
 
 function handleGameClick(e) {
@@ -917,7 +934,7 @@ window.GameStateManager = {
     }
 };
 
-// Global Progress Manager
+// Global Progress Manager — drives the bottom bar for the currently active queue item.
 window.ProgressManager = {
     isActive: false,
     currentGame: null,
@@ -930,6 +947,7 @@ window.ProgressManager = {
         const progressFill = document.getElementById('global-progress-fill');
         const progressPercent = document.getElementById('global-progress-percent');
         const cancelBtn = document.getElementById('progress-cancel-btn');
+        const pauseBtn = document.getElementById('progress-pause-btn');
         const windowEl = document.querySelector('.window');
 
         if (!progressBar) {
@@ -941,40 +959,70 @@ window.ProgressManager = {
         this.currentGame = gameId;
         this.cancelCallback = onCancel;
 
-        // Apply game-specific theming
         progressBar.className = 'global-progress-bar';
         if (gameId) {
             progressBar.classList.add(gameId);
         }
 
-        // Set game icon
         progressGameIcon.className = 'progress-game-icon';
+        progressGameIcon.style.backgroundImage = '';
         if (gameId) {
             progressGameIcon.classList.add(gameId);
-
-            // Try to load the actual game image if it's preloaded
             const imagePath = GameUtils.getIconPath(gameId);
             if (imagePath && preloadedImages[imagePath]) {
                 progressGameIcon.style.backgroundImage = `url('${imagePath}')`;
             }
         }
 
-        // Set initial state
+        // Tint the fill with the game's accent color (matches the Downloads page row).
+        const config = gameId ? GameUtils.getGameConfigByUIId(gameId) : null;
+        if (config && config.accent) {
+            progressFill.style.background = config.accent;
+            progressFill.style.boxShadow = `0 0 12px ${config.accent}80`;
+        } else {
+            progressFill.style.background = '';
+            progressFill.style.boxShadow = '';
+        }
+
         progressInfo.textContent = message;
         progressFill.style.width = '0%';
         progressPercent.textContent = '0%';
 
-        // Setup cancel button
         if (cancelBtn) {
             cancelBtn.onclick = () => this.cancel();
         }
 
-        // Disable all game buttons
-        this.disableButtons();
+        if (pauseBtn) {
+            pauseBtn.onclick = () => {
+                const queue = window.DownloadQueueManager;
+                if (!queue || !queue.active) return;
+                if (queue.active.paused) {
+                    queue.resume(queue.active.gameId, queue.active.op);
+                } else {
+                    queue.pause(queue.active.gameId, queue.active.op);
+                }
+            };
+            // Pause is only meaningful for download-class ops (verify/install/uninstall).
+            const queue = window.DownloadQueueManager;
+            const showPause = !!(queue && queue.active && queue.active.blocksGameButtons);
+            pauseBtn.style.display = showPause ? '' : 'none';
+            this._updatePauseIcon();
+        }
 
-        // Show progress bar and adjust window padding
         progressBar.style.display = 'flex';
         windowEl.classList.add('progress-active');
+    },
+
+    _updatePauseIcon: function() {
+        const pauseBtn = document.getElementById('progress-pause-btn');
+        if (!pauseBtn) return;
+        const icon = pauseBtn.querySelector('.progress-pause-icon');
+        if (!icon) return;
+        const queue = window.DownloadQueueManager;
+        const isPaused = !!(queue && queue.active && queue.active.paused);
+        icon.classList.toggle('is-resume', isPaused);
+        const titleKey = isPaused ? 'downloads.resume' : 'downloads.pause';
+        pauseBtn.title = window.LauncherI18n ? window.LauncherI18n.t(titleKey) : titleKey;
     },
 
     update: function(progress, message = null) {
@@ -988,6 +1036,12 @@ window.ProgressManager = {
 
         progressFill.style.width = `${progress}%`;
         progressPercent.textContent = `${progress.toFixed(2)}%`;
+
+        try {
+            window.dispatchEvent(new CustomEvent('cb-progress-tick', {
+                detail: { progress: progress, message: message }
+            }));
+        } catch (_) {}
     },
 
     cancel: function() {
@@ -1003,36 +1057,272 @@ window.ProgressManager = {
 
         if (progressBar) {
             progressBar.style.display = 'none';
-            progressBar.className = 'global-progress-bar'; // Reset theming
+            progressBar.className = 'global-progress-bar';
         }
         if (windowEl) {
             windowEl.classList.remove('progress-active');
         }
-
-        // Re-enable all game buttons
-        this.enableButtons();
 
         this.isActive = false;
         this.currentGame = null;
         this.cancelCallback = null;
     },
 
-    disableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .manage-install-button, .unlock-all-button, .setup-button, .stop-button');
-        buttons.forEach(btn => {
-            btn.disabled = true;
-        });
-        console.log(`Disabled ${buttons.length} buttons`);
+    getProgressPercent: function() {
+        const fill = document.getElementById('global-progress-fill');
+        if (!fill) return 0;
+        const w = parseFloat(fill.style.width || '0');
+        return Number.isFinite(w) ? w : 0;
     },
 
-    enableButtons: function() {
-        const buttons = document.querySelectorAll('.play-button, .verify-button, .manage-install-button, .unlock-all-button, .setup-button, .stop-button');
-        buttons.forEach(btn => {
-            btn.disabled = false;
-        });
-        console.log(`Enabled ${buttons.length} buttons`);
+    getProgressMessage: function() {
+        const info = document.getElementById('progress-info');
+        return info ? info.textContent : '';
     }
 };
+
+// Download Queue Manager — serializes ops that share the global progress bar.
+// Items with blocksGameButtons=true (verify/install/uninstall) appear in the
+// Downloads tab and disable the corresponding game's Play/Setup/Verify/Manage Install.
+window.DownloadQueueManager = {
+    active: null,
+    queue: [],
+
+    enqueue: function(item) {
+        if (item.blocksGameButtons) {
+            const isDup = (this.active && this.active.gameId === item.gameId && this.active.op === item.op)
+                || this.queue.some(q => q.gameId === item.gameId && q.op === item.op);
+            if (isDup) {
+                console.log(`DownloadQueueManager: ignoring duplicate ${item.op} for ${item.gameId}`);
+                return Promise.resolve();
+            }
+        }
+
+        return new Promise((resolve, reject) => {
+            item.resolve = resolve;
+            item.reject = reject;
+            item.onCancel = null;
+            this.queue.push(item);
+            this._emit();
+            this._processNext();
+        });
+    },
+
+    _processNext: function() {
+        if (this.active) return;
+        const idx = this.queue.findIndex(q => !q.paused);
+        if (idx < 0) return;
+        const item = this.queue.splice(idx, 1)[0];
+        this.active = item;
+        this._emit();
+
+        const registerCancel = (fn) => {
+            item.onCancel = fn;
+        };
+
+        let runResult;
+        try {
+            runResult = item.runFn(registerCancel);
+        } catch (error) {
+            this._finalize(item, error, true);
+            return;
+        }
+
+        Promise.resolve(runResult)
+            .then(result => this._finalize(item, result, false))
+            .catch(error => this._finalize(item, error, true));
+    },
+
+    _finalize: function(item, valueOrError, isError) {
+        if (this.active === item) {
+            this.active = null;
+        }
+        if (isError) {
+            try { item.reject(valueOrError); } catch (_) {}
+        } else {
+            try { item.resolve(valueOrError); } catch (_) {}
+        }
+        this._emit();
+        this._processNext();
+    },
+
+    cancel: function(gameId, op) {
+        const idx = this.queue.findIndex(q => q.gameId === gameId && q.op === op);
+        if (idx >= 0) {
+            const removed = this.queue.splice(idx, 1)[0];
+            try { removed.resolve(); } catch (_) {}
+            this._emit();
+            return;
+        }
+        if (this.active && this.active.gameId === gameId && this.active.op === op) {
+            // If the active was paused, the backend's update is sleeping on the cv.
+            // cancel-update notifies the cv so the worker wakes and observes cancellation.
+            this.active.paused = false;
+            if (typeof this.active.onCancel === 'function') {
+                this.active.onCancel();
+            }
+        }
+    },
+
+    // Pause: queued items just flip a flag and stay queued. The active item gets a
+    // backend pause-update — the worker thread blocks at the next file boundary.
+    // The runFn keeps polling progress (which now reports paused=true, frozen percent).
+    pause: function(gameId, op) {
+        const queueItem = this.queue.find(q => q.gameId === gameId && q.op === op);
+        if (queueItem) {
+            queueItem.paused = true;
+            this._emit();
+            return;
+        }
+        if (this.active && this.active.gameId === gameId && this.active.op === op) {
+            this.active.paused = true;
+            this._emit();
+            try {
+                window.executeCommand('pause-update').catch(error => {
+                    console.error('pause-update failed:', error);
+                });
+            } catch (error) {
+                console.error('pause-update threw:', error);
+            }
+        }
+    },
+
+    resume: function(gameId, op) {
+        // Active paused item: tell the backend to resume; the worker thread wakes from the cv.
+        if (this.active && this.active.gameId === gameId && this.active.op === op && this.active.paused) {
+            this.active.paused = false;
+            this._emit();
+            try {
+                window.executeCommand('resume-update').catch(error => {
+                    console.error('resume-update failed:', error);
+                });
+            } catch (error) {
+                console.error('resume-update threw:', error);
+            }
+            return;
+        }
+        // Queued paused item: clear flag; _processNext picks it up if it's first non-paused.
+        const queueItem = this.queue.find(q => q.gameId === gameId && q.op === op);
+        if (queueItem && queueItem.paused) {
+            queueItem.paused = false;
+            this._emit();
+            this._processNext();
+        }
+    },
+
+    isBusy: function(gameId) {
+        if (this.active && this.active.gameId === gameId && this.active.blocksGameButtons) return true;
+        return this.queue.some(q => q.gameId === gameId && q.blocksGameButtons);
+    },
+
+    getDownloadEntries: function() {
+        const items = [];
+        if (this.active && this.active.blocksGameButtons) {
+            items.push(Object.assign({}, this.active, { isActive: true, queuePosition: 0 }));
+        }
+        let pos = 1;
+        for (const q of this.queue) {
+            if (q.blocksGameButtons) {
+                items.push(Object.assign({}, q, { isActive: false, queuePosition: pos++ }));
+            }
+        }
+        return items;
+    },
+
+    hasAnyDownloads: function() {
+        if (this.active && this.active.blocksGameButtons) return true;
+        return this.queue.some(q => q.blocksGameButtons);
+    },
+
+    _emit: function() {
+        try {
+            window.dispatchEvent(new CustomEvent('cb-download-queue-changed'));
+        } catch (_) {}
+    }
+};
+
+// Apply per-game button disable state across visible game pages.
+// Only ADDS the queue-busy disable; doesn't override install-status disables from createGameButtons.
+function applyDownloadQueueButtonState() {
+    const queue = window.DownloadQueueManager;
+    if (!queue) return;
+
+    function isInstalled(gameId) {
+        const state = window.GameStateManager && typeof window.GameStateManager.getGameState === 'function'
+            ? window.GameStateManager.getGameState(gameId) : null;
+        if (state) return state.installStatus === 'installed';
+        const card = document.querySelector(`.library-card[data-game="${gameId}"]`);
+        return card ? card.dataset.status === 'installed' : false;
+    }
+
+    document.querySelectorAll('.detail-verify-action, .detail-manage-install-action, .detail-settings-action').forEach(btn => {
+        const gameId = btn.dataset.game;
+        if (!gameId) return;
+        const busy = queue.isBusy(gameId);
+        const installed = isInstalled(gameId);
+        // These actions only make sense when installed; queue-busy further disables them.
+        btn.disabled = busy || !installed;
+    });
+
+    // Play / Setup live in the per-game button group. createGameButtons only ever renders
+    // the button that is currently appropriate for the game state (Play vs Setup vs Stop),
+    // so a full toggle on queue-busy is safe and is needed to re-enable Play after a verify
+    // finishes if the user stayed on the page.
+    document.querySelectorAll('.button-group .play-button, .button-group .setup-button').forEach(btn => {
+        const group = btn.closest('.button-group');
+        if (!group) return;
+        const gameId = (group.id || '').replace(/-button-group$/, '');
+        if (!gameId) return;
+        btn.disabled = queue.isBusy(gameId);
+    });
+
+    const downloadsBadge = document.getElementById('downloads-badge');
+    if (downloadsBadge) {
+        const entries = queue.getDownloadEntries();
+        if (entries.length > 0) {
+            downloadsBadge.textContent = String(entries.length);
+            downloadsBadge.style.display = '';
+        } else {
+            downloadsBadge.style.display = 'none';
+        }
+    }
+}
+
+window.addEventListener('cb-download-queue-changed', () => {
+    applyDownloadQueueButtonState();
+    if (window.ProgressManager && typeof window.ProgressManager._updatePauseIcon === 'function') {
+        window.ProgressManager._updatePauseIcon();
+    }
+    const pauseBtn = document.getElementById('progress-pause-btn');
+    if (pauseBtn) {
+        const queue = window.DownloadQueueManager;
+        const showPause = !!(queue && queue.active && queue.active.blocksGameButtons);
+        pauseBtn.style.display = showPause ? '' : 'none';
+    }
+    const downloadsPage = document.getElementById('downloads-page');
+    if (downloadsPage && downloadsPage.style.display !== 'none' && window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
+        window.AppViews.renderDownloads();
+    }
+});
+
+// Cheap in-place progress update for the Downloads tab while it's visible.
+window.addEventListener('cb-progress-tick', (event) => {
+    const downloadsPage = document.getElementById('downloads-page');
+    if (!downloadsPage || downloadsPage.style.display === 'none') return;
+
+    const activeRow = downloadsPage.querySelector('.download-row.active');
+    if (!activeRow) return;
+
+    const detail = event.detail || {};
+    const fill = activeRow.querySelector('.download-progress-fill');
+    const percentEl = activeRow.querySelector('.download-progress-percent');
+    const messageEl = activeRow.querySelector('.download-progress-message');
+    const percent = Math.max(0, Math.min(100, Number(detail.progress) || 0));
+
+    if (fill) fill.style.width = `${percent}%`;
+    if (percentEl) percentEl.textContent = `${percent.toFixed(2)}%`;
+    if (messageEl && detail.message) messageEl.textContent = detail.message;
+});
 
 function loadNavigationPage(page) {
     console.log(`Loading page: ${page}`);
@@ -1074,6 +1364,10 @@ function loadNavigationPage(page) {
         if (window.AppViews) {
             window.AppViews.renderHome();
         }
+    } else if (page === 'downloads') {
+        if (window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
+            window.AppViews.renderDownloads();
+        }
     } else if (GameUtils.getAllGameIds().includes(page)) {
         initializeGamePage(page);
     }
@@ -1087,12 +1381,8 @@ function loadNavigationPage(page) {
         // Clear background image for other pages - no need to clear since each page has its own hero section
     }
 
-    // Handle progress manager state
-    if (window.ProgressManager && window.ProgressManager.isActive) {
-        setTimeout(() => {
-            window.ProgressManager.disableButtons();
-        }, 0);
-    }
+    // Reapply per-game button disable based on queue state.
+    setTimeout(applyDownloadQueueButtonState, 0);
 
     return Promise.resolve();
 }
@@ -1210,11 +1500,7 @@ async function createGameButtons(gameId) {
         secondaryButtons.forEach(btn => { btn.disabled = notInstalled; });
     }
 
-    // Handle progress manager state
-    if (window.ProgressManager && window.ProgressManager.isActive) {
-        const buttons = buttonGroup.querySelectorAll('button:not(.game-settings-btn)');
-        buttons.forEach(btn => btn.disabled = true);
-    }
+    applyDownloadQueueButtonState();
 }
 
 function launchGame(gameId) {

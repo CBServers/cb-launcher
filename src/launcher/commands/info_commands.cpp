@@ -22,6 +22,7 @@ namespace commands::info_commands
             auto& allocator = response.GetAllocator();
 
             response.AddMember("active", state.is_active, allocator);
+            response.AddMember("paused", state.is_paused, allocator);
             response.AddMember("progress", state.progress_percent, allocator);
 
             rapidjson::Value message_value;
@@ -43,6 +44,18 @@ namespace commands::info_commands
             response.SetBool(false); // Default to failure
 
             updater::progress_tracker::instance().cancel_update();
+            response.SetBool(true);
+        });
+
+        cef_ui.add_command("pause-update", [](const auto&, rapidjson::Document& response)
+        {
+            updater::progress_tracker::instance().pause_update();
+            response.SetBool(true);
+        });
+
+        cef_ui.add_command("resume-update", [](const auto&, rapidjson::Document& response)
+        {
+            updater::progress_tracker::instance().resume_update();
             response.SetBool(true);
         });
 

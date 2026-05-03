@@ -4,6 +4,7 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
+#include <condition_variable>
 
 namespace updater
 {
@@ -27,6 +28,7 @@ namespace updater
             size_t downloaded_bytes = 0;
             bool is_active = false;
             bool is_cancelled = false;
+            bool is_paused = false;
             float progress_percent = 0.0f;
         };
 
@@ -37,6 +39,14 @@ namespace updater
         void end_update();
         void cancel_update();
         bool is_cancelled() const;
+
+        // Pause / resume — block worker threads at file boundaries until resumed.
+        void pause_update();
+        void resume_update();
+        bool is_paused() const;
+        // Blocks while paused. Returns immediately if cancelled (caller is expected to
+        // run a cancellation check right after).
+        void wait_if_paused();
 
         // Called by updater during progress
         void set_current_file(const std::string& file_name);
@@ -58,6 +68,7 @@ namespace updater
         progress_tracker& operator=(const progress_tracker&) = delete;
 
         mutable std::recursive_mutex mutex_;
+        std::condition_variable_any pause_cv_;
         progress_state state_;
         progress_mode mode_ = progress_mode::verifying;
         std::vector<std::string> files_in_progress_;  // Track all files currently being processed

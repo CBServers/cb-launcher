@@ -15,6 +15,10 @@ namespace updater
         void update_files(const std::vector<file_info>& files, progress_mode mode);
         void done_update();
         bool is_update_cancelled();
+        bool is_update_paused();
+        // Blocks the calling thread while the update is paused. Returns when resumed
+        // or cancelled; callers should run a cancellation check immediately after.
+        void wait_if_paused();
 
         void begin_file(const file_info& file);
         void end_file(const file_info& file);

@@ -26,6 +26,16 @@ namespace updater
         return progress_tracker::instance().is_cancelled();
     }
 
+    bool ui_progress_listener::is_update_paused()
+    {
+        return progress_tracker::instance().is_paused();
+    }
+
+    void ui_progress_listener::wait_if_paused()
+    {
+        progress_tracker::instance().wait_if_paused();
+    }
+
     void ui_progress_listener::begin_file(const file_info& file)
     {
         progress_tracker::instance().set_current_file(file.name);

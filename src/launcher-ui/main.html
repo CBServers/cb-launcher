@@ -23,8 +23,8 @@
         <div class="title-bar">
             <span class="title-text">CB SERVERS LAUNCHER</span>
             <div class="window-controls">
-                <button class="control-btn" id="minimize-button" data-i18n-title="window.minimize" title="Minimize">-</button>
-                <button class="control-btn" id="close-button" data-i18n-title="window.close" title="Close">x</button>
+                <button class="control-btn" id="minimize-button" data-i18n-title="window.minimize" title="Minimize"><span class="control-icon minimize-icon"></span></button>
+                <button class="control-btn" id="close-button" data-i18n-title="window.close" title="Close"><span class="control-icon close-icon"></span></button>
             </div>
         </div>
 
@@ -48,6 +48,11 @@
                     <div class="nav-item" id="library">
                         <div class="nav-icon library-icon"></div>
                         <span class="nav-label" data-i18n="nav.library">Library</span>
+                    </div>
+                    <div class="nav-item" id="downloads">
+                        <div class="nav-icon downloads-icon"></div>
+                        <span class="nav-label" data-i18n="nav.downloads">Downloads</span>
+                        <span class="nav-badge" id="downloads-badge" style="display:none;">0</span>
                     </div>
                     <div class="nav-item" id="support">
                         <div class="nav-icon support-icon"></div>
@@ -133,6 +138,14 @@
                     </div>
 
                     <div class="library-grid" id="library-grid"></div>
+                </div>
+
+                <div class="page-section" id="downloads-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="downloads.title">Downloads</div>
+                        <div class="page-subtitle" data-i18n="downloads.subtitle">Active and queued game downloads.</div>
+                    </div>
+                    <div class="downloads-list" id="downloads-list"></div>
                 </div>
 
                 <div class="page-section" id="support-page" style="display: none;">
@@ -287,7 +300,8 @@
                 <div class="progress-fill" id="global-progress-fill"></div>
             </div>
             <div class="progress-percent" id="global-progress-percent">100%</div>
-            <button class="progress-cancel-btn" id="progress-cancel-btn" data-i18n-title="common.cancel" title="Cancel">x</button>
+            <button class="progress-pause-btn" id="progress-pause-btn" data-i18n-title="downloads.pause" title="Pause"><span class="progress-pause-icon"></span></button>
+            <button class="progress-cancel-btn" id="progress-cancel-btn" data-i18n-title="common.cancel" title="Cancel"><span class="control-icon close-icon"></span></button>
         </div>
     </div>
 

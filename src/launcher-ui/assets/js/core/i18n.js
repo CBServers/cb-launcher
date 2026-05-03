@@ -14,8 +14,23 @@
             nav: {
                 home: 'Home',
                 library: 'Library',
+                downloads: 'Downloads',
                 support: 'Support',
                 settings: 'Settings'
+            },
+            downloads: {
+                title: 'Downloads',
+                subtitle: 'Active and queued game downloads.',
+                empty: 'No downloads in progress.',
+                statusVerifying: 'Verifying',
+                statusInstalling: 'Installing',
+                statusUninstalling: 'Uninstalling',
+                statusActive: 'In progress',
+                statusQueued: 'Queued — #{{position}}',
+                statusPaused: 'Paused',
+                statusPausedAt: 'Paused — {{percent}}%',
+                pause: 'Pause',
+                resume: 'Resume'
             },
             common: {
                 ok: 'OK',
@@ -342,8 +357,23 @@
             nav: {
                 home: 'Accueil',
                 library: 'Bibliotheque',
+                downloads: 'Telechargements',
                 support: 'Support',
                 settings: 'Parametres'
+            },
+            downloads: {
+                title: 'Telechargements',
+                subtitle: 'Telechargements de jeux actifs et en file d\'attente.',
+                empty: 'Aucun telechargement en cours.',
+                statusVerifying: 'Verification',
+                statusInstalling: 'Installation',
+                statusUninstalling: 'Desinstallation',
+                statusActive: 'En cours',
+                statusQueued: 'En file - #{{position}}',
+                statusPaused: 'En pause',
+                statusPausedAt: 'En pause - {{percent}}%',
+                pause: 'Mettre en pause',
+                resume: 'Reprendre'
             },
             common: {
                 ok: 'OK',

@@ -407,7 +407,7 @@ namespace game_updater
         std::vector<updater::file_info> outdated_files{};
         for (const auto& info : files)
         {
-            check_cancelled();
+            wait_if_paused_or_cancelled();
 
             // Report that we're starting to verify this file
             if (this->progress_listener_)
@@ -484,7 +484,7 @@ namespace game_updater
 
         while (!pending_files.empty() && attempt < MAX_RETRIES)
         {
-            check_cancelled();
+            wait_if_paused_or_cancelled();
 
             if (attempt > 0)
             {
@@ -537,6 +537,9 @@ namespace game_updater
             {
                 while (true)
                 {
+                    // Block here while paused; wakes on resume or cancel.
+                    if (this->progress_listener_)
+                        this->progress_listener_->wait_if_paused();
                     if (is_update_cancelled()) break;
 
                     const auto index = current_index++;
@@ -579,7 +582,7 @@ namespace game_updater
         // Single-threaded version
         for (const auto& file : files)
         {
-            check_cancelled();
+            wait_if_paused_or_cancelled();
 
             if (this->progress_listener_)
                 this->progress_listener_->begin_file(file);
@@ -661,6 +664,15 @@ namespace game_updater
         {
             throw updater::update_cancelled();
         }
+    }
+
+    void game_updater::wait_if_paused_or_cancelled() const
+    {
+        if (this->progress_listener_)
+        {
+            this->progress_listener_->wait_if_paused();
+        }
+        check_cancelled();
     }
 
     std::vector<component_info> game_updater::get_available_components() const

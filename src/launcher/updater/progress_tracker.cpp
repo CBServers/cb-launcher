@@ -18,6 +18,7 @@ namespace updater
         std::lock_guard lock(this->mutex_);
         this->state_.is_active = true;
         this->state_.is_cancelled = false; // Reset cancellation flag for new update
+        this->state_.is_paused = false;    // Fresh op never starts paused
         this->state_.total_files = total_files;
         this->state_.total_bytes = total_bytes;
         this->state_.completed_files = 0;
@@ -43,16 +44,54 @@ namespace updater
 
     void progress_tracker::cancel_update()
     {
-        std::lock_guard lock(this->mutex_); 
-        this->state_.is_active = false;
-        this->state_.is_cancelled = true;
-        this->state_.status_message = "Update cancelled";
+        {
+            std::lock_guard lock(this->mutex_);
+            this->state_.is_active = false;
+            this->state_.is_cancelled = true;
+            this->state_.is_paused = false;
+            this->state_.status_message = "Update cancelled";
+        }
+        // Wake any threads asleep in wait_if_paused so they can observe the cancellation.
+        this->pause_cv_.notify_all();
     }
 
     bool progress_tracker::is_cancelled() const
     {
         std::lock_guard lock(this->mutex_);
         return this->state_.is_cancelled;
+    }
+
+    void progress_tracker::pause_update()
+    {
+        std::lock_guard lock(this->mutex_);
+        if (!this->state_.is_active || this->state_.is_cancelled)
+            return;
+        this->state_.is_paused = true;
+        // Preserve current_file in status; UI surfaces is_paused separately.
+    }
+
+    void progress_tracker::resume_update()
+    {
+        {
+            std::lock_guard lock(this->mutex_);
+            this->state_.is_paused = false;
+        }
+        this->pause_cv_.notify_all();
+    }
+
+    bool progress_tracker::is_paused() const
+    {
+        std::lock_guard lock(this->mutex_);
+        return this->state_.is_paused;
+    }
+
+    void progress_tracker::wait_if_paused()
+    {
+        std::unique_lock<std::recursive_mutex> lock(this->mutex_);
+        this->pause_cv_.wait(lock, [this]
+        {
+            return !this->state_.is_paused || this->state_.is_cancelled;
+        });
     }
 
     void progress_tracker::set_current_file(const std::string& file_name)
@@ -160,15 +199,20 @@ namespace updater
 
     void progress_tracker::reset(bool new_update)
     {
-        std::lock_guard lock(this->mutex_);
-        this->state_ = progress_state{};
-        this->files_in_progress_.clear();
-
-        if (new_update)
         {
-            this->state_.is_active = true;
-            this->state_.is_cancelled = false;
+            std::lock_guard lock(this->mutex_);
+            this->state_ = progress_state{};
+            this->files_in_progress_.clear();
+
+            if (new_update)
+            {
+                this->state_.is_active = true;
+                this->state_.is_cancelled = false;
+                this->state_.is_paused = false;
+            }
         }
+        // Anything blocked in wait_if_paused from a previous run should wake up.
+        this->pause_cv_.notify_all();
     }
 
     void progress_tracker::update_current_file_display()

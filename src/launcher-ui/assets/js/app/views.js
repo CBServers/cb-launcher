@@ -571,7 +571,6 @@
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
                         <div class="game-meta-row">
                             <span>${escapeHtml(config.codeName)}</span>
-                            <span>${escapeHtml(config.localSize)}</span>
                         </div>
                     </div>
                 </div>
@@ -756,6 +755,139 @@
         `;
     }
 
+    function downloadStatusLabel(entry, activePercent) {
+        if (entry.paused) {
+            if (entry.isActive) {
+                return t('downloads.statusPausedAt', { percent: Number(activePercent || 0).toFixed(2) });
+            }
+            return t('downloads.statusPaused');
+        }
+        if (entry.isActive) {
+            if (entry.op === 'verify') return t('downloads.statusVerifying');
+            if (entry.op === 'install') return t('downloads.statusInstalling');
+            if (entry.op === 'uninstall') return t('downloads.statusUninstalling');
+            return t('downloads.statusActive');
+        }
+        return t('downloads.statusQueued', { position: entry.queuePosition });
+    }
+
+    function renderDownloads() {
+        const list = document.getElementById('downloads-list');
+        if (!list) return;
+
+        const queue = window.DownloadQueueManager;
+        const entries = queue ? queue.getDownloadEntries() : [];
+
+        if (entries.length === 0) {
+            list.innerHTML = `<div class="downloads-empty">${escapeHtml(t('downloads.empty'))}</div>`;
+            return;
+        }
+
+        const activePercent = window.ProgressManager && typeof window.ProgressManager.getProgressPercent === 'function'
+            ? window.ProgressManager.getProgressPercent() : 0;
+        const activeMessage = window.ProgressManager && typeof window.ProgressManager.getProgressMessage === 'function'
+            ? window.ProgressManager.getProgressMessage() : '';
+
+        list.innerHTML = entries.map(entry => {
+            const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
+            const displayName = config.displayName || entry.gameId;
+            const status = downloadStatusLabel(entry, activePercent);
+            const message = entry.isActive && !entry.paused ? (activeMessage || entry.initialMessage || '') : '';
+            const percent = entry.isActive ? Math.max(0, Math.min(100, activePercent)) : 0;
+            let cls = 'download-row';
+            if (entry.paused && entry.isActive) cls += ' active paused';
+            else if (entry.paused) cls += ' paused';
+            else if (entry.isActive) cls += ' active';
+            else cls += ' queued';
+
+            // Active rows keep the bar even when paused (frozen at last percent).
+            const showProgress = entry.isActive;
+            const progressBlock = showProgress ? `
+                <div class="download-progress">
+                    <div class="download-progress-bar">
+                        <div class="download-progress-fill"></div>
+                    </div>
+                    <div class="download-progress-meta">
+                        <span class="download-progress-message">${escapeHtml(message)}</span>
+                        <span class="download-progress-percent">${percent.toFixed(2)}%</span>
+                    </div>
+                </div>` : '';
+
+            const pauseTitle = entry.paused ? t('downloads.resume') : t('downloads.pause');
+            const pauseAction = entry.paused ? 'resume' : 'pause';
+
+            // Active rows put their live status inside the progress bar's message line,
+            // so the standalone status row is only useful for queued items.
+            const statusRow = entry.isActive ? '' : `<div class="download-row-status">${escapeHtml(status)}</div>`;
+
+            return `
+                <div class="${cls}" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}">
+                    <div class="download-row-icon"></div>
+                    <div class="download-row-body">
+                        <div class="download-row-title">${escapeHtml(displayName)}</div>
+                        ${statusRow}
+                        ${progressBlock}
+                    </div>
+                    <button class="download-row-pause" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" data-action="${pauseAction}" title="${escapeHtml(pauseTitle)}">
+                        <span class="download-row-pause-icon ${entry.paused ? 'is-resume' : ''}"></span>
+                    </button>
+                    <button class="download-row-cancel" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" title="${escapeHtml(t('common.cancel'))}"><span class="control-icon close-icon"></span></button>
+                </div>
+            `;
+        }).join('');
+
+        // Set icon and accent backgrounds via JS to avoid HTML attribute quoting issues.
+        list.querySelectorAll('.download-row').forEach(row => {
+            const gameId = row.dataset.game;
+            const config = GameUtils.getGameConfigByUIId(gameId) || {};
+            const accent = config.accent || '#6C63FF';
+            const iconPath = config.iconPath || config.capsulePath || '';
+            const iconEl = row.querySelector('.download-row-icon');
+            if (iconEl) {
+                iconEl.style.backgroundColor = accent;
+                if (iconPath) {
+                    iconEl.style.backgroundImage = `url('${resolveAssetUrl(iconPath)}')`;
+                }
+            }
+
+            const fill = row.querySelector('.download-progress-fill');
+            if (fill) {
+                fill.style.width = `${Math.max(0, Math.min(100, activePercent))}%`;
+                fill.style.background = accent;
+                fill.style.boxShadow = `0 0 12px ${accent}80`;
+            }
+        });
+
+        list.querySelectorAll('.download-row-cancel').forEach(btn => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (window.DownloadQueueManager) {
+                    window.DownloadQueueManager.cancel(btn.dataset.game, btn.dataset.op);
+                }
+            });
+        });
+
+        list.querySelectorAll('.download-row-pause').forEach(btn => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (!window.DownloadQueueManager) return;
+                if (btn.dataset.action === 'resume') {
+                    window.DownloadQueueManager.resume(btn.dataset.game, btn.dataset.op);
+                } else {
+                    window.DownloadQueueManager.pause(btn.dataset.game, btn.dataset.op);
+                }
+            });
+        });
+
+        list.querySelectorAll('.download-row').forEach(row => {
+            row.addEventListener('click', (event) => {
+                if (event.target.closest('.download-row-cancel')) return;
+                if (event.target.closest('.download-row-pause')) return;
+                navigateTo(row.dataset.game);
+            });
+        });
+    }
+
     function renderAll() {
         renderSidebarGames();
         renderHome();
@@ -772,6 +904,7 @@
         renderLibrary,
         renderGamePages,
         renderSettingsDirectories,
+        renderDownloads,
         refreshInstallationStates,
         refreshHomeInstalledClients,
         updateLibraryCard,

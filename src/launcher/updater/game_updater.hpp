@@ -55,6 +55,9 @@ namespace game_updater
         [[nodiscard]] std::string get_manifest_file_path() const;
         [[nodiscard]] bool is_update_cancelled() const;
         void check_cancelled() const; // Throws update_cancelled exception if cancelled
+        // Blocks the current thread while the update is paused, then runs a cancellation
+        // check. Use at per-file boundaries to give pause-resume the desired granularity.
+        void wait_if_paused_or_cancelled() const;
 
         // Get files that should be deleted (files from deselected components)
         [[nodiscard]] std::vector<updater::file_info> get_files_to_delete(

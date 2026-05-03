@@ -60,7 +60,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T4',
             version: 'T4',
-            localSize: '8.7 GB',
             installStateLabel: 'Ready to play',
             description: 'World at War enhanced with Plutonium T4. Campaign, multiplayer and zombies stay close to the original game with modern stability patches.',
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T4 client and developed by Plutonium.',
@@ -84,7 +83,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T5',
             version: 'T5',
-            localSize: '12.4 GB',
             installStateLabel: 'Ready to play',
             description: 'Black Ops enhanced with Plutonium T5. Campaign, multiplayer and zombies are grouped in one clean client flow.',
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T5 client and developed by Plutonium.',
@@ -108,7 +106,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW4x / IW4-SP',
             version: 'IW4',
-            localSize: '11.1 GB',
             installStateLabel: 'Ready to play',
             description: 'Modern Warfare 2 with IW4x multiplayer and IW4-SP support. Built for fast access to classic MW2 sessions and client maintenance.',
             credits: 'Multiplayer is provided by IW4x. Singleplayer is provided by IW4-SP and developed by AlterWare.',
@@ -132,7 +129,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium IW5 / IW5-Mod',
             version: 'IW5',
-            localSize: '14.2 GB',
             installStateLabel: 'Ready to play',
             description: 'Modern Warfare 3 with Plutonium multiplayer and IW5-Mod singleplayer support. Pick a mode only when the client actually needs it.',
             credits: 'Multiplayer is provided by Plutonium. Singleplayer is provided by IW5-Mod and developed by AlterWare.',
@@ -156,7 +152,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T6',
             version: 'T6',
-            localSize: '15.8 GB',
             installStateLabel: 'Ready to play',
             featured: true,
             description: 'Black Ops 2 multiplayer and zombies through Plutonium T6, with client updates, verification and base-game linking handled from one detail view.',
@@ -181,7 +176,6 @@ class GameUtils {
             specialSettings: ['skip-intro-cinematic'],
             codeName: 'BOIII',
             version: 'T7',
-            localSize: '68.0 GB',
             installStateLabel: 'Update available',
             description: 'Black Ops 3 with BOIII client support for campaign, multiplayer and zombies. Includes client-specific settings such as intro-skip behavior.',
             credits: 'BOIII is a CB Servers fork of the original BOIII/T7x client developed by momo5502 and AlterWare.',
@@ -205,7 +199,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW6x',
             version: 'IW6',
-            localSize: '31.4 GB',
             installStateLabel: 'Base game missing',
             description: 'Ghosts with IW6x support for campaign and multiplayer. The launcher keeps install setup and client updates in the same place.',
             credits: 'IW6x is a CB Servers fork of the original IW6x/iw6-mod client developed by AlterWare.',
@@ -229,7 +222,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'S1x',
             version: 'S1',
-            localSize: '39.6 GB',
             installStateLabel: 'Ready to play',
             description: 'Advanced Warfare through S1x, with campaign, multiplayer, zombies and survival mode choices presented only when relevant.',
             credits: 'S1x is a CB Servers fork of the original S1x/s1-mod client developed by AlterWare.',
@@ -253,7 +245,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'H1-Mod',
             version: 'H1',
-            localSize: '45.7 GB',
             installStateLabel: 'Ready to play',
             description: 'Modern Warfare Remastered with H1-Mod support. Campaign and multiplayer launch modes stay behind one focused client page.',
             credits: 'H1-Mod is a CB Servers fork of the original H1-Mod client developed by Aurora.',
@@ -277,7 +268,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW7-Mod',
             version: 'IW7',
-            localSize: '61.9 GB',
             installStateLabel: 'Ready to play',
             description: 'Infinite Warfare with IW7-Mod support for campaign, multiplayer and zombies. Secondary actions stay close to install maintenance.',
             credits: 'IW7-Mod is a CB Servers fork of the original IW7-Mod client developed by Aurora.',
@@ -301,7 +291,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'HMW-Mod',
             version: 'HMW',
-            localSize: '48.5 GB',
             installStateLabel: 'Ready to play',
             description: 'HorizonMW is a faithful community remaster of Modern Warfare 2 multiplayer with additional content inspired by MW3.',
             credits: 'HMW-Mod is a CB Servers fork of the original HorizonMW client.',
@@ -521,6 +510,20 @@ class GameUtils {
      * @param {number} config.pollInterval - Poll interval in ms (default: 100)
      * @returns {Promise} Promise that resolves when operation completes
      */
+    static inferQueueOp(command) {
+        switch (command) {
+            case 'verify-game': return 'verify';
+            case 'delete-game': return 'uninstall';
+            case 'launch-game': return 'launch';
+            case 'unlock-all': return 'unlock-all';
+            default: return command;
+        }
+    }
+
+    static opBlocksGameButtons(op) {
+        return op === 'verify' || op === 'install' || op === 'uninstall';
+    }
+
     static async trackCommandProgress(config) {
         const {
             gameId,
@@ -529,77 +532,113 @@ class GameUtils {
             initialMessage = 'Processing...',
             completeMessage = 'Complete!',
             onComplete = null,
-            pollInterval = 100
+            pollInterval = 100,
+            op,
+            blocksGameButtons
         } = config;
 
-        let pollIntervalId;
+        const resolvedOp = op || GameUtils.inferQueueOp(command);
+        const resolvedBlocks = (blocksGameButtons !== undefined)
+            ? !!blocksGameButtons
+            : GameUtils.opBlocksGameButtons(resolvedOp);
 
-        const cancelOperation = () => {
-            if (pollIntervalId) {
-                clearInterval(pollIntervalId);
-                console.log(`${command} cancelled`);
-            }
-            // Call backend to cancel the update
-            window.executeCommand('cancel-update').then(() => {
-                console.log('Cancel command sent to backend');
-            }).catch(error => {
-                console.error('Failed to send cancel command:', error);
-            });
-        };
+        const runFn = (registerCancel) => new Promise((resolve, reject) => {
+            let pollIntervalId;
+            let cancelRequested = false;
 
-        // Show progress bar
-        window.ProgressManager.show(gameId, initialMessage, cancelOperation);
+            const cancelOperation = () => {
+                cancelRequested = true;
+                if (pollIntervalId) {
+                    clearInterval(pollIntervalId);
+                    pollIntervalId = null;
+                }
+                window.executeCommand('cancel-update').catch(error => {
+                    console.error('Failed to send cancel command:', error);
+                });
+                window.ProgressManager.hide();
+                resolve();
+            };
 
-        try {
-            // Start command and wait for it to initialize
-            await window.executeCommand(command, commandArgs);
-            console.log(`${command} command handler completed, starting polling`);
+            registerCancel(cancelOperation);
 
-            // Poll for progress updates
-            return new Promise((resolve, reject) => {
-                pollIntervalId = setInterval(async () => {
-                    try {
-                        const result = await window.executeCommand('get-update-progress');
+            window.ProgressManager.show(gameId, initialMessage, cancelOperation);
 
-                        if (!result) {
-                            console.log('No progress data received');
+            window.executeCommand(command, commandArgs)
+                .then(() => {
+                    console.log(`${command} command handler completed, starting polling`);
+                    if (cancelRequested) return;
+
+                    pollIntervalId = setInterval(async () => {
+                        if (cancelRequested) {
+                            clearInterval(pollIntervalId);
+                            pollIntervalId = null;
                             return;
                         }
+                        try {
+                            const result = await window.executeCommand('get-update-progress');
 
-                        if (!result.active) {
-                            console.log(`${command} no longer active - operation complete`);
-                            // Operation complete
-                            clearInterval(pollIntervalId);
-                            window.ProgressManager.update(100, completeMessage);
-
-                            // Call completion callback if provided
-                            if (onComplete) {
-                                onComplete();
+                            if (!result) {
+                                return;
                             }
 
-                            setTimeout(() => {
-                                window.ProgressManager.hide();
-                                resolve();
-                            }, 1000);
-                            return;
-                        }
+                            if (!result.active) {
+                                clearInterval(pollIntervalId);
+                                pollIntervalId = null;
+                                window.ProgressManager.update(100, completeMessage);
 
-                        // Update progress
-                        console.log(`Updating progress: ${result.message}, ${result.progress}`);
-                        window.ProgressManager.update(result.progress, result.message);
-                    } catch (error) {
-                        console.error('Error polling progress:', error);
-                        clearInterval(pollIntervalId);
-                        window.ProgressManager.hide();
-                        reject(error);
-                    }
-                }, pollInterval);
-            });
-        } catch (error) {
-            console.error(`Failed to start ${command}:`, error);
-            window.ProgressManager.hide();
-            throw error;
+                                if (onComplete) {
+                                    try { onComplete(); } catch (cbErr) { console.error('onComplete error:', cbErr); }
+                                }
+
+                                setTimeout(() => {
+                                    window.ProgressManager.hide();
+                                    resolve();
+                                }, 1000);
+                                return;
+                            }
+
+                            // Paused: keep the bar alive at the current percent, just relabel.
+                            if (result.paused) {
+                                const pausedMsg = window.LauncherI18n
+                                    ? window.LauncherI18n.t('downloads.statusPausedAt', { percent: Number(result.progress || 0).toFixed(2) })
+                                    : `Paused — ${Number(result.progress || 0).toFixed(2)}%`;
+                                window.ProgressManager.update(result.progress, pausedMsg);
+                                return;
+                            }
+
+                            window.ProgressManager.update(result.progress, result.message);
+                        } catch (error) {
+                            console.error('Error polling progress:', error);
+                            clearInterval(pollIntervalId);
+                            pollIntervalId = null;
+                            window.ProgressManager.hide();
+                            reject(error);
+                        }
+                    }, pollInterval);
+                })
+                .catch(error => {
+                    console.error(`Failed to start ${command}:`, error);
+                    window.ProgressManager.hide();
+                    reject(error);
+                });
+        });
+
+        const queue = window.DownloadQueueManager;
+        if (!queue) {
+            console.warn('DownloadQueueManager unavailable, running command directly');
+            return runFn(() => {});
         }
+
+        return queue.enqueue({
+            gameId,
+            op: resolvedOp,
+            command,
+            commandArgs,
+            blocksGameButtons: resolvedBlocks,
+            initialMessage,
+            completeMessage,
+            runFn
+        });
     }
 
     /**

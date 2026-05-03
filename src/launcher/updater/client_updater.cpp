@@ -258,6 +258,13 @@ namespace client_updater
 
         for (const auto& info : files)
         {
+            // Block here while paused; resume signals the cv. Cancellation is observed
+            // separately via the existing libcurl-callback path or the next iteration.
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->wait_if_paused();
+            }
+
             // Report that we're starting to verify this file
             if (this->progress_listener_)
             {
@@ -303,6 +310,11 @@ namespace client_updater
                     return static_cast<bool>(ptr);
                 }))
                 {
+                    // Block here while paused; resume signals the cv.
+                    if (this->progress_listener_)
+                        this->progress_listener_->wait_if_paused();
+                    if (is_update_cancelled()) break;
+
                     const auto index = current_index++;
                     if (index >= outdated_files.size())
                     {
