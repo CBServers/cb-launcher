@@ -220,6 +220,7 @@ namespace game_config
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .manifest_path = "manifest/waw.json",
                 .required_updater_files = {"plutonium.exe"},
                 .valid_game_files = {"binkw32.dll", "CoDWaW.exe", "CoDWaWmp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
@@ -239,6 +240,7 @@ namespace game_config
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .manifest_path = "manifest/bo1.json",
                 .required_updater_files = {"plutonium.exe"},
                 .valid_game_files = {"binkw32.dll", "BlackOps.exe", "BlackOpsMP.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
@@ -258,6 +260,7 @@ namespace game_config
                 .exe_name = "iw4x.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "iw4x.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "iw4x/",
+                .manifest_path = "manifest/mw2.json",
                 .required_updater_files = {},
                 .valid_game_files = {"binkw32.dll", "iw4mp.exe", "iw4sp.exe"},
                 .check_running_exes = {"alterware-launcher.exe", "iw4x.exe", "iw4x-sp.exe"},
@@ -283,6 +286,7 @@ namespace game_config
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .manifest_path = "manifest/bo2.json",
                 .required_updater_files = {"plutonium.exe"},
                 .valid_game_files = {"binkw32.dll", "t6mp.exe", "t6zm.exe", "t6sp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
@@ -302,6 +306,7 @@ namespace game_config
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .manifest_path = "manifest/mw3.json",
                 .required_updater_files = {"plutonium.exe", "alterware-launcher.exe"},
                 .valid_game_files = {"binkw32.dll", "iw5mp.exe", "iw5sp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe", "alterware-launcher.exe", "iw5-mod.exe"},
@@ -328,6 +333,7 @@ namespace game_config
                 .exe_name = "boiii.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
+                .manifest_path = "manifest/bo3.json",
                 .required_updater_files = {},
                 .valid_game_files = {"BlackOps3.exe"},
                 .mode_arguments = {},
@@ -348,6 +354,7 @@ namespace game_config
                 .exe_name = "iw6x.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
+                .manifest_path = "manifest/ghosts.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
                 .mode_arguments = {
@@ -369,6 +376,7 @@ namespace game_config
                 .exe_name = "s1x.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
+                .manifest_path = "manifest/aw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
                 .mode_arguments = {
@@ -392,6 +400,7 @@ namespace game_config
                 .exe_name = "h1-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
+                .manifest_path = "manifest/mwr.json",
                 .required_updater_files = {},
                 .valid_game_files = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
                 .mode_arguments = {
@@ -415,6 +424,7 @@ namespace game_config
                 .exe_name = "iw7-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
+                .manifest_path = "manifest/iw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw7_ship.exe"},
                 .mode_arguments = {},
@@ -435,6 +445,7 @@ namespace game_config
                 .exe_name = "hmw-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
                 .update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+                .manifest_path = "manifest/hmw.json",
                 .required_updater_files = {"d3d11.dll"},
                 .valid_game_files = {"h1_mp64_ship.exe"},
                 .mode_arguments = {},
@@ -599,5 +610,28 @@ namespace game_config
     {
         const auto active_cdn = utils::cdn::cdn_manager::instance().get_active_cdn_url();
         return active_cdn + config.base_folder;
+    }
+
+    std::string read_manifest(const game_config_t& config)
+    {
+        if (config.manifest_path.empty())
+        {
+            throw std::runtime_error("No manifest_path configured for " + config.display_name);
+        }
+
+        if (!utils::io::file_exists(config.manifest_path))
+        {
+            throw std::runtime_error("Failed to read manifest for " + config.display_name +
+                ": file not found at " + config.manifest_path);
+        }
+
+        std::string data;
+        if (!utils::io::read_file(config.manifest_path, &data))
+        {
+            throw std::runtime_error("Failed to read manifest for " + config.display_name +
+                ": unable to read " + config.manifest_path);
+        }
+
+        return data;
     }
 }

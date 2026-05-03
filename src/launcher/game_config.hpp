@@ -42,6 +42,7 @@ namespace game_config
         std::string exe_name;
         std::string update_manifest_url;
         std::string update_folder_url;
+        std::string manifest_path;
         std::vector<std::string> required_updater_files;
         std::vector<std::string> valid_game_files;
         std::vector<std::string> check_running_exes;
@@ -83,4 +84,7 @@ namespace game_config
 
     // Get the resolved base URL for a game config using the active CDN
     std::string get_resolved_base_url(const game_config_t& config);
+
+    // Read the game's update manifest from local appdata. Throws std::runtime_error if missing/unreadable.
+    std::string read_manifest(const game_config_t& config);
 }

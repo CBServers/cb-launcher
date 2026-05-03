@@ -3,7 +3,6 @@
 #include "updater.hpp"
 #include "game_updater.hpp"
 
-#include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
 #include <utils/http.hpp>
 #include <utils/io.hpp>
@@ -12,8 +11,6 @@
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
-
-#define MANIFEST_FILE "manifest_v2.json"
 
 //#define MULTITHREAD_DOWNLOAD
 
@@ -157,35 +154,6 @@ namespace game_updater
             return manifest;
         }
 
-        std::string get_cache_buster()
-        {
-            return "?" + std::to_string(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
-        }
-
-        std::string get_hash(const std::string& data)
-        {
-            return utils::cryptography::sha1::compute(data, true);
-        }
-
-        update_manifest get_manifest(const std::string& manifest_url)
-        {
-            const auto data = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
-            if (!data || !data.has_value())
-            {
-                return {};
-            }
-
-            const auto& result = data.value();
-            if (result.code != CURLE_OK)
-            {
-                return {};
-            }
-
-            return parse_manifest(result.buffer);
-        }
-
         size_t get_optimal_concurrent_download_count(const size_t file_count)
         {
             size_t cores = std::thread::hardware_concurrency();
@@ -213,10 +181,11 @@ namespace game_updater
         this->is_steam_install = config.is_steam_install();
         this->base_url = game_config::get_resolved_base_url(config);
 
-        this->manifest_ = get_manifest(this->base_url + "/" + MANIFEST_FILE);
+        const auto manifest_json = game_config::read_manifest(config);
+        this->manifest_ = parse_manifest(manifest_json);
         if (this->manifest_.empty())
         {
-            throw std::runtime_error("Failed to download or parse manifest for " + config.display_name + ". Please try again.");
+            throw std::runtime_error("Failed to parse manifest for " + config.display_name + ".");
         }
     }
 
