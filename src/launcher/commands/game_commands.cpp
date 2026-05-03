@@ -37,15 +37,35 @@ namespace commands::game_commands
             barrier->store(false);
         }
 
-        std::string get_launch_options(const std::string& arg, const game_config::game_config_t& config)
+        std::string trim_ws(std::string s)
         {
-            const auto options = config.get_launch_options();
-            if (!options.has_value())
+            const auto first = s.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos) return "";
+            const auto last = s.find_last_not_of(" \t\r\n");
+            return s.substr(first, last - first + 1);
+        }
+
+        std::string build_launch_args(const std::string& base_args, const std::string& mode,
+            const game_config::game_config_t& config)
+        {
+            const auto user_options = config.get_launch_options().value_or("");
+
+            // Modes that route through a wrapper launcher (e.g. AlterWare) need
+            // their built-in pass-args + the user's options forwarded as a single
+            // quoted token after --pass.
+            const auto pass_it = config.mode_pass_arguments.find(mode);
+            if (pass_it != config.mode_pass_arguments.end())
             {
-                return arg;
+                const auto inner = trim_ws(std::format("{} {}", pass_it->second, user_options));
+                if (inner.empty())
+                {
+                    return base_args;
+                }
+                return std::format("{} --pass \"{}\"", base_args, inner);
             }
 
-            return std::format("{} {}", arg, options.value());
+            if (user_options.empty()) return base_args;
+            return std::format("{} {}", base_args, user_options);
         }
 
         void launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
@@ -97,7 +117,7 @@ namespace commands::game_commands
                     return;
                 }
 
-                const auto launch_args = get_launch_options(game_config::get_launch_arguments(game, mode), config);
+                const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config);
 
                 printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
 

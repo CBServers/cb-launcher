@@ -272,6 +272,9 @@ namespace game_config
                     {"sp", "alterware-launcher.exe"},
                     {"mp", "iw4x.exe"}
                 },
+                .mode_pass_arguments = {
+                    {"sp", ""}
+                },
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {}
@@ -311,12 +314,15 @@ namespace game_config
                 .valid_game_files = {"binkw32.dll", "iw5mp.exe", "iw5sp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe", "alterware-launcher.exe", "iw5-mod.exe"},
                 .mode_arguments = {
-                    {"sp", "iw5-mod --skip-launcher-update --pass -singleplayer"},
+                    {"sp", "iw5-mod --skip-launcher-update"},
                     {"mp", ""}
                 },
                 .mode_executables = {
                     {"sp", "alterware-launcher.exe"},
                     {"mp", "plutonium.exe"}
+                },
+                .mode_pass_arguments = {
+                    {"sp", "-singleplayer"}
                 },
                 .pluto_path_key = "iw5Path",
                 .base_folder = "mw3_game_files",
