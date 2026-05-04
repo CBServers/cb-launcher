@@ -45,10 +45,57 @@ namespace commands::game_commands
             return s.substr(first, last - first + 1);
         }
 
-        std::string build_launch_args(const std::string& base_args, const std::string& mode,
+        // Plutonium-managed clients ignore +set name (their auth controls the displayed name).
+        // iw5 SP runs through AlterWare, so only its MP mode is Plutonium-managed.
+        bool is_plutonium_managed(const std::string& game, const std::string& mode)
+        {
+            if (game == "t4" || game == "t5" || game == "t6") return true;
+            if (game == "iw5" && mode == "mp") return true;
+            return false;
+        }
+
+        std::string sanitize_player_name(std::string name)
+        {
+            name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
+            name = trim_ws(std::move(name));
+            if (name.size() > 16) name.resize(16);
+            return name;
+        }
+
+        // Returns the effective player name to inject for this (game, mode), or empty
+        // when nothing should be injected (BO3 handled out-of-band via JSON file).
+        std::string resolve_player_name(const std::string& game, const std::string& mode,
             const game_config::game_config_t& config)
         {
+            if (game == "bo3") return "";
+            if (is_plutonium_managed(game, mode)) return "";
+
+            const auto ignore = config.get(property_keys::IGNORE_GLOBAL_NAME);
+            if (ignore && *ignore == "true") return "";
+
+            const auto global = utils::properties::load(property_keys::GLOBAL_PLAYER_NAME);
+            if (!global) return "";
+
+            return sanitize_player_name(*global);
+        }
+
+        std::string format_name_arg(const std::string& name)
+        {
+            if (name.empty()) return "";
+            // Names without whitespace don't need quoting; avoids embedding inner
+            // double-quotes in the wrapper's --pass "..." token.
+            if (name.find_first_of(" \t") == std::string::npos)
+            {
+                return std::format("+set name {}", name);
+            }
+            return std::format("+set name \"{}\"", name);
+        }
+
+        std::string build_launch_args(const std::string& base_args, const std::string& mode,
+            const game_config::game_config_t& config, const std::string& player_name)
+        {
             const auto user_options = config.get_launch_options().value_or("");
+            const auto name_arg = format_name_arg(player_name);
 
             // Modes that route through a wrapper launcher (e.g. AlterWare) need
             // their built-in pass-args + the user's options forwarded as a single
@@ -56,7 +103,7 @@ namespace commands::game_commands
             const auto pass_it = config.mode_pass_arguments.find(mode);
             if (pass_it != config.mode_pass_arguments.end())
             {
-                const auto inner = trim_ws(std::format("{} {}", pass_it->second, user_options));
+                const auto inner = trim_ws(std::format("{} {} {}", pass_it->second, user_options, name_arg));
                 if (inner.empty())
                 {
                     return base_args;
@@ -64,8 +111,9 @@ namespace commands::game_commands
                 return std::format("{} --pass \"{}\"", base_args, inner);
             }
 
-            if (user_options.empty()) return base_args;
-            return std::format("{} {}", base_args, user_options);
+            const auto extras = trim_ws(std::format("{} {}", user_options, name_arg));
+            if (extras.empty()) return base_args;
+            return std::format("{} {}", base_args, extras);
         }
 
         void launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
@@ -117,7 +165,27 @@ namespace commands::game_commands
                     return;
                 }
 
-                const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config);
+                const auto player_name = resolve_player_name(game, mode, config);
+                const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config, player_name);
+
+                // BO3 reads its player name from boiii_players/properties.json instead of +set name.
+                if (game == "bo3")
+                {
+                    const auto ignore_global = config.get(property_keys::IGNORE_GLOBAL_NAME);
+                    const bool skip = ignore_global && *ignore_global == "true";
+                    if (!skip)
+                    {
+                        const auto global = utils::properties::load(property_keys::GLOBAL_PLAYER_NAME);
+                        if (global)
+                        {
+                            const auto sanitized = sanitize_player_name(*global);
+                            if (!sanitized.empty())
+                            {
+                                game_config::write_boiii_player_name(game_directory, sanitized);
+                            }
+                        }
+                    }
+                }
 
                 printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
 

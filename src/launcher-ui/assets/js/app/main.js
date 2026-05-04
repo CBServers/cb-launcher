@@ -527,310 +527,6 @@ window.GameInstallationManager = {
     }
 };
 
-function getInlineSettingsPanel(gameId) {
-    return document.querySelector(`.inline-game-settings[data-game="${gameId}"]`);
-}
-
-function getInlineSettingsContext(gameId) {
-    const backendGame = GameUtils.getGameMapping(gameId);
-    const gameConfig = GameUtils.getGameConfig(backendGame);
-    const panel = getInlineSettingsPanel(gameId);
-
-    return {
-        backendGame,
-        gameConfig,
-        panel
-    };
-}
-
-function setToggleGroupValue(toggleGroup, value) {
-    if (!toggleGroup) return;
-
-    const targetValue = value === 'true' ? 'true' : 'false';
-    toggleGroup.querySelectorAll('.toggle-btn').forEach(button => {
-        button.classList.toggle('active', button.dataset.value === targetValue);
-    });
-}
-
-function getToggleGroupValue(toggleGroup) {
-    if (!toggleGroup) return 'false';
-    const activeButton = toggleGroup.querySelector('.toggle-btn.active');
-    return activeButton ? activeButton.dataset.value : 'false';
-}
-
-function updateInlineVerifyState(panel, installPath) {
-    if (!panel) return;
-
-    const verifyButton = panel.querySelector('.inline-settings-verify');
-    if (!verifyButton) return;
-
-    verifyButton.disabled = !installPath || installPath.trim() === '';
-}
-
-function showInvalidGamePathMessage(gameConfig) {
-    if (typeof window.showMessageBox === 'function') {
-        window.showMessageBox(
-            t('popup.gameSettings.invalidGamePathTitle'),
-            t('popup.gameSettings.invalidGamePathBody', { game: gameConfig.displayName }),
-            [t('common.ok')]
-        );
-    } else {
-        alert(`The selected folder does not contain valid ${gameConfig.displayName} game files.`);
-    }
-}
-
-function showGameNotConfiguredMessage(gameConfig) {
-    if (typeof window.showMessageBox === 'function') {
-        window.showMessageBox(
-            t('errors.gameNotConfiguredTitle', { game: gameConfig.displayName }),
-            t('errors.gameNotConfiguredBody', { game: gameConfig.displayName }),
-            [t('common.ok')]
-        );
-    } else {
-        alert(`${gameConfig.displayName} installation path not configured.`);
-    }
-}
-
-window.GameDetailPage = {
-    async loadClientSettings(gameId) {
-        const { backendGame, panel } = getInlineSettingsContext(gameId);
-        if (!panel || typeof window.executeCommand !== 'function') return;
-
-        try {
-            const installPath = await window.executeCommand('get-game-property', {
-                game: backendGame,
-                suffix: PROPERTY_KEYS.GAME.INSTALL
-            });
-            const pathInput = panel.querySelector('[data-setting="game-path"]');
-            if (pathInput) {
-                pathInput.value = installPath || '';
-            }
-            updateInlineVerifyState(panel, installPath);
-
-            const launchOptions = await window.executeCommand('get-game-property', {
-                game: backendGame,
-                suffix: PROPERTY_KEYS.GAME.LAUNCH_OPTIONS
-            });
-            const launchOptionsInput = panel.querySelector('[data-setting="launch-options"]');
-            if (launchOptionsInput) {
-                launchOptionsInput.value = launchOptions || '';
-            }
-
-            const behaviorSelect = panel.querySelector('[data-setting="play-behavior"]');
-            if (behaviorSelect) {
-                const savedBehavior = await window.executeCommand('get-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.GAME_MODE
-                });
-                behaviorSelect.value = savedBehavior && savedBehavior !== '' ? savedBehavior : 'ask';
-            }
-
-            const skipIntroToggle = panel.querySelector('[data-setting="skip-intro-cinematic"]');
-            if (skipIntroToggle) {
-                const skipIntro = await window.executeCommand('get-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.SKIP_INTRO_CINEMATIC
-                });
-                setToggleGroupValue(skipIntroToggle, skipIntro);
-            }
-
-            const disableExtensionToggle = panel.querySelector('[data-setting="disable-cb-extension"]');
-            if (disableExtensionToggle) {
-                const disableExtension = await window.executeCommand('get-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION
-                });
-                setToggleGroupValue(disableExtensionToggle, disableExtension);
-            }
-        } catch (error) {
-            console.error(`Failed to load inline client settings for ${gameId}:`, error);
-        }
-    },
-
-    async browseClientSettingsPath(gameId) {
-        const { panel } = getInlineSettingsContext(gameId);
-        if (!panel || typeof window.executeCommand !== 'function') return;
-
-        try {
-            const folder = await window.executeCommand('browse-folder');
-            if (!folder) return;
-
-            const pathInput = panel.querySelector('[data-setting="game-path"]');
-            if (pathInput) {
-                pathInput.value = folder;
-            }
-            updateInlineVerifyState(panel, '');
-        } catch (error) {
-            console.error(`Failed to browse installation path for ${gameId}:`, error);
-        }
-    },
-
-    async saveClientSettings(gameId) {
-        const { backendGame, gameConfig, panel } = getInlineSettingsContext(gameId);
-        if (!panel || !gameConfig || typeof window.executeCommand !== 'function') return;
-
-        const pathInput = panel.querySelector('[data-setting="game-path"]');
-        const installPath = pathInput ? pathInput.value.trim() : '';
-
-        try {
-            if (installPath) {
-                const pathValid = await window.executeCommand('set-game-path', {
-                    game: backendGame,
-                    path: installPath,
-                    existing_install: true
-                });
-
-                if (!pathValid) {
-                    showInvalidGamePathMessage(gameConfig);
-                    return;
-                }
-            }
-
-            const behaviorSelect = panel.querySelector('[data-setting="play-behavior"]');
-            if (behaviorSelect) {
-                await window.executeCommand('set-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.GAME_MODE,
-                    value: behaviorSelect.value === 'ask' ? '' : behaviorSelect.value
-                });
-            }
-
-            const skipIntroToggle = panel.querySelector('[data-setting="skip-intro-cinematic"]');
-            if (skipIntroToggle) {
-                await window.executeCommand('set-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.SKIP_INTRO_CINEMATIC,
-                    value: getToggleGroupValue(skipIntroToggle)
-                });
-            }
-
-            const disableExtensionToggle = panel.querySelector('[data-setting="disable-cb-extension"]');
-            if (disableExtensionToggle) {
-                await window.executeCommand('set-game-property', {
-                    game: backendGame,
-                    suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION,
-                    value: getToggleGroupValue(disableExtensionToggle)
-                });
-            }
-
-            const launchOptionsInput = panel.querySelector('[data-setting="launch-options"]');
-            await window.executeCommand('set-game-property', {
-                game: backendGame,
-                suffix: PROPERTY_KEYS.GAME.LAUNCH_OPTIONS,
-                value: launchOptionsInput ? launchOptionsInput.value.trim() : ''
-            });
-
-            await this.loadClientSettings(gameId);
-
-            window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                detail: { game: backendGame }
-            }));
-        } catch (error) {
-            console.error(`Failed to save inline client settings for ${gameId}:`, error);
-            if (typeof window.showMessageBox === 'function') {
-                window.showMessageBox(
-                    t('popup.gameSettings.saveFailedTitle'),
-                    t('popup.gameSettings.saveFailedBody'),
-                    [t('common.ok')]
-                );
-            } else {
-                alert('Failed to save settings. Please try again.');
-            }
-        }
-    },
-
-    async resetClientSettings(gameId) {
-        const { backendGame, gameConfig } = getInlineSettingsContext(gameId);
-        if (!gameConfig || typeof window.executeCommand !== 'function' || typeof window.showMessageBox !== 'function') {
-            return;
-        }
-
-        const result = await window.showMessageBox(
-            t('popup.gameSettings.resetTitle'),
-            t('popup.gameSettings.resetBody', { game: gameConfig.displayName }),
-            [t('common.cancel'), t('common.resetSettings')]
-        );
-
-        if (result !== 1) {
-            return;
-        }
-
-        try {
-            await window.executeCommand('reset-game-settings', {
-                game: backendGame
-            });
-
-            await this.loadClientSettings(gameId);
-
-            window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                detail: { game: backendGame }
-            }));
-
-            window.showMessageBox(
-                t('popup.gameSettings.resetDoneTitle'),
-                t('popup.gameSettings.resetDoneBody', { game: gameConfig.displayName }),
-                [t('common.ok')]
-            );
-        } catch (error) {
-            console.error(`Failed to reset inline client settings for ${gameId}:`, error);
-            window.showMessageBox(
-                t('popup.gameSettings.resetFailedTitle'),
-                t('popup.gameSettings.resetFailedBody'),
-                [t('common.ok')]
-            );
-        }
-    },
-
-    async openModsScriptsFolder(gameId) {
-        const { backendGame, gameConfig } = getInlineSettingsContext(gameId);
-        if (!gameConfig || typeof window.executeCommand !== 'function') return;
-
-        try {
-            const installPath = await window.executeCommand('get-game-property', {
-                game: backendGame,
-                suffix: PROPERTY_KEYS.GAME.INSTALL
-            });
-
-            if (!installPath || installPath.trim() === '') {
-                showGameNotConfiguredMessage(gameConfig);
-
-                if (window.AppViews && typeof window.AppViews.activateGameDetailPanel === 'function') {
-                    window.AppViews.activateGameDetailPanel(gameId, 'client-settings');
-                }
-
-                return;
-            }
-
-            await window.executeCommand('open-folder', { path: installPath });
-        } catch (error) {
-            console.error(`Failed to open mods/scripts folder for ${gameId}:`, error);
-        }
-    },
-
-    async verifyConfiguredGame(gameId) {
-        const { backendGame, gameConfig } = getInlineSettingsContext(gameId);
-        if (!gameConfig || typeof window.executeCommand !== 'function') return;
-
-        try {
-            const installPath = await window.executeCommand('get-game-property', {
-                game: backendGame,
-                suffix: PROPERTY_KEYS.GAME.INSTALL
-            });
-
-            if (!installPath || installPath.trim() === '') {
-                showGameNotConfiguredMessage(gameConfig);
-                return;
-            }
-
-            if (typeof verifyGame === 'function') {
-                verifyGame(gameId);
-            }
-        } catch (error) {
-            console.error(`Failed to verify configured game for ${gameId}:`, error);
-        }
-    }
-};
-
 // Game State Manager - Continuously monitors game states and updates UI
 window.GameStateManager = {
     pollInterval: null,
@@ -1410,14 +1106,6 @@ function initializeGamePage(gameId) {
 
     // Create buttons for the game
     createGameButtons(gameId);
-
-    const page = document.getElementById(`${gameId}-page`);
-    if (page &&
-        page.querySelector('.inline-game-settings.active') &&
-        window.GameDetailPage &&
-        typeof window.GameDetailPage.loadClientSettings === 'function') {
-        window.GameDetailPage.loadClientSettings(gameId);
-    }
 }
 
 async function createGameButtons(gameId) {
@@ -1785,10 +1473,63 @@ async function loadLauncherSettings() {
             themeSelect.value = savedTheme;
         }
 
+        // Load global player name
+        const globalPlayerName = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME);
+        const playerNameInput = document.getElementById('setting-global-player-name');
+        if (playerNameInput) {
+            playerNameInput.value = globalPlayerName || '';
+        }
+
         console.log('Launcher settings loaded');
     } catch (error) {
         console.error('Failed to load launcher settings:', error);
     }
+}
+
+function sanitizePlayerName(value) {
+    let v = (value || '').replace(/"/g, '');
+    if (v.length > 16) v = v.slice(0, 16);
+    return v;
+}
+
+function setupGlobalPlayerNameInput() {
+    const input = document.getElementById('setting-global-player-name');
+    if (!input || input.dataset.bound) return;
+    input.dataset.bound = 'true';
+
+    let saveTimer = null;
+    const saveValue = async (value) => {
+        if (typeof window.executeCommand !== 'function') return;
+        try {
+            await window.executeCommand('set-property', {
+                [PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME]: value
+            });
+            console.log(`Global player name set to: "${value}"`);
+        } catch (error) {
+            console.error('Failed to save global player name:', error);
+        }
+    };
+
+    input.addEventListener('input', () => {
+        const sanitized = sanitizePlayerName(input.value);
+        if (sanitized !== input.value) {
+            input.value = sanitized;
+        }
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveValue(sanitized), 400);
+    });
+
+    input.addEventListener('blur', () => {
+        if (saveTimer) {
+            clearTimeout(saveTimer);
+            saveTimer = null;
+        }
+        const sanitized = sanitizePlayerName(input.value);
+        if (sanitized !== input.value) {
+            input.value = sanitized;
+        }
+        saveValue(sanitized);
+    });
 }
 
 // CDN Settings Management
@@ -2178,6 +1919,7 @@ async function initializeSettingsPage() {
     }
     await loadLauncherSettings();
     setupLauncherSettingsToggles();
+    setupGlobalPlayerNameInput();
     await setupLanguageSelect();
     setupThemeSelect();
 
@@ -2224,13 +1966,6 @@ window.addEventListener('gameInstallationUpdated', (event) => {
             const gameId = page.id.replace('-page', '');
             if (targetGame === 'all' || targetGame === window.GameInstallationManager.getGameMapping(gameId)) {
                 createGameButtons(gameId);
-
-                const activeClientSettingsPanel = page.querySelector('.inline-game-settings.active');
-                if (activeClientSettingsPanel &&
-                    window.GameDetailPage &&
-                    typeof window.GameDetailPage.loadClientSettings === 'function') {
-                    window.GameDetailPage.loadClientSettings(gameId);
-                }
             }
         }
     });

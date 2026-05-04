@@ -43,22 +43,25 @@ class GameSettingsPopup {
                     </div>
                 </div>
 
-                <div class="settings-section" id="bo3-cinematic-section" style="display: none;">
+                <div class="settings-section" id="game-options-section" style="display: none;">
                     <h4>Game Options</h4>
-                    <div class="setting-item inline-setting">
+                    <div class="setting-item inline-setting" id="skip-intro-cinematic-row" style="display: none;">
                         <label>Skip Intro Cinematic</label>
                         <div class="toggle-group small" id="skip-intro-cinematic-toggle">
                             <button class="toggle-btn" data-value="false">OFF</button>
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
                     </div>
-                </div>
-
-                <div class="settings-section" id="hmw-cb-extension-section" style="display: none;">
-                    <h4>Game Options</h4>
-                    <div class="setting-item inline-setting">
+                    <div class="setting-item inline-setting" id="disable-cb-extension-row" style="display: none;">
                         <label>Disable CB Extension</label>
                         <div class="toggle-group small" id="disable-cb-extension-toggle">
+                            <button class="toggle-btn" data-value="false">OFF</button>
+                            <button class="toggle-btn" data-value="true">ON</button>
+                        </div>
+                    </div>
+                    <div class="setting-item inline-setting" id="ignore-global-name-row" style="display: none;">
+                        <label>Don't apply global in-game name</label>
+                        <div class="toggle-group small" id="ignore-global-name-toggle">
                             <button class="toggle-btn" data-value="false">OFF</button>
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
@@ -138,10 +141,10 @@ class GameSettingsPopup {
         this.popup.querySelector('#game-path').placeholder = this.t('popup.gameSettings.installationPlaceholder');
         this.popup.querySelector('#play-behavior-section h4').textContent = this.t('popup.gameSettings.playButtonBehavior');
         this.popup.querySelector('label[for="play-behavior-select"]').textContent = this.t('popup.gameSettings.playButtonBehaviorLabel');
-        this.popup.querySelector('#bo3-cinematic-section h4').textContent = this.t('popup.gameSettings.gameOptions');
-        this.popup.querySelector('#bo3-cinematic-section label').textContent = this.t('popup.gameSettings.skipIntroCinematic');
-        this.popup.querySelector('#hmw-cb-extension-section h4').textContent = this.t('popup.gameSettings.gameOptions');
-        this.popup.querySelector('#hmw-cb-extension-section label').textContent = this.t('popup.gameSettings.disableCbExtension');
+        this.popup.querySelector('#game-options-section h4').textContent = this.t('popup.gameSettings.gameOptions');
+        this.popup.querySelector('#skip-intro-cinematic-row label').textContent = this.t('popup.gameSettings.skipIntroCinematic');
+        this.popup.querySelector('#disable-cb-extension-row label').textContent = this.t('popup.gameSettings.disableCbExtension');
+        this.popup.querySelector('#ignore-global-name-row label').textContent = this.t('popup.gameSettings.ignoreGlobalName');
         this.popup.querySelector('#launch-options-section h4').textContent = this.t('popup.gameSettings.advanced');
         this.popup.querySelector('label[for="launch-options-input"]').textContent = this.t('popup.gameSettings.launchOptions');
         this.popup.querySelector('.btn-reset').textContent = this.t('common.resetSettings');
@@ -164,31 +167,29 @@ class GameSettingsPopup {
 
         // Show/hide sections based on game
         const playBehaviorSection = this.popup.querySelector('#play-behavior-section');
-        const bo3CinematicSection = this.popup.querySelector('#bo3-cinematic-section');
-        const hmwExtensionSection = this.popup.querySelector('#hmw-cb-extension-section');
+        const gameOptionsSection = this.popup.querySelector('#game-options-section');
+        const skipIntroRow = this.popup.querySelector('#skip-intro-cinematic-row');
+        const disableExtRow = this.popup.querySelector('#disable-cb-extension-row');
+        const ignoreGlobalNameRow = this.popup.querySelector('#ignore-global-name-row');
 
-        if (game === 'bo3') {
-            // For BO3, hide play behavior and show cinematic option
+        if (game === 'bo3' || game === 'hmw') {
             playBehaviorSection.style.display = 'none';
-            bo3CinematicSection.style.display = 'block';
-            hmwExtensionSection.style.display = 'none';
-        } else if (game === 'hmw') {
-            // For HMW, show CB extension option
-            playBehaviorSection.style.display = 'none';
-            bo3CinematicSection.style.display = 'none';
-            hmwExtensionSection.style.display = 'block';
         } else if (this.gameConfig.hasMultipleModes) {
-            // For games with multiple modes, show play behavior and populate with supported modes
             playBehaviorSection.style.display = 'block';
-            bo3CinematicSection.style.display = 'none';
-            hmwExtensionSection.style.display = 'none';
             this.populatePlayBehaviorDropdown();
         } else {
-            // For single-mode games (other than BO3), hide play behavior
             playBehaviorSection.style.display = 'none';
-            bo3CinematicSection.style.display = 'none';
-            hmwExtensionSection.style.display = 'none';
         }
+
+        // Plutonium-managed clients (BO1/BO2/WAW) ignore +set name, so hide that row.
+        const isPlutoniumManaged = game === 't4' || game === 't5' || game === 't6';
+
+        skipIntroRow.style.display = game === 'bo3' ? 'flex' : 'none';
+        disableExtRow.style.display = game === 'hmw' ? 'flex' : 'none';
+        ignoreGlobalNameRow.style.display = isPlutoniumManaged ? 'none' : 'flex';
+
+        const anyOptionVisible = !isPlutoniumManaged || game === 'bo3' || game === 'hmw';
+        gameOptionsSection.style.display = anyOptionVisible ? 'block' : 'none';
 
         // Load current settings
         await this.loadCurrentSettings();
@@ -295,6 +296,23 @@ class GameSettingsPopup {
                         behaviorSelect.value = 'ask';
                     }
                 }
+
+                // Load ignore-global-name toggle (hidden for Plutonium-managed clients)
+                const isPlutoniumManaged = this.currentGame === 't4' || this.currentGame === 't5' || this.currentGame === 't6';
+                if (!isPlutoniumManaged) {
+                    const ignoreGlobalName = await window.executeCommand('get-game-property', {
+                        game: this.currentGame,
+                        suffix: PROPERTY_KEYS.GAME.IGNORE_GLOBAL_NAME
+                    });
+                    const toggleGroup = this.popup.querySelector('#ignore-global-name-toggle');
+                    const buttons = toggleGroup.querySelectorAll('.toggle-btn');
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    const targetValue = ignoreGlobalName === 'true' ? 'true' : 'false';
+                    const targetButton = toggleGroup.querySelector(`[data-value="${targetValue}"]`);
+                    if (targetButton) {
+                        targetButton.classList.add('active');
+                    }
+                }
             } catch (error) {
                 console.error('Failed to load current settings:', error);
             }
@@ -388,6 +406,18 @@ class GameSettingsPopup {
                     suffix: PROPERTY_KEYS.GAME.LAUNCH_OPTIONS,
                     value: launchOptions
                 });
+
+                // Save ignore-global-name toggle (hidden for Plutonium-managed clients)
+                const isPlutoniumManaged = this.currentGame === 't4' || this.currentGame === 't5' || this.currentGame === 't6';
+                if (!isPlutoniumManaged) {
+                    const ignoreToggleGroup = this.popup.querySelector('#ignore-global-name-toggle');
+                    const ignoreActive = ignoreToggleGroup.querySelector('.toggle-btn.active');
+                    await window.executeCommand('set-game-property', {
+                        game: this.currentGame,
+                        suffix: PROPERTY_KEYS.GAME.IGNORE_GLOBAL_NAME,
+                        value: ignoreActive ? ignoreActive.dataset.value : 'false'
+                    });
+                }
 
                 this.hide();
             } catch (error) {

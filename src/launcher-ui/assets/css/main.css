@@ -1658,6 +1658,22 @@ html[data-theme="dark"] .setup-button {
 .cdn-select:focus { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--accent-soft); }
 .cdn-select option { background: #222222; color: #fff; padding: 8px; }
 
+.setting-text-input {
+    background: var(--surface-lo);
+    border: 1px solid var(--border-hi);
+    border-radius: 10px;
+    padding: 8px 14px;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 500;
+    min-width: 200px;
+    transition: all 0.2s var(--ease);
+    font-family: inherit;
+}
+.setting-text-input:hover { border-color: rgba(255,255,255,0.25); background-color: var(--surface-hi); }
+.setting-text-input:focus { outline: none; border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--accent-soft); }
+.setting-text-input::placeholder { color: var(--text-dim); }
+
 .cdn-test-btn {
     width: 34px;
     height: 34px;

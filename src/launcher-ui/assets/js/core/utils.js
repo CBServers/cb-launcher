@@ -9,7 +9,8 @@ const PROPERTY_KEYS = {
         SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
-        LAST_GAME_PAGE: 'last-game-page'
+        LAST_GAME_PAGE: 'last-game-page',
+        GLOBAL_PLAYER_NAME: 'launcher-global-player-name'
     },
     GAME: {
         INSTALL: 'install',
@@ -19,7 +20,8 @@ const PROPERTY_KEYS = {
         SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
         DISABLE_CB_EXTENSION: 'disable-cb-extension',
         DETECTED_COMPONENTS: 'detected-components',
-        SELECTED_COMPONENTS: 'selected-components'
+        SELECTED_COMPONENTS: 'selected-components',
+        IGNORE_GLOBAL_NAME: 'ignore-global-name'
     }
 };
 

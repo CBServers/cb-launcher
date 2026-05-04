@@ -224,121 +224,6 @@
         }));
     }
 
-    function renderPlayBehaviorOptions(config) {
-        const modeInfo = GameUtils.getModeInfo();
-        const options = [
-            `<option value="ask">${escapeHtml(t('popup.gameSettings.askEveryTime'))}</option>`
-        ];
-
-        config.supportedModes.forEach(mode => {
-            const info = modeInfo[mode] || { name: mode.toUpperCase() };
-            options.push(`<option value="${escapeHtml(mode)}">${escapeHtml(info.name)}</option>`);
-        });
-
-        return options.join('');
-    }
-
-    function renderClientSettingsPanel(config) {
-        const backendGame = GameUtils.getGameMapping(config.uiId);
-        const pathInputId = `${config.uiId}-client-settings-path`;
-        const playBehaviorId = `${config.uiId}-client-settings-play-behavior`;
-        const launchOptionsId = `${config.uiId}-client-settings-launch-options`;
-
-        let gameSpecificSection = '';
-        if (backendGame === 'bo3') {
-            gameSpecificSection = `
-                <div class="settings-section">
-                    <h4>${escapeHtml(t('popup.gameSettings.gameOptions'))}</h4>
-                    <div class="setting-item inline-setting">
-                        <label>${escapeHtml(t('popup.gameSettings.skipIntroCinematic'))}</label>
-                        <div class="toggle-group small" data-setting="skip-intro-cinematic">
-                            <button class="toggle-btn" data-value="false">OFF</button>
-                            <button class="toggle-btn" data-value="true">ON</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else if (backendGame === 'hmw') {
-            gameSpecificSection = `
-                <div class="settings-section">
-                    <h4>${escapeHtml(t('popup.gameSettings.gameOptions'))}</h4>
-                    <div class="setting-item inline-setting">
-                        <label>${escapeHtml(t('popup.gameSettings.disableCbExtension'))}</label>
-                        <div class="toggle-group small" data-setting="disable-cb-extension">
-                            <button class="toggle-btn" data-value="false">OFF</button>
-                            <button class="toggle-btn" data-value="true">ON</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else if (config.hasMultipleModes) {
-            gameSpecificSection = `
-                <div class="settings-section">
-                    <h4>${escapeHtml(t('popup.gameSettings.playButtonBehavior'))}</h4>
-                    <div class="setting-item">
-                        <label for="${escapeHtml(playBehaviorId)}">${escapeHtml(t('popup.gameSettings.playButtonBehaviorLabel'))}</label>
-                        <select id="${escapeHtml(playBehaviorId)}" class="behavior-dropdown" data-setting="play-behavior">
-                            ${renderPlayBehaviorOptions(config)}
-                        </select>
-                    </div>
-                </div>
-            `;
-        }
-
-        return `
-            <section class="description tab-panel inline-game-settings" data-panel="client-settings" data-game="${escapeHtml(config.uiId)}">
-                <div class="settings-section">
-                    <h4>${escapeHtml(t('popup.gameSettings.installationPath'))}</h4>
-                    <div class="setting-item">
-                        <label for="${escapeHtml(pathInputId)}">${escapeHtml(t('popup.gameSettings.installationFolderWithGame', { game: config.displayName }))}</label>
-                        <div class="input-group">
-                            <input type="text" id="${escapeHtml(pathInputId)}" data-setting="game-path" placeholder="${escapeHtml(t('popup.gameSettings.installationPlaceholder'))}" readonly>
-                            <button class="browse-button inline-settings-browse" data-game="${escapeHtml(config.uiId)}">${escapeHtml(t('common.browse'))}</button>
-                        </div>
-                        <button class="secondary-action inline-settings-verify" data-game="${escapeHtml(config.uiId)}" disabled>
-                            <span class="secondary-action-icon steam-icon"></span>
-                            ${escapeHtml(t('detail.verifySteamFiles'))}
-                        </button>
-                    </div>
-                </div>
-                ${gameSpecificSection}
-                <div class="settings-section">
-                    <h4>${escapeHtml(t('popup.gameSettings.advanced'))}</h4>
-                    <div class="setting-item">
-                        <label for="${escapeHtml(launchOptionsId)}">${escapeHtml(t('popup.gameSettings.launchOptions'))}</label>
-                        <input type="text" id="${escapeHtml(launchOptionsId)}" class="launch-options-input" data-setting="launch-options">
-                    </div>
-                </div>
-                <div class="inline-settings-actions">
-                    <button class="btn-reset inline-settings-reset" data-game="${escapeHtml(config.uiId)}">${escapeHtml(t('common.resetSettings'))}</button>
-                    <button class="btn-save inline-settings-save" data-game="${escapeHtml(config.uiId)}">${escapeHtml(t('common.saveSettings'))}</button>
-                </div>
-            </section>
-        `;
-    }
-
-    function activateGameDetailPanel(gameId, panelName) {
-        const page = document.getElementById(`${gameId}-page`);
-        if (!page) return;
-
-        const tabGroup = page.querySelector('.detail-tabs');
-        if (tabGroup) {
-            tabGroup.querySelectorAll('.detail-tab').forEach(item => {
-                item.classList.toggle('active', item.dataset.tab === panelName);
-            });
-        }
-
-        page.querySelectorAll('.tab-panel').forEach(panel => {
-            panel.classList.toggle('active', panel.dataset.panel === panelName);
-        });
-
-        if (panelName === 'client-settings' &&
-            window.GameDetailPage &&
-            typeof window.GameDetailPage.loadClientSettings === 'function') {
-            window.GameDetailPage.loadClientSettings(gameId);
-        }
-    }
-
     function renderNewsSection() {
         const grid = document.getElementById('news-grid');
         if (!grid) return;
@@ -909,7 +794,6 @@
         refreshHomeInstalledClients,
         updateLibraryCard,
         navigateTo,
-        activateGameDetailPanel,
         updateSidebarRecentGames,
         renderNewsSection
     };

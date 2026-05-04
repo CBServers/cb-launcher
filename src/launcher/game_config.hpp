@@ -88,4 +88,8 @@ namespace game_config
 
     // Read the game's update manifest from local appdata. Throws std::runtime_error if missing/unreadable.
     std::string read_manifest(const game_config_t& config);
+
+    // Write the BOIII (BO3) player name into {install_dir}/boiii_players/properties.json.
+    // Preserves any other keys already present in the file.
+    void write_boiii_player_name(const std::filesystem::path& install_dir, const std::string& name);
 }

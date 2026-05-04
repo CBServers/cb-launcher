@@ -155,6 +155,52 @@ namespace game_config
             std::string(buffer.GetString(), buffer.GetLength()));
     }
 
+    void write_boiii_player_name(const std::filesystem::path& install_dir, const std::string& name)
+    {
+        const auto players_dir = install_dir / "boiii_players";
+        if (!utils::io::directory_exists(players_dir))
+        {
+            utils::io::create_directory(players_dir);
+        }
+
+        const auto config_path = players_dir / "properties.json";
+
+        rapidjson::Document doc;
+        doc.SetObject();
+
+        std::string data;
+        if (utils::io::read_file(config_path.string(), &data))
+        {
+            rapidjson::Document existing;
+            if (!existing.Parse(data).HasParseError() && existing.IsObject())
+            {
+                doc = std::move(existing);
+            }
+        }
+
+        auto& allocator = doc.GetAllocator();
+
+        if (doc.HasMember("playerName"))
+        {
+            doc.RemoveMember("playerName");
+        }
+
+        rapidjson::Value json_key;
+        json_key.SetString("playerName", allocator);
+
+        rapidjson::Value json_value;
+        json_value.SetString(name, allocator);
+
+        doc.AddMember(json_key, json_value, allocator);
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        doc.Accept(writer);
+
+        utils::io::write_file(config_path.string(),
+            std::string(buffer.GetString(), buffer.GetLength()));
+    }
+
     // Convenience methods
     std::optional<std::string> game_config_t::get_install_path() const
     {
