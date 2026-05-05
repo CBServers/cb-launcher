@@ -240,20 +240,40 @@
         `).join('');
     }
 
-    function updateSidebarRecentGames(recentIds) {
-        const gameItems = document.querySelectorAll('.sidebar .game-item');
-        let visibleCount = 0;
+    let installedGameIds = new Set();
 
-        gameItems.forEach(item => {
-            const gameId = item.dataset.game || item.id;
-            const isRecent = Array.isArray(recentIds) && recentIds.includes(gameId);
-            item.style.display = isRecent ? '' : 'none';
-            if (isRecent) visibleCount++;
+    function updateSidebarMyGames(recentIds) {
+        const list = document.querySelector('.sidebar .game-list');
+        if (!list) return;
+        const label = list.querySelector('.game-list-label');
+        const items = Array.from(list.querySelectorAll('.game-item'));
+
+        const orderIndex = new Map(GameUtils.GAME_ORDER.map((id, i) => [id, i]));
+        const recencyIndex = new Map((recentIds || []).map((id, i) => [id, i]));
+
+        const installedItems = items.filter(it => installedGameIds.has(it.dataset.game || it.id));
+        installedItems.sort((a, b) => {
+            const ai = recencyIndex.has(a.dataset.game) ? recencyIndex.get(a.dataset.game) : Infinity;
+            const bi = recencyIndex.has(b.dataset.game) ? recencyIndex.get(b.dataset.game) : Infinity;
+            if (ai !== bi) return ai - bi;
+            const ao = orderIndex.has(a.dataset.game) ? orderIndex.get(a.dataset.game) : 99;
+            const bo = orderIndex.has(b.dataset.game) ? orderIndex.get(b.dataset.game) : 99;
+            return ao - bo;
         });
 
-        const label = document.querySelector('.game-list-label');
+        items.forEach(it => { it.style.display = 'none'; });
+
+        const windowEl = document.querySelector('.window');
+        const progressActive = !!(windowEl && windowEl.classList.contains('progress-active'));
+        const visibleLimit = progressActive ? Math.max(0, installedItems.length - 1) : installedItems.length;
+
+        installedItems.forEach((it, idx) => {
+            it.style.display = idx < visibleLimit ? '' : 'none';
+            list.appendChild(it);
+        });
+
         if (label) {
-            label.style.display = visibleCount > 0 ? '' : 'none';
+            label.style.display = visibleLimit > 0 ? '' : 'none';
         }
     }
 
@@ -430,6 +450,10 @@
     async function refreshInstallationStates(checker) {
         const states = await getInstallationStates(checker);
 
+        installedGameIds = new Set(states
+            .filter(s => s.status === 'installed')
+            .map(s => s.gameId));
+
         states.forEach(({ gameId, status }) => {
             updateLibraryCard(gameId, status);
         });
@@ -437,6 +461,8 @@
         renderHomeFromStates(states);
 
         bindLibraryControls();
+
+        updateSidebarMyGames(window.__recentGamesSnapshot || []);
     }
 
     async function refreshHomeInstalledClients(checker) {
@@ -701,6 +727,12 @@
             const pauseTitle = entry.paused ? t('downloads.resume') : t('downloads.pause');
             const pauseAction = entry.paused ? 'resume' : 'pause';
 
+            // Pause/resume is only meaningful for the active download — queued rows can't be paused.
+            const pauseButton = entry.isActive ? `
+                <button class="download-row-pause" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" data-action="${pauseAction}" title="${escapeHtml(pauseTitle)}">
+                    <span class="download-row-pause-icon ${entry.paused ? 'is-resume' : ''}"></span>
+                </button>` : '';
+
             // Active rows put their live status inside the progress bar's message line,
             // so the standalone status row is only useful for queued items.
             const statusRow = entry.isActive ? '' : `<div class="download-row-status">${escapeHtml(status)}</div>`;
@@ -713,9 +745,7 @@
                         ${statusRow}
                         ${progressBlock}
                     </div>
-                    <button class="download-row-pause" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" data-action="${pauseAction}" title="${escapeHtml(pauseTitle)}">
-                        <span class="download-row-pause-icon ${entry.paused ? 'is-resume' : ''}"></span>
-                    </button>
+                    ${pauseButton}
                     <button class="download-row-cancel" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" title="${escapeHtml(t('common.cancel'))}"><span class="control-icon close-icon"></span></button>
                 </div>
             `;
@@ -794,7 +824,7 @@
         refreshHomeInstalledClients,
         updateLibraryCard,
         navigateTo,
-        updateSidebarRecentGames,
+        updateSidebarMyGames,
         renderNewsSection
     };
 })();

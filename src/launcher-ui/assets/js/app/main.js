@@ -17,7 +17,6 @@ let consoleVisible = false;
 
 // Recent games tracking — persisted to localStorage
 const RECENT_GAMES_KEY = 'cb_recent_games';
-const RECENT_GAMES_MAX = 5;
 let recentGames = [];
 
 function loadRecentGames() {
@@ -27,15 +26,21 @@ function loadRecentGames() {
     } catch (_) {
         recentGames = [];
     }
+    window.__recentGamesSnapshot = recentGames;
 }
 
 function addRecentGame(gameId) {
-    recentGames = [gameId, ...recentGames.filter(id => id !== gameId)].slice(0, RECENT_GAMES_MAX);
+    recentGames = [gameId, ...recentGames.filter(id => id !== gameId)];
+    window.__recentGamesSnapshot = recentGames;
     try {
         localStorage.setItem(RECENT_GAMES_KEY, JSON.stringify(recentGames));
     } catch (_) {}
-    if (window.AppViews && typeof window.AppViews.updateSidebarRecentGames === 'function') {
-        window.AppViews.updateSidebarRecentGames(recentGames);
+    refreshSidebarMyGames();
+}
+
+function refreshSidebarMyGames() {
+    if (window.AppViews && typeof window.AppViews.updateSidebarMyGames === 'function') {
+        window.AppViews.updateSidebarMyGames(recentGames);
     }
 }
 
@@ -90,7 +95,7 @@ async function refreshLocalizedUI(targetPage) {
 
     if (window.AppViews) {
         window.AppViews.renderAll();
-        window.AppViews.updateSidebarRecentGames(recentGames);
+        window.AppViews.updateSidebarMyGames(recentGames);
     }
 
     await loadNavigationPage(targetPage || getActivePageId());
@@ -188,7 +193,7 @@ async function initialize() {
 
     if (window.AppViews) {
         window.AppViews.renderAll();
-        window.AppViews.updateSidebarRecentGames(recentGames);
+        window.AppViews.updateSidebarMyGames(recentGames);
     }
 
     syncConsoleButtonLabel();
@@ -361,8 +366,6 @@ function handleGameClick(e) {
         if (el.classList.contains("active")) {
             return;
         }
-
-        addRecentGame(gameId);
 
         removeActiveNavigation();
         el.classList.add("active");
@@ -707,6 +710,7 @@ window.ProgressManager = {
 
         progressBar.style.display = 'flex';
         windowEl.classList.add('progress-active');
+        refreshSidebarMyGames();
     },
 
     _updatePauseIcon: function() {
@@ -762,6 +766,7 @@ window.ProgressManager = {
         this.isActive = false;
         this.currentGame = null;
         this.cancelCallback = null;
+        refreshSidebarMyGames();
     },
 
     getProgressPercent: function() {
@@ -1039,15 +1044,6 @@ function loadNavigationPage(page) {
     // Use flex layout for settings page to anchor footer to bottom
     targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
 
-    // Save last game page (exclude home and settings)
-    if (GameUtils.getAllGameIds().includes(page)) {
-        if (typeof window.executeCommand === 'function') {
-            window.executeCommand('set-property', { [PROPERTY_KEYS.LAUNCHER.LAST_GAME_PAGE]: page }).catch(error => {
-                console.error('Failed to save last game page:', error);
-            });
-        }
-    }
-
     // Initialize page-specific functionality
     if (page === 'settings') {
         initializeSettingsPage();
@@ -1201,6 +1197,8 @@ function launchGame(gameId) {
         console.error(`No configuration found for game: ${gameId}`);
         return;
     }
+
+    addRecentGame(gameId);
 
     // Check if game has multiple modes
     if (gameConfig.hasMultipleModes) {
@@ -1399,22 +1397,6 @@ async function loadLauncherSettings() {
     }
 
     try {
-        // Load "Restore Last Page" setting
-        const restoreLastPage = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE);
-        const restoreToggle = document.getElementById('restore-last-page-toggle');
-
-        if (restoreToggle) {
-            const buttons = restoreToggle.querySelectorAll('.toggle-btn');
-            buttons.forEach(btn => btn.classList.remove('active'));
-
-            // Default to "true" if not set
-            const targetValue = (restoreLastPage === null || restoreLastPage === 'true') ? 'true' : 'false';
-            const targetButton = restoreToggle.querySelector(`[data-value="${targetValue}"]`);
-            if (targetButton) {
-                targetButton.classList.add('active');
-            }
-        }
-
         // Load "Skip Hash Verification" setting
         const skipHashVerification = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION);
         const skipHashToggle = document.getElementById('skip-hash-verification-toggle');
@@ -1733,12 +1715,7 @@ function setupLauncherSettingsToggles() {
 
             if (typeof window.executeCommand === 'function') {
                 try {
-                    if (settingId === 'restore-last-page-toggle') {
-                        await window.executeCommand('set-property', {
-                            [PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE]: clickedValue
-                        });
-                        console.log(`Restore last page set to: ${clickedValue}`);
-                    } else if (settingId === 'skip-hash-verification-toggle') {
+                    if (settingId === 'skip-hash-verification-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: clickedValue
                         });
@@ -1783,7 +1760,6 @@ async function handleResetAllSettings() {
             try {
                 // Reset launcher settings
                 await executeCommand('set-property', {
-                    [PROPERTY_KEYS.LAUNCHER.RESTORE_LAST_PAGE]: 'true',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',

@@ -16,7 +16,8 @@
                 library: 'Library',
                 downloads: 'Downloads',
                 support: 'Support',
-                settings: 'Settings'
+                settings: 'Settings',
+                myGames: 'My Games'
             },
             downloads: {
                 title: 'Downloads',
@@ -84,7 +85,7 @@
                 communityBody: 'The Discord is the fastest place to get help with launcher setup, client installs and server access.',
                 discordServer: 'Discord Server',
                 redistTitle: 'Redistributables',
-                redistBody: 'Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.',
+                redistBody: 'Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients. Tool created by <a href="https://chse.sh" target="_blank">Chase</a>.',
                 installRedist: 'Install Redistributables',
                 noteTitle: 'Important note',
                 noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.',
@@ -104,10 +105,12 @@
                 languageBody: 'Choose the interface language used by the launcher.',
                 languageEnglish: 'English',
                 languageFrench: 'French',
-                restoreLastViewedPage: 'Restore last viewed page',
                 skipHashVerification: 'Skip hash verification',
+                skipHashVerificationBody: 'When enabled, game file verification will skip hash checks for much faster validation at the cost of file integrity.',
                 closeLauncherAfterLaunch: 'Close launcher after game launch',
+                closeLauncherAfterLaunchBody: 'When enabled, the launcher will automatically close after launching a game.',
                 skipClientUpdate: 'Skip client update on launch',
+                skipClientUpdateBody: 'When enabled, client updates will be skipped on launch. Useful when troubleshooting, but you may run an outdated client.',
                 player: 'Player',
                 globalPlayerName: 'Global in-game name',
                 globalPlayerNameBody: 'Applied to all clients except Plutonium ones (which use their own auth).',
@@ -125,7 +128,8 @@
                 designBy: 'Design by Riyu',
                 versionLoading: 'Version: Loading...',
                 versionUnknown: 'Version: Unknown',
-                versionValue: 'Version: {{version}}'
+                versionValue: 'Version: {{version}}',
+                themeBody: "Switch between the launcher's available color themes."
             },
             cdn: {
                 auto: 'Auto',
@@ -187,8 +191,8 @@
                     playButtonBehaviorLabel: 'When the Play button is clicked, launch:',
                     askEveryTime: 'Ask me every time',
                     gameOptions: 'Game Options',
-                    skipIntroCinematic: 'Skip Intro Cinematic',
-                    disableCbExtension: 'Disable CB Extension',
+                    skipIntroCinematic: 'Skip intro cinematic',
+                    disableCbExtension: 'Disable CB extension',
                     ignoreGlobalName: "Don't apply global in-game name",
                     advanced: 'Advanced',
                     launchOptions: 'Launch Options:',
@@ -363,7 +367,8 @@
                 library: 'Bibliotheque',
                 downloads: 'Telechargements',
                 support: 'Support',
-                settings: 'Parametres'
+                settings: 'Parametres',
+                myGames: 'Mes Jeux'
             },
             downloads: {
                 title: 'Telechargements',
@@ -431,7 +436,7 @@
                 communityBody: "Le Discord est l'endroit le plus rapide pour obtenir de l'aide sur le launcher, l'installation des clients et l'acces aux serveurs.",
                 discordServer: 'Serveur Discord',
                 redistTitle: 'Redistribuables',
-                redistBody: 'Installez les runtimes Visual C++ et DirectX requis par les anciens clients Call of Duty.',
+                redistBody: 'Installez les runtimes Visual C++ et DirectX requis par les anciens clients Call of Duty. Outil cree par <a href="https://chse.sh" target="_blank">Chase</a>.',
                 installRedist: 'Installer les redistribuables',
                 noteTitle: 'Note importante',
                 noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora ou HorizonMW. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
@@ -451,10 +456,12 @@
                 languageBody: "Choisissez la langue de l'interface du launcher.",
                 languageEnglish: 'Anglais',
                 languageFrench: 'Francais',
-                restoreLastViewedPage: 'Restaurer la derniere page consultee',
                 skipHashVerification: 'Ignorer la verification des hash',
+                skipHashVerificationBody: "Lorsqu'active, la verification des fichiers du jeu ignorera les controles de hash pour une validation beaucoup plus rapide au prix de l'integrite des fichiers.",
                 closeLauncherAfterLaunch: 'Fermer le launcher apres le lancement du jeu',
+                closeLauncherAfterLaunchBody: "Lorsqu'active, le launcher se fermera automatiquement apres le lancement d'un jeu.",
                 skipClientUpdate: 'Ignorer la mise a jour du client au lancement',
+                skipClientUpdateBody: "Lorsqu'active, les mises a jour du client seront ignorees au lancement. Utile pour le depannage, mais le client peut etre obsolete.",
                 player: 'Joueur',
                 globalPlayerName: 'Nom de joueur global',
                 globalPlayerNameBody: "Applique a tous les clients sauf ceux de Plutonium (qui utilisent leur propre auth).",
@@ -472,7 +479,8 @@
                 designBy: 'Design par Riyu',
                 versionLoading: 'Version : Chargement...',
                 versionUnknown: 'Version : Inconnue',
-                versionValue: 'Version : {{version}}'
+                versionValue: 'Version : {{version}}',
+                themeBody: 'Changer entre les themes de couleur disponibles du launcher.'
             },
             cdn: {
                 auto: 'Auto',
@@ -751,6 +759,10 @@
 
         document.querySelectorAll('[data-i18n]').forEach(element => {
             element.textContent = t(element.dataset.i18n);
+        });
+
+        document.querySelectorAll('[data-i18n-html]').forEach(element => {
+            element.innerHTML = t(element.dataset.i18nHtml);
         });
 
         document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {

@@ -376,9 +376,25 @@ namespace client_updater
 
     std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
     {
-        if (!this->client_install_path_files_.empty() && this->client_install_path_files_.contains(file.name))
+        if (this->client_install_path_files_.empty())
+        {
+            return this->client_default_path_ / file.name;
+        }
+
+        if (this->client_install_path_files_.contains(file.name))
         {
             return this->install_path / file.name;
+        }
+
+        for (const auto& entry : this->client_install_path_files_)
+        {
+            const auto star = entry.find('*');
+            if (star == std::string::npos) continue;
+            const auto prefix = entry.substr(0, star);
+            if (utils::string::starts_with(file.name, prefix))
+            {
+                return this->install_path / file.name;
+            }
         }
 
         return this->client_default_path_ / file.name;

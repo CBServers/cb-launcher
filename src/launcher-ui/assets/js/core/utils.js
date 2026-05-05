@@ -3,13 +3,11 @@
 // Centralized property key constants
 const PROPERTY_KEYS = {
     LAUNCHER: {
-        RESTORE_LAST_PAGE: 'launcher-restore-last-page',
         SKIP_HASH_VERIFICATION: 'launcher-skip-hash-verification',
         CLOSE_ON_LAUNCH: 'launcher-close-on-launch',
         SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
-        LAST_GAME_PAGE: 'last-game-page',
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name'
     },
     GAME: {

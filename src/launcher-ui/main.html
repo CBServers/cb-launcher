@@ -61,7 +61,7 @@
                 </nav>
 
                 <div class="game-list">
-                    <div class="game-list-label">Recent Games</div>
+                    <div class="game-list-label" data-i18n="nav.myGames">My Games</div>
                     <div class="game-item" id="t4" data-game="t4" style="display:none"></div>
                     <div class="game-item" id="iw4x" data-game="iw4x" style="display:none"></div>
                     <div class="game-item" id="t5" data-game="t5" style="display:none"></div>
@@ -161,7 +161,7 @@
                         </section>
                         <section class="support-panel">
                             <h2 data-i18n="support.redistTitle">Redistributables</h2>
-                            <p data-i18n="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.</p>
+                            <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients. Tool created by <a href="https://chse.sh" target="_blank">Chase</a>.</p>
                             <button class="support-action" id="install-redist-btn" onclick="window.executeCommand('install-redist')">
                                 <span data-i18n="support.installRedist">Install Redistributables</span>
                             </button>
@@ -198,6 +198,7 @@
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label data-i18n="settings.theme">Theme</label>
+                                    <span class="setting-description" data-i18n="settings.themeBody">Switch between the launcher's available color themes.</span>
                                 </div>
                                 <div class="cdn-control">
                                     <select class="cdn-select" id="theme-select">
@@ -209,16 +210,8 @@
                             </div>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
-                                    <label data-i18n="settings.restoreLastViewedPage">Restore last viewed page</label>
-                                </div>
-                                <div class="toggle-group small" id="restore-last-page-toggle">
-                                    <button class="toggle-btn" data-value="false">OFF</button>
-                                    <button class="toggle-btn active" data-value="true">ON</button>
-                                </div>
-                            </div>
-                            <div class="setting-item inline-setting">
-                                <div class="setting-info">
                                     <label data-i18n="settings.skipHashVerification">Skip hash verification</label>
+                                    <span class="setting-description" data-i18n="settings.skipHashVerificationBody">When enabled, game file verification will skip hash checks for much faster validation at the cost of file integrity.</span>
                                 </div>
                                 <div class="toggle-group small" id="skip-hash-verification-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
@@ -228,6 +221,7 @@
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label data-i18n="settings.closeLauncherAfterLaunch">Close launcher after game launch</label>
+                                    <span class="setting-description" data-i18n="settings.closeLauncherAfterLaunchBody">When enabled, the launcher will automatically close after launching a game.</span>
                                 </div>
                                 <div class="toggle-group small" id="close-on-launch-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
@@ -237,6 +231,7 @@
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label data-i18n="settings.skipClientUpdate">Skip client update on launch</label>
+                                    <span class="setting-description" data-i18n="settings.skipClientUpdateBody">When enabled, client updates will be skipped on launch. Useful when troubleshooting, but you may run an outdated client.</span>
                                 </div>
                                 <div class="toggle-group small" id="skip-client-update-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
