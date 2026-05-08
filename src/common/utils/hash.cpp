@@ -14,7 +14,7 @@ namespace utils::hash
     {
         constexpr auto read_buffer_size = 16ull * 1024ull * 1024ull; // 16MB
 
-        std::string get_file_hash_generic(std::ifstream& file_stream, const std::size_t file_size)
+        std::string get_file_hash_generic(std::ifstream& file_stream, const std::size_t file_size, const cancel_check& check)
         {
             XXH3_state_t* state = XXH3_createState();
             if (!state)
@@ -28,12 +28,21 @@ namespace utils::hash
             std::string buffer;
             buffer.resize(read_buffer_size);
 
-            while (bytes_to_read > 0)
+            try
             {
-                const auto read_size = std::min(bytes_to_read, read_buffer_size);
-                file_stream.read(buffer.data(), read_size);
-                XXH3_64bits_update(state, buffer.data(), read_size);
-                bytes_to_read -= read_size;
+                while (bytes_to_read > 0)
+                {
+                    if (check) check();
+                    const auto read_size = std::min(bytes_to_read, read_buffer_size);
+                    file_stream.read(buffer.data(), read_size);
+                    XXH3_64bits_update(state, buffer.data(), read_size);
+                    bytes_to_read -= read_size;
+                }
+            }
+            catch (...)
+            {
+                XXH3_freeState(state);
+                throw;
             }
 
             const auto hash_value = XXH3_64bits_digest(state);
@@ -53,7 +62,7 @@ namespace utils::hash
         }
     }
 
-    std::string get_file_hash(const std::string& file)
+    std::string get_file_hash(const std::string& file, const cancel_check& check)
     {
         std::ifstream file_stream(file, std::ios::binary);
         if (!file_stream.is_open())
@@ -65,7 +74,7 @@ namespace utils::hash
         const auto file_size = static_cast<std::size_t>(file_stream.tellg());
         file_stream.seekg(0, std::ios::beg);
 
-        return get_file_hash_generic(file_stream, file_size);
+        return get_file_hash_generic(file_stream, file_size, check);
     }
 
     std::string get_buffer_hash(std::string& buffer)

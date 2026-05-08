@@ -36,22 +36,36 @@ namespace updater
 
     void progress_tracker::end_update()
     {
-        std::lock_guard lock(this->mutex_);
-        this->state_.is_active = false;
-        this->state_.progress_percent = 100.0f;
-        this->state_.status_message = "Update complete";
+        {
+            std::lock_guard lock(this->mutex_);
+            this->state_.is_active = false;
+            if (this->state_.is_cancelled)
+            {
+                this->state_.status_message = "Update cancelled";
+            }
+            else
+            {
+                this->state_.progress_percent = 100.0f;
+                this->state_.status_message = "Update complete";
+            }
+        }
+        this->active_cv_.notify_all();
     }
 
     void progress_tracker::cancel_update()
     {
+        // Signal-only: the worker flips is_active=false itself via end_update()
+        // after observing is_cancelled. Flipping it here would let the next
+        // reset(true) clear is_cancelled before the worker noticed.
         {
             std::lock_guard lock(this->mutex_);
-            this->state_.is_active = false;
             this->state_.is_cancelled = true;
             this->state_.is_paused = false;
-            this->state_.status_message = "Update cancelled";
+            if (this->state_.is_active)
+            {
+                this->state_.status_message = "Cancelling...";
+            }
         }
-        // Wake any threads asleep in wait_if_paused so they can observe the cancellation.
         this->pause_cv_.notify_all();
     }
 
@@ -213,6 +227,19 @@ namespace updater
         }
         // Anything blocked in wait_if_paused from a previous run should wake up.
         this->pause_cv_.notify_all();
+        if (!new_update)
+        {
+            this->active_cv_.notify_all();
+        }
+    }
+
+    bool progress_tracker::wait_for_idle(std::chrono::milliseconds timeout)
+    {
+        std::unique_lock<std::recursive_mutex> lock(this->mutex_);
+        return this->active_cv_.wait_for(lock, timeout, [this]
+        {
+            return !this->state_.is_active;
+        });
     }
 
     void progress_tracker::update_current_file_display()

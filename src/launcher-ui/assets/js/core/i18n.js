@@ -281,7 +281,9 @@
             },
             errors: {
                 gameNotConfiguredTitle: '{{game}} not configured',
-                gameNotConfiguredBody: 'You have not configured your {{game}} installation path.'
+                gameNotConfiguredBody: 'You have not configured your {{game}} installation path.',
+                cannotLaunchTitle: 'Cannot launch right now',
+                cannotLaunchBody: 'Another game is currently updating. Please wait for it to finish or cancel it before launching a different game.'
             },
             mode: {
                 sp: {
@@ -653,7 +655,9 @@
             },
             errors: {
                 gameNotConfiguredTitle: '{{game}} non configure',
-                gameNotConfiguredBody: "Vous n'avez pas configure le chemin d'installation de {{game}}."
+                gameNotConfiguredBody: "Vous n'avez pas configure le chemin d'installation de {{game}}.",
+                cannotLaunchTitle: 'Lancement impossible pour le moment',
+                cannotLaunchBody: "Un autre jeu est en cours de mise a jour. Veuillez attendre la fin ou annuler avant de lancer un autre jeu."
             },
             mode: {
                 sp: {

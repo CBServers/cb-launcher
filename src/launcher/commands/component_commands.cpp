@@ -10,8 +10,51 @@
 #include "updater/ui_progress_listener.hpp"
 #include "updater/progress_tracker.hpp"
 
+#include <mutex>
+#include <unordered_set>
+
 namespace commands::component_commands
 {
+    namespace
+    {
+        // Per-game detection flag, kept separate from progress_tracker so
+        // detection can run while another game is verifying/updating.
+        std::mutex& detection_mutex()
+        {
+            static std::mutex m;
+            return m;
+        }
+
+        std::unordered_set<std::string>& detection_in_progress_games()
+        {
+            static std::unordered_set<std::string> set;
+            return set;
+        }
+
+        bool detection_is_active(const std::string& game_key)
+        {
+            std::lock_guard lock(detection_mutex());
+            return detection_in_progress_games().count(game_key) > 0;
+        }
+
+        struct detection_scope
+        {
+            std::string game_key;
+            explicit detection_scope(std::string key) : game_key(std::move(key))
+            {
+                std::lock_guard lock(detection_mutex());
+                detection_in_progress_games().insert(game_key);
+            }
+            ~detection_scope()
+            {
+                std::lock_guard lock(detection_mutex());
+                detection_in_progress_games().erase(game_key);
+            }
+            detection_scope(const detection_scope&) = delete;
+            detection_scope& operator=(const detection_scope&) = delete;
+        };
+    }
+
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
         cef_ui.add_command("get-game-component-info", [&cef_ui, &ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -55,11 +98,9 @@ namespace commands::component_commands
                 ctx.aggregate_base_game_components(*config, components);
             }
             catch (const updater::update_cancelled&) {
-                updater::progress_tracker::instance().cancel_update();
                 return;
             }
             catch (const std::exception& e) {
-                updater::progress_tracker::instance().cancel_update();
                 cef_ui.show_message_box("Manage Install Error", e.what());
                 return;
             }
@@ -77,32 +118,30 @@ namespace commands::component_commands
                     // Cache hit - instant response
                     installed = cached;
                 }
+                else if (detection_is_active(game))
+                {
+                    // Already detecting for this game; just report in-progress.
+                    detection_in_progress = true;
+                }
                 else
                 {
-                    // Cache miss
                     detection_in_progress = true;
                     std::thread([config = *config, &cef_ui]() {
+                        const detection_scope scope(config.game_key);
                         try {
-                            updater::ui_progress_listener listener;
-                            listener.reset(true);
-
-                            const game_updater::game_updater thread_updater(config, false, &listener);
+                            // nullptr listener: keep detection off the global progress_tracker.
+                            const game_updater::game_updater thread_updater(config, false, false, nullptr);
                             const auto detected = thread_updater.detect_installed_components();
 
-                            // Cache results
                             config.set_list(property_keys::DETECTED_COMPONENTS, detected);
                             if (config.get_list(property_keys::SELECTED_COMPONENTS).empty())
                             {
                                 config.set_list(property_keys::SELECTED_COMPONENTS, detected);
                             }
-
-                            listener.done_update();
                         }
                         catch (const updater::update_cancelled&) {
-                            updater::progress_tracker::instance().cancel_update();
                         }
                         catch (const std::exception& e) {
-                            updater::progress_tracker::instance().cancel_update();
                             cef_ui.show_message_box("Manage Install Error", e.what());
                         }
                     }).detach();
@@ -164,6 +203,15 @@ namespace commands::component_commands
                 sizesObj.AddMember(compId, static_cast<uint64_t>(size), allocator);
             }
             response.AddMember("sizes", sizesObj, allocator);
+        });
+
+        cef_ui.add_command("get-component-detection-status", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto config = ctx.get_game_config_from_request(value);
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const bool active = config ? detection_is_active(config->game_key) : false;
+            response.AddMember("active", active, allocator);
         });
 
         cef_ui.add_command("get-available-space", [](const rapidjson::Value& value, rapidjson::Document& response)

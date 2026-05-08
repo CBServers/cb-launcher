@@ -916,6 +916,13 @@ window.DownloadQueueManager = {
         return this.queue.some(q => q.gameId === gameId && q.blocksGameButtons);
     },
 
+    // True if any verify/install/uninstall is active or queued. Used to disable
+    // Play across all games (the backend progress_tracker is singleton).
+    isAnyBlockingActive: function() {
+        if (this.active && this.active.blocksGameButtons) return true;
+        return this.queue.some(q => q.blocksGameButtons);
+    },
+
     getDownloadEntries: function() {
         const items = [];
         if (this.active && this.active.blocksGameButtons) {
@@ -968,13 +975,21 @@ function applyDownloadQueueButtonState() {
     // Play / Setup live in the per-game button group. createGameButtons only ever renders
     // the button that is currently appropriate for the game state (Play vs Setup vs Stop),
     // so a full toggle on queue-busy is safe and is needed to re-enable Play after a verify
-    // finishes if the user stayed on the page.
+    // finishes if the user stayed on the page. Disabled across all games while any blocking
+    // op is running since the backend can only track one update at a time.
+    const anyBlocking = queue.isAnyBlockingActive();
     document.querySelectorAll('.button-group .play-button, .button-group .setup-button').forEach(btn => {
         const group = btn.closest('.button-group');
         if (!group) return;
         const gameId = (group.id || '').replace(/-button-group$/, '');
         if (!gameId) return;
-        btn.disabled = queue.isBusy(gameId);
+        const busy = queue.isBusy(gameId) || anyBlocking;
+        btn.disabled = busy;
+        if (anyBlocking && !queue.isBusy(gameId)) {
+            btn.title = 'Cannot launch while another game is updating';
+        } else {
+            btn.removeAttribute('title');
+        }
     });
 
     const downloadsBadge = document.getElementById('downloads-badge');

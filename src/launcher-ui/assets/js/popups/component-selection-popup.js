@@ -184,9 +184,11 @@ class ComponentSelectionPopup {
                 this.showDetectionLoading();
 
                 const pollInterval = setInterval(async () => {
-                    const progress = await window.executeCommand('get-update-progress');
+                    const status = await window.executeCommand('get-component-detection-status', {
+                        game: this.currentGame
+                    });
 
-                    if (!progress.active) {
+                    if (!status || !status.active) {
                         // Detection complete
                         clearInterval(pollInterval);
 
@@ -341,9 +343,11 @@ class ComponentSelectionPopup {
             if (componentInfo.detectionInProgress) {
                 // Poll for completion
                 const pollInterval = setInterval(async () => {
-                    const progress = await window.executeCommand('get-update-progress');
+                    const status = await window.executeCommand('get-component-detection-status', {
+                        game: this.currentGame
+                    });
 
-                    if (!progress.active) {
+                    if (!status || !status.active) {
                         // Detection complete
                         clearInterval(pollInterval);
 
@@ -606,10 +610,9 @@ class ComponentSelectionPopup {
                 initialMessage: this.t('popup.componentSelection.uninstalling', { game: gameDisplayName }),
                 completeMessage: this.t('progress.uninstallComplete'),
                 onComplete: () => {
-                    // Refresh game UI
-                    if (gameId && typeof refreshGameStatus === 'function') {
-                        refreshGameStatus(gameId);
-                    }
+                    window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                        detail: { game: this.currentGame }
+                    }));
                 }
             });
         } catch (error) {

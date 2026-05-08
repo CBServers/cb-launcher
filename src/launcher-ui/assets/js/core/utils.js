@@ -626,16 +626,29 @@ class GameUtils {
             let pollIntervalId;
             let cancelRequested = false;
 
-            const cancelOperation = () => {
+            const cancelOperation = async () => {
                 cancelRequested = true;
                 if (pollIntervalId) {
                     clearInterval(pollIntervalId);
                     pollIntervalId = null;
                 }
-                window.executeCommand('cancel-update').catch(error => {
-                    console.error('Failed to send cancel command:', error);
-                });
                 window.ProgressManager.hide();
+                try {
+                    await window.executeCommand('cancel-update');
+                } catch (error) {
+                    console.error('Failed to send cancel command:', error);
+                }
+                // Poll until the worker actually unwinds before resolving so the
+                // queue doesn't advance and reset() before cancellation lands.
+                const start = Date.now();
+                const cancelTimeoutMs = 5000;
+                while (Date.now() - start < cancelTimeoutMs) {
+                    try {
+                        const status = await window.executeCommand('get-update-progress');
+                        if (!status || !status.active) break;
+                    } catch (_) { break; }
+                    await new Promise(r => setTimeout(r, 100));
+                }
                 resolve();
             };
 
@@ -733,6 +746,18 @@ class GameUtils {
         if (!gameConfig) {
             console.error(`No configuration found for game: ${backendGame}`);
             throw new Error('Game configuration not found');
+        }
+
+        // Guard against launching while another game is updating (singleton progress_tracker).
+        const queue = window.DownloadQueueManager;
+        if (queue && queue.isAnyBlockingActive() && !queue.isBusy(uiGameId)) {
+            const i18n = window.LauncherI18n;
+            const title = i18n ? i18n.t('errors.cannotLaunchTitle') : 'Cannot launch right now';
+            const body = i18n ? i18n.t('errors.cannotLaunchBody') : 'Another game is currently updating. Please wait for it to finish or cancel it before launching a different game.';
+            if (typeof window.showMessageBox === 'function') {
+                window.showMessageBox(title, body, [i18n ? i18n.t('common.ok') : 'OK']);
+            }
+            throw new Error('Another game is updating');
         }
 
         // Check if game install path is configured

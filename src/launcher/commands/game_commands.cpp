@@ -290,12 +290,14 @@ namespace commands::game_commands
                 catch (const updater::update_cancelled&)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Update cancelled by user\n");
                 }
                 catch (const std::exception& e)
                 {
                     // Set error in progress tracker and show error popup in UI
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Launch error: %s\n", e.what());
                     cef_ui.show_message_box("Game Launch Error", e.what());
 
@@ -305,6 +307,7 @@ namespace commands::game_commands
                 {
                     // Set generic error for unknown exceptions
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Unknown launch error\n");
                     cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
 
@@ -430,12 +433,14 @@ namespace commands::game_commands
                 catch (const updater::update_cancelled&)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Update cancelled by user\n");
                 }
                 catch (const std::exception& e)
                 {
                     // Set error in progress tracker and show error popup in UI
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Update error: %s\n", e.what());
                     cef_ui.show_message_box("Update Error", e.what());
                 }
@@ -443,6 +448,7 @@ namespace commands::game_commands
                 {
                     // Set generic error for unknown exceptions
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Unknown update error\n");
                     cef_ui.show_message_box("Update Error", "An unknown error occurred during update");
                 }
@@ -471,12 +477,14 @@ namespace commands::game_commands
                 catch (const std::exception& e)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Unlock All error: %s\n", e.what());
                     cef_ui.show_message_box("Unlock All Error", e.what());
                 }
                 catch (...)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Unlock All error\n");
                     cef_ui.show_message_box("Unlock All Error", "An unknown error occurred during unlock all");
                 }
@@ -535,17 +543,20 @@ namespace commands::game_commands
                 catch (const updater::update_cancelled&)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Uninstall cancelled by user\n");
                 }
                 catch (const std::exception& e)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Uninstall error: %s\n", e.what());
                     cef_ui.show_message_box("Uninstall Error", e.what());
                 }
                 catch (...)
                 {
                     progress_listener.cancel_update();
+                    progress_listener.done_update();
                     printf("Unknown uninstall error\n");
                     cef_ui.show_message_box("Uninstall Error", "An unknown error occurred during uninstall");
                 }

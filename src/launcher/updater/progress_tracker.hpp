@@ -4,6 +4,7 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 
 namespace updater
@@ -57,6 +58,9 @@ namespace updater
         progress_state get_progress() const;
         bool is_active() const;
 
+        // Blocks until is_active becomes false. Returns false on timeout.
+        bool wait_for_idle(std::chrono::milliseconds timeout);
+
         // Clear/reset
         void reset(bool new_update);
 
@@ -69,6 +73,7 @@ namespace updater
 
         mutable std::recursive_mutex mutex_;
         std::condition_variable_any pause_cv_;
+        std::condition_variable_any active_cv_;
         progress_state state_;
         progress_mode mode_ = progress_mode::verifying;
         std::vector<std::string> files_in_progress_;  // Track all files currently being processed

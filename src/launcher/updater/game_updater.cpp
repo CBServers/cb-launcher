@@ -622,7 +622,7 @@ namespace game_updater
 
         if (!this->skip_hash_check_)
         {
-            const auto hash = utils::hash::get_file_hash(drive_name);
+            const auto hash = utils::hash::get_file_hash(drive_name, [this]() { check_cancelled(); });
             return hash != file.hash;
         }
 
