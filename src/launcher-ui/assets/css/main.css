@@ -272,7 +272,7 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     border-radius: var(--radius);
     display: flex;
     flex-direction: column;
-    padding: 16px 10px;
+    padding: 14px 10px;
     transition: width 0.35s var(--ease);
     overflow: hidden;
     flex-shrink: 0;
@@ -493,27 +493,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     border-top: 1px solid var(--border);
     margin-top: 4px;
     padding-top: 6px;
-}
-
-.game-list-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-dim);
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    padding: 2px 6px 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    opacity: 0;
-    max-height: 0;
-    transition: opacity 0.2s var(--ease) 0.05s, max-height 0.2s var(--ease);
-    display: none;
-}
-
-.sidebar:hover .game-list-label {
-    opacity: 1;
-    max-height: 24px;
-    display: block;
 }
 
 .sidebar-bottom {

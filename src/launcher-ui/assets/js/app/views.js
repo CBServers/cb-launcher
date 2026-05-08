@@ -245,7 +245,6 @@
     function updateSidebarMyGames(recentIds) {
         const list = document.querySelector('.sidebar .game-list');
         if (!list) return;
-        const label = list.querySelector('.game-list-label');
         const items = Array.from(list.querySelectorAll('.game-item'));
 
         const orderIndex = new Map(GameUtils.GAME_ORDER.map((id, i) => [id, i]));
@@ -263,18 +262,10 @@
 
         items.forEach(it => { it.style.display = 'none'; });
 
-        const windowEl = document.querySelector('.window');
-        const progressActive = !!(windowEl && windowEl.classList.contains('progress-active'));
-        const visibleLimit = progressActive ? Math.max(0, installedItems.length - 1) : installedItems.length;
-
-        installedItems.forEach((it, idx) => {
-            it.style.display = idx < visibleLimit ? '' : 'none';
+        installedItems.forEach(it => {
+            it.style.display = '';
             list.appendChild(it);
         });
-
-        if (label) {
-            label.style.display = visibleLimit > 0 ? '' : 'none';
-        }
     }
 
     function renderHome() {

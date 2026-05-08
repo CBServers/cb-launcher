@@ -26,6 +26,7 @@ const PROPERTY_KEYS = {
 class GameUtils {
     // Single source of truth for game ID mappings (UI ID -> backend ID)
     static UI_TO_BACKEND_MAP = {
+        'cod4x': 'cod4x',
         't4': 't4',
         't5': 't5',
         'iw4x': 'iw4x',
@@ -36,6 +37,8 @@ class GameUtils {
         's1x': 'aw',
         'h1-mod': 'mwr',
         'iw7-mod': 'iw',
+        'bo4': 'bo4',
+        'mw2r': 'mw2r',
         'hmw-mod': 'hmw'
     };
 
@@ -44,9 +47,32 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['t4', 'iw4x', 't5', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'hmw-mod'];
+    static GAME_ORDER = ['cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'bo4', 'mw2r', 'hmw-mod'];
 
     static GAME_CONFIGS = {
+        'cod4x': {
+            displayName: 'COD4: Modern Warfare',
+            shortName: 'COD4',
+            defaultInstallPath: 'cod4_game_files',
+            uiId: 'cod4x',
+            client: 'COD4x / IW3SP-Mod',
+            provider: 'CoD4x / JerryALT',
+            clientKey: 'others',
+            hasMultipleModes: true,
+            supportedModes: ['sp', 'mp'],
+            specialSettings: [],
+            codeName: 'COD4x / IW3SP-Mod',
+            version: 'IW3',
+            installStateLabel: 'Ready to play',
+            description: 'COD4: Modern Warfare with COD4x multiplayer and IW3SP-Mod for singleplayer. Built for classic MW1 sessions and modern client maintenance.',
+            credits: 'Multiplayer is provided by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
+            accent: '#46D744',
+            assetBase: './assets/img/games/cod4x',
+            iconPath: './assets/img/games/cod4x/capsule.png',
+            capsulePath: './assets/img/games/cod4x/capsule.png',
+            heroImagePath: './assets/img/games/cod4x/hero.png',
+            logoPath: './assets/img/games/cod4x/logo.png'
+        },
         't4': {
             displayName: 'World at War',
             shortName: 'WaW',
@@ -278,6 +304,52 @@ class GameUtils {
             heroImagePath: './assets/img/games/iw7-mod/hero.jpg',
             logoPath: './assets/img/games/iw7-mod/logo.png'
         },
+        'bo4': {
+            displayName: 'Black Ops 4',
+            shortName: 'BO4',
+            defaultInstallPath: 'bo4_game_files',
+            uiId: 'bo4',
+            client: 'Project BO4',
+            provider: 'NotNierPea',
+            clientKey: 'others',
+            hasMultipleModes: true,
+            supportedModes: ['on', 'off'],
+            specialSettings: [],
+            codeName: 'Project BO4',
+            version: 'T8',
+            installStateLabel: 'Ready to play',
+            description: 'Black Ops 4 with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies.',
+            credits: 'Online and offline play are provided by Project BO4 Launcher, developed by NotNierPea.',
+            accent: '#FE890A',
+            assetBase: './assets/img/games/bo4',
+            iconPath: './assets/img/games/bo4/capsule.jpg',
+            capsulePath: './assets/img/games/bo4/capsule.jpg',
+            heroImagePath: './assets/img/games/bo4/hero.jpg',
+            logoPath: './assets/img/games/bo4/logo.png'
+        },
+        'mw2r': {
+            displayName: 'Modern Warfare 2 Campaign Remastered',
+            shortName: 'MW2CR',
+            defaultInstallPath: 'mw2r_game_files',
+            uiId: 'mw2r',
+            client: 'H2-Mod',
+            provider: 'Alice',
+            clientKey: 'others',
+            hasMultipleModes: false,
+            supportedModes: [],
+            specialSettings: [],
+            codeName: 'H2-Mod',
+            version: 'H2',
+            installStateLabel: 'Ready to play',
+            description: 'Modern Warfare 2 Campaign Remastered with H2-Mod support. Run the remastered MW2 campaign with stability and quality-of-life patches.',
+            credits: 'MW2 Campaign Remastered support is provided by H2-Mod, developed by Alice.',
+            accent: '#FBC751',
+            assetBase: './assets/img/games/h2-mod',
+            iconPath: './assets/img/games/h2-mod/capsule.png',
+            capsulePath: './assets/img/games/h2-mod/capsule.png',
+            heroImagePath: './assets/img/games/h2-mod/hero.jpg',
+            logoPath: './assets/img/games/h2-mod/logo.png'
+        },
         'hmw': {
             displayName: 'HorizonMW',
             shortName: 'HMW',
@@ -363,6 +435,14 @@ class GameUtils {
             'zm': {
                 name: i18n ? i18n.t('mode.zm.name') : 'Zombies',
                 description: i18n ? i18n.t('mode.zm.description') : 'Fight hordes of zombies'
+            },
+            'on': {
+                name: i18n ? i18n.t('mode.on.name') : 'Online',
+                description: i18n ? i18n.t('mode.on.description') : 'Play online with others'
+            },
+            'off': {
+                name: i18n ? i18n.t('mode.off.name') : 'Offline',
+                description: i18n ? i18n.t('mode.off.description') : 'Play offline against bots or alone'
             }
         };
     }

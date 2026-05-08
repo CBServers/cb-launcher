@@ -173,7 +173,7 @@ namespace launcher_updater
 
     void launcher_updater::update_file(const updater::file_info& file) const
     {
-        auto url = get_update_folder() + file.name + "?" + file.hash;
+        auto url = get_update_folder() + utils::string::url_encode_path(file.name) + "?" + file.hash;
         utils::logger::write("Updating file {}", url);
 
         const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool

@@ -258,6 +258,34 @@ namespace game_config
     // Game configurations
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {
+            "cod4x",
+            {
+                .game_key = "cod4x",
+                .display_name = "COD4",
+                .id = "cod4x",
+                .exe_name = "iw3mp.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "cod4x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "cod4x/",
+                .manifest_path = "manifest/cod4.json",
+                .required_updater_files = {},
+                .valid_game_files = {"binkw32.dll", "iw3mp.exe", "iw3sp.exe"},
+                .check_running_exes = {"iw3sp_mod.exe", "iw3mp.exe", "iw3sp.exe"},
+                .mode_arguments = {
+                    {"sp", "+set iw3sp_auto_update 0"},
+                    {"mp", ""}
+                },
+                .mode_executables = {
+                    {"sp", "iw3sp_mod.exe"},
+                    {"mp", "iw3mp.exe"}
+                },
+                .base_folder = "cod4_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
+                .client_install_path_files = {"miles32.dll", "mss32.dll", "iw3mp.exe", "iw3sp_mod.exe", "game.dll", "iw3sp_data/*"}
+            }
+        },
+        {
             "t4",
             {
                 .game_key = "t4",
@@ -489,6 +517,48 @@ namespace game_config
             }
         },
         {
+            "mw2r",
+            {
+                .game_key = "mw2r",
+                .display_name = "MW2CR",
+                .id = "mw2r",
+                .exe_name = "h2-mod.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "h2-mod.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "h2-mod/",
+                .manifest_path = "manifest/mw2r.json",
+                .required_updater_files = {},
+                .valid_game_files = {"MW2CR.exe", "MW2 Campaign Remastered Launcher.exe"},
+                .default_args = "-singleplayer +set cg_auto_update 0",
+                .base_folder = "mw2r_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .client_default_path = utils::properties::get_appdata_folder_path("h2-mod"),
+                .client_install_path_files = {"h2-mod.exe"}
+            }
+        },
+        {
+            "bo4",
+            {
+                .game_key = "bo4",
+                .display_name = "BO4",
+                .id = "bo4",
+                .exe_name = "Launch Project BO4.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "project-bo4.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "project-bo4/",
+                .manifest_path = "manifest/bo4.json",
+                .required_updater_files = {},
+                .valid_game_files = {"BlackOps4.exe", "BlackOps4_boot.exe", "Black Ops 4 Launcher.exe"},
+                .check_running_exes = {"BlackOps4.exe"},
+                .mode_arguments = {
+                    {"on", "-online"},
+                    {"off", "-offline"}
+                },
+                .base_folder = "bo4_game_files",
+                .base_properties_game = "",
+                .property_overrides = {}
+            }
+        },
+        {
             "hmw",
             {
                 .game_key = "hmw",
@@ -518,6 +588,7 @@ namespace game_config
     };
 
     const std::unordered_map<std::string, std::string> ui_to_backend_mapping_ = {
+        {"cod4x", "cod4x"},
         {"t4", "t4"},
         {"t5", "t5"},
         {"iw4x", "iw4x"},
@@ -528,6 +599,8 @@ namespace game_config
         {"s1x", "aw"},
         {"h1-mod", "mwr"},
         {"iw7-mod", "iw"},
+        {"bo4", "bo4"},
+        {"mw2r", "mw2r"},
         {"hmw-mod", "hmw"}
     };
 

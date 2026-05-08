@@ -75,6 +75,7 @@
                 filterAlterWare: 'AlterWare',
                 filterAurora: 'Aurora',
                 filterHorizonMW: 'HorizonMW',
+                filterOthers: 'Others',
                 searchPlaceholder: 'Search clients...',
                 noMatches: 'No clients match this filter.'
             },
@@ -298,9 +299,21 @@
                 zm: {
                     name: 'Zombies',
                     description: 'Fight hordes of zombies'
+                },
+                on: {
+                    name: 'Online',
+                    description: 'Play online with others'
+                },
+                off: {
+                    name: 'Offline',
+                    description: 'Play offline against bots or alone'
                 }
             },
             game: {
+                'cod4x': {
+                    description: 'COD4: Modern Warfare enhanced with COD4x multiplayer and IW3SP-Mod for singleplayer. Experience the classic MW1 campaign and online play with modern client maintenance.',
+                    credits: 'Multiplayer is provided by the COD4x Client and developed by the <a href="https://cod4x.ovh/" target="_blank">CoD4x Project</a>.<br>Singleplayer is provided by the IW3SP-Mod Client and developed by <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                },
                 't4': {
                     description: 'Call of Duty: World at War enhanced with Plutonium T4 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.',
                     descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
@@ -344,6 +357,14 @@
                 'iw7-mod': {
                     description: 'Call of Duty: Infinite Warfare enhanced with IW7-Mod features. Experience the space warfare campaign, multiplayer and zombies with improved stability and additional features.',
                     credits: 'This is a <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> of the original IW7-Mod Client developed by <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.'
+                },
+                'bo4': {
+                    description: 'Black Ops 4 enhanced with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies, with improved stability and additional features.',
+                    credits: 'Online and offline play are provided by the <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> and developed by <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                },
+                'mw2r': {
+                    description: 'Modern Warfare 2 Campaign Remastered with H2-Mod support. Run the remastered MW2 campaign with stability and quality-of-life patches.',
+                    credits: 'MW2 Campaign Remastered support is provided by the <a href="https://github.com/alicealys/h2-mod" target="_blank">H2-Mod</a> Client and developed by <a href="https://github.com/alicealys" target="_blank">Alice</a>.'
                 },
                 'hmw-mod': {
                     description: "HorizonMW. A faithful community remaster of Modern Warfare 2's Multiplayer with additional content from MW3.",
@@ -426,6 +447,7 @@
                 filterAlterWare: 'AlterWare',
                 filterAurora: 'Aurora',
                 filterHorizonMW: 'HorizonMW',
+                filterOthers: 'Autres',
                 searchPlaceholder: 'Rechercher un client...',
                 noMatches: 'Aucun client ne correspond a ce filtre.'
             },
@@ -649,9 +671,21 @@
                 zm: {
                     name: 'Zombies',
                     description: 'Affronter des hordes de zombies'
+                },
+                on: {
+                    name: 'En ligne',
+                    description: 'Jouer en ligne avec les autres'
+                },
+                off: {
+                    name: 'Hors ligne',
+                    description: 'Jouer hors ligne contre des bots ou seul'
                 }
             },
             game: {
+                'cod4x': {
+                    description: 'COD4: Modern Warfare ameliore avec le multijoueur COD4x et IW3SP-Mod pour le solo. Profitez de la campagne MW1 classique et du jeu en ligne avec une maintenance moderne.',
+                    credits: 'Le multijoueur est fourni par le client COD4x et developpe par le <a href="https://cod4x.ovh/" target="_blank">Projet CoD4x</a>.<br>Le solo est fourni par le client IW3SP-Mod et developpe par <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                },
                 't4': {
                     description: 'Call of Duty: World at War ameliore avec les modifications de Plutonium T4. Profitez de la campagne, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
                     descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
@@ -695,6 +729,14 @@
                 'iw7-mod': {
                     description: 'Call of Duty: Infinite Warfare ameliore avec les fonctionnalites IW7-Mod. Profitez de la campagne de guerre spatiale, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
                     credits: 'Ceci est un <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> du client IW7-Mod original developpe par <a href="https://auroramod.dev" target="_blank">Aurora</a> avec des correctifs CB.'
+                },
+                'bo4': {
+                    description: 'Black Ops 4 ameliore avec Project BO4 Launcher. Inclut les modes en ligne et hors ligne pour le multijoueur et les zombies, avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Le jeu en ligne et hors ligne est fourni par <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> et developpe par <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                },
+                'mw2r': {
+                    description: "Modern Warfare 2 Campaign Remastered avec le support de H2-Mod. Profitez de la campagne MW2 remasterisee avec des correctifs de stabilite et de confort de jeu.",
+                    credits: 'Le support de MW2 Campaign Remastered est fourni par le client <a href="https://github.com/alicealys/h2-mod" target="_blank">H2-Mod</a> et developpe par <a href="https://github.com/alicealys" target="_blank">Alice</a>.'
                 },
                 'hmw-mod': {
                     description: "HorizonMW. Un remaster communautaire fideale du multijoueur de Modern Warfare 2 avec du contenu supplementaire de MW3.",
