@@ -118,9 +118,10 @@
                 downloadServerBody: 'Choose a CDN region or let the launcher pick the fastest one.',
                 launcher: 'Launcher',
                 language: 'Language',
-                languageBody: 'Choose the interface language used by the launcher.',
+                languageBody: 'Choose the interface language used by the launcher. This setting only affects the launcher UI, not the in-game language.',
                 languageEnglish: 'English',
                 languageFrench: 'French',
+                languageSpanish: 'Spanish',
                 skipHashVerification: 'Skip hash verification',
                 skipHashVerificationBody: 'When enabled, game file verification will skip hash checks for much faster validation at the cost of file integrity.',
                 closeLauncherAfterLaunch: 'Close launcher after game launch',
@@ -522,9 +523,10 @@
                 downloadServerBody: 'Choisissez une region CDN ou laissez le launcher prendre la plus rapide.',
                 launcher: 'Launcher',
                 language: 'Langue',
-                languageBody: "Choisissez la langue de l'interface du launcher.",
+                languageBody: "Choisissez la langue de l'interface du launcher. Ce parametre n'affecte que l'interface du launcher, pas la langue en jeu.",
                 languageEnglish: 'Anglais',
                 languageFrench: 'Francais',
+                languageSpanish: 'Espagnol',
                 skipHashVerification: 'Ignorer la verification des hash',
                 skipHashVerificationBody: "Lorsqu'active, la verification des fichiers du jeu ignorera les controles de hash pour une validation beaucoup plus rapide au prix de l'integrite des fichiers.",
                 closeLauncherAfterLaunch: 'Fermer le launcher apres le lancement du jeu',
@@ -628,7 +630,7 @@
                     saveFailedTitle: "Echec de l'enregistrement",
                     saveFailedBody: "Impossible d'enregistrer les parametres. Reessayez.",
                     resetTitle: 'Reinitialiser les parametres du jeu',
-                    resetBody: 'Voulez-vous vraiment reinitialiser tous les parametres de {{game}} ? Le chemin d installation et les preferences seront effaces, mais les fichiers du jeu ne seront PAS supprimes.',
+                    resetBody: "Voulez-vous vraiment reinitialiser tous les parametres de {{game}} ? Le chemin d'installation et les preferences seront effaces, mais les fichiers du jeu ne seront PAS supprimes.",
                     resetDoneTitle: 'Parametres reinitialises',
                     resetDoneBody: 'Les parametres de {{game}} ont ete reinitialises.',
                     resetFailedTitle: 'Echec de la reinitialisation',
@@ -660,7 +662,7 @@
                     installPathSaveFailed: "Impossible d'enregistrer le chemin d'installation. Reessayez.",
                     saveFailed: "Impossible d'enregistrer la selection des composants. Reessayez.",
                     confirmUninstallTitle: 'Confirmer la desinstallation',
-                    confirmUninstallBody: 'Voulez-vous vraiment desinstaller {{game}} ?\n\nTous les fichiers du jeu seront supprimes definitivement.\nLe chemin d installation et les preferences seront conserves.',
+                    confirmUninstallBody: "Voulez-vous vraiment desinstaller {{game}} ?\n\nTous les fichiers du jeu seront supprimes definitivement.\nLe chemin d'installation et les preferences seront conserves.",
                     uninstalling: 'Desinstallation de {{game}}...',
                     errorTitle: 'Erreur'
                 },
@@ -696,7 +698,7 @@
             },
             dialog: {
                 resetAllSettingsTitle: 'Reinitialiser tous les parametres',
-                resetAllSettingsBody: 'Voulez-vous vraiment reinitialiser tous les parametres du launcher et des jeux ? Cela effacera aussi les chemins d installation des jeux.',
+                resetAllSettingsBody: "Voulez-vous vraiment reinitialiser tous les parametres du launcher et des jeux ? Cela effacera aussi les chemins d'installation des jeux.",
                 resetDoneTitle: 'Parametres reinitialises',
                 resetDoneBody: 'Tous les parametres ont ete reinitialises.',
                 resetFailedTitle: 'Echec de la reinitialisation',
@@ -711,7 +713,7 @@
                 unlockAllFailedTitle: 'Echec du deblocage',
                 unlockAllFailedBody: 'Impossible de tout debloquer pour {{game}}. Reessayez.',
                 stopGameFailedTitle: "Erreur lors de l'arret du jeu",
-                stopGameFailedBody: 'Impossible d arreter {{game}}. Le jeu est peut-etre deja ferme.'
+                stopGameFailedBody: "Impossible d'arreter {{game}}. Le jeu est peut-etre deja ferme."
             },
             errors: {
                 gameNotConfiguredTitle: '{{game}} non configure',
@@ -803,8 +805,413 @@
                     credits: 'Le support de MW2 Campaign Remastered est fourni par le client <a href="https://github.com/alicealys/h2-mod" target="_blank">H2-Mod</a> et developpe par <a href="https://github.com/alicealys" target="_blank">Alice</a>.'
                 },
                 'hmw-mod': {
-                    description: "HorizonMW. Un remaster communautaire fideale du multijoueur de Modern Warfare 2 avec du contenu supplementaire de MW3.",
+                    description: "HorizonMW. Un remaster communautaire fidele du multijoueur de Modern Warfare 2 avec du contenu supplementaire de MW3.",
                     credits: 'Ceci est un <a href="https://github.com/CBServers/HorizonMW-Client" target="_blank">fork</a> du client HMW-Mod original developpe par <a href="https://horizonmw.org/" target="_blank">HorizonMW</a> avec des correctifs CB.'
+                }
+            }
+        },
+        es: {
+            app: {
+                title: 'CB Servers Launcher'
+            },
+            window: {
+                minimize: 'Minimizar',
+                close: 'Cerrar'
+            },
+            brand: {
+                launcher: 'Launcher'
+            },
+            nav: {
+                home: 'Inicio',
+                library: 'Biblioteca',
+                downloads: 'Descargas',
+                support: 'Soporte',
+                settings: 'Ajustes',
+                myGames: 'Mis Juegos'
+            },
+            downloads: {
+                title: 'Descargas',
+                subtitle: 'Descargas de juegos activas y en cola.',
+                empty: 'No hay descargas en curso.',
+                statusVerifying: 'Verificando',
+                statusInstalling: 'Instalando',
+                statusUninstalling: 'Desinstalando',
+                statusActive: 'En curso',
+                statusQueued: 'En cola - #{{position}}',
+                statusPaused: 'En pausa',
+                statusPausedAt: 'En pausa - {{percent}}%',
+                pause: 'Pausar',
+                resume: 'Reanudar'
+            },
+            toasts: {
+                queued: '{{game}} anadido a la cola',
+                queuedVerify: '{{game}} en cola para verificacion/actualizacion',
+                queuedInstall: '{{game}} en cola para descarga',
+                queuedUninstall: '{{game}} en cola para desinstalacion',
+                cancelledVerify: 'Verificacion/actualizacion de {{game}} cancelada',
+                cancelledInstall: 'Descarga de {{game}} cancelada',
+                cancelledUninstall: 'Desinstalacion de {{game}} cancelada',
+                cancelled: '{{game}} cancelado'
+            },
+            common: {
+                ok: 'OK',
+                cancel: 'Cancelar',
+                confirm: 'Confirmar',
+                save: 'Guardar',
+                play: 'Jugar',
+                verify: 'Verificar archivos',
+                install: 'Instalar',
+                manage: 'Gestionar',
+                manageInstall: 'Gestionar instalacion',
+                setup: 'Configurar',
+                finishSetup: 'Terminar configuracion',
+                stop: 'Detener',
+                unlockAll: 'Desbloquear todo',
+                uninstall: 'Desinstalar',
+                applyChanges: 'Aplicar cambios',
+                configure: 'Configurar',
+                browse: 'Explorar',
+                browseLocalFiles: 'Explorar archivos locales',
+                saveSettings: 'Guardar ajustes',
+                resetSettings: 'Restablecer ajustes',
+                continue: 'Continuar',
+                disabled: 'Desactivado',
+                source: 'Codigo fuente',
+                loading: 'Cargando...',
+                error: 'Error'
+            },
+            home: {
+                installedClients: 'Listos para jugar',
+                readyToPlay: 'Listo para jugar',
+                notInstalled: 'No instalado',
+                showInstalled: 'Mostrar instalados',
+                welcomeTitle: 'Bienvenido a CB Launcher',
+                welcomeBody: 'Bienvenido a CB Servers Launcher! Tu launcher todo-en-uno para los clientes comunitarios de Call of Duty. Instala, actualiza y juega a los clientes compatibles desde un solo lugar. Ve a la pestana <strong>Biblioteca</strong> para explorar todos los clientes disponibles y empezar a jugar. Necesitas ayuda? Pasa por la pestana <strong>Soporte</strong> o consulta nuestra <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentacion</a>.',
+                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora ni HorizonMW. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
+            },
+            library: {
+                title: 'Biblioteca',
+                subtitle: 'Clientes de Call of Duty disponibles a traves de CB Launcher.',
+                filterAll: 'Todos',
+                filterInstalled: 'Instalados',
+                filterNotInstalled: 'No instalados',
+                filterPlutonium: 'Plutonium',
+                filterAlterWare: 'AlterWare',
+                filterAurora: 'Aurora',
+                filterHorizonMW: 'HorizonMW',
+                filterOthers: 'Otros',
+                searchPlaceholder: 'Buscar clientes...',
+                noMatches: 'Ningun cliente coincide con este filtro.'
+            },
+            support: {
+                title: 'Soporte',
+                subtitle: 'Solucion de problemas, redistribuibles y ayuda comunitaria.',
+                communityTitle: 'Soporte comunitario',
+                communityBody: 'Consulta las preguntas frecuentes para respuestas rapidas, o entra al Discord: el lugar mas rapido para obtener ayuda con la configuracion del launcher, instalaciones de clientes y acceso a servidores.',
+                faq: 'Preguntas frecuentes',
+                discordServer: 'Servidor de Discord',
+                redistTitle: 'Redistribuibles',
+                redistBody: 'Instala los runtimes de Visual C++ y DirectX necesarios para los clientes antiguos de Call of Duty. Herramienta creada por <a href="https://chse.sh" target="_blank">Chase</a>.',
+                installRedist: 'Instalar redistribuibles',
+                noteTitle: 'Nota importante',
+                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora ni HorizonMW. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
+                github: 'GitHub de CB Servers'
+            },
+            settings: {
+                title: 'Ajustes',
+                subtitle: 'Preferencias del launcher y ajustes de red.',
+                gameDirectories: 'Directorios de juegos',
+                gameDirectoriesBody: 'Vincula cada cliente personalizado con su directorio base del juego en Steam.',
+                notConfiguredPath: 'Carpeta no configurada',
+                network: 'Red',
+                downloadServer: 'Servidor de descarga',
+                downloadServerBody: 'Elige una region CDN o deja que el launcher seleccione la mas rapida.',
+                launcher: 'Launcher',
+                language: 'Idioma',
+                languageBody: 'Elige el idioma de la interfaz del launcher. Esta opcion solo afecta a la interfaz del launcher, no al idioma del juego.',
+                languageEnglish: 'Ingles',
+                languageFrench: 'Frances',
+                languageSpanish: 'Espanol',
+                skipHashVerification: 'Omitir verificacion de hash',
+                skipHashVerificationBody: 'Cuando esta activado, la verificacion de archivos del juego omitira las comprobaciones de hash para una validacion mucho mas rapida a costa de la integridad de los archivos.',
+                closeLauncherAfterLaunch: 'Cerrar el launcher al iniciar el juego',
+                closeLauncherAfterLaunchBody: 'Cuando esta activado, el launcher se cerrara automaticamente despues de iniciar un juego.',
+                skipClientUpdate: 'Omitir actualizacion del cliente al iniciar',
+                skipClientUpdateBody: 'Cuando esta activado, las actualizaciones del cliente se omitiran al iniciar. Util para solucionar problemas, pero podrias estar usando un cliente desactualizado.',
+                player: 'Jugador',
+                globalPlayerName: 'Nombre global en el juego',
+                globalPlayerNameBody: 'Se usa como tu nombre dentro de cualquier juego que admita nombres personalizados. Se puede sobrescribir por juego.',
+                about: 'Acerca de',
+                maintenance: 'Mantenimiento',
+                theme: 'Tema',
+                themeNavy: 'Navy oscuro',
+                themeDark: 'Oscuro',
+                themeNavyGradient: 'Degradado Navy',
+                resetAllSettings: 'Restablecer todos los ajustes',
+                showConsole: 'Mostrar consola',
+                hideConsole: 'Ocultar consola',
+                checkForUpdates: 'Buscar actualizaciones',
+                source: 'Codigo fuente',
+                designBy: 'Diseno por <a href="https://github.com/Riiyua" target="_blank">Riyu</a> &amp; <a href="https://github.com/BradsTV" target="_blank">Brad</a>',
+                versionLoading: 'Version: Cargando...',
+                versionUnknown: 'Version: Desconocida',
+                versionValue: 'Version: {{version}}',
+                themeBody: 'Cambia entre los temas de color disponibles del launcher.'
+            },
+            cdn: {
+                auto: 'Auto',
+                na: 'Norteamerica',
+                eu: 'Europa',
+                custom: 'Personalizado',
+                addCustom: 'Anadir personalizado...',
+                addCustomTitle: 'Anadir o editar servidor personalizado',
+                retest: 'Volver a probar la velocidad de los servidores'
+            },
+            progress: {
+                readyToPlay: 'Listo para jugar',
+                launching: 'Iniciando {{game}}...',
+                verifying: 'Verificando {{game}}...',
+                launchComplete: 'Inicio completado!',
+                verificationComplete: 'Verificacion completada!',
+                downloadComplete: 'Descarga completada!',
+                uninstallComplete: 'Desinstalacion completada!',
+                unlockAll: 'Desbloqueando todo para {{game}}...',
+                unlockAllComplete: 'Desbloqueo completado!'
+            },
+            status: {
+                readyToPlay: 'Listo para jugar',
+                notInstalled: 'No instalado',
+                updateClient: 'Actualizar cliente',
+                baseGameMissing: 'Falta el juego base',
+                updateAvailable: 'Actualizacion disponible'
+            },
+            detail: {
+                overview: 'Resumen',
+                clientSettings: 'Ajustes',
+                modsScripts: 'Mods/Scripts',
+                credits: 'Creditos',
+                note: 'Nota',
+                noteBody: 'No contactes a los desarrolladores originales del cliente para consultas de soporte relacionadas con este launcher. Usa el Discord de CB Servers en su lugar.',
+                verifySteamFiles: 'Verificar archivos de Steam',
+                client: 'Cliente',
+                provider: 'Proveedor',
+                customClient: 'Cliente personalizado'
+            },
+            componentLibrary: {
+                title: 'Biblioteca de componentes',
+                subtitle: 'Estados reutilizables para botones, tarjetas, campos y placas.',
+                buttons: 'Botones',
+                inputs: 'Campos',
+                badges: 'Placas',
+                card: 'Tarjeta'
+            },
+            popup: {
+                gameMode: {
+                    title: 'Selecciona modo de juego',
+                    rememberChoice: 'Recordar esta eleccion',
+                    playMode: 'Jugar en modo {{mode}}'
+                },
+                gameSettings: {
+                    title: 'Ajustes del juego',
+                    titleWithGame: 'Ajustes de {{game}}',
+                    installationPath: 'Ruta de instalacion',
+                    installationFolderWithGame: 'Carpeta de instalacion de {{game}}:',
+                    installationPlaceholder: 'Selecciona la carpeta de instalacion...',
+                    playButtonBehavior: 'Comportamiento del boton Jugar',
+                    playButtonBehaviorLabel: 'Cuando se hace clic en Jugar, iniciar:',
+                    askEveryTime: 'Preguntarme cada vez',
+                    gameOptions: 'Opciones del juego',
+                    skipIntroCinematic: 'Omitir cinematica de introduccion',
+                    disableCbExtension: 'Desactivar extension CB',
+                    player: 'Jugador',
+                    playerNameOverride: 'Nombre personalizado en el juego',
+                    playerNameOverrideHelp: 'Sobrescribe el nombre global para este juego.',
+                    playerNameOverridePlaceholder: 'Dejar vacio para usar el global',
+                    playerNameOverrideError: 'El nombre debe tener entre 3 y 16 caracteres, o estar vacio.',
+                    advanced: 'Avanzado',
+                    launchOptions: 'Opciones de inicio:',
+                    invalidGamePathTitle: 'Ruta de juego invalida',
+                    invalidGamePathBody: 'La carpeta seleccionada no contiene archivos validos de {{game}}. Selecciona la carpeta de instalacion correcta del juego.',
+                    saveFailedTitle: 'Error al guardar',
+                    saveFailedBody: 'No se pudo guardar los ajustes. Intentalo de nuevo.',
+                    resetTitle: 'Restablecer ajustes del juego',
+                    resetBody: "Seguro que quieres restablecer todos los ajustes de {{game}}? Esto borrara la ruta de instalacion y las preferencias del juego, pero NO eliminara los archivos del juego.",
+                    resetDoneTitle: 'Ajustes restablecidos',
+                    resetDoneBody: 'Los ajustes de {{game}} se han restablecido a sus valores predeterminados!',
+                    resetFailedTitle: 'Error al restablecer',
+                    resetFailedBody: 'No se pudo restablecer los ajustes. Intentalo de nuevo.'
+                },
+                componentSelection: {
+                    title: 'Gestionar instalacion',
+                    titleWithGame: 'Gestionar instalacion - {{game}}',
+                    installTitleWithGame: 'Instalacion - {{game}}',
+                    header: 'Gestionar instalacion',
+                    refreshTitle: 'Actualizar deteccion de componentes',
+                    installLocation: 'Ubicacion de instalacion',
+                    chooseInstallLocation: 'Elige donde instalar el juego...',
+                    downloadInfo: 'Informacion de descarga',
+                    projectedSize: 'Tamano previsto:',
+                    availableSpace: 'Espacio disponible:',
+                    calculating: 'Calculando...',
+                    detectingInstalled: 'Detectando componentes instalados...',
+                    detectionCanTakeMinutes: '(Puede tardar unos minutos)',
+                    uninstall: 'Desinstalar',
+                    loadError: 'No se pudo cargar la informacion de los componentes. Intentalo de nuevo.',
+                    refreshError: 'No se pudo actualizar la deteccion de componentes. Intentalo de nuevo.',
+                    required: 'Requerido',
+                    installed: 'Instalado',
+                    confirmChangesTitle: 'Confirmar cambios',
+                    confirmChangesBody: 'Seguro que quieres aplicar los cambios? Los componentes seleccionados empezaran a descargarse automaticamente.',
+                    confirmChangesWarning: 'AVISO: Los componentes deseleccionados seran eliminados.',
+                    installPathRequiredBody: 'Elige una ubicacion de instalacion antes de aplicar los cambios.',
+                    installPathSaveFailed: 'No se pudo guardar la ruta de instalacion. Intentalo de nuevo.',
+                    saveFailed: 'No se pudo guardar la seleccion de componentes. Intentalo de nuevo.',
+                    confirmUninstallTitle: 'Confirmar desinstalacion',
+                    confirmUninstallBody: 'Seguro que quieres desinstalar {{game}}?\n\nEsto ELIMINARA permanentemente todos los archivos del juego.\nTu ruta de instalacion y preferencias se conservaran.',
+                    uninstalling: 'Desinstalando {{game}}...',
+                    errorTitle: 'Error'
+                },
+                setup: {
+                    title: 'Configurar {{game}}',
+                    alreadyInstalledTitle: 'Ya tengo el juego instalado',
+                    alreadyInstalledBody: 'Selecciona la carpeta donde {{game}} esta instalado en tu equipo.',
+                    downloadTitle: 'Descargar el juego',
+                    downloadBody: 'Descarga e instala {{game}} automaticamente desde el launcher.',
+                    installTitle: 'Instalar {{game}}',
+                    installLocation: 'Ubicacion de instalacion',
+                    selectComponents: 'Seleccionar componentes',
+                    loadingComponents: 'Cargando componentes...',
+                    downloadInfo: 'Informacion de descarga',
+                    projectedSize: 'Tamano previsto:',
+                    availableSpace: 'Espacio disponible:',
+                    insufficientSpaceTitle: 'Espacio insuficiente',
+                    insufficientSpaceBody: 'No hay suficiente espacio disponible. Necesitas {{size}} pero solo tienes {{available}} disponibles.',
+                    installationErrorTitle: 'Error de instalacion',
+                    installationErrorSetPath: 'No se pudo establecer la ruta de instalacion para {{game}}.',
+                    installationErrorStart: 'Se produjo un error al iniciar la instalacion: {{error}}',
+                    invalidGamePathTitle: 'Ruta de juego invalida',
+                    invalidGamePathBody: 'La carpeta seleccionada no contiene archivos validos de {{game}}. Selecciona la carpeta de instalacion correcta del juego.',
+                    downloading: 'Descargando {{game}}...'
+                },
+                customServer: {
+                    title: 'Servidor de descarga personalizado',
+                    label: 'URL del servidor',
+                    placeholder: 'https://mi-mirror.ejemplo.com/',
+                    invalidUrl: 'La URL debe empezar por http:// o https://',
+                    saveFailed: 'No se pudo guardar el servidor personalizado. Intentalo de nuevo.'
+                }
+            },
+            dialog: {
+                resetAllSettingsTitle: 'Restablecer todos los ajustes',
+                resetAllSettingsBody: 'Seguro que quieres restablecer todos los ajustes del launcher y de los juegos a sus valores predeterminados? Esto borrara todos los ajustes, incluidas las rutas de instalacion de los juegos.',
+                resetDoneTitle: 'Ajustes restablecidos',
+                resetDoneBody: 'Todos los ajustes se han restablecido a sus valores predeterminados!',
+                resetFailedTitle: 'Error al restablecer',
+                resetFailedBody: 'No se pudo restablecer los ajustes. Intentalo de nuevo.',
+                updateTitle: 'Actualizacion del launcher',
+                updateChecking: 'Comprobando...',
+                updateLatest: 'El launcher ya esta en la ultima version!',
+                updateCancelled: 'La actualizacion fue cancelada o se produjo un error.',
+                updateFailed: 'No se pudo comprobar las actualizaciones. Intentalo mas tarde.',
+                unlockAllTitle: 'Desbloquear todo',
+                unlockAllBody: 'Desbloquear todo restablecera todas tus clases actuales.\nSeguro que quieres continuar?',
+                unlockAllFailedTitle: 'Error al desbloquear todo',
+                unlockAllFailedBody: 'No se pudo desbloquear todo para {{game}}. Intentalo de nuevo.',
+                stopGameFailedTitle: 'Error al detener el juego',
+                stopGameFailedBody: 'No se pudo detener {{game}}. Es posible que el juego ya este cerrado.'
+            },
+            errors: {
+                gameNotConfiguredTitle: '{{game}} no configurado',
+                gameNotConfiguredBody: 'No has configurado la ruta de instalacion de {{game}}.',
+                cannotLaunchTitle: 'No se puede iniciar ahora',
+                cannotLaunchBody: 'Otro juego se esta actualizando. Espera a que termine o cancela la operacion antes de iniciar otro juego.'
+            },
+            mode: {
+                sp: {
+                    name: 'Un jugador',
+                    description: 'Jugar la campana'
+                },
+                mp: {
+                    name: 'Multijugador',
+                    description: 'Jugar en linea con otros'
+                },
+                sv: {
+                    name: 'Supervivencia',
+                    description: 'Sobrevivir contra oleadas de enemigos'
+                },
+                zm: {
+                    name: 'Zombis',
+                    description: 'Combatir hordas de zombis'
+                },
+                on: {
+                    name: 'En linea',
+                    description: 'Jugar en linea con otros'
+                },
+                off: {
+                    name: 'Sin conexion',
+                    description: 'Jugar sin conexion contra bots o solo'
+                }
+            },
+            game: {
+                'cod4x': {
+                    description: 'COD4: Modern Warfare mejorado con el multijugador de COD4x y IW3SP-Mod para un jugador. Disfruta de la clasica campana de MW1 y del juego en linea con mantenimiento de cliente moderno.',
+                    credits: 'El multijugador lo proporciona el cliente COD4x, desarrollado por el <a href="https://cod4x.ovh/" target="_blank">Proyecto CoD4x</a>.<br>El modo un jugador lo proporciona el cliente IW3SP-Mod, desarrollado por <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                },
+                't4': {
+                    description: 'Call of Duty: World at War mejorado con las modificaciones de Plutonium T4. Disfruta de la campana, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
+                    descriptionNote: 'Plutonium requiere una cuenta. Puedes crear una en: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'La campana, el multijugador y los zombis los proporciona el cliente T4, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                },
+                't5': {
+                    description: 'Call of Duty: Black Ops mejorado con las modificaciones de Plutonium T5. Disfruta de la campana, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
+                    descriptionNote: 'Plutonium requiere una cuenta. Puedes crear una en: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'La campana, el multijugador y los zombis los proporciona el cliente T5, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                },
+                'iw4x': {
+                    description: 'Call of Duty: Modern Warfare 2 mejorado con las modificaciones IW4X y IW4-SP. Disfruta de la campana clasica y del multijugador con mayor estabilidad y funciones adicionales.',
+                    credits: 'El multijugador lo proporciona el cliente IW4x, desarrollado por el <a href="https://iw4x.io/" target="_blank">Proyecto IW4x</a>.<br>El modo un jugador lo proporciona el cliente IW4-SP, desarrollado por <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
+                },
+                'iw5': {
+                    description: 'Call of Duty: Modern Warfare 3 mejorado con las modificaciones de Plutonium e IW5-Mod. Disfruta de la campana y del multijugador con mayor estabilidad y funciones adicionales.',
+                    descriptionNote: 'Plutonium requiere una cuenta. Puedes crear una en: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'El multijugador lo proporciona el cliente IW5, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>El modo un jugador lo proporciona el cliente IW5-Mod, desarrollado por <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
+                },
+                't6': {
+                    description: 'Call of Duty: Black Ops 2 mejorado con las modificaciones de Plutonium T6. Disfruta del multijugador y del modo zombis con mayor estabilidad y funciones adicionales.',
+                    descriptionNote: 'Plutonium requiere una cuenta. Puedes crear una en: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
+                    credits: 'El multijugador y los zombis los proporciona el cliente T6, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                },
+                'boiii': {
+                    description: 'Call of Duty: Black Ops 3 mejorado con las modificaciones BOIII. Disfruta de la campana completa, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
+                    credits: 'Este es un <a href="https://github.com/CBServers/boiii" target="_blank">fork</a> del cliente original BOIII/T7x desarrollado por <a href="https://github.com/momo5502" target="_blank">momo5502</a> y <a href="https://alterware.dev" target="_blank">AlterWare</a> con parches CB anadidos.'
+                },
+                'iw6x': {
+                    description: 'Call of Duty: Ghosts mejorado con las modificaciones IW6x. Disfruta de la campana y del multijugador con mayor estabilidad y funciones adicionales.',
+                    credits: 'Este es un <a href="https://github.com/CBServers/iw6-mod" target="_blank">fork</a> del cliente original IW6x/iw6-mod desarrollado por <a href="https://alterware.dev" target="_blank">AlterWare</a> y <a href="https://xlabs.dev" target="_blank">X Labs</a> con parches CB anadidos.'
+                },
+                's1x': {
+                    description: 'Call of Duty: Advanced Warfare mejorado con las modificaciones S1x. Disfruta de la campana de guerra futurista y del multijugador con mayor estabilidad y funciones adicionales.',
+                    credits: 'Este es un <a href="https://github.com/CBServers/s1-mod" target="_blank">fork</a> del cliente original S1x/s1-mod desarrollado por <a href="https://alterware.dev" target="_blank">AlterWare</a> y <a href="https://xlabs.dev" target="_blank">X Labs</a> con parches CB anadidos.'
+                },
+                'h1-mod': {
+                    description: 'Call of Duty: Modern Warfare Remastered mejorado con las funciones de H1-Mod. Disfruta de la campana clasica y del multijugador con mayor estabilidad y funciones adicionales.',
+                    credits: 'Este es un <a href="https://github.com/CBServers/h1-mod" target="_blank">fork</a> del cliente original H1-Mod desarrollado por <a href="https://auroramod.dev" target="_blank">Aurora</a> con parches CB anadidos.'
+                },
+                'iw7-mod': {
+                    description: 'Call of Duty: Infinite Warfare mejorado con las funciones de IW7-Mod. Disfruta de la campana de guerra espacial, el multijugador y los zombis con mayor estabilidad y funciones adicionales.',
+                    credits: 'Este es un <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> del cliente original IW7-Mod desarrollado por <a href="https://auroramod.dev" target="_blank">Aurora</a> con parches CB anadidos.'
+                },
+                'bo4': {
+                    description: 'Black Ops 4 mejorado con Project BO4 Launcher. Incluye modos en linea y sin conexion para multijugador y zombis, con mayor estabilidad y funciones adicionales.',
+                    credits: 'El juego en linea y sin conexion lo proporciona <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a>, desarrollado por <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                },
+                'mw2r': {
+                    description: 'Modern Warfare 2 Campaign Remastered con soporte de H2-Mod. Juega la campana remasterizada de MW2 con parches de estabilidad y mejoras de calidad de vida.',
+                    credits: 'El soporte de MW2 Campaign Remastered lo proporciona el cliente <a href="https://github.com/alicealys/h2-mod" target="_blank">H2-Mod</a>, desarrollado por <a href="https://github.com/alicealys" target="_blank">Alice</a>.'
+                },
+                'hmw-mod': {
+                    description: "HorizonMW. Una remasterizacion comunitaria fiel del multijugador de Modern Warfare 2 con contenido adicional de MW3.",
+                    credits: 'Este es un <a href="https://github.com/CBServers/HorizonMW-Client" target="_blank">fork</a> del cliente original HMW-Mod desarrollado por <a href="https://horizonmw.org/" target="_blank">HorizonMW</a> con parches CB anadidos.'
                 }
             }
         }

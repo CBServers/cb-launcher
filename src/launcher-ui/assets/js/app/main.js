@@ -179,7 +179,7 @@ async function initialize() {
     if (typeof window.executeCommand === 'function') {
         try {
             const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
-            applyTheme(savedTheme || 'navy');
+            applyTheme(savedTheme || 'dark');
         } catch (_) {}
     }
 
@@ -1758,7 +1758,8 @@ async function setupLanguageSelect() {
     if (!languageSelect.dataset.bound) {
         languageSelect.dataset.bound = 'true';
         languageSelect.addEventListener('change', async (event) => {
-            const nextLanguage = event.target.value === 'fr' ? 'fr' : 'en';
+            const SUPPORTED_LANGUAGES = ['en', 'fr', 'es'];
+            const nextLanguage = SUPPORTED_LANGUAGES.includes(event.target.value) ? event.target.value : 'en';
             const previousLanguage = window.LauncherI18n ? window.LauncherI18n.getLanguage() : 'en';
 
             try {
@@ -1905,7 +1906,10 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
-                    [PROPERTY_KEYS.LAUNCHER.LANGUAGE]: 'en'
+                    [PROPERTY_KEYS.LAUNCHER.LANGUAGE]: 'en',
+                    [PROPERTY_KEYS.LAUNCHER.THEME]: 'dark',
+                    [PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME]: '',
+                    [PROPERTY_KEYS.LAUNCHER.CDN_CUSTOM_URL]: ''
                 });
 
                 // Reset CDN preference to auto
@@ -1913,6 +1917,12 @@ async function handleResetAllSettings() {
 
                 // Reset all game settings using reset-game-settings command
                 await executeCommand('reset-game-settings', { game: 'all' });
+
+                // Clear recent games sidebar / hero rotation
+                try { localStorage.removeItem(RECENT_GAMES_KEY); } catch (_) {}
+                recentGames = [];
+                window.__recentGamesSnapshot = recentGames;
+                refreshSidebarMyGames();
 
                 // Dispatch event for game installation updates
                 window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
@@ -1928,6 +1938,9 @@ async function handleResetAllSettings() {
                 if (window.LauncherI18n) {
                     window.LauncherI18n.setLanguage('en');
                 }
+                applyTheme('dark');
+                const themeSelect = document.getElementById('theme-select');
+                if (themeSelect) themeSelect.value = 'dark';
 
                 // Reload settings page to show defaults
                 await refreshLocalizedUI('settings');

@@ -207,6 +207,18 @@ namespace game_config
         this->set_list(property_keys::DETECTED_COMPONENTS, {});
         this->set_list(property_keys::SELECTED_COMPONENTS, {});
         this->set(property_keys::LAUNCH_OPTIONS, "");
+        this->set(property_keys::GAME_MODE, "");
+        this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
+
+        // Game-specific settings — only clear on the games that own them
+        if (this->game_key == "bo3")
+        {
+            this->set(property_keys::SKIP_INTRO_CINEMATIC, "");
+        }
+        if (this->game_key == "hmw")
+        {
+            this->set(property_keys::DISABLE_CB_EXTENSION, "");
+        }
     }
 
     // Game configurations
