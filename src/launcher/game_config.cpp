@@ -155,52 +155,6 @@ namespace game_config
             std::string(buffer.GetString(), buffer.GetLength()));
     }
 
-    void write_boiii_player_name(const std::filesystem::path& install_dir, const std::string& name)
-    {
-        const auto players_dir = install_dir / "boiii_players";
-        if (!utils::io::directory_exists(players_dir))
-        {
-            utils::io::create_directory(players_dir);
-        }
-
-        const auto config_path = players_dir / "properties.json";
-
-        rapidjson::Document doc;
-        doc.SetObject();
-
-        std::string data;
-        if (utils::io::read_file(config_path.string(), &data))
-        {
-            rapidjson::Document existing;
-            if (!existing.Parse(data).HasParseError() && existing.IsObject())
-            {
-                doc = std::move(existing);
-            }
-        }
-
-        auto& allocator = doc.GetAllocator();
-
-        if (doc.HasMember("playerName"))
-        {
-            doc.RemoveMember("playerName");
-        }
-
-        rapidjson::Value json_key;
-        json_key.SetString("playerName", allocator);
-
-        rapidjson::Value json_value;
-        json_value.SetString(name, allocator);
-
-        doc.AddMember(json_key, json_value, allocator);
-
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        doc.Accept(writer);
-
-        utils::io::write_file(config_path.string(),
-            std::string(buffer.GetString(), buffer.GetLength()));
-    }
-
     // Convenience methods
     std::optional<std::string> game_config_t::get_install_path() const
     {
@@ -278,6 +232,7 @@ namespace game_config
                     {"sp", "iw3sp_mod.exe"},
                     {"mp", "iw3mp.exe"}
                 },
+                .name_argument = "",
                 .base_folder = "cod4_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -299,6 +254,7 @@ namespace game_config
                 .valid_game_files = {"binkw32.dll", "CoDWaW.exe", "CoDWaWmp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
                 .mode_arguments = {},
+                .name_argument = "",
                 .pluto_path_key = "t4Path",
                 .base_folder = "waw_game_files",
                 .base_properties_game = "",
@@ -319,6 +275,7 @@ namespace game_config
                 .valid_game_files = {"binkw32.dll", "BlackOps.exe", "BlackOpsMP.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
                 .mode_arguments = {},
+                .name_argument = "",
                 .pluto_path_key = "t5Path",
                 .base_folder = "bo1_game_files",
                 .base_properties_game = "",
@@ -349,6 +306,7 @@ namespace game_config
                 .mode_pass_arguments = {
                     {"sp", ""}
                 },
+                .name_argument = "+set name",
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {}
@@ -368,6 +326,7 @@ namespace game_config
                 .valid_game_files = {"binkw32.dll", "t6mp.exe", "t6zm.exe", "t6sp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
                 .mode_arguments = {},
+                .name_argument = "",
                 .pluto_path_key = "t6Path",
                 .base_folder = "bo2_game_files",
                 .base_properties_game = "",
@@ -398,6 +357,7 @@ namespace game_config
                 .mode_pass_arguments = {
                     {"sp", "-singleplayer"}
                 },
+                .name_argument = "+set name",
                 .pluto_path_key = "iw5Path",
                 .base_folder = "mw3_game_files",
                 .base_properties_game = "",
@@ -418,6 +378,7 @@ namespace game_config
                 .valid_game_files = {"BlackOps3.exe"},
                 .mode_arguments = {},
                 .default_args = "-launch -noupdate",
+                .name_argument = "-name",
                 .base_folder = "bo3_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -442,6 +403,7 @@ namespace game_config
                     {"mp", "-multiplayer"}
                 },
                 .default_args = "-noupdate",
+                .name_argument = "+set name",
                 .base_folder = "ghosts_game_files",
                 .base_properties_game = "",
                 .property_overrides = {}
@@ -466,6 +428,7 @@ namespace game_config
                     {"sv", "-survival"}
                 },
                 .default_args = "-noupdate",
+                .name_argument = "+set name",
                 .base_folder = "aw_game_files",
                 .base_properties_game = "",
                 .property_overrides = {}
@@ -488,6 +451,7 @@ namespace game_config
                     {"mp", "-multiplayer"}
                 },
                 .default_args = "-noupdate",
+                .name_argument = "+set name",
                 .base_folder = "mwr_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -509,6 +473,7 @@ namespace game_config
                 .valid_game_files = {"iw7_ship.exe"},
                 .mode_arguments = {},
                 .default_args = "-noupdate",
+                .name_argument = "+set name",
                 .base_folder = "iw_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -529,6 +494,7 @@ namespace game_config
                 .required_updater_files = {},
                 .valid_game_files = {"MW2CR.exe", "MW2 Campaign Remastered Launcher.exe"},
                 .default_args = "-singleplayer +set cg_auto_update 0",
+                .name_argument = "",
                 .base_folder = "mw2r_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -553,6 +519,7 @@ namespace game_config
                     {"on", "-online"},
                     {"off", "-offline"}
                 },
+                .name_argument = "-name",
                 .base_folder = "bo4_game_files",
                 .base_properties_game = "",
                 .property_overrides = {}
@@ -571,6 +538,7 @@ namespace game_config
                 .required_updater_files = {"d3d11.dll"},
                 .valid_game_files = {"h1_mp64_ship.exe"},
                 .mode_arguments = {},
+                .name_argument = "+set name",
                 .base_folder = "h2m",
                 .base_game = "mwr",
                 .check_for_game_updates = true,

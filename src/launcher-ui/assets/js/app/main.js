@@ -251,8 +251,8 @@ async function initialize() {
         const link = e.target.closest('a[href]');
         if (!link) return;
 
-        // Only handle links within support-page, game pages, and settings-page
-        const isInTargetPage = link.closest('#support-page') || link.closest('.game-page') || link.closest('#settings-page');
+        // Only handle links within home-page, support-page, game pages, and settings-page
+        const isInTargetPage = link.closest('#home-page') || link.closest('#support-page') || link.closest('.game-page') || link.closest('#settings-page');
         if (!isInTargetPage) return;
 
         // Only handle http/https links
@@ -723,6 +723,9 @@ window.ProgressManager = {
         icon.classList.toggle('is-resume', isPaused);
         const titleKey = isPaused ? 'downloads.resume' : 'downloads.pause';
         pauseBtn.title = window.LauncherI18n ? window.LauncherI18n.t(titleKey) : titleKey;
+
+        const progressBar = document.getElementById('global-progress-bar');
+        if (progressBar) progressBar.classList.toggle('paused', isPaused);
     },
 
     update: function(progress, message = null) {
@@ -804,6 +807,22 @@ window.DownloadQueueManager = {
             item.reject = reject;
             item.onCancel = null;
             this.queue.push(item);
+
+            if (item.blocksGameButtons && typeof window.showToast === 'function') {
+                const cfg = window.GameUtils && typeof window.GameUtils.getGameConfigByUIId === 'function'
+                    ? window.GameUtils.getGameConfigByUIId(item.gameId)
+                    : null;
+                const gameName = (cfg && (cfg.shortName || cfg.displayName)) || item.gameId;
+                const i18n = window.LauncherI18n;
+                let key;
+                if (item.op === 'verify') key = 'toasts.queuedVerify';
+                else if (item.op === 'install') key = 'toasts.queuedInstall';
+                else if (item.op === 'uninstall') key = 'toasts.queuedUninstall';
+                else key = 'toasts.queued';
+                const msg = i18n ? i18n.t(key, { game: gameName }) : `${gameName} added to queue`;
+                window.showToast(msg, 'info');
+            }
+
             this._emit();
             this._processNext();
         });
@@ -852,6 +871,22 @@ window.DownloadQueueManager = {
         if (idx >= 0) {
             const removed = this.queue.splice(idx, 1)[0];
             try { removed.resolve(); } catch (_) {}
+
+            if (typeof window.showToast === 'function') {
+                const cfg = window.GameUtils && typeof window.GameUtils.getGameConfigByUIId === 'function'
+                    ? window.GameUtils.getGameConfigByUIId(removed.gameId)
+                    : null;
+                const gameName = (cfg && (cfg.shortName || cfg.displayName)) || removed.gameId;
+                const i18n = window.LauncherI18n;
+                let key;
+                if (removed.op === 'verify') key = 'toasts.cancelledVerify';
+                else if (removed.op === 'install') key = 'toasts.cancelledInstall';
+                else if (removed.op === 'uninstall') key = 'toasts.cancelledUninstall';
+                else key = 'toasts.cancelled';
+                const msg = i18n ? i18n.t(key, { game: gameName }) : `${gameName} cancelled`;
+                window.showToast(msg, 'info');
+            }
+
             this._emit();
             return;
         }

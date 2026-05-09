@@ -10,6 +10,7 @@
     <script src="./assets/js/core/i18n.js"></script>
     <script src="./assets/js/core/command.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
+    <script src="./assets/js/ui/toast.js"></script>
     <script src="./assets/js/popups/game-mode-popup.js"></script>
     <script src="./assets/js/popups/game-settings-popup.js"></script>
     <script src="./assets/js/popups/setup-flow-popup.js"></script>
@@ -102,19 +103,21 @@
                         </div>
                     </div>
 
-                    <section class="section">
+                    <section class="section" id="home-ready-section">
                         <div class="section-head">
                             <div class="section-title" data-i18n="home.readyToPlay">Ready to Play</div>
                         </div>
                         <div class="client-row" id="home-ready-row"></div>
                     </section>
 
-                    <section class="section" id="news-section">
+                    <section class="section" id="welcome-section">
                         <div class="section-head">
-                            <div class="section-title">News &amp; Updates</div>
-                            <span class="section-link">View all</span>
+                            <div class="section-title" data-i18n="home.welcomeTitle">Welcome to CB Launcher</div>
                         </div>
-                        <div class="news-grid" id="news-grid"></div>
+                        <div class="welcome-card">
+                            <div class="welcome-body" data-i18n-html="home.welcomeBody">Welcome to CB Servers Launcher! Your one-stop launcher for Call of Duty community clients. Install, update, and play supported clients all from one place. Head to the <strong>Library</strong> tab to browse every available client and start playing. Need a hand? Head over to the <strong>Support</strong> tab or check out our <a href="https://docs.cbservers.xyz/launcher" target="_blank">docs</a>.</div>
+                            <div class="welcome-disclaimer" data-i18n="home.disclaimer">This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please do not contact the original client maintainers with support requests regarding this launcher.</div>
+                        </div>
                     </section>
                 </div>
 
@@ -132,7 +135,6 @@
                             <span class="chip" data-filter="plutonium" data-i18n="library.filterPlutonium">Plutonium</span>
                             <span class="chip" data-filter="alterware" data-i18n="library.filterAlterWare">AlterWare</span>
                             <span class="chip" data-filter="aurora" data-i18n="library.filterAurora">Aurora</span>
-                            <span class="chip" data-filter="horizonmw" data-i18n="library.filterHorizonMW">HorizonMW</span>
                             <span class="chip" data-filter="others" data-i18n="library.filterOthers">Others</span>
                         </div>
                         <div class="search-field">
@@ -159,8 +161,11 @@
                     <div class="support-layout">
                         <section class="support-panel">
                             <h2 data-i18n="support.communityTitle">Community support</h2>
-                            <p data-i18n="support.communityBody">The Discord is the fastest place to get help with launcher setup, client installs and server access.</p>
-                            <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank" data-i18n="support.discordServer">Discord Server</a>
+                            <p data-i18n="support.communityBody">Browse the FAQ for quick answers, or hop into the Discord &mdash; the fastest place to get help with launcher setup, client installs and server access.</p>
+                            <div class="support-actions">
+                                <a class="support-action faq" href="https://docs.cbservers.xyz/launcher/faq" target="_blank" data-i18n="support.faq">FAQ</a>
+                                <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank" data-i18n="support.discordServer">Discord Server</a>
+                            </div>
                         </section>
                         <section class="support-panel">
                             <h2 data-i18n="support.redistTitle">Redistributables</h2>
@@ -205,7 +210,7 @@
                                 </div>
                                 <div class="cdn-control">
                                     <select class="cdn-select" id="theme-select">
-                                        <option value="dark" data-i18n="settings.themeDark">Classic</option>
+                                        <option value="dark" data-i18n="settings.themeDark">Dark</option>
                                         <option value="navy" data-i18n="settings.themeNavy">Navy Dark</option>
                                         <option value="navy-gradient" data-i18n="settings.themeNavyGradient">Navy Gradient</option>
                                     </select>
@@ -294,7 +299,7 @@
                         <div class="footer-version" id="version-footer">Version: Loading...</div>
                         <div class="footer-links">
                             <div class="footer-source"><a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="settings.source">Source</a></div>
-                            <div class="footer-design"><a href="https://github.com/Riiyua" target="_blank" data-i18n="settings.designBy">Design by Riyu</a></div>
+                            <div class="footer-design" data-i18n-html="settings.designBy">Design by <a href="https://github.com/Riiyua" target="_blank">Riyu</a> &amp; <a href="https://github.com/BradsTV" target="_blank">Brad</a></div>
                         </div>
                     </div>
                 </div>
@@ -325,6 +330,8 @@
             </span>
         </span>
     </span>
+
+    <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
 
     <dark-mode-toggle hidden permanent="true"></dark-mode-toggle>
 </body>

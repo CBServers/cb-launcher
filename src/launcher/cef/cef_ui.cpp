@@ -185,6 +185,42 @@ namespace cef
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_show_message_box, this->browser_, title, msg));
     }
 
+    void cef_ui::invoke_show_toast(CefRefPtr<CefBrowser> browser, const std::string& message, const std::string& type, int duration_ms)
+    {
+        if (!browser) return;
+        auto frame = browser->GetMainFrame();
+        if (!frame) return;
+
+        auto escape_js_string = [](const std::string& str) -> std::string
+        {
+            std::string escaped;
+            escaped.reserve(str.size());
+            for (char c : str)
+            {
+                if (c == '\'') escaped += "\\'";
+                else if (c == '\\') escaped += "\\\\";
+                else if (c == '\n') escaped += "\\n";
+                else if (c == '\r') escaped += "\\r";
+                else escaped += c;
+            }
+            return escaped;
+        };
+
+        const auto escaped_msg = escape_js_string(message);
+        const auto escaped_type = escape_js_string(type);
+        const auto js_code = utils::string::va(
+            "if (typeof window.showToast === 'function') { window.showToast('%s', '%s', %d); }",
+            escaped_msg.data(), escaped_type.data(), duration_ms);
+
+        frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
+    }
+
+    void cef_ui::show_toast(const std::string& message, const std::string& type, int duration_ms) const
+    {
+        if (!this->browser_) return;
+        CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_show_toast, this->browser_, message, type, duration_ms));
+    }
+
     cef_ui::cef_ui(utils::nt::library process, std::filesystem::path path)
         : process_(std::move(process)), path_(std::move(path))
     {

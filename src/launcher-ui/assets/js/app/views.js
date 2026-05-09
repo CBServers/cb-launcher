@@ -3,13 +3,6 @@
 (function() {
     const HOME_HERO_SLIDE_INTERVAL = 6500;
 
-    const NEWS_ITEMS = [
-        { tag: 'Client Update', title: 'BOIII updated to v1.6.2',    body: 'Stability fixes and improved anti-cheat compatibility.',               time: '2 hours ago', accent: '#F3751B' },
-        { tag: 'Client Update', title: 'IW4x r3492 released',        body: 'Improved matchmaking and fixed MW2 crash on large lobbies.',           time: '1 day ago',   accent: '#FBC751' },
-        { tag: 'Announcement',  title: 'EU CDN now live',             body: 'European download server is online — expect faster installs.',         time: '3 days ago',  accent: '#6C63FF' },
-        { tag: 'Client Update', title: 'Plutonium T6 patch',          body: 'Resolved zombie matchmaking desync and lobby crash issues.',           time: '5 days ago',  accent: '#FE890A' },
-    ];
-
     let homeHeroStates = [];
     let homeHeroSlideIndex = 0;
     let homeHeroTimer = null;
@@ -85,6 +78,11 @@
     function renderHomeClientCards(targetId, configs) {
         const clients = document.getElementById(targetId);
         if (!clients) return;
+
+        if (targetId === 'home-ready-row') {
+            const section = document.getElementById('home-ready-section');
+            if (section) section.style.display = configs.length ? '' : 'none';
+        }
 
         clients.innerHTML = configs.map(config => `
             <article class="client-card" data-game="${escapeHtml(config.uiId)}">
@@ -224,22 +222,6 @@
         }));
     }
 
-    function renderNewsSection() {
-        const grid = document.getElementById('news-grid');
-        if (!grid) return;
-
-        grid.innerHTML = NEWS_ITEMS.map(item => `
-            <div class="news-card" style="--news-accent: ${escapeHtml(item.accent)}">
-                <div class="news-card-header">
-                    <span class="news-card-tag" style="color:${escapeHtml(item.accent)};background:${escapeHtml(item.accent)}22;border:1px solid ${escapeHtml(item.accent)}44">${escapeHtml(item.tag)}</span>
-                    <span class="news-card-time">${escapeHtml(item.time)}</span>
-                </div>
-                <div class="news-card-title">${escapeHtml(item.title)}</div>
-                <div class="news-card-body">${escapeHtml(item.body)}</div>
-            </div>
-        `).join('');
-    }
-
     let installedGameIds = new Set();
 
     function updateSidebarMyGames(recentIds) {
@@ -274,7 +256,6 @@
 
         renderHomeHero(featured, 'not-setup');
         renderHomeClientCards('home-ready-row', []);
-        renderNewsSection();
 
         const openLibrary = document.getElementById('home-view-library');
         if (openLibrary) openLibrary.onclick = () => navigateTo('library');
@@ -815,7 +796,6 @@
         refreshHomeInstalledClients,
         updateLibraryCard,
         navigateTo,
-        updateSidebarMyGames,
-        renderNewsSection
+        updateSidebarMyGames
     };
 })();

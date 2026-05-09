@@ -50,6 +50,7 @@ namespace game_config
         std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
         std::unordered_map<std::string, std::string> mode_pass_arguments; // Per-mode args forwarded inside --pass "..." (e.g. AlterWare launcher).
         std::string default_args;  // Arguments always passed when launching, regardless of mode
+        std::string name_argument; // Command-line prefix for setting in-game name (e.g. "+set name", "-name"). Empty = unsupported.
         std::string pluto_path_key;
         std::string base_folder;
         std::string base_game;
@@ -88,8 +89,4 @@ namespace game_config
 
     // Read the game's update manifest from local appdata. Throws std::runtime_error if missing/unreadable.
     std::string read_manifest(const game_config_t& config);
-
-    // Write the BOIII (BO3) player name into {install_dir}/boiii_players/properties.json.
-    // Preserves any other keys already present in the file.
-    void write_boiii_player_name(const std::filesystem::path& install_dir, const std::string& name);
 }

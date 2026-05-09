@@ -59,13 +59,18 @@ class GameSettingsPopup {
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
                     </div>
-                    <div class="setting-item inline-setting" id="ignore-global-name-row" style="display: none;">
-                        <label>Don't apply global in-game name</label>
-                        <div class="toggle-group small" id="ignore-global-name-toggle">
-                            <button class="toggle-btn" data-value="false">OFF</button>
-                            <button class="toggle-btn" data-value="true">ON</button>
+                </div>
+
+                <div class="settings-section" id="player-section" style="display: none;">
+                    <h4>Player</h4>
+                    <div class="setting-item inline-setting" id="player-name-override-row">
+                        <div class="setting-info">
+                            <label for="player-name-override-input">In-game name override</label>
+                            <span class="setting-description" id="player-name-override-help"></span>
                         </div>
+                        <input type="text" id="player-name-override-input" class="setting-text-input" maxlength="16" autocomplete="off" spellcheck="false" />
                     </div>
+                    <span class="setting-error" id="player-name-override-error"></span>
                 </div>
 
                 <div class="settings-section" id="launch-options-section">
@@ -144,7 +149,10 @@ class GameSettingsPopup {
         this.popup.querySelector('#game-options-section h4').textContent = this.t('popup.gameSettings.gameOptions');
         this.popup.querySelector('#skip-intro-cinematic-row label').textContent = this.t('popup.gameSettings.skipIntroCinematic');
         this.popup.querySelector('#disable-cb-extension-row label').textContent = this.t('popup.gameSettings.disableCbExtension');
-        this.popup.querySelector('#ignore-global-name-row label').textContent = this.t('popup.gameSettings.ignoreGlobalName');
+        this.popup.querySelector('#player-section h4').textContent = this.t('popup.gameSettings.player');
+        this.popup.querySelector('#player-name-override-row label').textContent = this.t('popup.gameSettings.playerNameOverride');
+        this.popup.querySelector('#player-name-override-help').textContent = this.t('popup.gameSettings.playerNameOverrideHelp');
+        this.popup.querySelector('#player-name-override-input').placeholder = this.t('popup.gameSettings.playerNameOverridePlaceholder');
         this.popup.querySelector('#launch-options-section h4').textContent = this.t('popup.gameSettings.advanced');
         this.popup.querySelector('label[for="launch-options-input"]').textContent = this.t('popup.gameSettings.launchOptions');
         this.popup.querySelector('.btn-reset').textContent = this.t('common.resetSettings');
@@ -168,9 +176,10 @@ class GameSettingsPopup {
         // Show/hide sections based on game
         const playBehaviorSection = this.popup.querySelector('#play-behavior-section');
         const gameOptionsSection = this.popup.querySelector('#game-options-section');
+        const playerSection = this.popup.querySelector('#player-section');
         const skipIntroRow = this.popup.querySelector('#skip-intro-cinematic-row');
         const disableExtRow = this.popup.querySelector('#disable-cb-extension-row');
-        const ignoreGlobalNameRow = this.popup.querySelector('#ignore-global-name-row');
+        const nameOverrideError = this.popup.querySelector('#player-name-override-error');
 
         if (game === 'bo3' || game === 'hmw') {
             playBehaviorSection.style.display = 'none';
@@ -181,15 +190,15 @@ class GameSettingsPopup {
             playBehaviorSection.style.display = 'none';
         }
 
-        // Plutonium-managed clients (BO1/BO2/WAW) ignore +set name, so hide that row.
-        const isPlutoniumManaged = game === 't4' || game === 't5' || game === 't6';
+        const supportsName = this.gameConfig.supportsName === true;
 
         skipIntroRow.style.display = game === 'bo3' ? 'flex' : 'none';
         disableExtRow.style.display = game === 'hmw' ? 'flex' : 'none';
-        ignoreGlobalNameRow.style.display = isPlutoniumManaged ? 'none' : 'flex';
 
-        const anyOptionVisible = !isPlutoniumManaged || game === 'bo3' || game === 'hmw';
-        gameOptionsSection.style.display = anyOptionVisible ? 'block' : 'none';
+        const gameOptionsVisible = game === 'bo3' || game === 'hmw';
+        gameOptionsSection.style.display = gameOptionsVisible ? 'block' : 'none';
+        playerSection.style.display = supportsName ? 'block' : 'none';
+        nameOverrideError.classList.remove('visible');
 
         // Load current settings
         await this.loadCurrentSettings();
@@ -297,21 +306,13 @@ class GameSettingsPopup {
                     }
                 }
 
-                // Load ignore-global-name toggle (hidden for Plutonium-managed clients)
-                const isPlutoniumManaged = this.currentGame === 't4' || this.currentGame === 't5' || this.currentGame === 't6';
-                if (!isPlutoniumManaged) {
-                    const ignoreGlobalName = await window.executeCommand('get-game-property', {
+                // Load player-name override (hidden for games whose backend has no name argument)
+                if (this.gameConfig.supportsName === true) {
+                    const overrideName = await window.executeCommand('get-game-property', {
                         game: this.currentGame,
-                        suffix: PROPERTY_KEYS.GAME.IGNORE_GLOBAL_NAME
+                        suffix: PROPERTY_KEYS.GAME.PLAYER_NAME_OVERRIDE
                     });
-                    const toggleGroup = this.popup.querySelector('#ignore-global-name-toggle');
-                    const buttons = toggleGroup.querySelectorAll('.toggle-btn');
-                    buttons.forEach(btn => btn.classList.remove('active'));
-                    const targetValue = ignoreGlobalName === 'true' ? 'true' : 'false';
-                    const targetButton = toggleGroup.querySelector(`[data-value="${targetValue}"]`);
-                    if (targetButton) {
-                        targetButton.classList.add('active');
-                    }
+                    this.popup.querySelector('#player-name-override-input').value = overrideName || '';
                 }
             } catch (error) {
                 console.error('Failed to load current settings:', error);
@@ -407,15 +408,24 @@ class GameSettingsPopup {
                     value: launchOptions
                 });
 
-                // Save ignore-global-name toggle (hidden for Plutonium-managed clients)
-                const isPlutoniumManaged = this.currentGame === 't4' || this.currentGame === 't5' || this.currentGame === 't6';
-                if (!isPlutoniumManaged) {
-                    const ignoreToggleGroup = this.popup.querySelector('#ignore-global-name-toggle');
-                    const ignoreActive = ignoreToggleGroup.querySelector('.toggle-btn.active');
+                // Save player-name override (only for games whose backend has a name argument)
+                if (this.gameConfig.supportsName === true) {
+                    const overrideInput = this.popup.querySelector('#player-name-override-input');
+                    const errorEl = this.popup.querySelector('#player-name-override-error');
+                    const overrideValue = overrideInput.value.trim();
+
+                    if (overrideValue.length > 0 && (overrideValue.length < 3 || overrideValue.length > 16)) {
+                        errorEl.textContent = this.t('popup.gameSettings.playerNameOverrideError');
+                        errorEl.classList.add('visible');
+                        overrideInput.focus();
+                        return;
+                    }
+
+                    errorEl.classList.remove('visible');
                     await window.executeCommand('set-game-property', {
                         game: this.currentGame,
-                        suffix: PROPERTY_KEYS.GAME.IGNORE_GLOBAL_NAME,
-                        value: ignoreActive ? ignoreActive.dataset.value : 'false'
+                        suffix: PROPERTY_KEYS.GAME.PLAYER_NAME_OVERRIDE,
+                        value: overrideValue
                     });
                 }
 

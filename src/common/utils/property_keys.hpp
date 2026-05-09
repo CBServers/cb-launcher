@@ -15,7 +15,7 @@ namespace property_keys
     constexpr const char* IS_INSTALLED = "is-installed";
     constexpr const char* IS_STEAM_INSTALL = "is-steam-install";
     constexpr const char* LAUNCH_OPTIONS = "launch-options";
-    constexpr const char* IGNORE_GLOBAL_NAME = "ignore-global-name";
+    constexpr const char* PLAYER_NAME_OVERRIDE = "player-name-override";
 
     // Game component settings (used with game config get/set)
     constexpr const char* DETECTED_COMPONENTS = "detected-components";

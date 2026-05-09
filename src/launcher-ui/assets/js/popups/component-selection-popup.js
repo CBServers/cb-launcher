@@ -94,7 +94,9 @@ class ComponentSelectionPopup {
         this.popup.querySelector('#available-space').textContent = this.t('popup.componentSelection.calculating');
         this.popup.querySelector('.btn-uninstall').textContent = this.t('popup.componentSelection.uninstall');
         this.popup.querySelector('.btn-cancel').textContent = this.t('common.cancel');
-        this.popup.querySelector('.btn-apply').textContent = this.t('common.applyChanges');
+        const applyBtn = this.popup.querySelector('.btn-apply');
+        const isInstallMode = this.options && this.options.startDownloadOnApply === true;
+        applyBtn.textContent = isInstallMode ? this.t('common.install') : this.t('common.applyChanges');
     }
 
     bindEvents() {
@@ -137,9 +139,22 @@ class ComponentSelectionPopup {
             refreshBtn.hidden = this.options.detectExisting === false;
         }
 
+        const uninstallBtn = this.popup.querySelector('.btn-uninstall');
+        const popupActions = this.popup.querySelector('.popup-actions');
+        const hideUninstall = this.options.startDownloadOnApply === true;
+        if (uninstallBtn) {
+            uninstallBtn.hidden = hideUninstall;
+        }
+        if (popupActions) {
+            popupActions.style.justifyContent = hideUninstall ? 'flex-end' : '';
+        }
+
         // Update title
         const title = this.popup.querySelector('#component-title');
-        title.textContent = this.t('popup.componentSelection.titleWithGame', {
+        const titleKey = this.options.startDownloadOnApply === true
+            ? 'popup.componentSelection.installTitleWithGame'
+            : 'popup.componentSelection.titleWithGame';
+        title.textContent = this.t(titleKey, {
             game: gameConfig.displayName
         });
 
@@ -521,8 +536,8 @@ class ComponentSelectionPopup {
             );
             const willDeleteFiles = hasChanges && deselectedComponents.length > 0;
 
-            // Show confirmation dialog BEFORE saving
-            if (typeof window.showMessageBox === 'function') {
+            // Show confirmation dialog BEFORE saving (skip for fresh install flow)
+            if (!shouldStartDownload && typeof window.showMessageBox === 'function') {
                 let message = this.t('popup.componentSelection.confirmChangesBody');
 
                 if (willDeleteFiles) {

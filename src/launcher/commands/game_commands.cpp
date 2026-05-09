@@ -45,15 +45,6 @@ namespace commands::game_commands
             return s.substr(first, last - first + 1);
         }
 
-        // Plutonium-managed clients ignore +set name (their auth controls the displayed name).
-        // iw5 SP runs through AlterWare, so only its MP mode is Plutonium-managed.
-        bool is_plutonium_managed(const std::string& game, const std::string& mode)
-        {
-            if (game == "t4" || game == "t5" || game == "t6") return true;
-            if (game == "iw5" && mode == "mp") return true;
-            return false;
-        }
-
         std::string sanitize_player_name(std::string name)
         {
             name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
@@ -62,40 +53,43 @@ namespace commands::game_commands
             return name;
         }
 
-        // Returns the effective player name to inject for this (game, mode), or empty
-        // when nothing should be injected (BO3 handled out-of-band via JSON file).
-        std::string resolve_player_name(const std::string& game, const std::string& mode,
-            const game_config::game_config_t& config)
+        // Returns the effective player name to inject for this game, or empty when
+        // nothing should be injected (game doesn't support a name argument, or no
+        // override / global is set).
+        std::string resolve_player_name(const game_config::game_config_t& config)
         {
-            if (game == "bo3") return "";
-            if (is_plutonium_managed(game, mode)) return "";
+            if (config.name_argument.empty()) return "";
 
-            const auto ignore = config.get(property_keys::IGNORE_GLOBAL_NAME);
-            if (ignore && *ignore == "true") return "";
+            const auto override_val = config.get(property_keys::PLAYER_NAME_OVERRIDE);
+            if (override_val && !override_val->empty())
+            {
+                auto sanitized = sanitize_player_name(*override_val);
+                // Backend safety: ignore overrides that fail the 3-char minimum.
+                if (sanitized.size() >= 3) return sanitized;
+            }
 
             const auto global = utils::properties::load(property_keys::GLOBAL_PLAYER_NAME);
             if (!global) return "";
-
             return sanitize_player_name(*global);
         }
 
-        std::string format_name_arg(const std::string& name)
+        std::string format_name_arg(const std::string& prefix, const std::string& name)
         {
-            if (name.empty()) return "";
+            if (prefix.empty() || name.empty()) return "";
             // Names without whitespace don't need quoting; avoids embedding inner
             // double-quotes in the wrapper's --pass "..." token.
             if (name.find_first_of(" \t") == std::string::npos)
             {
-                return std::format("+set name {}", name);
+                return std::format("{} {}", prefix, name);
             }
-            return std::format("+set name \"{}\"", name);
+            return std::format("{} \"{}\"", prefix, name);
         }
 
         std::string build_launch_args(const std::string& base_args, const std::string& mode,
             const game_config::game_config_t& config, const std::string& player_name)
         {
             const auto user_options = config.get_launch_options().value_or("");
-            const auto name_arg = format_name_arg(player_name);
+            const auto name_arg = format_name_arg(config.name_argument, player_name);
 
             // Modes that route through a wrapper launcher (e.g. AlterWare) need
             // their built-in pass-args + the user's options forwarded as a single
@@ -165,27 +159,8 @@ namespace commands::game_commands
                     return;
                 }
 
-                const auto player_name = resolve_player_name(game, mode, config);
+                const auto player_name = resolve_player_name(config);
                 const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config, player_name);
-
-                // BO3 reads its player name from boiii_players/properties.json instead of +set name.
-                if (game == "bo3")
-                {
-                    const auto ignore_global = config.get(property_keys::IGNORE_GLOBAL_NAME);
-                    const bool skip = ignore_global && *ignore_global == "true";
-                    if (!skip)
-                    {
-                        const auto global = utils::properties::load(property_keys::GLOBAL_PLAYER_NAME);
-                        if (global)
-                        {
-                            const auto sanitized = sanitize_player_name(*global);
-                            if (!sanitized.empty())
-                            {
-                                game_config::write_boiii_player_name(game_directory, sanitized);
-                            }
-                        }
-                    }
-                }
 
                 printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
 
@@ -428,13 +403,14 @@ namespace commands::game_commands
                     client_updater::run(config, skip_files, &progress_listener);
                     progress_listener.done_update();
 
-                    cef_ui.show_message_box("Update Complete", config.display_name + " download/verification has completed successfully!");
+                    cef_ui.show_toast(config.display_name + " verification/update complete!", "success");
                 }
                 catch (const updater::update_cancelled&)
                 {
                     progress_listener.cancel_update();
                     progress_listener.done_update();
                     printf("Update cancelled by user\n");
+                    cef_ui.show_toast(config.display_name + " verification/update cancelled", "info");
                 }
                 catch (const std::exception& e)
                 {
@@ -472,7 +448,7 @@ namespace commands::game_commands
                 {
                     unlockall::run(config, &progress_listener);
                     progress_listener.done_update();
-                    cef_ui.show_message_box("Unlock All Complete", "Unlock all completed successfully! You can now start the game with all content unlocked.");
+                    cef_ui.show_toast("Unlock all completed successfully!", "success");
                 }
                 catch (const std::exception& e)
                 {
@@ -538,13 +514,14 @@ namespace commands::game_commands
                     config.set_list(property_keys::SELECTED_COMPONENTS, {});
 
                     progress_listener.done_update();
-                    cef_ui.show_message_box("Uninstall Complete", config.display_name + " has been uninstalled successfully.");
+                    cef_ui.show_toast(config.display_name + " uninstalled successfully.", "success");
                 }
                 catch (const updater::update_cancelled&)
                 {
                     progress_listener.cancel_update();
                     progress_listener.done_update();
                     printf("Uninstall cancelled by user\n");
+                    cef_ui.show_toast(config.display_name + " uninstall cancelled", "info");
                 }
                 catch (const std::exception& e)
                 {
