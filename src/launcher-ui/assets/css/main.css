@@ -1669,6 +1669,7 @@ html[data-theme="dark"] .setup-button {
 
 .cdn-test-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
 .cdn-test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cdn-test-btn svg { width: 16px; height: 16px; }
 .cdn-refresh-icon { width: 16px; height: 16px; }
 .cdn-test-btn.testing .cdn-refresh-icon { animation: cdn-spin 1s linear infinite; }
 
@@ -2123,7 +2124,8 @@ html[data-theme="dark"] .setup-button {
 .game-settings-backdrop,
 .setup-flow-backdrop,
 .component-selection-backdrop,
-.install-confirm-backdrop {
+.install-confirm-backdrop,
+.custom-server-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.65);
@@ -2148,7 +2150,8 @@ html[data-theme="dark"] .setup-button {
 .game-settings-popup,
 .setup-flow-popup,
 .component-selection-popup,
-.install-confirm-popup {
+.install-confirm-popup,
+.custom-server-popup {
     background: var(--surface-popup);
     backdrop-filter: blur(30px) saturate(180%);
     -webkit-backdrop-filter: blur(30px) saturate(180%);
@@ -2157,6 +2160,30 @@ html[data-theme="dark"] .setup-button {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.06);
     width: 480px;
     max-width: 90vw;
+}
+
+.custom-server-popup .popup-content { padding: 22px 24px; }
+.custom-server-popup .setting-item { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.custom-server-popup .custom-server-label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+.custom-server-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.custom-server-input::placeholder { color: var(--text-dim); }
+.custom-server-input:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+.custom-server-error {
+    color: #ff6b6b;
+    font-size: 12px;
+    margin-top: 2px;
 }
 
 .game-settings-popup,

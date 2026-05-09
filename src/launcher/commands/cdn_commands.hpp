@@ -4,6 +4,6 @@
 
 namespace commands::cdn_commands
 {
-    // Registers: get-cdn-servers, set-cdn-preference, test-cdn-latency
+    // Registers: get-cdn-servers, set-cdn-preference, set-cdn-custom-url, test-cdn-latency
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx);
 }

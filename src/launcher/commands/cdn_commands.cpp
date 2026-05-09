@@ -83,9 +83,80 @@ namespace commands::cdn_commands
             const auto region = utils::cdn::cdn_manager::string_to_region(region_str);
 
             auto& cdn = utils::cdn::cdn_manager::instance();
+
+            // Don't allow switching to "custom" if no URL is configured
+            if (region == utils::cdn::cdn_region::custom && cdn.get_custom_url().empty())
+            {
+                return;
+            }
+
             cdn.set_preference(region);
 
             response.SetBool(true);
+        });
+
+        cef_ui.add_command("set-cdn-custom-url", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto fail = [&](const char* error)
+            {
+                response.AddMember("success", false, allocator);
+                rapidjson::Value err_val;
+                err_val.SetString(error, allocator);
+                response.AddMember("error", err_val, allocator);
+            };
+
+            if (!value.IsObject() || !value.HasMember("url") || !value["url"].IsString())
+            {
+                fail("missing url");
+                return;
+            }
+
+            std::string url = value["url"].GetString();
+
+            // Trim whitespace
+            const auto first = url.find_first_not_of(" \t\r\n");
+            const auto last = url.find_last_not_of(" \t\r\n");
+            if (first == std::string::npos)
+            {
+                url.clear();
+            }
+            else
+            {
+                url = url.substr(first, last - first + 1);
+            }
+
+            auto& cdn = utils::cdn::cdn_manager::instance();
+
+            if (url.empty())
+            {
+                cdn.set_custom_url("");
+                if (cdn.get_preference() == utils::cdn::cdn_region::custom)
+                {
+                    cdn.set_preference(utils::cdn::cdn_region::automatic);
+                }
+                response.AddMember("success", true, allocator);
+                return;
+            }
+
+            const bool valid_prefix =
+                url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0;
+            if (!valid_prefix)
+            {
+                fail("URL must start with http:// or https://");
+                return;
+            }
+
+            // Ensure a trailing slash so callers can concatenate paths safely
+            if (url.back() != '/')
+            {
+                url.push_back('/');
+            }
+
+            cdn.set_custom_url(url);
+            response.AddMember("success", true, allocator);
         });
 
         cef_ui.add_command("test-cdn-latency", [](const rapidjson::Value&, rapidjson::Document& response)

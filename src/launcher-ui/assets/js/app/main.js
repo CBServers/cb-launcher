@@ -1568,6 +1568,7 @@ function setupGlobalPlayerNameInput() {
 async function initCdnSettings() {
     const cdnSelect = document.getElementById('cdn-server-select');
     const cdnTestBtn = document.getElementById('cdn-test-btn');
+    const cdnCustomBtn = document.getElementById('cdn-custom-btn');
 
     if (!cdnSelect || !cdnTestBtn) {
         console.log('CDN settings elements not found');
@@ -1575,14 +1576,11 @@ async function initCdnSettings() {
     }
 
     try {
-        // Get current CDN servers and preference from backend
         const cdnData = await window.executeCommand('get-cdn-servers');
 
         if (cdnData) {
-            // Set the dropdown to current preference
+            syncCustomServerOption(cdnSelect, cdnData);
             cdnSelect.value = cdnData.preference || 'auto';
-
-            // Update dropdown labels with latency info if available
             updateCdnDropdownLabels(cdnData);
 
             console.log('CDN settings loaded:', cdnData);
@@ -1591,56 +1589,149 @@ async function initCdnSettings() {
         console.error('Failed to load CDN settings:', error);
     }
 
-    // Add event listener for dropdown change
     if (!cdnSelect.dataset.bound) {
         cdnSelect.dataset.bound = 'true';
-        cdnSelect.addEventListener('change', async (e) => {
-            const region = e.target.value;
-            try {
-                await window.executeCommand('set-cdn-preference', { region: region });
-                console.log(`CDN preference set to: ${region}`);
-            } catch (error) {
-                console.error('Failed to set CDN preference:', error);
-            }
-        });
+        cdnSelect.addEventListener('change', handleCdnSelectChange);
     }
 
-    // Add event listener for test button
     cdnTestBtn.onclick = handleCdnTest;
+    if (cdnCustomBtn) {
+        cdnCustomBtn.onclick = () => openCustomServerFlow(cdnSelect);
+    }
+}
+
+function syncCustomServerOption(cdnSelect, cdnData) {
+    const hasCustom = Array.isArray(cdnData.servers)
+        && cdnData.servers.some((s) => s.region === 'custom');
+    let customOption = cdnSelect.querySelector('option[value="custom"]');
+
+    if (hasCustom) {
+        if (!customOption) {
+            customOption = document.createElement('option');
+            customOption.value = 'custom';
+            customOption.setAttribute('data-i18n', 'cdn.custom');
+            customOption.textContent = window.LauncherI18n
+                ? window.LauncherI18n.t('cdn.custom')
+                : 'Custom';
+            cdnSelect.appendChild(customOption);
+        }
+    } else if (customOption) {
+        customOption.remove();
+    }
+}
+
+async function handleCdnSelectChange(e) {
+    const value = e.target.value;
+    try {
+        await window.executeCommand('set-cdn-preference', { region: value });
+        console.log(`CDN preference set to: ${value}`);
+    } catch (error) {
+        console.error('Failed to set CDN preference:', error);
+    }
+}
+
+async function openCustomServerFlow(cdnSelect) {
+    if (!window.customServerPopup) {
+        if (typeof window.CustomServerPopup !== 'function') {
+            console.error('Custom server popup not available');
+            return;
+        }
+        window.customServerPopup = new window.CustomServerPopup();
+    }
+
+    let currentUrl = '';
+    try {
+        const data = await window.executeCommand('get-cdn-servers');
+        if (data && Array.isArray(data.servers)) {
+            const custom = data.servers.find((s) => s.region === 'custom');
+            if (custom && custom.url) {
+                currentUrl = custom.url;
+            }
+        }
+    } catch (error) {
+        console.error('Failed to read existing custom server URL:', error);
+    }
+
+    const result = await window.customServerPopup.show(currentUrl);
+    if (result === undefined) {
+        return; // cancelled
+    }
+
+    try {
+        const saveResult = await window.executeCommand('set-cdn-custom-url', { url: result });
+        if (!saveResult || saveResult.success !== true) {
+            const message = (saveResult && saveResult.error)
+                ? saveResult.error
+                : (window.LauncherI18n ? window.LauncherI18n.t('popup.customServer.saveFailed') : 'Failed to save custom server.');
+            await window.showMessageBox(
+                window.LauncherI18n ? window.LauncherI18n.t('common.error') : 'Error',
+                message
+            );
+            return;
+        }
+
+        const refreshed = await window.executeCommand('get-cdn-servers');
+        if (refreshed) {
+            syncCustomServerOption(cdnSelect, refreshed);
+        }
+
+        let nextValue;
+        if (result === '') {
+            nextValue = 'auto';
+            await window.executeCommand('set-cdn-preference', { region: 'auto' });
+        } else {
+            nextValue = 'custom';
+            await window.executeCommand('set-cdn-preference', { region: 'custom' });
+        }
+        cdnSelect.value = nextValue;
+        cdnSelect.dataset.lastValue = nextValue;
+
+        if (refreshed) {
+            updateCdnDropdownLabels(refreshed);
+        }
+    } catch (error) {
+        console.error('Failed to save custom server:', error);
+    }
 }
 
 function updateCdnDropdownLabels(cdnData) {
     const cdnSelect = document.getElementById('cdn-server-select');
     if (!cdnSelect || !cdnData) return;
 
-    // Get latency values from servers array
     let naLatency = null;
     let euLatency = null;
+    let customLatency = null;
 
     if (cdnData.servers) {
         for (const server of cdnData.servers) {
-            if (server.region === 'na' && server.latency !== null) {
+            if (server.latency === null || server.latency === undefined) continue;
+            if (server.region === 'na') {
                 naLatency = Math.round(server.latency);
-            } else if (server.region === 'eu' && server.latency !== null) {
+            } else if (server.region === 'eu') {
                 euLatency = Math.round(server.latency);
+            } else if (server.region === 'custom') {
+                customLatency = Math.round(server.latency);
             }
         }
     }
 
-    // Update option labels
     const options = cdnSelect.options;
     for (let i = 0; i < options.length; i++) {
         const option = options[i];
         const baseText = getBaseOptionText(option.value);
 
         if (option.value === 'auto' && cdnData.recommended) {
-            // Show which server was selected for auto mode
-            const recommendedName = cdnData.recommended === 'eu' ? 'EU' : 'NA';
+            let recommendedName;
+            if (cdnData.recommended === 'eu') recommendedName = 'EU';
+            else if (cdnData.recommended === 'custom') recommendedName = t('cdn.custom');
+            else recommendedName = 'NA';
             option.textContent = `${baseText} (${recommendedName})`;
         } else if (option.value === 'na' && naLatency !== null) {
             option.textContent = `${baseText} (${naLatency}ms)`;
         } else if (option.value === 'eu' && euLatency !== null) {
             option.textContent = `${baseText} (${euLatency}ms)`;
+        } else if (option.value === 'custom' && customLatency !== null) {
+            option.textContent = `${baseText} (${customLatency}ms)`;
         } else {
             option.textContent = baseText;
         }
@@ -1652,6 +1743,7 @@ function getBaseOptionText(value) {
         case 'auto': return t('cdn.auto');
         case 'na': return t('cdn.na');
         case 'eu': return t('cdn.eu');
+        case 'custom': return t('cdn.custom');
         default: return value;
     }
 }

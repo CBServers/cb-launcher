@@ -8,7 +8,8 @@ const PROPERTY_KEYS = {
         SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
-        GLOBAL_PLAYER_NAME: 'launcher-global-player-name'
+        GLOBAL_PLAYER_NAME: 'launcher-global-player-name',
+        CDN_CUSTOM_URL: 'launcher-cdn-custom-url'
     },
     GAME: {
         INSTALL: 'install',

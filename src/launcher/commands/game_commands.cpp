@@ -6,6 +6,7 @@
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
+#include <utils/registry.hpp>
 #include <game_config.hpp>
 
 #include "updater/updater.hpp"
@@ -35,6 +36,22 @@ namespace commands::game_commands
         {
             auto* barrier = get_termination_barrier();
             barrier->store(false);
+        }
+
+        void apply_post_client_update(const game_config::game_config_t& config)
+        {
+            if (config.game_key == "cod4x")
+            {
+                const std::wstring subkey = L"SOFTWARE\\Activision\\Call of Duty 4";
+                const std::wstring value_name = L"codkey";
+                if (!utils::registry::hkcu_string_value_exists(subkey, value_name))
+                {
+                    if (!utils::registry::set_hkcu_string(subkey, value_name, L"LQTTDUYYEEPDMWWGA36F"))
+                    {
+                        printf("Failed to write COD4 codkey registry value\n");
+                    }
+                }
+            }
         }
 
         std::string trim_ws(std::string s)
@@ -257,6 +274,7 @@ namespace commands::game_commands
                         const auto skip_files = ctx.get_skip_files(game, config);
 
                         client_updater::run(config, skip_files, &progress_listener);
+                        apply_post_client_update(config);
                     }
                     progress_listener.done_update();
 
@@ -401,6 +419,7 @@ namespace commands::game_commands
                     const auto skip_files = ctx.get_skip_files(game, config);
 
                     client_updater::run(config, skip_files, &progress_listener);
+                    apply_post_client_update(config);
                     progress_listener.done_update();
 
                     cef_ui.show_toast(config.display_name + " verification/update complete!", "success");

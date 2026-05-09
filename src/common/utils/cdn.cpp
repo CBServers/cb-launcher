@@ -24,6 +24,7 @@ namespace utils::cdn
     cdn_manager::cdn_manager()
     {
         load_preference();
+        load_custom_url();
     }
 
     std::string cdn_manager::get_active_cdn_url()
@@ -35,6 +36,13 @@ namespace utils::cdn
 
         case cdn_region::europe:
             return CDN_EU_URL;
+
+        case cdn_region::custom:
+            if (!this->custom_url_.empty())
+            {
+                return this->custom_url_;
+            }
+            return CDN_NA_URL;
 
         case cdn_region::automatic:
         default:
@@ -62,6 +70,12 @@ namespace utils::cdn
                 {
                 case cdn_region::europe:
                     return CDN_EU_URL;
+                case cdn_region::custom:
+                    if (!this->custom_url_.empty())
+                    {
+                        return this->custom_url_;
+                    }
+                    return CDN_NA_URL;
                 case cdn_region::north_america:
                 default:
                     return CDN_NA_URL;
@@ -107,46 +121,47 @@ namespace utils::cdn
         latency_result result;
         result.success = false;
 
-        // Create server entries
         cdn_server na_server;
         na_server.region = cdn_region::north_america;
         na_server.name = "North America";
         na_server.url = CDN_NA_URL;
         na_server.latency_ms = test_latency(CDN_NA_URL);
+        result.servers.push_back(na_server);
 
         cdn_server eu_server;
         eu_server.region = cdn_region::europe;
         eu_server.name = "Europe";
         eu_server.url = CDN_EU_URL;
         eu_server.latency_ms = test_latency(CDN_EU_URL);
-
-        result.servers.push_back(na_server);
         result.servers.push_back(eu_server);
 
-        // Determine recommended server based on lowest latency
-        result.recommended = cdn_region::north_america; // Default
-
-        if (na_server.latency_ms.has_value() || eu_server.latency_ms.has_value())
+        if (!this->custom_url_.empty())
         {
-            result.success = true;
-
-            if (na_server.latency_ms.has_value() && eu_server.latency_ms.has_value())
-            {
-                // Both succeeded, pick the faster one
-                if (eu_server.latency_ms.value() < na_server.latency_ms.value())
-                {
-                    result.recommended = cdn_region::europe;
-                }
-            }
-            else if (eu_server.latency_ms.has_value())
-            {
-                // Only EU succeeded
-                result.recommended = cdn_region::europe;
-            }
-            // else only NA succeeded (or both failed), keep NA as default
+            cdn_server custom_server;
+            custom_server.region = cdn_region::custom;
+            custom_server.name = "Custom";
+            custom_server.url = this->custom_url_;
+            custom_server.latency_ms = test_latency(this->custom_url_);
+            result.servers.push_back(custom_server);
         }
 
-        // Cache the result
+        // Pick fastest server with valid latency; default to NA on total failure
+        result.recommended = cdn_region::north_america;
+        std::optional<double> best_latency;
+        for (const auto& server : result.servers)
+        {
+            if (!server.latency_ms.has_value())
+            {
+                continue;
+            }
+            result.success = true;
+            if (!best_latency.has_value() || server.latency_ms.value() < best_latency.value())
+            {
+                best_latency = server.latency_ms;
+                result.recommended = server.region;
+            }
+        }
+
         this->cached_latency_ = result;
         this->latency_tested_ = true;
 
@@ -207,7 +222,11 @@ namespace utils::cdn
         eu_server.name = "Europe";
         eu_server.url = CDN_EU_URL;
 
-        // Include cached latency if available
+        cdn_server custom_server;
+        custom_server.region = cdn_region::custom;
+        custom_server.name = "Custom";
+        custom_server.url = this->custom_url_;
+
         if (this->latency_tested_)
         {
             for (const auto& cached : this->cached_latency_.servers)
@@ -220,11 +239,19 @@ namespace utils::cdn
                 {
                     eu_server.latency_ms = cached.latency_ms;
                 }
+                else if (cached.region == cdn_region::custom)
+                {
+                    custom_server.latency_ms = cached.latency_ms;
+                }
             }
         }
 
         servers.push_back(na_server);
         servers.push_back(eu_server);
+        if (!this->custom_url_.empty())
+        {
+            servers.push_back(custom_server);
+        }
         return servers;
     }
 
@@ -236,6 +263,8 @@ namespace utils::cdn
             return "na";
         case cdn_region::europe:
             return "eu";
+        case cdn_region::custom:
+            return "custom";
         case cdn_region::automatic:
         default:
             return "auto";
@@ -252,6 +281,36 @@ namespace utils::cdn
         {
             return cdn_region::europe;
         }
+        if (str == "custom")
+        {
+            return cdn_region::custom;
+        }
         return cdn_region::automatic;
+    }
+
+    const std::string& cdn_manager::get_custom_url() const
+    {
+        return this->custom_url_;
+    }
+
+    void cdn_manager::set_custom_url(const std::string& url)
+    {
+        this->custom_url_ = url;
+        save_custom_url();
+        clear_cached_latency();
+    }
+
+    void cdn_manager::load_custom_url()
+    {
+        const auto value = properties::load(property_keys::CDN_CUSTOM_URL);
+        if (value.has_value())
+        {
+            this->custom_url_ = value.value();
+        }
+    }
+
+    void cdn_manager::save_custom_url()
+    {
+        properties::store(property_keys::CDN_CUSTOM_URL, this->custom_url_);
     }
 }

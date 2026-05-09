@@ -12,7 +12,8 @@ namespace utils::cdn
     {
         automatic,
         north_america,
-        europe
+        europe,
+        custom
     };
 
     struct cdn_server
@@ -61,6 +62,10 @@ namespace utils::cdn
         // Get list of available servers
         std::vector<cdn_server> get_servers() const;
 
+        // Get/set the user-defined custom CDN URL (empty string = none)
+        const std::string& get_custom_url() const;
+        void set_custom_url(const std::string& url);
+
         // Convert region to/from string
         static std::string region_to_string(cdn_region region);
         static cdn_region string_to_region(const std::string& str);
@@ -68,7 +73,11 @@ namespace utils::cdn
     private:
         cdn_manager();
 
+        void load_custom_url();
+        void save_custom_url();
+
         cdn_region preference_{cdn_region::automatic};
+        std::string custom_url_{};
         latency_result cached_latency_{};
         bool latency_tested_{false};
 

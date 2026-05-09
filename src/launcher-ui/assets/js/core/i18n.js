@@ -47,6 +47,7 @@
                 ok: 'OK',
                 cancel: 'Cancel',
                 confirm: 'Confirm',
+                save: 'Save',
                 play: 'Play',
                 verify: 'Verify Files',
                 install: 'Install',
@@ -150,6 +151,9 @@
                 auto: 'Auto',
                 na: 'North America',
                 eu: 'Europe',
+                custom: 'Custom',
+                addCustom: 'Add Custom...',
+                addCustomTitle: 'Add or edit custom server',
                 retest: 'Re-test server speeds'
             },
             progress: {
@@ -277,6 +281,13 @@
                     invalidGamePathTitle: 'Invalid Game Path',
                     invalidGamePathBody: 'The selected folder does not contain valid {{game}} game files. Please select the correct game installation folder.',
                     downloading: 'Downloading {{game}}...'
+                },
+                customServer: {
+                    title: 'Custom Download Server',
+                    label: 'Server URL',
+                    placeholder: 'https://my-mirror.example.com/',
+                    invalidUrl: 'URL must start with http:// or https://',
+                    saveFailed: 'Failed to save custom server. Please try again.'
                 }
             },
             dialog: {
@@ -440,6 +451,7 @@
                 ok: 'OK',
                 cancel: 'Annuler',
                 confirm: 'Confirmer',
+                save: 'Enregistrer',
                 play: 'Jouer',
                 verify: 'Verifier les fichiers',
                 install: 'Installer',
@@ -543,6 +555,9 @@
                 auto: 'Auto',
                 na: 'Amerique du Nord',
                 eu: 'Europe',
+                custom: 'Personnalise',
+                addCustom: 'Ajouter personnalise...',
+                addCustomTitle: 'Ajouter ou modifier un serveur personnalise',
                 retest: 'Relancer le test des serveurs'
             },
             progress: {
@@ -670,6 +685,13 @@
                     invalidGamePathTitle: 'Chemin de jeu invalide',
                     invalidGamePathBody: 'Le dossier selectionne ne contient pas de fichiers valides pour {{game}}. Selectionnez le bon dossier du jeu.',
                     downloading: 'Telechargement de {{game}}...'
+                },
+                customServer: {
+                    title: 'Serveur de telechargement personnalise',
+                    label: 'URL du serveur',
+                    placeholder: 'https://mon-miroir.exemple.com/',
+                    invalidUrl: "L'URL doit commencer par http:// ou https://",
+                    saveFailed: 'Impossible d\'enregistrer le serveur personnalise. Veuillez reessayer.'
                 }
             },
             dialog: {

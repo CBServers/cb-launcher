@@ -15,6 +15,7 @@
     <script src="./assets/js/popups/game-settings-popup.js"></script>
     <script src="./assets/js/popups/setup-flow-popup.js"></script>
     <script src="./assets/js/popups/component-selection-popup.js"></script>
+    <script src="./assets/js/popups/custom-server-popup.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -274,6 +275,12 @@
                                         <option value="na" data-i18n="cdn.na">North America</option>
                                         <option value="eu" data-i18n="cdn.eu">Europe</option>
                                     </select>
+                                    <button class="cdn-test-btn" id="cdn-custom-btn" data-i18n-title="cdn.addCustomTitle" title="Add or edit custom server">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 5v14"/>
+                                            <path d="M5 12h14"/>
+                                        </svg>
+                                    </button>
                                     <button class="cdn-test-btn" id="cdn-test-btn" data-i18n-title="cdn.retest" title="Re-test server speeds">
                                         <svg class="cdn-refresh-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
