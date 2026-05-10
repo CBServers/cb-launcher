@@ -51,6 +51,14 @@ namespace commands::game_commands
                     }
                 }
             }
+            else if (config.game_key == "bo4")
+            {
+                const std::wstring subkey = L"SOFTWARE\\Blizzard Entertainment\\Battle.net";
+                if (!utils::registry::ensure_hkcu_key_exists(subkey))
+                {
+                    printf("Failed to create Battle.net registry key for BO4\n");
+                }
+            }
         }
 
         std::string trim_ws(std::string s)

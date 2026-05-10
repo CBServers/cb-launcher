@@ -47,4 +47,16 @@ namespace utils::registry
 
         return status == ERROR_SUCCESS;
     }
+
+    bool ensure_hkcu_key_exists(const std::wstring& subkey)
+    {
+        HKEY key{};
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE,
+                            KEY_WRITE, nullptr, &key, nullptr) != ERROR_SUCCESS)
+        {
+            return false;
+        }
+        RegCloseKey(key);
+        return true;
+    }
 }
