@@ -1201,27 +1201,16 @@ async function createGameButtons(gameId) {
 
             document.getElementById(`${gameId}-stop-button`).onclick = () => stopGame(gameId);
         } else {
-            const unlockAllButton = gameId === 'hmw-mod' ? `
-                <button class="unlock-all-button" id="${gameId}-unlock-all-button">
-                    ${t('common.unlockAll')}
-                </button>
-            ` : '';
-
             buttonGroup.innerHTML = `
                 <div class="left-buttons">
                     <button class="play-button" id="${gameId}-play-button">
                         <div class="play-icon"></div>
                         ${t('common.play')}
                     </button>
-                    ${unlockAllButton}
                 </div>
             `;
 
             document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
-
-            if (gameId === 'hmw-mod') {
-                document.getElementById(`${gameId}-unlock-all-button`).onclick = () => unlockAllGame(gameId);
-            }
         }
     } else {
         const buttonText = gameState.installStatus === 'partial' ? t('common.finishSetup') : t('common.setup');
@@ -1388,47 +1377,6 @@ function verifyGame(gameId, deleteComponents = false) {
         }
     }).catch(error => {
         console.error('Failed to start verification:', error);
-    });
-}
-
-async function unlockAllGame(gameId) {
-    console.log(`Unlock All button clicked for ${gameId}`);
-
-    const gameMapping = GameUtils.getGameMapping(gameId);
-    const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
-
-    // Show confirmation dialog
-    if (typeof window.showMessageBox === 'function') {
-        const result = await window.showMessageBox(
-            t('dialog.unlockAllTitle'),
-            t('dialog.unlockAllBody'),
-            [t('common.cancel'), t('common.confirm')]
-        );
-
-        // If user clicked "No" (index 0) or closed the dialog, return
-        if (result !== 1) {
-            console.log('Unlock All cancelled by user');
-            return;
-        }
-    }
-
-    // Show progress and start unlock all
-    GameUtils.trackCommandProgress({
-        gameId: gameId,
-        command: 'unlock-all',
-        commandArgs: { game: gameMapping },
-        initialMessage: t('progress.unlockAll', { game: gameDisplayName }),
-        completeMessage: t('progress.unlockAllComplete')
-    }).catch(error => {
-        console.error('Failed to start unlock all:', error);
-        // Show error message
-        if (typeof window.showMessageBox === 'function') {
-            window.showMessageBox(
-                t('dialog.unlockAllFailedTitle'),
-                t('dialog.unlockAllFailedBody', { game: gameDisplayName }),
-                [t('common.ok')]
-            );
-        }
     });
 }
 

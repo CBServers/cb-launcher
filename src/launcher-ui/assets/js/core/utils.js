@@ -621,7 +621,6 @@ class GameUtils {
             case 'verify-game': return 'verify';
             case 'delete-game': return 'uninstall';
             case 'launch-game': return 'launch';
-            case 'unlock-all': return 'unlock-all';
             default: return command;
         }
     }

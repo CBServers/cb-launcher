@@ -56,7 +56,6 @@
                 setup: 'Setup',
                 finishSetup: 'Finish Setup',
                 stop: 'Stop',
-                unlockAll: 'Unlock All',
                 uninstall: 'Uninstall',
                 applyChanges: 'Apply Changes',
                 configure: 'Configure',
@@ -164,9 +163,7 @@
                 launchComplete: 'Launch complete!',
                 verificationComplete: 'Verification complete!',
                 downloadComplete: 'Download complete!',
-                uninstallComplete: 'Uninstall complete!',
-                unlockAll: 'Unlocking all for {{game}}...',
-                unlockAllComplete: 'Unlock all complete!'
+                uninstallComplete: 'Uninstall complete!'
             },
             status: {
                 readyToPlay: 'Ready to play',
@@ -303,10 +300,6 @@
                 updateLatest: 'The launcher is at the latest version!',
                 updateCancelled: 'Update was cancelled or an error occurred.',
                 updateFailed: 'Failed to check for updates. Please try again later.',
-                unlockAllTitle: 'Unlock All',
-                unlockAllBody: 'Unlocking all will reset all of your current classes.\nAre you sure you want to continue?',
-                unlockAllFailedTitle: 'Unlock All Failed',
-                unlockAllFailedBody: 'Failed to unlock all for {{game}}. Please try again.',
                 stopGameFailedTitle: 'Error Stopping Game',
                 stopGameFailedBody: 'Failed to stop {{game}}. The game may have already closed.'
             },
@@ -461,7 +454,6 @@
                 setup: 'Configurer',
                 finishSetup: 'Terminer la configuration',
                 stop: 'Arreter',
-                unlockAll: 'Tout debloquer',
                 uninstall: 'Desinstaller',
                 applyChanges: 'Appliquer les modifications',
                 configure: 'Configurer',
@@ -569,9 +561,7 @@
                 launchComplete: 'Lancement termine !',
                 verificationComplete: 'Verification terminee !',
                 downloadComplete: 'Telechargement termine !',
-                uninstallComplete: 'Desinstallation terminee !',
-                unlockAll: 'Deblocage complet pour {{game}}...',
-                unlockAllComplete: 'Deblocage termine !'
+                uninstallComplete: 'Desinstallation terminee !'
             },
             status: {
                 readyToPlay: 'Pret a jouer',
@@ -708,10 +698,6 @@
                 updateLatest: 'Le launcher est deja a jour !',
                 updateCancelled: 'La mise a jour a ete annulee ou une erreur est survenue.',
                 updateFailed: 'Impossible de verifier les mises a jour. Reessayez plus tard.',
-                unlockAllTitle: 'Tout debloquer',
-                unlockAllBody: 'Tout debloquer reinitialisera toutes vos classes actuelles.\nVoulez-vous continuer ?',
-                unlockAllFailedTitle: 'Echec du deblocage',
-                unlockAllFailedBody: 'Impossible de tout debloquer pour {{game}}. Reessayez.',
                 stopGameFailedTitle: "Erreur lors de l'arret du jeu",
                 stopGameFailedBody: "Impossible d'arreter {{game}}. Le jeu est peut-etre deja ferme."
             },
@@ -866,7 +852,6 @@
                 setup: 'Configurar',
                 finishSetup: 'Terminar configuracion',
                 stop: 'Detener',
-                unlockAll: 'Desbloquear todo',
                 uninstall: 'Desinstalar',
                 applyChanges: 'Aplicar cambios',
                 configure: 'Configurar',
@@ -974,9 +959,7 @@
                 launchComplete: 'Inicio completado!',
                 verificationComplete: 'Verificacion completada!',
                 downloadComplete: 'Descarga completada!',
-                uninstallComplete: 'Desinstalacion completada!',
-                unlockAll: 'Desbloqueando todo para {{game}}...',
-                unlockAllComplete: 'Desbloqueo completado!'
+                uninstallComplete: 'Desinstalacion completada!'
             },
             status: {
                 readyToPlay: 'Listo para jugar',
@@ -1113,10 +1096,6 @@
                 updateLatest: 'El launcher ya esta en la ultima version!',
                 updateCancelled: 'La actualizacion fue cancelada o se produjo un error.',
                 updateFailed: 'No se pudo comprobar las actualizaciones. Intentalo mas tarde.',
-                unlockAllTitle: 'Desbloquear todo',
-                unlockAllBody: 'Desbloquear todo restablecera todas tus clases actuales.\nSeguro que quieres continuar?',
-                unlockAllFailedTitle: 'Error al desbloquear todo',
-                unlockAllFailedBody: 'No se pudo desbloquear todo para {{game}}. Intentalo de nuevo.',
                 stopGameFailedTitle: 'Error al detener el juego',
                 stopGameFailedBody: 'No se pudo detener {{game}}. Es posible que el juego ya este cerrado.'
             },

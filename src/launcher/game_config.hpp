@@ -55,7 +55,6 @@ namespace game_config
         std::string base_folder;
         std::string base_game;
         bool check_for_game_updates = false;
-        std::string unlock_url_folder;
 
         // Base properties game for property sharing (e.g., HMW shares with MWR)
         std::string base_properties_game;

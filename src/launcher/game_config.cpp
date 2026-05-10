@@ -554,7 +554,6 @@ namespace game_config
                 .base_folder = "h2m",
                 .base_game = "mwr",
                 .check_for_game_updates = true,
-                .unlock_url_folder = "h2m/",
                 .base_properties_game = "mwr",
                 .property_overrides = {
                     {property_keys::IS_INSTALLED, "hmw"},

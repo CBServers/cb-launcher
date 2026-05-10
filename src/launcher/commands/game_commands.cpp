@@ -13,7 +13,6 @@
 #include "updater/game_updater.hpp"
 #include "updater/client_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
-#include "unlockall/unlockall.hpp"
 
 namespace commands::game_commands
 {
@@ -446,42 +445,6 @@ namespace commands::game_commands
                     progress_listener.done_update();
                     printf("Unknown update error\n");
                     cef_ui.show_message_box("Update Error", "An unknown error occurred during update");
-                }
-            }).detach();
-        });
-
-        cef_ui.add_command("unlock-all", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
-        {
-            const auto config = ctx.get_game_config_from_request(value);
-            if (!config)
-            {
-                return;
-            }
-
-            updater::ui_progress_listener progress_listener;
-            progress_listener.reset(true);
-
-            std::thread([config = *config, &progress_listener, &cef_ui]()
-            {
-                try
-                {
-                    unlockall::run(config, &progress_listener);
-                    progress_listener.done_update();
-                    cef_ui.show_toast("Unlock all completed successfully!", "success");
-                }
-                catch (const std::exception& e)
-                {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Unlock All error: %s\n", e.what());
-                    cef_ui.show_message_box("Unlock All Error", e.what());
-                }
-                catch (...)
-                {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Unlock All error\n");
-                    cef_ui.show_message_box("Unlock All Error", "An unknown error occurred during unlock all");
                 }
             }).detach();
         });

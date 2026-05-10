@@ -1287,8 +1287,7 @@ html[data-theme="dark"] .setup-button {
 }
 
 .verify-button,
-.manage-install-button,
-.unlock-all-button {
+.manage-install-button {
     padding: 14px 22px;
     font-size: 12px;
     font-weight: 600;
@@ -1306,8 +1305,7 @@ html[data-theme="dark"] .setup-button {
 }
 
 .verify-button:hover:not(:disabled),
-.manage-install-button:hover:not(:disabled),
-.unlock-all-button:hover:not(:disabled) {
+.manage-install-button:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.14);
     border-color: rgba(255, 255, 255, 0.25);
     transform: translateY(-1px);
@@ -1317,8 +1315,7 @@ html[data-theme="dark"] .setup-button {
 .setup-button:disabled,
 .stop-button:disabled,
 .verify-button:disabled,
-.manage-install-button:disabled,
-.unlock-all-button:disabled {
+.manage-install-button:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none !important;
