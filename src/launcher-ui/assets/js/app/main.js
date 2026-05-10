@@ -1007,13 +1007,10 @@ function applyDownloadQueueButtonState() {
         btn.disabled = busy || !installed;
     });
 
-    // Play / Setup live in the per-game button group. createGameButtons only ever renders
-    // the button that is currently appropriate for the game state (Play vs Setup vs Stop),
-    // so a full toggle on queue-busy is safe and is needed to re-enable Play after a verify
-    // finishes if the user stayed on the page. Disabled across all games while any blocking
-    // op is running since the backend can only track one update at a time.
+    // Play: disabled across all games while any blocking op is running, since
+    // launching a game while files are being verified/written is unsafe.
     const anyBlocking = queue.isAnyBlockingActive();
-    document.querySelectorAll('.button-group .play-button, .button-group .setup-button').forEach(btn => {
+    document.querySelectorAll('.button-group .play-button').forEach(btn => {
         const group = btn.closest('.button-group');
         if (!group) return;
         const gameId = (group.id || '').replace(/-button-group$/, '');
@@ -1025,6 +1022,18 @@ function applyDownloadQueueButtonState() {
         } else {
             btn.removeAttribute('title');
         }
+    });
+
+    // Setup: only disabled when THIS game is already queued/active. Setup just opens
+    // a modal; if the user picks Download the install enqueues normally, which is
+    // the whole point of the queue.
+    document.querySelectorAll('.button-group .setup-button').forEach(btn => {
+        const group = btn.closest('.button-group');
+        if (!group) return;
+        const gameId = (group.id || '').replace(/-button-group$/, '');
+        if (!gameId) return;
+        btn.disabled = queue.isBusy(gameId);
+        btn.removeAttribute('title');
     });
 
     const downloadsBadge = document.getElementById('downloads-badge');
