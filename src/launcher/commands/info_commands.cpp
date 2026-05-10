@@ -2,6 +2,7 @@
 #include "info_commands.hpp"
 #include "cef/cef_ui.hpp"
 
+#include <utils/flags.hpp>
 #include <utils/properties.hpp>
 #include <utils/nt.hpp>
 #include <game_config.hpp>
@@ -75,6 +76,29 @@ namespace commands::info_commands
         cef_ui.add_command("is-wine-environment", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             response.SetBool(utils::nt::is_wine_environment());
+        });
+
+        cef_ui.add_command("get-startup-launch", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto game = utils::flags::get_flag_value("launch");
+            const auto mode = utils::flags::get_flag_value("mode");
+
+            rapidjson::Value game_value;
+            if (game.has_value())
+            {
+                game_value.SetString(game->data(), static_cast<rapidjson::SizeType>(game->length()), allocator);
+            }
+            response.AddMember("game", game_value, allocator);
+
+            rapidjson::Value mode_value;
+            if (mode.has_value())
+            {
+                mode_value.SetString(mode->data(), static_cast<rapidjson::SizeType>(mode->length()), allocator);
+            }
+            response.AddMember("mode", mode_value, allocator);
         });
 
         cef_ui.add_command("check-launcher-update", [](const rapidjson::Value&, rapidjson::Document& response)

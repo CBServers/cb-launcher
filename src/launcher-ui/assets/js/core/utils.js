@@ -50,6 +50,17 @@ class GameUtils {
 
     static GAME_ORDER = ['cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'bo4', 'mw2r', 'hmw-mod'];
 
+    // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
+    // Covers common CoD names that don't already match a UI ID or backend key.
+    static LAUNCH_ARG_ALIASES = {
+        'cod4': 'cod4x',
+        'waw': 't4',
+        'mw2': 'iw4x',
+        'bo1': 't5',
+        'mw3': 'iw5',
+        'bo2': 't6'
+    };
+
     static GAME_CONFIGS = {
         'cod4x': {
             displayName: 'COD4: Modern Warfare',

@@ -1,8 +1,10 @@
 #include "flags.hpp"
 #include "string.hpp"
+#include "finally.hpp"
 #include "nt.hpp"
 
 #include <shellapi.h>
+#include <unordered_map>
 
 namespace utils::flags
 {
@@ -28,6 +30,35 @@ namespace utils::flags
         }
     }
 
+    std::unordered_map<std::string, std::string> parse_flag_values()
+    {
+        int num_args{};
+        auto* const argv = CommandLineToArgvW(GetCommandLineW(), &num_args);
+        const auto _ = finally([&argv]
+        {
+            if (argv)
+            {
+                LocalFree(argv);
+            }
+        });
+
+        std::unordered_map<std::string, std::string> values{};
+        for (auto i = 0; argv && i + 1 < num_args; ++i)
+        {
+            std::wstring wide_flag(argv[i]);
+            if (wide_flag.empty() || wide_flag[0] != L'-')
+            {
+                continue;
+            }
+
+            wide_flag.erase(wide_flag.begin());
+            auto key = string::to_lower(string::convert(wide_flag));
+            values.emplace(std::move(key), string::convert(std::wstring(argv[i + 1])));
+        }
+
+        return values;
+    }
+
     bool has_flag(const std::string& flag)
     {
         static auto parsed = false;
@@ -41,5 +72,17 @@ namespace utils::flags
 
         return std::ranges::any_of(enabled_flags.cbegin(), enabled_flags.cend(),
             [&flag](const auto& elem) { return elem == string::to_lower(flag); });
+    }
+
+    std::optional<std::string> get_flag_value(const std::string& flag)
+    {
+        static const auto values = parse_flag_values();
+        const auto it = values.find(string::to_lower(flag));
+        if (it == values.end())
+        {
+            return std::nullopt;
+        }
+
+        return it->second;
     }
 }

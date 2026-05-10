@@ -228,6 +228,8 @@ async function initialize() {
             if (window.GameStateManager) {
                 window.GameStateManager.startPolling();
             }
+
+            handleStartupLaunchArg();
         });
 
     document.querySelector("#minimize-button").onclick = () => {
@@ -1244,6 +1246,67 @@ async function createGameButtons(gameId) {
     }
 
     applyDownloadQueueButtonState();
+}
+
+async function handleStartupLaunchArg() {
+    let args;
+    try {
+        args = await window.executeCommand('get-startup-launch');
+    } catch (_) {
+        return;
+    }
+
+    if (!args || !args.game) return;
+
+    const requested = String(args.game).toLowerCase().trim();
+    const mode = args.mode ? String(args.mode).toLowerCase().trim() : null;
+
+    let uiId = null;
+    if (Object.prototype.hasOwnProperty.call(GameUtils.UI_TO_BACKEND_MAP, requested)) {
+        uiId = requested;
+    } else if (Object.prototype.hasOwnProperty.call(GameUtils.BACKEND_TO_UI_MAP, requested)) {
+        uiId = GameUtils.BACKEND_TO_UI_MAP[requested];
+    } else if (GameUtils.LAUNCH_ARG_ALIASES && Object.prototype.hasOwnProperty.call(GameUtils.LAUNCH_ARG_ALIASES, requested)) {
+        uiId = GameUtils.LAUNCH_ARG_ALIASES[requested];
+    } else {
+        console.warn(`-launch: unknown game id "${args.game}"`);
+        return;
+    }
+
+    const sidebarItem = document.querySelector(`.game-item[data-game="${uiId}"]`);
+    if (sidebarItem) {
+        removeActiveNavigation();
+        sidebarItem.classList.add('active', `${uiId}-active`);
+    }
+
+    try {
+        await loadNavigationPage(uiId);
+    } catch (e) {
+        console.error(`-launch: failed to navigate to ${uiId}:`, e);
+        return;
+    }
+
+    const backendId = GameUtils.getGameMapping(uiId);
+    const gameConfig = GameUtils.getGameConfig(backendId);
+    if (!gameConfig) {
+        console.warn(`-launch: no config for ${uiId}`);
+        return;
+    }
+
+    if (mode) {
+        try {
+            await GameUtils.launchGameWithMode(backendId, uiId, mode);
+        } catch (e) {
+            console.error(`-launch: launchGameWithMode failed:`, e);
+        }
+        return;
+    }
+
+    try {
+        launchGame(uiId);
+    } catch (e) {
+        console.error(`-launch: launchGame failed:`, e);
+    }
 }
 
 function launchGame(gameId) {
