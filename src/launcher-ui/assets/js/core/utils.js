@@ -72,7 +72,7 @@ class GameUtils {
             clientKey: 'others',
             hasMultipleModes: true,
             supportedModes: ['sp', 'mp'],
-            supportsName: false,
+            supportsName: true,
             specialSettings: [],
             codeName: 'COD4x / IW3SP-Mod',
             version: 'IW3',

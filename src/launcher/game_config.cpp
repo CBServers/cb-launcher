@@ -244,7 +244,7 @@ namespace game_config
                     {"sp", "iw3sp_mod.exe"},
                     {"mp", "iw3mp.exe"}
                 },
-                .name_argument = "",
+                .name_argument = "+set name",
                 .base_folder = "cod4_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
