@@ -119,11 +119,16 @@ namespace commands::info_commands
             {
                 printf("Update cancelled by user\n");
                 response.AddMember("updateComplete", false, allocator);
+                response.AddMember("cancelled", true, allocator);
             }
             catch (const std::exception& e)
             {
                 printf("Update check error: %s\n", e.what());
                 response.AddMember("updateComplete", false, allocator);
+
+                rapidjson::Value error_value;
+                error_value.SetString(e.what(), static_cast<rapidjson::SizeType>(std::strlen(e.what())), allocator);
+                response.AddMember("error", error_value, allocator);
             }
         });
     }

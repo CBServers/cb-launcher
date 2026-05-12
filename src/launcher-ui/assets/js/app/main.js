@@ -2015,6 +2015,13 @@ async function handleCheckForUpdates() {
                     [t('common.ok')]
                 );
             }
+            else if (result && result.error) {
+                await window.showMessageBox(
+                    t('dialog.updateTitle'),
+                    t('dialog.updateFailed'),
+                    [t('common.ok')]
+                );
+            }
             else {
                 await window.showMessageBox(
                     t('dialog.updateTitle'),

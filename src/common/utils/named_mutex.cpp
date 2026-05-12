@@ -28,7 +28,8 @@ namespace utils
     {
         if (this->handle_)
         {
-            return WAIT_OBJECT_0 == WaitForSingleObject(this->handle_, static_cast<DWORD>(timeout.count()));
+            const auto result = WaitForSingleObject(this->handle_, static_cast<DWORD>(timeout.count()));
+            return result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;
         }
 
         return false;

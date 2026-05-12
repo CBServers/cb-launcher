@@ -9,6 +9,7 @@
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
+#include <utils/nt.hpp>
 #include <utils/string.hpp>
 #include <version.hpp>
 
@@ -85,26 +86,35 @@ namespace launcher_updater
 
         std::vector<updater::file_info> get_file_infos()
         {
-            const auto json = utils::http::get_data(get_update_file() + get_cache_buster());
+            const auto url = get_update_file() + get_cache_buster();
+            const auto json = utils::http::get_data(url);
             if (!json || !json.has_value())
             {
-                return {};
+                throw std::runtime_error(utils::string::va(
+                    "Failed to fetch update manifest: %s - no response", url.data()));
             }
 
-            try
+            const auto& result = json.value();
+            if (result.code != CURLE_OK)
             {
-                const auto& result = json.value();
-                if (result.code != CURLE_OK)
-                {
-                    return {};
-                }
+                throw std::runtime_error(utils::string::va(
+                    "Failed to fetch update manifest: %s - curl code %u", url.data(), result.code));
+            }
 
-                return parse_file_infos(result.buffer);
-            }
-            catch (...)
+            if (result.response_code < 200 || result.response_code >= 300)
             {
-                return {};
+                throw std::runtime_error(utils::string::va(
+                    "Failed to fetch update manifest: %s - HTTP %u", url.data(), result.response_code));
             }
+
+            auto files = parse_file_infos(result.buffer);
+            if (files.empty())
+            {
+                throw std::runtime_error(utils::string::va(
+                    "Failed to fetch update manifest: %s - empty or invalid JSON", url.data()));
+            }
+
+            return files;
         }
 
         std::string get_hash(const std::string& data)
@@ -267,7 +277,7 @@ namespace launcher_updater
         }
 
         utils::nt::relaunch_self();
-        throw updater::update_cancelled();
+        utils::nt::terminate();
     }
 
     void launcher_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
