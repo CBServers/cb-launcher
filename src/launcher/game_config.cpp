@@ -723,17 +723,19 @@ namespace game_config
             throw std::runtime_error("No manifest_path configured for " + config.display_name);
         }
 
-        if (!utils::io::file_exists(config.manifest_path))
+        const auto full_path = (utils::properties::get_appdata_path() / config.manifest_path).string();
+
+        if (!utils::io::file_exists(full_path))
         {
             throw std::runtime_error("Failed to read manifest for " + config.display_name +
-                ": file not found at " + config.manifest_path);
+                ": file not found at " + full_path);
         }
 
         std::string data;
-        if (!utils::io::read_file(config.manifest_path, &data))
+        if (!utils::io::read_file(full_path, &data))
         {
             throw std::runtime_error("Failed to read manifest for " + config.display_name +
-                ": unable to read " + config.manifest_path);
+                ": unable to read " + full_path);
         }
 
         return data;
