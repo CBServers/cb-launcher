@@ -51,13 +51,19 @@ namespace commands::game_commands
                     }
                 }
             }
-            else if (config.game_key == "bo4")
+
+            if (config.game_key == "bo4")
             {
                 const std::wstring subkey = L"SOFTWARE\\Blizzard Entertainment\\Battle.net";
                 if (!utils::registry::ensure_hkcu_key_exists(subkey))
                 {
                     printf("Failed to create Battle.net registry key for BO4\n");
                 }
+            }
+
+            if (!config.pluto_path_key.empty())
+            {
+                config.ensure_plutonium_path();
             }
         }
 
@@ -499,9 +505,7 @@ namespace commands::game_commands
                     client_updater.delete_client();
 
                     // Clear installation status and component caches
-                    config.set_installed(false);
-                    config.set_list(property_keys::DETECTED_COMPONENTS, {});
-                    config.set_list(property_keys::SELECTED_COMPONENTS, {});
+                    config.reset();
 
                     progress_listener.done_update();
                     cef_ui.show_toast(config.display_name + " uninstalled successfully.", "success");

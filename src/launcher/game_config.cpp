@@ -221,6 +221,16 @@ namespace game_config
         }
     }
 
+    void game_config_t::ensure_plutonium_path() const
+    {
+        const auto path = this->get(property_keys::INSTALL);
+
+        if (path && path.value() != "")
+        {
+            set_plutonium_path(this->pluto_path_key, path.value());
+        }
+    }
+
     // Game configurations
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {

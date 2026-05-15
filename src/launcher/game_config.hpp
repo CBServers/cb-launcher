@@ -32,6 +32,8 @@ namespace game_config
         // Reset all properties for this game
         void reset() const;
 
+        void ensure_plutonium_path() const;
+
         // Get the game key used for this config
         const std::string& get_game_key() const { return game_key; }
 

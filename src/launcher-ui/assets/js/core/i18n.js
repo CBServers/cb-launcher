@@ -254,7 +254,7 @@
                     installPathSaveFailed: 'Failed to save the installation path. Please try again.',
                     saveFailed: 'Failed to save component selection. Please try again.',
                     confirmUninstallTitle: 'Confirm Uninstall',
-                    confirmUninstallBody: 'Are you sure you want to uninstall {{game}}?\n\nThis will permanently DELETE all game files.\nYour install path and preferences will be preserved.',
+                    confirmUninstallBody: 'Are you sure you want to uninstall {{game}}?\n\nThis will permanently DELETE all game files.',
                     uninstalling: 'Uninstalling {{game}}...',
                     errorTitle: 'Error'
                 },
@@ -652,7 +652,7 @@
                     installPathSaveFailed: "Impossible d'enregistrer le chemin d'installation. Reessayez.",
                     saveFailed: "Impossible d'enregistrer la selection des composants. Reessayez.",
                     confirmUninstallTitle: 'Confirmer la desinstallation',
-                    confirmUninstallBody: "Voulez-vous vraiment desinstaller {{game}} ?\n\nTous les fichiers du jeu seront supprimes definitivement.\nLe chemin d'installation et les preferences seront conserves.",
+                    confirmUninstallBody: "Voulez-vous vraiment desinstaller {{game}} ?\n\nTous les fichiers du jeu seront supprimes definitivement.",
                     uninstalling: 'Desinstallation de {{game}}...',
                     errorTitle: 'Erreur'
                 },
@@ -1050,7 +1050,7 @@
                     installPathSaveFailed: 'No se pudo guardar la ruta de instalacion. Intentalo de nuevo.',
                     saveFailed: 'No se pudo guardar la seleccion de componentes. Intentalo de nuevo.',
                     confirmUninstallTitle: 'Confirmar desinstalacion',
-                    confirmUninstallBody: 'Seguro que quieres desinstalar {{game}}?\n\nEsto ELIMINARA permanentemente todos los archivos del juego.\nTu ruta de instalacion y preferencias se conservaran.',
+                    confirmUninstallBody: 'Seguro que quieres desinstalar {{game}}?\n\nEsto ELIMINARA permanentemente todos los archivos del juego.',
                     uninstalling: 'Desinstalando {{game}}...',
                     errorTitle: 'Error'
                 },
