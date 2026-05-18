@@ -287,6 +287,123 @@
         });
     }
 
+    let cardMenuEl = null;
+
+    function ensureCardMenu() {
+        if (cardMenuEl) return cardMenuEl;
+        cardMenuEl = document.createElement('div');
+        cardMenuEl.className = 'library-card-menu';
+        cardMenuEl.setAttribute('role', 'menu');
+        cardMenuEl.hidden = true;
+        document.body.appendChild(cardMenuEl);
+
+        document.addEventListener('mousedown', (event) => {
+            if (cardMenuEl.hidden) return;
+            if (!cardMenuEl.contains(event.target)) hideCardContextMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') hideCardContextMenu();
+        });
+        document.addEventListener('scroll', hideCardContextMenu, true);
+        window.addEventListener('blur', hideCardContextMenu);
+        window.addEventListener('resize', hideCardContextMenu);
+        return cardMenuEl;
+    }
+
+    function hideCardContextMenu() {
+        if (cardMenuEl && !cardMenuEl.hidden) {
+            cardMenuEl.hidden = true;
+            cardMenuEl.innerHTML = '';
+        }
+    }
+
+    function callGlobal(fnName, ...args) {
+        const fn = window[fnName];
+        if (typeof fn === 'function') {
+            fn(...args);
+        } else {
+            console.warn(`Library context menu: ${fnName} unavailable`);
+        }
+    }
+
+    async function openInstallFolder(gameId) {
+        if (typeof window.executeCommand !== 'function') return;
+        try {
+            const backendGame = GameUtils.getGameMapping(gameId);
+            const path = await window.executeCommand('get-game-property', {
+                game: backendGame,
+                suffix: PROPERTY_KEYS.GAME.INSTALL
+            });
+            if (path) {
+                await window.executeCommand('open-folder', { path });
+            }
+        } catch (error) {
+            console.error('Open install folder failed:', error);
+        }
+    }
+
+    function buildCardMenuItems(card) {
+        const gameId = card.dataset.game;
+        const status = card.dataset.status || 'not-setup';
+        const isInstalled = status === 'installed';
+        const isPartial = status === 'partial';
+        const items = [];
+
+        if (isInstalled) {
+            items.push({ label: t('common.play'), action: () => callGlobal('launchGame', gameId) });
+        } else if (isPartial) {
+            items.push({ label: t('common.finishSetup'), action: () => callGlobal('showSetupFlow', gameId) });
+        } else {
+            items.push({ label: t('common.install'), action: () => callGlobal('showSetupFlow', gameId) });
+        }
+
+        if (isInstalled || isPartial) {
+            items.push({ label: t('common.browseLocalFiles'), action: () => openInstallFolder(gameId) });
+            if (isInstalled) {
+                items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId) });
+            }
+            items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId) });
+            items.push({ separator: true });
+            items.push({ label: t('common.uninstall'), action: () => callGlobal('showManageInstall', gameId), danger: true });
+        }
+
+        items.push({ separator: true });
+        items.push({ label: 'Game details', action: () => navigateTo(gameId) });
+        return items;
+    }
+
+    function showCardContextMenu(card, x, y) {
+        const menu = ensureCardMenu();
+        const items = buildCardMenuItems(card);
+        menu.innerHTML = items.map((item, idx) => {
+            if (item.separator) {
+                return '<div class="library-card-menu-separator" role="separator"></div>';
+            }
+            const danger = item.danger ? ' is-danger' : '';
+            return `<button type="button" class="library-card-menu-item${danger}" role="menuitem" data-idx="${idx}">${escapeHtml(item.label)}</button>`;
+        }).join('');
+
+        menu.style.left = '0px';
+        menu.style.top = '0px';
+        menu.hidden = false;
+
+        const rect = menu.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const left = Math.max(8, Math.min(x, vw - rect.width - 8));
+        const top = Math.max(8, Math.min(y, vh - rect.height - 8));
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+
+        menu.querySelectorAll('.library-card-menu-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = items[parseInt(btn.dataset.idx, 10)];
+                hideCardContextMenu();
+                try { item.action(); } catch (error) { console.error('Context menu action failed:', error); }
+            });
+        });
+    }
+
     function renderLibrary() {
         const grid = document.getElementById('library-grid');
         if (!grid) return;
@@ -313,6 +430,11 @@
 
         grid.querySelectorAll('.library-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
+
+            card.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                showCardContextMenu(card, event.clientX, event.clientY);
+            });
 
             const button = card.querySelector('.library-install-btn');
             if (button) {
