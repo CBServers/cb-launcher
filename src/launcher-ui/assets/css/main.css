@@ -3745,3 +3745,58 @@ html[data-theme="dark"] .secondary-action:hover {
         align-items: stretch;
     }
 }
+
+/* ============================================================ */
+/* LIBRARY CARD CONTEXT MENU                                    */
+/* ============================================================ */
+
+.library-card-menu {
+    position: fixed;
+    z-index: 9999;
+    min-width: 200px;
+    padding: 6px;
+    background: var(--surface-popup);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-hi);
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    color: var(--text);
+    font-size: 13px;
+    user-select: none;
+}
+
+.library-card-menu[hidden] { display: none; }
+
+.library-card-menu-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    text-align: left;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    transition: background 80ms ease, color 80ms ease;
+}
+
+.library-card-menu-item:hover,
+.library-card-menu-item:focus {
+    background: var(--surface-hi);
+    outline: none;
+}
+
+.library-card-menu-item.is-danger { color: var(--danger); }
+
+.library-card-menu-item.is-danger:hover,
+.library-card-menu-item.is-danger:focus {
+    background: rgba(255, 77, 94, 0.15);
+}
+
+.library-card-menu-separator {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--border);
+}
