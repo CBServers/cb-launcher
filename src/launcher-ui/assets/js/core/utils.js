@@ -9,7 +9,8 @@ const PROPERTY_KEYS = {
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name',
-        CDN_CUSTOM_URL: 'launcher-cdn-custom-url'
+        CDN_CUSTOM_URL: 'launcher-cdn-custom-url',
+        PINNED_GAMES: 'launcher-pinned-games'
     },
     GAME: {
         INSTALL: 'install',

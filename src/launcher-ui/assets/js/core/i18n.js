@@ -67,11 +67,16 @@
                 disabled: 'Disabled',
                 source: 'Source',
                 loading: 'Loading...',
-                error: 'Error'
+                error: 'Error',
+                pinToHome: 'Pin to home',
+                unpinFromHome: 'Unpin from home'
             },
             home: {
                 installedClients: 'Ready to Play',
                 readyToPlay: 'Ready to Play',
+                pinnedTitle: 'Pinned',
+                heroPrev: 'Previous',
+                heroNext: 'Next',
                 notInstalled: 'Not Installed',
                 showInstalled: 'Show installed',
                 welcomeTitle: 'Welcome to CB Launcher',
@@ -465,11 +470,16 @@
                 disabled: 'Desactive',
                 source: 'Source',
                 loading: 'Chargement...',
-                error: 'Erreur'
+                error: 'Erreur',
+                pinToHome: "Epingler a l'accueil",
+                unpinFromHome: "Detacher de l'accueil"
             },
             home: {
                 installedClients: 'Pret a jouer',
                 readyToPlay: 'Pret a jouer',
+                pinnedTitle: 'Epingles',
+                heroPrev: 'Precedent',
+                heroNext: 'Suivant',
                 notInstalled: 'Non installes',
                 showInstalled: 'Voir les installes',
                 welcomeTitle: 'Bienvenue sur CB Launcher',
@@ -863,11 +873,16 @@
                 disabled: 'Desactivado',
                 source: 'Codigo fuente',
                 loading: 'Cargando...',
-                error: 'Error'
+                error: 'Error',
+                pinToHome: 'Anclar al inicio',
+                unpinFromHome: 'Desanclar del inicio'
             },
             home: {
                 installedClients: 'Listos para jugar',
                 readyToPlay: 'Listo para jugar',
+                pinnedTitle: 'Anclados',
+                heroPrev: 'Anterior',
+                heroNext: 'Siguiente',
                 notInstalled: 'No instalado',
                 showInstalled: 'Mostrar instalados',
                 welcomeTitle: 'Bienvenido a CB Launcher',

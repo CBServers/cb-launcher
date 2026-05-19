@@ -6,6 +6,11 @@
     let homeHeroStates = [];
     let homeHeroSlideIndex = 0;
     let homeHeroTimer = null;
+    let homeHeroPaused = false;
+    let homeHeroControlsBound = false;
+    let pinnedGameIds = [];
+    let pinnedGamesLoaded = false;
+    let latestInstallationStates = [];
 
     function escapeHtml(value) {
         return String(value || '')
@@ -75,6 +80,19 @@
         return 'status-missing';
     }
 
+    function clientCardHTML(config, { smallText = null, extraAttrs = '' } = {}) {
+        const small = smallText == null ? config.client : smallText;
+        return `
+            <article class="client-card" data-game="${escapeHtml(config.uiId)}"${extraAttrs}>
+                <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                <div class="client-card-label">
+                    <span>${escapeHtml(config.displayName)}</span>
+                    <small>${escapeHtml(small)}</small>
+                </div>
+            </article>
+        `;
+    }
+
     function renderHomeClientCards(targetId, configs) {
         const clients = document.getElementById(targetId);
         if (!clients) return;
@@ -84,15 +102,7 @@
             if (section) section.style.display = configs.length ? '' : 'none';
         }
 
-        clients.innerHTML = configs.map(config => `
-            <article class="client-card" data-game="${escapeHtml(config.uiId)}">
-                <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
-                <div class="client-card-label">
-                    <span>${escapeHtml(config.displayName)}</span>
-                    <small>${escapeHtml(config.client)}</small>
-                </div>
-            </article>
-        `).join('');
+        clients.innerHTML = configs.map(config => clientCardHTML(config)).join('');
 
         clients.querySelectorAll('.client-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
@@ -154,6 +164,40 @@
         homeHeroSlideIndex = ((index % homeHeroStates.length) + homeHeroStates.length) % homeHeroStates.length;
         const slide = homeHeroStates[homeHeroSlideIndex];
         renderHomeHero(slide.config, slide.status);
+        updateHomeHeroDots();
+    }
+
+    function renderHomeHeroDots() {
+        const dots = document.getElementById('hub-hero-dots');
+        if (!dots) return;
+
+        if (homeHeroStates.length <= 1) {
+            dots.innerHTML = '';
+            dots.style.display = 'none';
+            return;
+        }
+
+        dots.style.display = '';
+        dots.innerHTML = homeHeroStates.map((_, i) =>
+            `<button type="button" class="hub-hero-dot" role="tab" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`
+        ).join('');
+        updateHomeHeroDots();
+
+        dots.querySelectorAll('.hub-hero-dot').forEach(dot => {
+            dot.addEventListener('click', (event) => {
+                event.stopPropagation();
+                setHomeHeroSlide(parseInt(dot.dataset.idx, 10));
+                startHomeHeroSlider();
+            });
+        });
+    }
+
+    function updateHomeHeroDots() {
+        const dots = document.getElementById('hub-hero-dots');
+        if (!dots) return;
+        dots.querySelectorAll('.hub-hero-dot').forEach((dot, i) => {
+            dot.classList.toggle('is-active', i === homeHeroSlideIndex);
+        });
     }
 
     function startHomeHeroSlider() {
@@ -165,11 +209,34 @@
         if (homeHeroStates.length <= 1) return;
 
         homeHeroTimer = setInterval(() => {
+            if (homeHeroPaused) return;
             const homePage = document.getElementById('home-page');
             if (homePage && homePage.style.display === 'none') return;
 
             setHomeHeroSlide(homeHeroSlideIndex + 1);
         }, HOME_HERO_SLIDE_INTERVAL);
+    }
+
+    function bindHomeHeroControls() {
+        if (homeHeroControlsBound) return;
+        const hero = document.getElementById('hub-hero');
+        const prev = document.getElementById('hub-hero-prev');
+        const next = document.getElementById('hub-hero-next');
+        if (!hero || !prev || !next) return;
+
+        const stepBy = (delta) => {
+            if (!homeHeroStates.length) return;
+            setHomeHeroSlide(homeHeroSlideIndex + delta);
+            startHomeHeroSlider();
+        };
+
+        prev.addEventListener('click', (event) => { event.stopPropagation(); stepBy(-1); });
+        next.addEventListener('click', (event) => { event.stopPropagation(); stepBy(1); });
+
+        hero.addEventListener('mouseenter', () => { homeHeroPaused = true; });
+        hero.addEventListener('mouseleave', () => { homeHeroPaused = false; });
+
+        homeHeroControlsBound = true;
     }
 
     function setHomeHeroStates(states) {
@@ -188,18 +255,107 @@
             homeHeroSlideIndex = 0;
         }
 
+        renderHomeHeroDots();
         setHomeHeroSlide(homeHeroSlideIndex);
         startHomeHeroSlider();
+        bindHomeHeroControls();
     }
 
     function renderHomeFromStates(states) {
         const safeStates = Array.isArray(states) ? states : [];
+        latestInstallationStates = safeStates;
 
         renderHomeClientCards('home-ready-row', safeStates
             .filter(({ config, status }) => config && status === 'installed')
             .map(({ config }) => config));
 
+        renderHomePinnedRow();
         setHomeHeroStates(safeStates);
+    }
+
+    async function loadPinnedGames() {
+        if (pinnedGamesLoaded) return pinnedGameIds;
+        pinnedGamesLoaded = true;
+        if (typeof window.executeCommand !== 'function') return pinnedGameIds;
+
+        try {
+            const raw = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.PINNED_GAMES);
+            if (typeof raw === 'string' && raw.trim()) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    pinnedGameIds = parsed.filter(id => GameUtils.getGameConfigByUIId(id));
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load pinned games:', error);
+        }
+        return pinnedGameIds;
+    }
+
+    async function savePinnedGames() {
+        if (typeof window.executeCommand !== 'function') return;
+        try {
+            await window.executeCommand('set-property', {
+                [PROPERTY_KEYS.LAUNCHER.PINNED_GAMES]: JSON.stringify(pinnedGameIds)
+            });
+        } catch (error) {
+            console.error('Failed to save pinned games:', error);
+        }
+    }
+
+    function isPinned(gameId) {
+        return pinnedGameIds.includes(gameId);
+    }
+
+    async function togglePin(gameId) {
+        if (!GameUtils.getGameConfigByUIId(gameId)) return;
+
+        if (isPinned(gameId)) {
+            pinnedGameIds = pinnedGameIds.filter(id => id !== gameId);
+        } else {
+            pinnedGameIds = [...pinnedGameIds, gameId];
+        }
+
+        await savePinnedGames();
+        renderHomePinnedRow();
+    }
+
+    function renderHomePinnedRow() {
+        const section = document.getElementById('home-pinned-section');
+        const row = document.getElementById('home-pinned-row');
+        if (!section || !row) return;
+
+        const configs = pinnedGameIds
+            .map(id => GameUtils.getGameConfigByUIId(id))
+            .filter(Boolean);
+
+        section.style.display = configs.length ? '' : 'none';
+        if (!configs.length) {
+            row.innerHTML = '';
+            return;
+        }
+
+        const statusById = new Map(latestInstallationStates.map(s => [s.gameId, s.status]));
+
+        row.innerHTML = configs.map(config => {
+            const status = statusById.get(config.uiId) || 'not-setup';
+            const isInstalled = status === 'installed';
+            const extraAttrs = ` data-status="${escapeHtml(status)}" data-pinned-action="${isInstalled ? 'play' : 'open'}"`;
+            const smallText = isInstalled ? t('common.play') : config.client;
+            return clientCardHTML(config, { smallText, extraAttrs });
+        }).join('');
+
+        row.querySelectorAll('.client-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const gameId = card.dataset.game;
+                if (card.dataset.pinnedAction === 'play' && typeof window.launchGame === 'function') {
+                    window.launchGame(gameId);
+                } else {
+                    navigateTo(gameId);
+                }
+            });
+            bindCardContextMenu(card);
+        });
     }
 
     async function getInstallationStates(checker) {
@@ -264,6 +420,8 @@
             config,
             status: 'not-setup'
         })));
+
+        loadPinnedGames().then(() => renderHomePinnedRow());
     }
 
     function renderSidebarGames() {
@@ -368,6 +526,10 @@
         }
 
         items.push({ separator: true });
+        items.push({
+            label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
+            action: () => togglePin(gameId)
+        });
         items.push({ label: 'Game details', action: () => navigateTo(gameId) });
         return items;
     }
@@ -404,6 +566,13 @@
         });
     }
 
+    function bindCardContextMenu(card) {
+        card.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            showCardContextMenu(card, event.clientX, event.clientY);
+        });
+    }
+
     function renderLibrary() {
         const grid = document.getElementById('library-grid');
         if (!grid) return;
@@ -430,11 +599,7 @@
 
         grid.querySelectorAll('.library-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
-
-            card.addEventListener('contextmenu', (event) => {
-                event.preventDefault();
-                showCardContextMenu(card, event.clientX, event.clientY);
-            });
+            bindCardContextMenu(card);
 
             const button = card.querySelector('.library-install-btn');
             if (button) {
