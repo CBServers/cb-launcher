@@ -3903,10 +3903,16 @@ html[data-theme="dark"] .secondary-action:hover {
     -webkit-backdrop-filter: blur(2px);
 }
 
-.client-card.is-launchable:hover .client-card-play { opacity: 1; }
+.client-card.has-overlay:hover .client-card-play { opacity: 1; }
 
-.client-card-play .library-install-btn {
-    margin-top: 0;
+.client-card-play .library-install-btn { margin-top: 0; }
+
+.client-card.status-installed .client-card-play .library-install-btn {
     background: rgba(0, 210, 106, 0.16);
     border-color: rgba(0, 210, 106, 0.34);
+}
+
+.client-card.status-partial .client-card-play .library-install-btn {
+    background: rgba(255, 178, 63, 0.16);
+    border-color: rgba(255, 178, 63, 0.34);
 }
