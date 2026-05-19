@@ -80,11 +80,16 @@
         return 'status-missing';
     }
 
-    function clientCardHTML(config, { smallText = null, extraAttrs = '' } = {}) {
+    function clientCardHTML(config, { smallText = null, extraAttrs = '', launchable = false } = {}) {
         const small = smallText == null ? config.client : smallText;
+        const cls = launchable ? 'client-card is-launchable' : 'client-card';
+        const overlay = launchable
+            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(t('common.play'))}</button></div>`
+            : '';
         return `
-            <article class="client-card" data-game="${escapeHtml(config.uiId)}"${extraAttrs}>
+            <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${extraAttrs}>
                 <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                ${overlay}
                 <div class="client-card-label">
                     <span>${escapeHtml(config.displayName)}</span>
                     <small>${escapeHtml(small)}</small>
@@ -102,10 +107,19 @@
             if (section) section.style.display = configs.length ? '' : 'none';
         }
 
-        clients.innerHTML = configs.map(config => clientCardHTML(config)).join('');
+        clients.innerHTML = configs.map(config => clientCardHTML(config, { launchable: true })).join('');
 
-        clients.querySelectorAll('.client-card').forEach(card => {
-            card.addEventListener('click', () => navigateTo(card.dataset.game));
+        clients.querySelectorAll('.client-card').forEach(bindClientCardClick);
+    }
+
+    function bindClientCardClick(card) {
+        card.addEventListener('click', () => {
+            const gameId = card.dataset.game;
+            if (card.classList.contains('is-launchable') && typeof window.launchGame === 'function') {
+                window.launchGame(gameId);
+            } else {
+                navigateTo(gameId);
+            }
         });
     }
 
@@ -339,21 +353,12 @@
 
         row.innerHTML = configs.map(config => {
             const status = statusById.get(config.uiId) || 'not-setup';
-            const isInstalled = status === 'installed';
-            const extraAttrs = ` data-status="${escapeHtml(status)}" data-pinned-action="${isInstalled ? 'play' : 'open'}"`;
-            const smallText = isInstalled ? t('common.play') : config.client;
-            return clientCardHTML(config, { smallText, extraAttrs });
+            const extraAttrs = ` data-status="${escapeHtml(status)}"`;
+            return clientCardHTML(config, { extraAttrs, launchable: status === 'installed' });
         }).join('');
 
         row.querySelectorAll('.client-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const gameId = card.dataset.game;
-                if (card.dataset.pinnedAction === 'play' && typeof window.launchGame === 'function') {
-                    window.launchGame(gameId);
-                } else {
-                    navigateTo(gameId);
-                }
-            });
+            bindClientCardClick(card);
             bindCardContextMenu(card);
         });
     }

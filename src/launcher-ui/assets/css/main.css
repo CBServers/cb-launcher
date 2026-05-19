@@ -3886,3 +3886,27 @@ html[data-theme="dark"] .secondary-action:hover {
     width: 18px;
     border-radius: 999px;
 }
+
+.client-card-play {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.2s var(--ease);
+    pointer-events: none;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.client-card.is-launchable:hover .client-card-play { opacity: 1; }
+
+.client-card-play .library-install-btn {
+    margin-top: 0;
+    background: rgba(0, 210, 106, 0.16);
+    border-color: rgba(0, 210, 106, 0.34);
+}
