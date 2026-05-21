@@ -284,18 +284,12 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 .sidebar-brand {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0;
-    padding: 6px 0 18px 0;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 6px 10px 18px 2px;
     margin-bottom: 8px;
     border-bottom: 1px solid var(--border);
     min-height: 56px;
-}
-
-.sidebar:hover .sidebar-brand {
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 6px 10px 18px 10px;
 }
 
 .sidebar-logo {
@@ -362,7 +356,7 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     align-items: center;
     gap: 14px;
     height: 44px;
-    padding: 0 12px;
+    padding: 0 12px 0 13px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text-muted);
@@ -467,17 +461,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 
 .sidebar:hover .nav-label { opacity: 1; }
 
-.sidebar:not(:hover) .nav-list {
-    align-items: center;
-}
-
-.sidebar:not(:hover) .nav-item {
-    width: 44px;
-    padding: 0;
-    justify-content: center;
-    gap: 0;
-}
-
 .sidebar:not(:hover) .nav-label {
     width: 0;
     opacity: 0;
@@ -504,16 +487,12 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     flex-direction: column;
 }
 
-.sidebar:not(:hover) .sidebar-bottom {
-    align-items: center;
-}
-
 .game-item {
     display: flex;
     align-items: center;
     gap: 12px;
     min-height: 52px;
-    padding: 6px;
+    padding: 6px 6px 6px 4px;
     border-radius: calc(var(--radius-sm) + 2px);
     cursor: pointer;
     color: var(--text-muted);
@@ -603,10 +582,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     color: var(--text-dim);
 }
 
-.sidebar:not(:hover) .game-item {
-    justify-content: center;
-    gap: 0;
-}
 
 /* ============================================================ */
 /* CONTENT AREA                                                 */
