@@ -110,7 +110,10 @@
 
         clients.innerHTML = configs.map(config => clientCardHTML(config, { status: 'installed' })).join('');
 
-        clients.querySelectorAll('.client-card').forEach(bindClientCardClick);
+        clients.querySelectorAll('.client-card').forEach(card => {
+            bindClientCardClick(card);
+            bindCardContextMenu(card);
+        });
     }
 
     function bindClientCardClick(card) {
