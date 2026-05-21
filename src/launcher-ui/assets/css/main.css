@@ -3096,6 +3096,16 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
     box-shadow: none;
 }
 
+#message-box .mb-buttons button.is-danger {
+    background: linear-gradient(135deg, #e5484d 0%, #c43c40 100%);
+    box-shadow: 0 4px 16px rgba(229, 72, 77, 0.35);
+}
+
+#message-box .mb-buttons button.is-danger:hover {
+    box-shadow: 0 8px 24px rgba(229, 72, 77, 0.5);
+    transform: translateY(-1px);
+}
+
 /* ============================================================ */
 /* TOAST NOTIFICATIONS                                          */
 /* ============================================================ */

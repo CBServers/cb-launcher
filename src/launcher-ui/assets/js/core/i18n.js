@@ -69,7 +69,8 @@
                 loading: 'Loading...',
                 error: 'Error',
                 pinToHome: 'Pin to home',
-                unpinFromHome: 'Unpin from home'
+                unpinFromHome: 'Unpin from home',
+                gameDetails: 'Game details'
             },
             home: {
                 installedClients: 'Ready to Play',
@@ -472,7 +473,8 @@
                 loading: 'Chargement...',
                 error: 'Erreur',
                 pinToHome: "Epingler a l'accueil",
-                unpinFromHome: "Detacher de l'accueil"
+                unpinFromHome: "Detacher de l'accueil",
+                gameDetails: 'Details du jeu'
             },
             home: {
                 installedClients: 'Pret a jouer',
@@ -875,7 +877,8 @@
                 loading: 'Cargando...',
                 error: 'Error',
                 pinToHome: 'Anclar al inicio',
-                unpinFromHome: 'Desanclar del inicio'
+                unpinFromHome: 'Desanclar del inicio',
+                gameDetails: 'Detalles del juego'
             },
             home: {
                 installedClients: 'Listos para jugar',

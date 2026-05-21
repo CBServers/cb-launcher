@@ -444,6 +444,7 @@
             `;
             item.setAttribute('title', config.displayName);
             item.setAttribute('aria-label', config.displayName);
+            bindCardContextMenu(item);
         });
     }
 
@@ -523,8 +524,9 @@
                 items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId) });
             }
             items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId) });
+            items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId) });
             items.push({ separator: true });
-            items.push({ label: t('common.uninstall'), action: () => callGlobal('showManageInstall', gameId), danger: true });
+            items.push({ label: t('common.uninstall'), action: () => callGlobal('uninstallGameDirect', gameId), danger: true });
         }
 
         items.push({ separator: true });
@@ -532,7 +534,7 @@
             label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
             action: () => togglePin(gameId)
         });
-        items.push({ label: 'Game details', action: () => navigateTo(gameId) });
+        items.push({ label: t('common.gameDetails'), action: () => navigateTo(gameId) });
         return items;
     }
 
@@ -711,6 +713,8 @@
 
         states.forEach(({ gameId, status }) => {
             updateLibraryCard(gameId, status);
+            const sidebarItem = document.querySelector(`.sidebar .game-item[data-game="${gameId}"]`);
+            if (sidebarItem) sidebarItem.dataset.status = status || 'not-setup';
         });
 
         renderHomeFromStates(states);

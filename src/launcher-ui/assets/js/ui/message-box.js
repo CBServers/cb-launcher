@@ -24,9 +24,10 @@ function constructMessageBox(title, message, buttons) {
             messageBox.classList.add("visible");
 
             buttons.forEach((value, index) => {
-
+                const spec = typeof value === 'string' ? { label: value } : value;
                 var button = document.createElement("button");
-                button.innerHTML = value;
+                button.innerHTML = spec.label;
+                if (spec.danger) button.classList.add('is-danger');
                 button.onclick = resolveInternal.bind(this, index);
                 buttonElement.appendChild(button);
             });
