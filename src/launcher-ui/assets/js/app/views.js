@@ -587,6 +587,7 @@
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => `
             <article class="library-card" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                <span class="library-card-size-pill" data-size-badge hidden></span>
                 <div class="library-card-progress" aria-hidden="true">
                     <span></span>
                 </div>
@@ -620,31 +621,46 @@
         bindLibraryControls();
     }
 
+    const KNOWN_CLIENT_FILTERS = ['plutonium', 'alterware', 'aurora'];
+
+    function cardMatchesFilter(card, filter) {
+        const status = card.dataset.status;
+        const client = card.dataset.client;
+        if (filter === 'all') return true;
+        if (filter === 'installed') return status === 'installed';
+        if (filter === 'not-installed') return status !== 'installed';
+        if (filter === 'others') return !KNOWN_CLIENT_FILTERS.includes(client);
+        return filter === client;
+    }
+
     function bindLibraryControls() {
         const filters = document.getElementById('library-filters');
         const search = document.getElementById('library-search');
+        const searchClear = document.getElementById('library-search-clear');
 
         function applyFilters() {
             const active = filters ? filters.querySelector('.chip.active') : null;
             const filter = active ? active.dataset.filter : 'all';
             const term = search ? search.value.trim().toLowerCase() : '';
-            const cards = document.querySelectorAll('.library-card');
+            const cards = document.querySelectorAll('.library-card:not(.library-card-empty)');
             let visibleCount = 0;
 
             cards.forEach(card => {
-                const status = card.dataset.status;
-                const client = card.dataset.client;
-                const matchesFilter =
-                    filter === 'all' ||
-                    (filter === 'installed' && status === 'installed') ||
-                    (filter === 'not-installed' && status !== 'installed') ||
-                    filter === client;
                 const matchesSearch = !term || card.dataset.search.includes(term);
-                const isVisible = matchesFilter && matchesSearch;
-
+                const isVisible = cardMatchesFilter(card, filter) && matchesSearch;
                 card.style.display = isVisible ? '' : 'none';
                 if (isVisible) visibleCount += 1;
             });
+
+            if (filters) {
+                filters.querySelectorAll('.chip').forEach(chip => {
+                    const count = Array.from(cards).filter(card => cardMatchesFilter(card, chip.dataset.filter)).length;
+                    const key = chip.dataset.i18n;
+                    chip.textContent = key ? `${t(key)} (${count})` : chip.textContent;
+                });
+            }
+
+            if (searchClear) searchClear.hidden = !term;
 
             let empty = document.querySelector('.library-card-empty');
             if (!visibleCount) {
@@ -675,7 +691,65 @@
             search.addEventListener('input', applyFilters);
         }
 
+        if (searchClear && !searchClear.dataset.bound) {
+            searchClear.dataset.bound = 'true';
+            searchClear.addEventListener('click', () => {
+                if (!search) return;
+                search.value = '';
+                applyFilters();
+                search.focus();
+            });
+        }
+
         applyFilters();
+    }
+
+    const sizeBadgeFetched = new Set();
+
+    function waitForComponentDetection(backendId, timeoutMs = 30000) {
+        return new Promise(resolve => {
+            const start = Date.now();
+            const poll = setInterval(async () => {
+                if (Date.now() - start > timeoutMs) {
+                    clearInterval(poll);
+                    resolve();
+                    return;
+                }
+                try {
+                    const status = await window.executeCommand('get-component-detection-status', { game: backendId });
+                    if (!status || !status.active) {
+                        clearInterval(poll);
+                        resolve();
+                    }
+                } catch (e) {
+                    clearInterval(poll);
+                    resolve();
+                }
+            }, 300);
+        });
+    }
+
+    async function getDetectedComponentInfo(backendId) {
+        const info = await window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
+        if (!info || !info.detectionInProgress) return info;
+        await waitForComponentDetection(backendId);
+        return window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
+    }
+
+    async function fetchLibraryCardSize(card, gameId) {
+        try {
+            const info = await getDetectedComponentInfo(GameUtils.getGameMapping(gameId));
+            if (!info) return;
+            const installed = info.installed || [];
+            const sizes = info.sizes || {};
+            const total = installed.reduce((sum, id) => sum + (sizes[id] || 0), 0);
+            const sizeEl = card.querySelector('[data-size-badge]');
+            if (!sizeEl || total <= 0) return;
+            sizeEl.textContent = GameUtils.formatBytes(total);
+            sizeEl.hidden = false;
+        } catch (error) {
+            console.warn(`Failed to fetch install size for ${gameId}:`, error);
+        }
     }
 
     function updateLibraryCard(gameId, status) {
@@ -686,7 +760,9 @@
         const normalizedStatus = status || 'not-setup';
         const badge = card.querySelector('[data-status-badge]');
         const action = card.querySelector('[data-action-label]');
+        const sizeBadge = card.querySelector('[data-size-badge]');
 
+        if (card.dataset.status !== normalizedStatus) sizeBadgeFetched.delete(gameId);
         card.dataset.status = normalizedStatus;
         card.classList.toggle('is-installed', normalizedStatus === 'installed');
         card.classList.toggle('is-partial', normalizedStatus === 'partial');
@@ -703,6 +779,19 @@
                 action.textContent = t('common.finishSetup');
             } else {
                 action.textContent = t('common.install');
+            }
+        }
+
+        if (normalizedStatus === 'installed' || normalizedStatus === 'partial') {
+            if (!sizeBadgeFetched.has(gameId)) {
+                sizeBadgeFetched.add(gameId);
+                fetchLibraryCardSize(card, gameId);
+            }
+        } else {
+            sizeBadgeFetched.delete(gameId);
+            if (sizeBadge) {
+                sizeBadge.hidden = true;
+                sizeBadge.textContent = '';
             }
         }
     }

@@ -96,6 +96,7 @@
                 filterHorizonMW: 'HorizonMW',
                 filterOthers: 'Others',
                 searchPlaceholder: 'Search clients...',
+                clearSearch: 'Clear search',
                 noMatches: 'No clients match this filter.'
             },
             support: {
@@ -500,6 +501,7 @@
                 filterHorizonMW: 'HorizonMW',
                 filterOthers: 'Autres',
                 searchPlaceholder: 'Rechercher un client...',
+                clearSearch: 'Effacer la recherche',
                 noMatches: 'Aucun client ne correspond a ce filtre.'
             },
             support: {
@@ -904,6 +906,7 @@
                 filterHorizonMW: 'HorizonMW',
                 filterOthers: 'Otros',
                 searchPlaceholder: 'Buscar clientes...',
+                clearSearch: 'Borrar busqueda',
                 noMatches: 'Ningun cliente coincide con este filtro.'
             },
             support: {
