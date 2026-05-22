@@ -102,7 +102,17 @@
                                 </button>
                             </div>
                         </div>
+                        <button class="hub-hero-arrow prev" id="hub-hero-prev" type="button" data-i18n-title="home.heroPrev" title="Previous"><span class="hub-hero-arrow-icon"></span></button>
+                        <button class="hub-hero-arrow next" id="hub-hero-next" type="button" data-i18n-title="home.heroNext" title="Next"><span class="hub-hero-arrow-icon"></span></button>
+                        <div class="hub-hero-dots" id="hub-hero-dots" role="tablist"></div>
                     </div>
+
+                    <section class="section" id="home-pinned-section" style="display:none;">
+                        <div class="section-head">
+                            <div class="section-title" data-i18n="home.pinnedTitle">Pinned</div>
+                        </div>
+                        <div class="client-row" id="home-pinned-row"></div>
+                    </section>
 
                     <section class="section" id="home-ready-section">
                         <div class="section-head">
@@ -140,6 +150,7 @@
                         </div>
                         <div class="search-field">
                             <input type="text" id="library-search" data-i18n-placeholder="library.searchPlaceholder" placeholder="Search clients..." />
+                            <button type="button" class="search-clear" id="library-search-clear" data-i18n-title="library.clearSearch" title="Clear search" hidden>&times;</button>
                         </div>
                     </div>
 

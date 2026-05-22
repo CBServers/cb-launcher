@@ -6,6 +6,11 @@
     let homeHeroStates = [];
     let homeHeroSlideIndex = 0;
     let homeHeroTimer = null;
+    let homeHeroPaused = false;
+    let homeHeroControlsBound = false;
+    let pinnedGameIds = [];
+    let pinnedGamesLoaded = false;
+    let latestInstallationStates = [];
 
     function escapeHtml(value) {
         return String(value || '')
@@ -75,6 +80,25 @@
         return 'status-missing';
     }
 
+    function clientCardHTML(config, { smallText = null, status = null } = {}) {
+        const small = smallText == null ? config.client : smallText;
+        const cls = status ? `client-card has-overlay status-${escapeHtml(status)}` : 'client-card';
+        const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : '';
+        const overlay = status
+            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status))}</button></div>`
+            : '';
+        return `
+            <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${statusAttr}>
+                <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                ${overlay}
+                <div class="client-card-label">
+                    <span>${escapeHtml(config.displayName)}</span>
+                    <small>${escapeHtml(small)}</small>
+                </div>
+            </article>
+        `;
+    }
+
     function renderHomeClientCards(targetId, configs) {
         const clients = document.getElementById(targetId);
         if (!clients) return;
@@ -84,25 +108,32 @@
             if (section) section.style.display = configs.length ? '' : 'none';
         }
 
-        clients.innerHTML = configs.map(config => `
-            <article class="client-card" data-game="${escapeHtml(config.uiId)}">
-                <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
-                <div class="client-card-label">
-                    <span>${escapeHtml(config.displayName)}</span>
-                    <small>${escapeHtml(config.client)}</small>
-                </div>
-            </article>
-        `).join('');
+        clients.innerHTML = configs.map(config => clientCardHTML(config, { status: 'installed' })).join('');
 
         clients.querySelectorAll('.client-card').forEach(card => {
-            card.addEventListener('click', () => navigateTo(card.dataset.game));
+            bindClientCardClick(card);
+            bindCardContextMenu(card);
         });
+    }
+
+    function bindClientCardClick(card) {
+        card.addEventListener('click', () => runGameAction(card.dataset.game, card.dataset.status));
     }
 
     function homeActionLabel(status) {
         if (status === 'installed') return t('common.play');
         if (status === 'partial') return t('common.finishSetup');
         return t('common.install');
+    }
+
+    function runGameAction(gameId, status) {
+        if (status === 'installed' && typeof launchGame === 'function') {
+            launchGame(gameId);
+        } else if (typeof showSetupFlow === 'function') {
+            showSetupFlow(gameId);
+        } else {
+            navigateTo(gameId);
+        }
     }
 
     function renderHomeHero(config, status) {
@@ -137,13 +168,7 @@
                 : escapeHtml(label);
             cta.onclick = (event) => {
                 event.stopPropagation();
-                if (isInstalled && typeof launchGame === 'function') {
-                    launchGame(config.uiId);
-                } else if (typeof showSetupFlow === 'function') {
-                    showSetupFlow(config.uiId);
-                } else {
-                    navigateTo(config.uiId);
-                }
+                runGameAction(config.uiId, normalizedStatus);
             };
         }
     }
@@ -154,6 +179,40 @@
         homeHeroSlideIndex = ((index % homeHeroStates.length) + homeHeroStates.length) % homeHeroStates.length;
         const slide = homeHeroStates[homeHeroSlideIndex];
         renderHomeHero(slide.config, slide.status);
+        updateHomeHeroDots();
+    }
+
+    function renderHomeHeroDots() {
+        const dots = document.getElementById('hub-hero-dots');
+        if (!dots) return;
+
+        if (homeHeroStates.length <= 1) {
+            dots.innerHTML = '';
+            dots.style.display = 'none';
+            return;
+        }
+
+        dots.style.display = '';
+        dots.innerHTML = homeHeroStates.map((_, i) =>
+            `<button type="button" class="hub-hero-dot" role="tab" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`
+        ).join('');
+        updateHomeHeroDots();
+
+        dots.querySelectorAll('.hub-hero-dot').forEach(dot => {
+            dot.addEventListener('click', (event) => {
+                event.stopPropagation();
+                setHomeHeroSlide(parseInt(dot.dataset.idx, 10));
+                startHomeHeroSlider();
+            });
+        });
+    }
+
+    function updateHomeHeroDots() {
+        const dots = document.getElementById('hub-hero-dots');
+        if (!dots) return;
+        dots.querySelectorAll('.hub-hero-dot').forEach((dot, i) => {
+            dot.classList.toggle('is-active', i === homeHeroSlideIndex);
+        });
     }
 
     function startHomeHeroSlider() {
@@ -165,11 +224,34 @@
         if (homeHeroStates.length <= 1) return;
 
         homeHeroTimer = setInterval(() => {
+            if (homeHeroPaused) return;
             const homePage = document.getElementById('home-page');
             if (homePage && homePage.style.display === 'none') return;
 
             setHomeHeroSlide(homeHeroSlideIndex + 1);
         }, HOME_HERO_SLIDE_INTERVAL);
+    }
+
+    function bindHomeHeroControls() {
+        if (homeHeroControlsBound) return;
+        const hero = document.getElementById('hub-hero');
+        const prev = document.getElementById('hub-hero-prev');
+        const next = document.getElementById('hub-hero-next');
+        if (!hero || !prev || !next) return;
+
+        const stepBy = (delta) => {
+            if (!homeHeroStates.length) return;
+            setHomeHeroSlide(homeHeroSlideIndex + delta);
+            startHomeHeroSlider();
+        };
+
+        prev.addEventListener('click', (event) => { event.stopPropagation(); stepBy(-1); });
+        next.addEventListener('click', (event) => { event.stopPropagation(); stepBy(1); });
+
+        hero.addEventListener('mouseenter', () => { homeHeroPaused = true; });
+        hero.addEventListener('mouseleave', () => { homeHeroPaused = false; });
+
+        homeHeroControlsBound = true;
     }
 
     function setHomeHeroStates(states) {
@@ -188,18 +270,97 @@
             homeHeroSlideIndex = 0;
         }
 
+        renderHomeHeroDots();
         setHomeHeroSlide(homeHeroSlideIndex);
         startHomeHeroSlider();
+        bindHomeHeroControls();
     }
 
     function renderHomeFromStates(states) {
         const safeStates = Array.isArray(states) ? states : [];
+        latestInstallationStates = safeStates;
 
         renderHomeClientCards('home-ready-row', safeStates
             .filter(({ config, status }) => config && status === 'installed')
             .map(({ config }) => config));
 
+        renderHomePinnedRow();
         setHomeHeroStates(safeStates);
+    }
+
+    async function loadPinnedGames() {
+        if (pinnedGamesLoaded) return pinnedGameIds;
+        pinnedGamesLoaded = true;
+        if (typeof window.executeCommand !== 'function') return pinnedGameIds;
+
+        try {
+            const raw = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.PINNED_GAMES);
+            if (typeof raw === 'string' && raw.trim()) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    pinnedGameIds = parsed.filter(id => GameUtils.getGameConfigByUIId(id));
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load pinned games:', error);
+        }
+        return pinnedGameIds;
+    }
+
+    async function savePinnedGames() {
+        if (typeof window.executeCommand !== 'function') return;
+        try {
+            await window.executeCommand('set-property', {
+                [PROPERTY_KEYS.LAUNCHER.PINNED_GAMES]: JSON.stringify(pinnedGameIds)
+            });
+        } catch (error) {
+            console.error('Failed to save pinned games:', error);
+        }
+    }
+
+    function isPinned(gameId) {
+        return pinnedGameIds.includes(gameId);
+    }
+
+    async function togglePin(gameId) {
+        if (!GameUtils.getGameConfigByUIId(gameId)) return;
+
+        if (isPinned(gameId)) {
+            pinnedGameIds = pinnedGameIds.filter(id => id !== gameId);
+        } else {
+            pinnedGameIds = [...pinnedGameIds, gameId];
+        }
+
+        await savePinnedGames();
+        renderHomePinnedRow();
+    }
+
+    function renderHomePinnedRow() {
+        const section = document.getElementById('home-pinned-section');
+        const row = document.getElementById('home-pinned-row');
+        if (!section || !row) return;
+
+        const configs = pinnedGameIds
+            .map(id => GameUtils.getGameConfigByUIId(id))
+            .filter(Boolean);
+
+        section.style.display = configs.length ? '' : 'none';
+        if (!configs.length) {
+            row.innerHTML = '';
+            return;
+        }
+
+        const statusById = new Map(latestInstallationStates.map(s => [s.gameId, s.status]));
+
+        row.innerHTML = configs.map(config => {
+            const status = statusById.get(config.uiId) || 'not-setup';
+            return clientCardHTML(config, { status });
+        }).join('');
+
+        row.querySelectorAll('.client-card').forEach(card => {
+            bindClientCardClick(card);
+            bindCardContextMenu(card);
+        });
     }
 
     async function getInstallationStates(checker) {
@@ -264,6 +425,8 @@
             config,
             status: 'not-setup'
         })));
+
+        loadPinnedGames().then(() => renderHomePinnedRow());
     }
 
     function renderSidebarGames() {
@@ -284,6 +447,7 @@
             `;
             item.setAttribute('title', config.displayName);
             item.setAttribute('aria-label', config.displayName);
+            bindCardContextMenu(item);
         });
     }
 
@@ -363,12 +527,17 @@
                 items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId) });
             }
             items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId) });
+            items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId) });
             items.push({ separator: true });
-            items.push({ label: t('common.uninstall'), action: () => callGlobal('showManageInstall', gameId), danger: true });
+            items.push({ label: t('common.uninstall'), action: () => callGlobal('uninstallGameDirect', gameId), danger: true });
         }
 
         items.push({ separator: true });
-        items.push({ label: 'Game details', action: () => navigateTo(gameId) });
+        items.push({
+            label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
+            action: () => togglePin(gameId)
+        });
+        items.push({ label: t('common.gameDetails'), action: () => navigateTo(gameId) });
         return items;
     }
 
@@ -404,6 +573,13 @@
         });
     }
 
+    function bindCardContextMenu(card) {
+        card.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            showCardContextMenu(card, event.clientX, event.clientY);
+        });
+    }
+
     function renderLibrary() {
         const grid = document.getElementById('library-grid');
         if (!grid) return;
@@ -411,6 +587,7 @@
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => `
             <article class="library-card" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                <span class="library-card-size-pill" data-size-badge hidden></span>
                 <div class="library-card-progress" aria-hidden="true">
                     <span></span>
                 </div>
@@ -430,23 +607,13 @@
 
         grid.querySelectorAll('.library-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
-
-            card.addEventListener('contextmenu', (event) => {
-                event.preventDefault();
-                showCardContextMenu(card, event.clientX, event.clientY);
-            });
+            bindCardContextMenu(card);
 
             const button = card.querySelector('.library-install-btn');
             if (button) {
                 button.addEventListener('click', (event) => {
                     event.stopPropagation();
-                    if (card.dataset.status === 'installed' && typeof launchGame === 'function') {
-                        launchGame(card.dataset.game);
-                    } else if (typeof showSetupFlow === 'function') {
-                        showSetupFlow(card.dataset.game);
-                    } else {
-                        navigateTo(card.dataset.game);
-                    }
+                    runGameAction(card.dataset.game, card.dataset.status);
                 });
             }
         });
@@ -454,31 +621,46 @@
         bindLibraryControls();
     }
 
+    const KNOWN_CLIENT_FILTERS = ['plutonium', 'alterware', 'aurora'];
+
+    function cardMatchesFilter(card, filter) {
+        const status = card.dataset.status;
+        const client = card.dataset.client;
+        if (filter === 'all') return true;
+        if (filter === 'installed') return status === 'installed';
+        if (filter === 'not-installed') return status !== 'installed';
+        if (filter === 'others') return !KNOWN_CLIENT_FILTERS.includes(client);
+        return filter === client;
+    }
+
     function bindLibraryControls() {
         const filters = document.getElementById('library-filters');
         const search = document.getElementById('library-search');
+        const searchClear = document.getElementById('library-search-clear');
 
         function applyFilters() {
             const active = filters ? filters.querySelector('.chip.active') : null;
             const filter = active ? active.dataset.filter : 'all';
             const term = search ? search.value.trim().toLowerCase() : '';
-            const cards = document.querySelectorAll('.library-card');
+            const cards = document.querySelectorAll('.library-card:not(.library-card-empty)');
             let visibleCount = 0;
 
             cards.forEach(card => {
-                const status = card.dataset.status;
-                const client = card.dataset.client;
-                const matchesFilter =
-                    filter === 'all' ||
-                    (filter === 'installed' && status === 'installed') ||
-                    (filter === 'not-installed' && status !== 'installed') ||
-                    filter === client;
                 const matchesSearch = !term || card.dataset.search.includes(term);
-                const isVisible = matchesFilter && matchesSearch;
-
+                const isVisible = cardMatchesFilter(card, filter) && matchesSearch;
                 card.style.display = isVisible ? '' : 'none';
                 if (isVisible) visibleCount += 1;
             });
+
+            if (filters) {
+                filters.querySelectorAll('.chip').forEach(chip => {
+                    const count = Array.from(cards).filter(card => cardMatchesFilter(card, chip.dataset.filter)).length;
+                    const key = chip.dataset.i18n;
+                    chip.textContent = key ? `${t(key)} (${count})` : chip.textContent;
+                });
+            }
+
+            if (searchClear) searchClear.hidden = !term;
 
             let empty = document.querySelector('.library-card-empty');
             if (!visibleCount) {
@@ -509,7 +691,65 @@
             search.addEventListener('input', applyFilters);
         }
 
+        if (searchClear && !searchClear.dataset.bound) {
+            searchClear.dataset.bound = 'true';
+            searchClear.addEventListener('click', () => {
+                if (!search) return;
+                search.value = '';
+                applyFilters();
+                search.focus();
+            });
+        }
+
         applyFilters();
+    }
+
+    const sizeBadgeFetched = new Set();
+
+    function waitForComponentDetection(backendId, timeoutMs = 30000) {
+        return new Promise(resolve => {
+            const start = Date.now();
+            const poll = setInterval(async () => {
+                if (Date.now() - start > timeoutMs) {
+                    clearInterval(poll);
+                    resolve();
+                    return;
+                }
+                try {
+                    const status = await window.executeCommand('get-component-detection-status', { game: backendId });
+                    if (!status || !status.active) {
+                        clearInterval(poll);
+                        resolve();
+                    }
+                } catch (e) {
+                    clearInterval(poll);
+                    resolve();
+                }
+            }, 300);
+        });
+    }
+
+    async function getDetectedComponentInfo(backendId) {
+        const info = await window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
+        if (!info || !info.detectionInProgress) return info;
+        await waitForComponentDetection(backendId);
+        return window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
+    }
+
+    async function fetchLibraryCardSize(card, gameId) {
+        try {
+            const info = await getDetectedComponentInfo(GameUtils.getGameMapping(gameId));
+            if (!info) return;
+            const installed = info.installed || [];
+            const sizes = info.sizes || {};
+            const total = installed.reduce((sum, id) => sum + (sizes[id] || 0), 0);
+            const sizeEl = card.querySelector('[data-size-badge]');
+            if (!sizeEl || total <= 0) return;
+            sizeEl.textContent = GameUtils.formatBytes(total);
+            sizeEl.hidden = false;
+        } catch (error) {
+            console.warn(`Failed to fetch install size for ${gameId}:`, error);
+        }
     }
 
     function updateLibraryCard(gameId, status) {
@@ -520,7 +760,9 @@
         const normalizedStatus = status || 'not-setup';
         const badge = card.querySelector('[data-status-badge]');
         const action = card.querySelector('[data-action-label]');
+        const sizeBadge = card.querySelector('[data-size-badge]');
 
+        if (card.dataset.status !== normalizedStatus) sizeBadgeFetched.delete(gameId);
         card.dataset.status = normalizedStatus;
         card.classList.toggle('is-installed', normalizedStatus === 'installed');
         card.classList.toggle('is-partial', normalizedStatus === 'partial');
@@ -539,6 +781,19 @@
                 action.textContent = t('common.install');
             }
         }
+
+        if (normalizedStatus === 'installed' || normalizedStatus === 'partial') {
+            if (!sizeBadgeFetched.has(gameId)) {
+                sizeBadgeFetched.add(gameId);
+                fetchLibraryCardSize(card, gameId);
+            }
+        } else {
+            sizeBadgeFetched.delete(gameId);
+            if (sizeBadge) {
+                sizeBadge.hidden = true;
+                sizeBadge.textContent = '';
+            }
+        }
     }
 
     async function refreshInstallationStates(checker) {
@@ -550,6 +805,8 @@
 
         states.forEach(({ gameId, status }) => {
             updateLibraryCard(gameId, status);
+            const sidebarItem = document.querySelector(`.sidebar .game-item[data-game="${gameId}"]`);
+            if (sidebarItem) sidebarItem.dataset.status = status || 'not-setup';
         });
 
         renderHomeFromStates(states);

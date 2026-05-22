@@ -597,42 +597,9 @@ class ComponentSelectionPopup {
     }
 
     async uninstallGame() {
-        if (typeof window.showMessageBox === 'function') {
-            const result = await window.showMessageBox(
-                this.t('popup.componentSelection.confirmUninstallTitle'),
-                this.t('popup.componentSelection.confirmUninstallBody', { game: this.gameConfig.displayName }),
-                [this.t('common.cancel'), this.t('popup.componentSelection.uninstall')]
-            );
-
-            // User clicked Cancel (button index 0)
-            if (result === 0) {
-                return;
-            }
-        }
-
-        // Close popup
-        this.hide();
-
-        const gameId = GameUtils.getUIIdFromBackendId(this.currentGame);
-        const gameDisplayName = this.gameConfig.displayName;
-
-        // Execute uninstall command with progress tracking
-        try {
-            await GameUtils.trackCommandProgress({
-                gameId: gameId,
-                command: 'delete-game',
-                commandArgs: { game: this.currentGame },
-                initialMessage: this.t('popup.componentSelection.uninstalling', { game: gameDisplayName }),
-                completeMessage: this.t('progress.uninstallComplete'),
-                onComplete: () => {
-                    window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                        detail: { game: this.currentGame }
-                    }));
-                }
-            });
-        } catch (error) {
-            console.error('Failed to uninstall game:', error);
-        }
+        const uiId = GameUtils.getUIIdFromBackendId(this.currentGame);
+        const proceeded = await window.uninstallGameDirect(uiId);
+        if (proceeded) this.hide();
     }
 
     setsAreEqual(setA, setB) {
