@@ -1356,6 +1356,39 @@ function showManageInstall(gameId, options = {}) {
     popups.componentSelectionPopup.show(gameMapping, gameConfig, options);
 }
 
+async function uninstallGameDirect(gameId) {
+    const config = GameUtils.getGameConfigByUIId(gameId);
+    if (!config) return false;
+    const backendId = GameUtils.getGameMapping(gameId);
+
+    if (typeof window.showMessageBox === 'function') {
+        const result = await window.showMessageBox(
+            t('popup.componentSelection.confirmUninstallTitle'),
+            t('popup.componentSelection.confirmUninstallBody', { game: config.displayName }),
+            [t('common.cancel'), { label: t('popup.componentSelection.uninstall'), danger: true }]
+        );
+        if (result === 0) return false;
+    }
+
+    try {
+        await GameUtils.trackCommandProgress({
+            gameId: gameId,
+            command: 'delete-game',
+            commandArgs: { game: backendId },
+            initialMessage: t('popup.componentSelection.uninstalling', { game: config.displayName }),
+            completeMessage: t('progress.uninstallComplete'),
+            onComplete: () => {
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                    detail: { game: backendId }
+                }));
+            }
+        });
+    } catch (error) {
+        console.error('Failed to uninstall game:', error);
+    }
+    return true;
+}
+
 function verifyGame(gameId, deleteComponents = false) {
     console.log(`Verify button clicked for ${gameId}, deleteComponents: ${deleteComponents}`);
 

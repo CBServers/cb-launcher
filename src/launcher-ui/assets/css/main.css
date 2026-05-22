@@ -3096,6 +3096,16 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
     box-shadow: none;
 }
 
+#message-box .mb-buttons button.is-danger {
+    background: linear-gradient(135deg, #e5484d 0%, #c43c40 100%);
+    box-shadow: 0 4px 16px rgba(229, 72, 77, 0.35);
+}
+
+#message-box .mb-buttons button.is-danger:hover {
+    box-shadow: 0 8px 24px rgba(229, 72, 77, 0.5);
+    transform: translateY(-1px);
+}
+
 /* ============================================================ */
 /* TOAST NOTIFICATIONS                                          */
 /* ============================================================ */
@@ -3799,4 +3809,120 @@ html[data-theme="dark"] .secondary-action:hover {
     height: 1px;
     margin: 6px 4px;
     background: var(--border);
+}
+
+/* ============================================================ */
+/* HOME HERO SLIDER CONTROLS                                    */
+/* ============================================================ */
+
+.hub-hero-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 15, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.hub-hero:hover .hub-hero-arrow { opacity: 1; }
+
+.hub-hero-arrow:hover { background: rgba(108, 99, 255, 0.45); }
+
+.hub-hero-arrow:active { transform: translateY(-50%) scale(0.94); }
+
+.hub-hero-arrow.prev { left: 14px; }
+.hub-hero-arrow.next { right: 14px; }
+
+.hub-hero-arrow-icon {
+    width: 10px;
+    height: 10px;
+    border-top: 2px solid currentColor;
+    border-right: 2px solid currentColor;
+    display: inline-block;
+}
+
+.hub-hero-arrow.prev .hub-hero-arrow-icon {
+    transform: rotate(-135deg);
+    margin-left: 4px;
+}
+
+.hub-hero-arrow.next .hub-hero-arrow-icon {
+    transform: rotate(45deg);
+    margin-right: 4px;
+}
+
+.hub-hero-dots {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(10, 10, 15, 0.4);
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.hub-hero-dot {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.32);
+    cursor: pointer;
+    transition: background 0.2s var(--ease), transform 0.2s var(--ease), width 0.2s var(--ease);
+}
+
+.hub-hero-dot:hover { background: rgba(255, 255, 255, 0.55); }
+
+.hub-hero-dot.is-active {
+    background: var(--accent);
+    width: 18px;
+    border-radius: 999px;
+}
+
+.client-card-play {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.2s var(--ease);
+    pointer-events: none;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.client-card.has-overlay:hover .client-card-play { opacity: 1; }
+
+.client-card-play .library-install-btn { margin-top: 0; }
+
+.client-card.status-installed .client-card-play .library-install-btn {
+    background: rgba(0, 210, 106, 0.16);
+    border-color: rgba(0, 210, 106, 0.34);
+}
+
+.client-card.status-partial .client-card-play .library-install-btn {
+    background: rgba(255, 178, 63, 0.16);
+    border-color: rgba(255, 178, 63, 0.34);
 }
