@@ -271,6 +271,101 @@ window.showSettings = function() {
     document.querySelector("#settings").click();
 }
 
+window.RedistManager = (function() {
+    let pollId = null;
+
+    function t(key, fallback) {
+        return (window.LauncherI18n && window.LauncherI18n.t) ? window.LauncherI18n.t(key) : fallback;
+    }
+
+    function statusLabel(status, progress) {
+        switch (status) {
+            case 'installed': return t('support.redistStatusInstalled', 'Installed');
+            case 'pending': return t('support.redistStatusPending', 'Pending');
+            case 'downloading': return t('support.redistStatusDownloading', 'Downloading') + ' ' + (progress || 0) + '%';
+            case 'installing': return t('support.redistStatusInstalling', 'Installing');
+            case 'completed': return t('support.redistStatusCompleted', 'Done');
+            case 'failed': return t('support.redistStatusFailed', 'Failed');
+            default: return '';
+        }
+    }
+
+    function render(state) {
+        const list = document.getElementById('redist-list');
+        const overall = document.getElementById('redist-overall');
+        const btn = document.getElementById('install-redist-btn');
+        if (!list || !btn) return;
+
+        const packages = state.packages || [];
+        list.innerHTML = packages.map(p => {
+            const badgeClass = 'redist-badge ' + p.status;
+            const label = statusLabel(p.status, p.progress);
+            const titleAttr = p.error ? ' title="' + p.error.replace(/"/g, '&quot;') + '"' : '';
+            const progressFill = p.status === 'downloading'
+                ? '<div class="redist-row-progress" style="width:' + (p.progress || 0) + '%"></div>'
+                : '';
+            return '<li class="redist-row ' + p.status + '">'
+                + progressFill
+                + '<span class="redist-name">' + p.name + '</span>'
+                + '<span class="' + badgeClass + '"' + titleAttr + '>' + label + '</span>'
+                + '</li>';
+        }).join('');
+
+        if (overall) overall.textContent = state.message || '';
+
+        const missing = packages.filter(p => p.status !== 'installed' && p.status !== 'completed').length;
+        const allInstalled = packages.length > 0 && missing === 0;
+
+        if (state.running) {
+            btn.disabled = true;
+            btn.querySelector('span').textContent = t('support.redistRunning', 'Installing…');
+        } else {
+            btn.disabled = allInstalled;
+            btn.querySelector('span').textContent = allInstalled
+                ? t('support.redistAllInstalled', 'All installed')
+                : t('support.installRedist', 'Install Missing');
+        }
+    }
+
+    async function poll() {
+        try {
+            const state = await window.executeCommand('get-redist-progress');
+            if (!state) return;
+            render(state);
+            if (!state.running) {
+                clearInterval(pollId);
+                pollId = null;
+            }
+        } catch (e) {
+            console.error('get-redist-progress failed', e);
+        }
+    }
+
+    async function refresh() {
+        try {
+            await window.executeCommand('refresh-redist');
+            await poll();
+        } catch (e) {
+            console.error('refresh-redist failed', e);
+        }
+    }
+
+    async function startInstall() {
+        try {
+            await window.executeCommand('install-redist');
+        } catch (e) {
+            console.error('install-redist failed', e);
+            return;
+        }
+        await poll();
+        if (!pollId) pollId = setInterval(poll, 500);
+    }
+
+    return { refresh, startInstall };
+})();
+
+window.installRedist = function() { window.RedistManager.startInstall(); };
+
 async function initializeNavigation() {
     // Handle home navigation
     const homeElement = document.querySelector("#home");
@@ -403,6 +498,8 @@ function handleSupportClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("support");
+
+    if (window.RedistManager) window.RedistManager.refresh();
 }
 
 // setInnerHTML function removed - no longer needed with single page approach
