@@ -42,13 +42,13 @@ namespace redist
         static redist_installer& instance();
 
         void refresh_detection();
-        bool start_install();
+        bool start_install(const std::vector<std::string>& target_ids = {});
         redist_state get_state() const;
 
     private:
         redist_installer() = default;
 
-        void worker_main();
+        void worker_main(const std::vector<std::string>& target_ids);
         void install_one(package_state& ps, const struct package_def& def);
         bool download_to(const std::string& url, const std::filesystem::path& dest, package_state& ps);
         bool run_installer(const std::filesystem::path& exe, const std::string& args, package_state& ps);

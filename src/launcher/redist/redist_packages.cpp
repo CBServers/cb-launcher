@@ -10,7 +10,7 @@ namespace redist
             {
                 "vcr2010_x86",
                 "Visual C++ 2010 SP1 x86",
-                "https://download.microsoft.com/download/5/B/C/5BC5DBB3-652D-4DCE-B14A-475AB85EEF6E/vcredist_x86.exe",
+                "https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x86.exe",
                 "vcredist2010_x86.exe",
                 "/q /norestart",
                 false,
@@ -19,11 +19,11 @@ namespace redist
             {
                 "vcr2010_x64",
                 "Visual C++ 2010 SP1 x64",
-                "https://download.microsoft.com/download/5/B/C/5BC5DBB3-652D-4DCE-B14A-475AB85EEF6E/vcredist_x64.exe",
+                "https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe",
                 "vcredist2010_x64.exe",
                 "/q /norestart",
                 false,
-                {{ detect_kind::registry_dword, L"SOFTWARE\\Microsoft\\VisualStudio\\10.0\\VC\\VCRedist\\x64", L"Installed", 1 }}
+                {{ detect_kind::registry_dword, L"SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\10.0\\VC\\VCRedist\\x64", L"Installed", 1 }}
             },
             {
                 "vcr2013_x86",
@@ -41,7 +41,7 @@ namespace redist
                 "vcredist2013_x64.exe",
                 "/install /quiet /norestart",
                 false,
-                {{ detect_kind::registry_dword, L"SOFTWARE\\Microsoft\\VisualStudio\\12.0\\VC\\Runtimes\\x64", L"Installed", 1 }}
+                {{ detect_kind::registry_dword, L"SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\12.0\\VC\\Runtimes\\x64", L"Installed", 1 }}
             },
             {
                 "vcr2022_x86",

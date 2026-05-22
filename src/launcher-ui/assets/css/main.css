@@ -3599,6 +3599,13 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .support-panel {
     padding: 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+.support-panel .support-actions,
+.support-panel .redist-summary {
+    margin-top: auto;
 }
 
 .support-panel h2 {
@@ -3655,20 +3662,27 @@ html[data-theme="dark"] .secondary-action:hover {
     box-shadow: 0 10px 28px var(--accent-glow);
 }
 
-.redist-list {
-    list-style: none;
-    margin: 0 0 14px 0;
-    padding: 0;
+.redist-summary {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
 }
+
+.redist-summary-text {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.redist-popup .popup-content { padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+.redist-popup-summary { color: var(--text-muted); font-size: 12px; }
+.redist-popup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 
 .redist-row {
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.25);
@@ -3690,6 +3704,8 @@ html[data-theme="dark"] .secondary-action:hover {
     color: #fff;
     font-size: 13px;
     font-weight: 500;
+    flex: 1;
+    min-width: 0;
 }
 
 .redist-badge {
@@ -3712,17 +3728,30 @@ html[data-theme="dark"] .secondary-action:hover {
 .redist-badge.installing { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.4); }
 .redist-badge.failed { background: rgba(248, 113, 113, 0.15); color: #f87171; border-color: rgba(248, 113, 113, 0.4); }
 
-.redist-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+.redist-row-install {
+    position: relative;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border: 1px solid var(--border-hi);
+    border-radius: 6px;
+    background: var(--surface-hi);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
 }
 
-.redist-overall {
-    color: var(--text-muted);
-    font-size: 12px;
+.redist-row-install:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.redist-row-install:disabled {
+    opacity: 0.45;
+    cursor: default;
 }
 
 .support-action:disabled {

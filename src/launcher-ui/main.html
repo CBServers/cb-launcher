@@ -16,6 +16,7 @@
     <script src="./assets/js/popups/setup-flow-popup.js"></script>
     <script src="./assets/js/popups/component-selection-popup.js"></script>
     <script src="./assets/js/popups/custom-server-popup.js"></script>
+    <script src="./assets/js/popups/redist-popup.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -184,11 +185,10 @@
                         <section class="support-panel">
                             <h2 data-i18n="support.redistTitle">Redistributables</h2>
                             <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.</p>
-                            <ul class="redist-list" id="redist-list"></ul>
-                            <div class="redist-footer">
-                                <span class="redist-overall" id="redist-overall"></span>
-                                <button class="support-action" id="install-redist-btn" onclick="window.installRedist && window.installRedist()">
-                                    <span data-i18n="support.installRedist">Install Redistributables</span>
+                            <div class="redist-summary">
+                                <span class="redist-summary-text" id="redist-summary-text"></span>
+                                <button class="support-action" id="manage-redist-btn" onclick="window.RedistPopup && window.RedistPopup.show()">
+                                    <span data-i18n="support.manageRedist">Manage redistributables</span>
                                 </button>
                             </div>
                         </section>

@@ -89,7 +89,7 @@ namespace commands::ui_commands
             }
         });
 
-        cef_ui.add_command("install-redist", [&cef_ui](const rapidjson::Value&, rapidjson::Document& response)
+        cef_ui.add_command("install-redist", [&cef_ui](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetBool(false);
 
@@ -99,7 +99,16 @@ namespace commands::ui_commands
                 return;
             }
 
-            response.SetBool(redist::redist_installer::instance().start_install());
+            std::vector<std::string> ids;
+            if (value.IsObject() && value.HasMember("ids") && value["ids"].IsArray())
+            {
+                for (const auto& v : value["ids"].GetArray())
+                {
+                    if (v.IsString()) ids.emplace_back(v.GetString());
+                }
+            }
+
+            response.SetBool(redist::redist_installer::instance().start_install(ids));
         });
 
         cef_ui.add_command("refresh-redist", [](const auto&, rapidjson::Document& response)

@@ -6,6 +6,7 @@
 #include <utils/http.hpp>
 #include <utils/properties.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 
@@ -134,7 +135,7 @@ namespace redist
         this->state_.overall_message.clear();
     }
 
-    bool redist_installer::start_install()
+    bool redist_installer::start_install(const std::vector<std::string>& target_ids)
     {
         {
             std::lock_guard lock(this->mutex_);
@@ -151,24 +152,24 @@ namespace redist
         }
 
         if (this->worker_.joinable()) this->worker_.detach();
-        this->worker_ = std::thread([this] { this->worker_main(); });
+        this->worker_ = std::thread([this, target_ids] { this->worker_main(target_ids); });
         this->worker_.detach();
         return true;
     }
 
-    void redist_installer::worker_main()
+    void redist_installer::worker_main(const std::vector<std::string>& target_ids)
     {
         const auto& defs = all_packages();
         std::vector<size_t> work_indices;
+        const auto targeted = !target_ids.empty();
 
         {
             std::lock_guard lock(this->mutex_);
             for (size_t i = 0; i < this->state_.packages.size(); ++i)
             {
-                if (this->state_.packages[i].status == package_status::pending)
-                {
-                    work_indices.push_back(i);
-                }
+                if (this->state_.packages[i].status != package_status::pending) continue;
+                if (targeted && std::find(target_ids.begin(), target_ids.end(), this->state_.packages[i].id) == target_ids.end()) continue;
+                work_indices.push_back(i);
             }
         }
 
