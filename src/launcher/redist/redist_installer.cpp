@@ -39,6 +39,18 @@ namespace redist
             return value == expected;
         }
 
+        bool registry_key_exists(const std::wstring& subkey)
+        {
+            HKEY hkey = nullptr;
+            const REGSAM access = KEY_READ | KEY_WOW64_64KEY;
+            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.c_str(), 0, access, &hkey) != ERROR_SUCCESS)
+            {
+                return false;
+            }
+            RegCloseKey(hkey);
+            return true;
+        }
+
         std::filesystem::path cache_dir()
         {
             auto p = utils::properties::get_appdata_path() / "redist-cache";
@@ -100,19 +112,27 @@ namespace redist
     {
         for (const auto& rule : def.detect)
         {
-            switch (rule.kind)
+            bool any = false;
+            for (const auto& path : rule.paths)
             {
-            case detect_kind::registry_dword:
-                if (!registry_dword_equals(rule.path, rule.value_name, rule.expected)) return false;
-                break;
-            case detect_kind::file_exists:
-            {
-                const auto expanded = expand_env(rule.path);
-                std::error_code ec;
-                if (!std::filesystem::exists(expanded, ec)) return false;
-                break;
+                switch (rule.kind)
+                {
+                case detect_kind::registry_dword:
+                    if (registry_dword_equals(path, rule.value_name, rule.expected)) any = true;
+                    break;
+                case detect_kind::registry_key_exists:
+                    if (registry_key_exists(path)) any = true;
+                    break;
+                case detect_kind::file_exists:
+                {
+                    std::error_code ec;
+                    if (std::filesystem::exists(expand_env(path), ec)) any = true;
+                    break;
+                }
+                }
+                if (any) break;
             }
-            }
+            if (!any) return false;
         }
         return true;
     }
@@ -127,7 +147,7 @@ namespace redist
         {
             package_state ps;
             ps.id = def.id;
-            ps.name = def.name;
+            ps.name = def.arch.empty() ? def.group_name : def.group_name + " " + def.arch;
             ps.status = this->is_installed(def) ? package_status::installed : package_status::pending;
             this->state_.packages.push_back(ps);
         }
@@ -167,8 +187,13 @@ namespace redist
             std::lock_guard lock(this->mutex_);
             for (size_t i = 0; i < this->state_.packages.size(); ++i)
             {
-                if (this->state_.packages[i].status != package_status::pending) continue;
-                if (targeted && std::find(target_ids.begin(), target_ids.end(), this->state_.packages[i].id) == target_ids.end()) continue;
+                if (targeted)
+                {
+                    if (std::find(target_ids.begin(), target_ids.end(), this->state_.packages[i].id) == target_ids.end()) continue;
+                    this->state_.packages[i].status = package_status::pending;
+                    this->state_.packages[i].error.clear();
+                }
+                else if (this->state_.packages[i].status != package_status::pending) continue;
                 work_indices.push_back(i);
             }
         }
@@ -180,7 +205,7 @@ namespace redist
 
             {
                 std::lock_guard lock(this->mutex_);
-                this->state_.overall_message = "Installing " + def.name + "...";
+                this->state_.overall_message = "Installing " + this->state_.packages[i].name + "...";
             }
 
             this->install_one(this->state_.packages[i], def);

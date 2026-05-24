@@ -3646,7 +3646,30 @@ html[data-theme="dark"] .secondary-action:hover {
     gap: 10px;
 }
 
-.support-action.discord { background: #5865F2; }
+.support-action.discord { background: #5865F2; display: inline-flex; align-items: center; gap: 8px; }
+.support-action.discord .discord-online {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: none;
+    line-height: 1;
+    position: relative;
+    top: -1px;
+}
+.support-action.discord .discord-online::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #3ba55d;
+    box-shadow: 0 0 6px rgba(59, 165, 93, 0.7);
+}
 .support-action.faq { background: linear-gradient(135deg, #6C63FF 0%, #4B45C7 100%); }
 .support-action.bug { background: #24292e; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
 .support-action.logs {
@@ -3675,12 +3698,12 @@ html[data-theme="dark"] .secondary-action:hover {
     font-size: 12px;
 }
 
+.component-selection-popup.redist-popup { width: 580px; }
 .redist-popup .popup-content { padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
 .redist-popup-summary { color: var(--text-muted); font-size: 12px; }
 .redist-popup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 
 .redist-row {
-    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -3688,7 +3711,43 @@ html[data-theme="dark"] .secondary-action:hover {
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid var(--border);
     border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.redist-name {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+}
+
+.redist-arch-list {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.redist-arch-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 6px;
     overflow: hidden;
+}
+
+.redist-arch {
+    position: relative;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    min-width: 24px;
+    text-align: center;
 }
 
 .redist-row-progress {
@@ -3697,15 +3756,6 @@ html[data-theme="dark"] .secondary-action:hover {
     background: rgba(99, 102, 241, 0.18);
     transition: width 0.2s linear;
     pointer-events: none;
-}
-
-.redist-name {
-    position: relative;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 500;
-    flex: 1;
-    min-width: 0;
 }
 
 .redist-badge {
@@ -3752,6 +3802,18 @@ html[data-theme="dark"] .secondary-action:hover {
 .redist-row-install:disabled {
     opacity: 0.45;
     cursor: default;
+}
+
+.redist-row-install.reinstall {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.redist-row-install.reinstall:hover:not(:disabled) {
+    background: var(--surface-hi);
+    border-color: var(--border-hi);
+    color: #fff;
 }
 
 .support-action:disabled {

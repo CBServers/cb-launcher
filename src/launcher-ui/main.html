@@ -177,7 +177,10 @@
                             <p data-i18n="support.communityBody">Browse the FAQ for quick answers, or hop into the Discord &mdash; the fastest place to get help with launcher setup, client installs and server access.</p>
                             <div class="support-actions">
                                 <a class="support-action faq" href="https://docs.cbservers.xyz/launcher/faq" target="_blank" data-i18n="support.faq">FAQ</a>
-                                <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank" data-i18n="support.discordServer">Discord Server</a>
+                                <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank">
+                                    <span data-i18n="support.discordServer">Discord Server</span>
+                                    <span class="discord-online" id="discord-online" hidden></span>
+                                </a>
                                 <button type="button" class="support-action bug" onclick="window.executeCommand('open-url', { url: 'https://github.com/CBServers/cb-launcher/issues/new' })" data-i18n="support.reportBug">Report a bug</button>
                                 <button type="button" class="support-action logs" onclick="window.executeCommand('open-logs')" data-i18n="support.openLogs">Open log folder</button>
                             </div>

@@ -65,6 +65,44 @@ class RedistPopupController {
         this.popup.querySelector('.redist-popup-close-btn').textContent = this.t('common.cancel');
     }
 
+    groupPackages(packages) {
+        const groups = [];
+        const byId = new Map();
+        for (const p of packages) {
+            const gid = p.group_id || p.id;
+            let group = byId.get(gid);
+            if (!group) {
+                group = { id: gid, name: p.group_name || p.name, archs: [] };
+                byId.set(gid, group);
+                groups.push(group);
+            }
+            group.archs.push(p);
+        }
+        return groups;
+    }
+
+    renderArch(p, running) {
+        const busy = running;
+        const installed = !isMissingRedist(p);
+        const label = installed ? this.t('common.reinstall') : this.t('common.install');
+        const btnClass = installed ? 'redist-row-install reinstall' : 'redist-row-install';
+        const archLabel = p.arch ? `<span class="redist-arch">${p.arch}</span>` : '';
+        const titleAttr = p.error ? ` title="${p.error.replace(/"/g, '&quot;')}"` : '';
+        const showBadge = p.status === 'downloading' || p.status === 'installing' || p.status === 'failed';
+        const badge = showBadge
+            ? `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress)}</span>`
+            : '';
+        const progressFill = p.status === 'downloading'
+            ? `<div class="redist-row-progress" style="width:${p.progress || 0}%"></div>`
+            : '';
+        return `<div class="redist-arch-cell ${p.status}">
+            ${progressFill}
+            ${archLabel}
+            ${badge}
+            <button class="${btnClass}" data-install-id="${p.id}"${busy ? ' disabled' : ''}>${label}</button>
+        </div>`;
+    }
+
     render(state) {
         const listEl = this.popup.querySelector('.redist-popup-list');
         const summaryEl = this.popup.querySelector('.redist-popup-summary');
@@ -74,26 +112,16 @@ class RedistPopupController {
         const missing = packages.filter(isMissingRedist).length;
         const installed = packages.length - missing;
         const running = !!state.running;
+        const groups = this.groupPackages(packages);
 
-        listEl.innerHTML = packages.map(p => {
-            const busyOther = running && p.status !== 'downloading' && p.status !== 'installing';
-            const progressFill = p.status === 'downloading'
-                ? `<div class="redist-row-progress" style="width:${p.progress || 0}%"></div>`
-                : '';
-            const installBtn = isMissingRedist(p)
-                ? `<button class="redist-row-install" data-install-id="${p.id}"${busyOther ? ' disabled' : ''}>${this.t('common.install')}</button>`
-                : '';
-            const titleAttr = p.error ? ` title="${p.error.replace(/"/g, '&quot;')}"` : '';
-            const badge = p.status === 'pending'
-                ? ''
-                : `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress)}</span>`;
-            return `<li class="redist-row ${p.status}">
-                ${progressFill}
-                <span class="redist-name">${p.name}</span>
-                ${badge}
-                ${installBtn}
-            </li>`;
-        }).join('');
+        listEl.innerHTML = groups.map(g => `
+            <li class="redist-row">
+                <span class="redist-name">${g.name}</span>
+                <div class="redist-arch-list">
+                    ${g.archs.map(p => this.renderArch(p, running)).join('')}
+                </div>
+            </li>
+        `).join('');
 
         summaryEl.textContent = state.message
             || this.t('support.redistSummary', { installed, total: packages.length });
