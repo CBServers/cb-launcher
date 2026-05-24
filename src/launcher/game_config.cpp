@@ -341,13 +341,22 @@ namespace game_config
                 .display_name = "BO2",
                 .id = "t6",
                 .exe_name = "plutonium.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "alt-launchers/",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "t6.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "t6/",
                 .manifest_path = "manifest/bo2.json",
-                .required_updater_files = {"plutonium.exe"},
+                .required_updater_files = {},
                 .valid_game_files = {"binkw32.dll", "t6mp.exe", "t6zm.exe", "t6sp.exe"},
-                .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
-                .mode_arguments = {},
+                .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe", "T6SP-Mod.exe"},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""},
+                    {"zm", ""}
+                },
+                .mode_executables = {
+                    {"sp", "T6SP-Mod.exe"},
+                    {"mp", "plutonium.exe"},
+                    {"zm", "plutonium.exe"}
+                },
                 .name_argument = "",
                 .pluto_path_key = "t6Path",
                 .base_folder = "bo2_game_files",

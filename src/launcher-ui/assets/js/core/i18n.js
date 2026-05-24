@@ -367,9 +367,9 @@
                     credits: 'Multiplayer is provided by the IW5 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>Singleplayer is provided by the IW5-Mod Client and developed by <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 't6': {
-                    description: 'Call of Duty: Black Ops 2 enhanced with Plutonium T6 modifications. Experience multiplayer and zombies modes with improved stability and additional features.',
+                    description: 'Call of Duty: Black Ops 2 enhanced with Plutonium T6 and T6SP-Mod modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.',
                     descriptionNote: 'Plutonium requires an account. You can create one at: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
-                    credits: 'Multiplayer and Zombies are provided by the T6 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                    credits: 'Multiplayer and Zombies are provided by the T6 Client and developed by <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>Singleplayer is provided by the T6SP-Mod Client and developed by <a href="https://github.com/Rattpak" target="_blank">Rattpak</a>.'
                 },
                 'boiii': {
                     description: 'Call of Duty: Black Ops 3 enhanced with BOIII modifications. Experience the full campaign, multiplayer, and zombies modes with improved stability and additional features.',
@@ -772,9 +772,9 @@
                     credits: 'Le multijoueur est fourni par le client IW5 et developpe par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>Le solo est fourni par le client IW5-Mod et developpe par <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 't6': {
-                    description: 'Call of Duty: Black Ops 2 ameliore avec les modifications de Plutonium T6. Profitez du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    description: 'Call of Duty: Black Ops 2 ameliore avec les modifications de Plutonium T6 et T6SP-Mod. Profitez de la campagne, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
                     descriptionNote: 'Plutonium necessite un compte. Vous pouvez en creer un sur : <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
-                    credits: 'Le multijoueur et les zombies sont fournis par le client T6 et developpes par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                    credits: 'Le multijoueur et les zombies sont fournis par le client T6 et developpes par <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>La campagne est fournie par le client T6SP-Mod et developpee par <a href="https://github.com/Rattpak" target="_blank">Rattpak</a>.'
                 },
                 'boiii': {
                     description: 'Call of Duty: Black Ops 3 ameliore avec les modifications BOIII. Profitez de la campagne complete, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
@@ -1177,9 +1177,9 @@
                     credits: 'El multijugador lo proporciona el cliente IW5, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>El modo un jugador lo proporciona el cliente IW5-Mod, desarrollado por <a href="https://alterware.dev/" target="_blank">AlterWare</a>.'
                 },
                 't6': {
-                    description: 'Call of Duty: Black Ops 2 mejorado con las modificaciones de Plutonium T6. Disfruta del multijugador y del modo zombis con mayor estabilidad y funciones adicionales.',
+                    description: 'Call of Duty: Black Ops 2 mejorado con las modificaciones de Plutonium T6 y T6SP-Mod. Disfruta de la campaña, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
                     descriptionNote: 'Plutonium requiere una cuenta. Puedes crear una en: <a href="https://forum.plutonium.pw/register" target="_blank">https://forum.plutonium.pw/register</a>.',
-                    credits: 'El multijugador y los zombis los proporciona el cliente T6, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.'
+                    credits: 'El multijugador y los zombis los proporciona el cliente T6, desarrollado por <a href="https://plutonium.pw/" target="_blank">Plutonium</a>.<br>La campaña la proporciona el cliente T6SP-Mod, desarrollado por <a href="https://github.com/Rattpak" target="_blank">Rattpak</a>.'
                 },
                 'boiii': {
                     description: 'Call of Duty: Black Ops 3 mejorado con las modificaciones BOIII. Disfruta de la campana completa, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
