@@ -771,8 +771,9 @@ class GameUtils {
         return ids;
     }
 
-    static computeRedistAggregate(state) {
-        const packages = (state && state.packages) || [];
+    static computeRedistAggregate(state, scopeIds) {
+        const all = (state && state.packages) || [];
+        const packages = (scopeIds && scopeIds.length) ? all.filter(p => scopeIds.includes(p.id)) : all;
         if (packages.length === 0) return { percent: 0, currentName: null };
         const done = packages.filter(p => p.status === 'completed' || p.status === 'installed').length;
         const current = packages.find(p => p.status === 'downloading' || p.status === 'installing');
@@ -784,6 +785,8 @@ class GameUtils {
     static async installRedistsWithProgressBar(missingGroups, uiGameId) {
         const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
 
+        const scopeIds = this.expandMissingToPackageIds(missingGroups);
+
         let initial;
         try { initial = await window.executeCommand('get-redist-progress'); }
         catch (e) { initial = null; }
@@ -791,9 +794,8 @@ class GameUtils {
         const alreadyRunning = !!(initial && initial.running);
 
         if (!alreadyRunning) {
-            const ids = this.expandMissingToPackageIds(missingGroups);
-            if (ids.length === 0) return true;
-            try { await window.executeCommand('install-redist', { ids }); }
+            if (scopeIds.length === 0) return true;
+            try { await window.executeCommand('install-redist', { ids: scopeIds }); }
             catch (e) { console.error('install-redist failed', e); return false; }
         }
 
@@ -812,7 +814,7 @@ class GameUtils {
                 catch (e) { console.error('get-redist-progress failed', e); finish(false); return; }
                 if (!state) return;
 
-                const { percent, currentName } = this.computeRedistAggregate(state);
+                const { percent, currentName } = this.computeRedistAggregate(state, scopeIds);
                 const msg = currentName ? t('installer.installingNamed', { name: currentName }) : t('installer.installingComponents');
                 window.ProgressManager.update(percent, msg);
 

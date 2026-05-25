@@ -29,6 +29,7 @@ namespace redist
                 false,
                 {{ detect_kind::registry_key_exists, uninstall_keys(UNINSTALL_32, {
                     L"{7299052B-02A4-4627-81F2-1818DA5D550D}",
+                    L"{837b34e3-7c30-493c-8f6a-2b0f04e2912c}",
                     L"{710f4c1c-cc18-4c49-8cbf-51240c89a1a2}",
                 }), L"", 0 }}
             },
@@ -40,7 +41,8 @@ namespace redist
                 false,
                 {{ detect_kind::registry_key_exists, uninstall_keys(UNINSTALL_64, {
                     L"{071c9b48-7c32-4621-a0ac-3f809523288f}",
-                    L"{837b34e3-7c30-493c-8f6a-2b0f04e2912c}",
+                    L"{6ce5bae9-d3ca-4b99-891a-1dc6c118a5fc}",
+                    L"{ad8a2fa1-06e7-4b0d-927d-6e54b3d31028}",
                 }), L"", 0 }}
             },
             {
