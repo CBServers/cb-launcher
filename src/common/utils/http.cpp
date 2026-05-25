@@ -22,6 +22,7 @@ namespace utils::http
             const std::function<bool(const char*, size_t)>* callback{};
             std::exception_ptr exception{};
             curl_off_t bytes_written{};  // Track total bytes written across retries for resume support
+            bool aborted_by_callback{};  // Distinct from a real write failure so the caller can skip retry
         };
 
         int progress_callback(void* clientp, const curl_off_t dltotal, const curl_off_t dlnow, const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
@@ -74,6 +75,7 @@ namespace utils::http
                     // Callback returns false to abort
                     if (!(*write_helper->callback)(static_cast<char*>(contents), total_size))
                     {
+                        write_helper->aborted_by_callback = true;
                         return 0; // Abort transfer
                     }
                 }
@@ -209,7 +211,8 @@ namespace utils::http
 
     std::optional<result> get_data_stream(const std::string& url, const headers& headers,
         const std::string& fields, const std::function<bool(size_t, size_t, size_t)>& progress_callback_,
-        const std::function<bool(const char*, size_t)>& stream_callback, int timeout, uint32_t retries)
+        const std::function<bool(const char*, size_t)>& stream_callback, int timeout, uint32_t retries,
+        size_t resume_from)
     {
         curl_slist* header_list = nullptr;
         auto* curl = curl_easy_init();
@@ -255,6 +258,7 @@ namespace utils::http
         // Keep stream_helper outside retry loop so bytes_written accumulates across retries
         stream_helper write_helper{};
         write_helper.callback = &stream_callback;
+        write_helper.bytes_written = static_cast<curl_off_t>(resume_from);
 
         // Retry loop
         for (auto i = 0u; i < retries + 1; ++i)
@@ -293,6 +297,15 @@ namespace utils::http
             if (write_helper.exception)
             {
                 std::rethrow_exception(write_helper.exception);
+            }
+
+            // Stream-callback abort surfaces as CURLE_WRITE_ERROR; normalise to ABORTED_BY_CALLBACK
+            if (write_helper.aborted_by_callback)
+            {
+                result result;
+                result.code = CURLE_ABORTED_BY_CALLBACK;
+                result.response_code = response_code;
+                return result;
             }
 
             // Check if we should retry this request

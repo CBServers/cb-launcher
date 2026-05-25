@@ -54,6 +54,7 @@ namespace game_updater
         [[nodiscard]] std::string get_drive_filename(const updater::file_info& file) const;
         [[nodiscard]] std::string get_manifest_file_path() const;
         [[nodiscard]] bool is_update_cancelled() const;
+        [[nodiscard]] bool is_update_paused() const;
         void check_cancelled() const; // Throws update_cancelled exception if cancelled
         // Blocks the current thread while the update is paused, then runs a cancellation
         // check. Use at per-file boundaries to give pause-resume the desired granularity.

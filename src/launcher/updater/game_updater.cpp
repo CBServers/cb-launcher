@@ -331,17 +331,37 @@ namespace game_updater
         const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
         const auto out_file = this->get_drive_filename(file);
 
+        const size_t existing_size = utils::io::file_exists(out_file) ? utils::io::file_size(out_file) : 0;
+
+        if (file.size > 0 && existing_size >= file.size)
+        {
+            if (this->progress_listener_)
+            {
+                this->progress_listener_->file_progress(file, file.size);
+            }
+            return;
+        }
+
+        // append=true: no-op for an existing partial (must not truncate), creates parent dir + empty file otherwise
         std::string empty{};
-        if (!utils::io::write_file(out_file, empty, false))
+        if (!utils::io::write_file(out_file, empty, true))
         {
             throw std::runtime_error("Failed to write file: " + out_file);
         }
 
-        std::ofstream ofs(out_file, std::ios::binary);
+        std::ofstream ofs(out_file, std::ios::binary | std::ios::app);
         if (!ofs)
         {
             throw std::runtime_error("Failed to open file: " + out_file);
         }
+
+        // Pre-credit existing bytes so the progress percent reflects the full file, not just the resumed tail
+        if (existing_size > 0 && this->progress_listener_)
+        {
+            this->progress_listener_->file_progress(file, existing_size);
+        }
+
+        const auto keep_going = [this]() { return !is_update_cancelled() && !is_update_paused(); };
 
         int currentPercent = 0;
         const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
@@ -349,7 +369,7 @@ namespace game_updater
             auto progressRatio = (total_size > 0 && progress >= 0) ? static_cast<double>(progress) / total_size : 0.0;
             auto progressPercent = int(progressRatio * 100.0);
             if (progressPercent == currentPercent)
-                return !is_update_cancelled(); // Continue unless cancelled
+                return keep_going();
 
             currentPercent = progressPercent;
             printf("Updating file: %s (%.2f/%.2f MB) %d%%\n",
@@ -357,7 +377,7 @@ namespace game_updater
             progress / (1024.0 * 1024.0),
             total_size / (1024.0 * 1024.0),
             progressPercent);
-            return !is_update_cancelled(); // Continue unless cancelled
+            return keep_going();
         },
         [&](const char* chunk, size_t size) -> bool
         {
@@ -366,14 +386,14 @@ namespace game_updater
                 ofs.write(chunk, size);
             }
 
-            // We pass size of chunk to file_progress to progress that amount in bytes
             if (this->progress_listener_)
             {
                 this->progress_listener_->file_progress(file, size);
             }
 
-            return !is_update_cancelled(); // Continue unless cancelled
-        });
+            return keep_going();
+        },
+        0, 5, existing_size);
 
         ofs.close();
 
@@ -385,10 +405,27 @@ namespace game_updater
         }
 
         const auto& result = data.value();
-        if (result.code == CURLE_ABORTED_BY_CALLBACK && this->is_update_cancelled())
+        if (result.code == CURLE_ABORTED_BY_CALLBACK)
         {
-            // Download was cancelled, return silently
-            return;
+            if (this->is_update_cancelled())
+            {
+                return;
+            }
+            if (this->is_update_paused())
+            {
+                // Block until resumed/cancelled; outer retry loop re-enters and appends from existing_size
+                wait_if_paused_or_cancelled();
+                return;
+            }
+        }
+
+        if (result.response_code == 416)
+        {
+            // Our resume offset is past the remote's view of the file; drop the partial so retry refetches from byte 0
+            std::error_code ec{};
+            std::filesystem::remove(out_file, ec);
+            throw std::runtime_error(utils::string::va(
+                "HTTP 416 for %s - partial deleted, will retry from byte 0", url.data()));
         }
 
         if (result.code != CURLE_OK)
@@ -396,8 +433,6 @@ namespace game_updater
             throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
                 url.data(), result.code, curl_easy_strerror(result.code)));
         }
-
-        // Note: Size/hash verification is handled in the retry loop's verification phase
     }
 
     std::vector<updater::file_info> game_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
@@ -591,6 +626,10 @@ namespace game_updater
             {
                 this->update_file(file);
             }
+            catch (const updater::update_cancelled&)
+            {
+                throw;
+            }
             catch (const std::exception& e)
             {
                 printf("Warning: Download failed for %s: %s (will retry)\n",
@@ -622,7 +661,7 @@ namespace game_updater
 
         if (!this->skip_hash_check_)
         {
-            const auto hash = utils::hash::get_file_hash(drive_name, [this]() { check_cancelled(); });
+            const auto hash = utils::hash::get_file_hash(drive_name, [this]() { wait_if_paused_or_cancelled(); });
             return hash != file.hash;
         }
 
@@ -656,6 +695,11 @@ namespace game_updater
     bool game_updater::is_update_cancelled() const
     {
         return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
+    }
+
+    bool game_updater::is_update_paused() const
+    {
+        return (this->progress_listener_ && this->progress_listener_->is_update_paused());
     }
 
     void game_updater::check_cancelled() const
