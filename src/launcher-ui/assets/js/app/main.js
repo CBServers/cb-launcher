@@ -271,6 +271,62 @@ window.showSettings = function() {
     document.querySelector("#settings").click();
 }
 
+window.RedistManager = (function() {
+    async function refresh() {
+        const summaryEl = document.getElementById('redist-summary-text');
+        if (!summaryEl) return;
+        try {
+            await window.executeCommand('refresh-redist');
+            const state = await window.executeCommand('get-redist-progress');
+            const packages = (state && state.packages) || [];
+            const installed = packages.filter(p => p.status === 'installed' || p.status === 'completed').length;
+            summaryEl.textContent = window.LauncherI18n
+                ? window.LauncherI18n.t('support.redistSummary', { installed, total: packages.length })
+                : '';
+        } catch (e) {
+            console.error('refresh-redist failed', e);
+        }
+    }
+
+    return { refresh };
+})();
+
+window.DiscordWidget = (function() {
+    let cached = null;
+    let lastFetch = 0;
+    const TTL_MS = 5 * 60 * 1000;
+
+    function format(count) {
+        if (count >= 1000) return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        return String(count);
+    }
+
+    async function refresh() {
+        const el = document.getElementById('discord-online');
+        if (!el) return;
+
+        const now = Date.now();
+        if (!cached || (now - lastFetch) > TTL_MS) {
+            try {
+                const info = await window.executeCommand('get-discord-info');
+                if (info && info.ok && typeof info.online === 'number') {
+                    cached = info;
+                    lastFetch = now;
+                }
+            } catch (e) {
+                console.error('get-discord-info failed', e);
+            }
+        }
+
+        if (cached && typeof cached.online === 'number') {
+            el.textContent = format(cached.online);
+            el.hidden = false;
+        }
+    }
+
+    return { refresh };
+})();
+
 async function initializeNavigation() {
     // Handle home navigation
     const homeElement = document.querySelector("#home");
@@ -403,6 +459,9 @@ function handleSupportClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("support");
+
+    if (window.RedistManager) window.RedistManager.refresh();
+    if (window.DiscordWidget) window.DiscordWidget.refresh();
 }
 
 // setInnerHTML function removed - no longer needed with single page approach

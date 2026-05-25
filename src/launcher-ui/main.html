@@ -16,6 +16,7 @@
     <script src="./assets/js/popups/setup-flow-popup.js"></script>
     <script src="./assets/js/popups/component-selection-popup.js"></script>
     <script src="./assets/js/popups/custom-server-popup.js"></script>
+    <script src="./assets/js/popups/redist-popup.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -176,21 +177,28 @@
                             <p data-i18n="support.communityBody">Browse the FAQ for quick answers, or hop into the Discord &mdash; the fastest place to get help with launcher setup, client installs and server access.</p>
                             <div class="support-actions">
                                 <a class="support-action faq" href="https://docs.cbservers.xyz/launcher/faq" target="_blank" data-i18n="support.faq">FAQ</a>
-                                <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank" data-i18n="support.discordServer">Discord Server</a>
+                                <a class="support-action discord" href="https://cbservers.xyz/discord" target="_blank">
+                                    <span data-i18n="support.discordServer">Discord Server</span>
+                                    <span class="discord-online" id="discord-online" hidden></span>
+                                </a>
+                                <button type="button" class="support-action bug" onclick="window.executeCommand('open-url', { url: 'https://github.com/CBServers/cb-launcher/issues/new' })" data-i18n="support.reportBug">Report a bug</button>
+                                <button type="button" class="support-action logs" onclick="window.executeCommand('open-logs')" data-i18n="support.openLogs">Open log folder</button>
                             </div>
                         </section>
                         <section class="support-panel">
                             <h2 data-i18n="support.redistTitle">Redistributables</h2>
-                            <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients. Tool created by <a href="https://chse.sh" target="_blank">Chase</a>.</p>
-                            <button class="support-action" id="install-redist-btn" onclick="window.executeCommand('install-redist')">
-                                <span data-i18n="support.installRedist">Install Redistributables</span>
-                            </button>
+                            <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.</p>
+                            <div class="redist-summary">
+                                <span class="redist-summary-text" id="redist-summary-text"></span>
+                                <button class="support-action" id="manage-redist-btn" onclick="window.RedistPopup && window.RedistPopup.show()">
+                                    <span data-i18n="support.manageRedist">Manage redistributables</span>
+                                </button>
+                            </div>
                         </section>
-                        <section class="support-panel wide">
-                            <h2 data-i18n="support.noteTitle">Important note</h2>
-                            <p data-i18n="support.noteBody">This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.</p>
-                            <a class="support-link" href="https://github.com/CBServers" target="_blank" data-i18n="support.github">CB Servers GitHub</a>
-                        </section>
+                    </div>
+                    <div class="support-footer">
+                        <span data-i18n="support.noteBody">This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.</span>
+                        <a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="support.github">CB Servers GitHub</a>
                     </div>
                 </div>
 
