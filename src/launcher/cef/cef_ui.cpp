@@ -7,7 +7,6 @@
 
 #include <utils/nt.hpp>
 #include <utils/string.hpp>
-#include <utils/finally.hpp>
 
 namespace cef
 {
@@ -22,14 +21,11 @@ namespace cef
                 return;
             }
 
-            const auto old_directory = utils::nt::library::get_dll_directory();
-            utils::nt::library::set_dll_directory(path);
-            auto _ = utils::finally([&]()
-            {
-                utils::nt::library::set_dll_directory(old_directory);
-            });
+            // Absolute-path load instead of SetDllDirectory + leaf-name load.
+            // Some processes add_dll_directory covers any runtime LoadLibrary calls libcef itself makes for sibling DLLs.
+            utils::nt::library::add_dll_directory(path);
 
-            if (!utils::nt::library::load("libcef.dll"s) //
+            if (!utils::nt::library::load(path / "libcef.dll")
                 || !utils::nt::library::delay_load("libcef.dll"s))
             {
                 throw std::runtime_error("Failed to load CEF");

@@ -99,6 +99,7 @@ namespace utils::nt
         void** get_iat_entry(const std::string& module_name, const std::string& proc_name) const;
 
         static void set_dll_directory(const std::filesystem::path& directory);
+        static void add_dll_directory(const std::filesystem::path& directory);
         static std::filesystem::path get_dll_directory();
         static bool delay_load(const std::string& library);
 

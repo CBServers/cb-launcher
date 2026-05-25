@@ -16,7 +16,7 @@ namespace utils::nt
 
     library library::load(const std::filesystem::path& path)
     {
-        return load(path.generic_string());
+        return library(LoadLibraryExW(path.wstring().c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH));
     }
 
     library library::get_by_address(void* address)
@@ -217,6 +217,11 @@ namespace utils::nt
     void library::set_dll_directory(const std::filesystem::path& directory)
     {
         SetDllDirectoryW(directory.wstring().data());
+    }
+
+    void library::add_dll_directory(const std::filesystem::path& directory)
+    {
+        AddDllDirectory(directory.wstring().c_str());
     }
 
     std::filesystem::path library::get_dll_directory()
