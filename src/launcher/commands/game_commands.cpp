@@ -37,6 +37,44 @@ namespace commands::game_commands
             barrier->store(false);
         }
 
+        // Some clients (e.g. Plutonium) exit the launched PID and continue under a child with a different PID, so poll the full exe list.
+        void spawn_exit_watchdog(unsigned long pid, const game_config::game_config_t& config)
+        {
+            std::vector<std::string> tracked_exes{ config.exe_name };
+            for (const auto& exe : config.check_running_exes)
+            {
+                tracked_exes.push_back(exe);
+            }
+
+            std::thread([pid, tracked_exes = std::move(tracked_exes)]()
+            {
+                utils::nt::wait_for_process(pid);
+
+                // Grace period for updater→child handoff before polling.
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+
+                int empty_ticks = 0;
+                while (empty_ticks < 2)
+                {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                    bool any_running = false;
+                    for (const auto& exe : tracked_exes)
+                    {
+                        if (!exe.empty() && utils::nt::is_process_running(exe))
+                        {
+                            any_running = true;
+                            break;
+                        }
+                    }
+
+                    empty_ticks = any_running ? 0 : empty_ticks + 1;
+                }
+
+                unlock_termination_barrier();
+            }).detach();
+        }
+
         void apply_post_client_update(const game_config::game_config_t& config)
         {
             if (config.game_key == "cod4x")
@@ -223,14 +261,7 @@ namespace commands::game_commands
                     return;
                 }
 
-                // Spawn watchdog thread to unlock barrier when game exits
-                std::thread([pid]()
-                {
-                    if (utils::nt::wait_for_process(pid))
-                    {
-                        unlock_termination_barrier();
-                    }
-                }).detach();
+                spawn_exit_watchdog(pid, config);
             }
             else
             {
