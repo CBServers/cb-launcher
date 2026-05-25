@@ -4,6 +4,7 @@
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
 #include <utils/cdn.hpp>
+#include <unordered_set>
 
 #define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
 
@@ -259,7 +260,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
-                .client_install_path_files = {"miles32.dll", "mss32.dll", "iw3mp.exe", "iw3sp_mod.exe", "game.dll", "iw3sp_data/*"}
+                .client_install_path_files = {"miles32.dll", "mss32.dll", "iw3mp.exe", "iw3sp_mod.exe", "game.dll", "iw3sp_data/*"},
+                .required_redists = {"vcr2005", "vcr2008", "dx_jun2010"}
             }
         },
         {
@@ -280,7 +282,8 @@ namespace game_config
                 .pluto_path_key = "t4Path",
                 .base_folder = "waw_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -301,7 +304,8 @@ namespace game_config
                 .pluto_path_key = "t5Path",
                 .base_folder = "bo1_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -331,7 +335,8 @@ namespace game_config
                 .name_argument = "+set name",
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -361,7 +366,8 @@ namespace game_config
                 .pluto_path_key = "t6Path",
                 .base_folder = "bo2_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -392,7 +398,8 @@ namespace game_config
                 .pluto_path_key = "iw5Path",
                 .base_folder = "mw3_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -414,7 +421,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("boiii"),
-                .client_install_path_files = {"boiii.exe", "BlackOps3.exe"}
+                .client_install_path_files = {"boiii.exe", "BlackOps3.exe"},
+                .required_redists = {"vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -437,7 +445,8 @@ namespace game_config
                 .name_argument = "+set name",
                 .base_folder = "ghosts_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -462,7 +471,8 @@ namespace game_config
                 .name_argument = "+set name",
                 .base_folder = "aw_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -487,7 +497,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
-                .client_install_path_files = {"h1-mod.exe"}
+                .client_install_path_files = {"h1-mod.exe"},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -509,7 +520,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
-                .client_install_path_files = {"iw7-mod.exe"}
+                .client_install_path_files = {"iw7-mod.exe"},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -530,7 +542,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("h2-mod"),
-                .client_install_path_files = {"h2-mod.exe"}
+                .client_install_path_files = {"h2-mod.exe"},
+                .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -553,7 +566,8 @@ namespace game_config
                 .name_argument = "-name",
                 .base_folder = "bo4_game_files",
                 .base_properties_game = "",
-                .property_overrides = {}
+                .property_overrides = {},
+                .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -580,7 +594,8 @@ namespace game_config
                     {property_keys::SELECTED_COMPONENTS, "hmw"},
                     {property_keys::LAUNCH_OPTIONS, "hmw"},
                     {property_keys::DISABLE_CB_EXTENSION, "hmw"}
-                }
+                },
+                .required_redists = {"vcr2022", "dx_jun2010"}
             }
         }
     };
@@ -758,5 +773,33 @@ namespace game_config
         }
 
         return data;
+    }
+
+    std::vector<std::string> resolve_required_redists(const std::string& game)
+    {
+        const auto config = get_game_config(game);
+        if (!config) return {};
+
+        std::vector<std::string> result;
+        std::unordered_set<std::string> seen;
+
+        const auto add_all = [&](const std::vector<std::string>& ids)
+        {
+            for (const auto& id : ids)
+            {
+                if (seen.insert(id).second) result.push_back(id);
+            }
+        };
+
+        if (!config->base_game.empty())
+        {
+            if (const auto base = get_game_config(config->base_game))
+            {
+                add_all(base->required_redists);
+            }
+        }
+        add_all(config->required_redists);
+
+        return result;
     }
 }

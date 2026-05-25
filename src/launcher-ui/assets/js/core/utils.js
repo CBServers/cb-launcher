@@ -760,6 +760,73 @@ class GameUtils {
         });
     }
 
+    static expandMissingToPackageIds(missingGroups) {
+        const ids = [];
+        for (const g of (missingGroups || [])) {
+            const archs = (g.archs && g.archs.length) ? g.archs : [''];
+            for (const arch of archs) {
+                ids.push(arch ? `${g.group_id}_${arch}` : g.group_id);
+            }
+        }
+        return ids;
+    }
+
+    static computeRedistAggregate(state) {
+        const packages = (state && state.packages) || [];
+        if (packages.length === 0) return { percent: 0, currentName: null };
+        const done = packages.filter(p => p.status === 'completed' || p.status === 'installed').length;
+        const current = packages.find(p => p.status === 'downloading' || p.status === 'installing');
+        const currentPct = current ? (current.status === 'installing' ? 100 : (current.progress || 0)) : 0;
+        const percent = Math.min(100, ((done * 100) + currentPct) / packages.length);
+        return { percent, currentName: current ? current.name : null };
+    }
+
+    static async installRedistsWithProgressBar(missingGroups, uiGameId) {
+        const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
+
+        let initial;
+        try { initial = await window.executeCommand('get-redist-progress'); }
+        catch (e) { initial = null; }
+
+        const alreadyRunning = !!(initial && initial.running);
+
+        if (!alreadyRunning) {
+            const ids = this.expandMissingToPackageIds(missingGroups);
+            if (ids.length === 0) return true;
+            try { await window.executeCommand('install-redist', { ids }); }
+            catch (e) { console.error('install-redist failed', e); return false; }
+        }
+
+        window.ProgressManager.show(uiGameId, t('installer.installingComponents'), null);
+
+        return new Promise((resolve) => {
+            const finish = (success) => {
+                if (pollId) clearInterval(pollId);
+                window.ProgressManager.hide();
+                resolve(success);
+            };
+
+            const tick = async () => {
+                let state;
+                try { state = await window.executeCommand('get-redist-progress'); }
+                catch (e) { console.error('get-redist-progress failed', e); finish(false); return; }
+                if (!state) return;
+
+                const { percent, currentName } = this.computeRedistAggregate(state);
+                const msg = currentName ? t('installer.installingNamed', { name: currentName }) : t('installer.installingComponents');
+                window.ProgressManager.update(percent, msg);
+
+                if (state.running === false) {
+                    const failed = (state.packages || []).some(p => p.status === 'failed');
+                    finish(!failed);
+                }
+            };
+
+            tick();
+            const pollId = setInterval(tick, 500);
+        });
+    }
+
     /**
      * Launch a game with optional mode, handling path validation and progress
      * @param {string} backendGame - Backend game ID (bo3, ghosts, etc.)
@@ -805,6 +872,27 @@ class GameUtils {
                 alert(`${gameName} installation path not configured.`);
             }
             throw new Error('Installation path not configured');
+        }
+
+        let missingResp = null;
+        try { missingResp = await window.executeCommand('get-missing-redists-for-game', { game: backendGame }); }
+        catch (e) { console.error('get-missing-redists-for-game failed', e); }
+
+        const missing = (missingResp && missingResp.missing) || [];
+        if (missing.length > 0) {
+            const proceed = window.LaunchRedistModal
+                ? await window.LaunchRedistModal.show(missing, gameConfig.displayName)
+                : false;
+            if (!proceed) return;
+
+            const ok = await GameUtils.installRedistsWithProgressBar(missing, uiGameId);
+            if (!ok) {
+                const i18n = window.LauncherI18n;
+                if (typeof window.showToast === 'function') {
+                    window.showToast(i18n ? i18n.t('installer.redistInstallFailed') : 'Failed to install required components.', 'error', 6000);
+                }
+                return;
+            }
         }
 
         // Build command arguments

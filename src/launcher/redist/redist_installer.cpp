@@ -155,6 +155,32 @@ namespace redist
         this->state_.overall_message.clear();
     }
 
+    std::vector<missing_group> redist_installer::get_missing(const std::vector<std::string>& required_group_ids) const
+    {
+        std::vector<missing_group> result;
+        const auto& defs = all_packages();
+
+        for (const auto& group_id : required_group_ids)
+        {
+            missing_group group;
+            for (const auto& def : defs)
+            {
+                if (def.group_id != group_id) continue;
+                if (this->is_installed(def)) continue;
+
+                if (group.group_id.empty())
+                {
+                    group.group_id = def.group_id;
+                    group.group_name = def.group_name;
+                }
+                group.archs.push_back(def.arch);
+            }
+            if (!group.group_id.empty()) result.push_back(std::move(group));
+        }
+
+        return result;
+    }
+
     bool redist_installer::start_install(const std::vector<std::string>& target_ids)
     {
         {

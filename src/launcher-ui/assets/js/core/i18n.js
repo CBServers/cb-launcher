@@ -124,6 +124,14 @@
                 noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
+            installer: {
+                missingRedistTitle: 'Required components missing',
+                missingRedistBody: '{{gameName}} needs the following components installed:',
+                installAndLaunch: 'Install and launch',
+                installingComponents: 'Installing required components…',
+                installingNamed: 'Installing {{name}}…',
+                redistInstallFailed: 'Failed to install required components. Open the Support page and try the Manage redistributables option.'
+            },
             settings: {
                 title: 'Settings',
                 subtitle: 'Launcher preferences and network settings.',
@@ -540,6 +548,14 @@
                 noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora ou HorizonMW. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
+            installer: {
+                missingRedistTitle: 'Composants requis manquants',
+                missingRedistBody: '{{gameName}} a besoin des composants suivants :',
+                installAndLaunch: 'Installer et lancer',
+                installingComponents: 'Installation des composants requis…',
+                installingNamed: 'Installation de {{name}}…',
+                redistInstallFailed: 'Echec de l’installation des composants requis. Ouvrez la page Support et utilisez Gerer les redistribuables.'
+            },
             settings: {
                 title: 'Parametres',
                 subtitle: 'Preferences du launcher et parametres reseau.',
@@ -955,6 +971,14 @@
                 popup: { title: 'Administrar redistribuibles' },
                 noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora ni HorizonMW. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
+            },
+            installer: {
+                missingRedistTitle: 'Faltan componentes requeridos',
+                missingRedistBody: '{{gameName}} necesita instalar los siguientes componentes:',
+                installAndLaunch: 'Instalar y ejecutar',
+                installingComponents: 'Instalando componentes requeridos…',
+                installingNamed: 'Instalando {{name}}…',
+                redistInstallFailed: 'Fallo al instalar los componentes requeridos. Abre la pagina de Soporte y usa Administrar redistribuibles.'
             },
             settings: {
                 title: 'Ajustes',

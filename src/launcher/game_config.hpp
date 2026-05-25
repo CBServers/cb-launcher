@@ -68,6 +68,9 @@ namespace game_config
         // Files that always go to install_path even when client_default_path is set
         std::unordered_set<std::string> client_install_path_files;
 
+        // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
+        std::vector<std::string> required_redists;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };
@@ -90,4 +93,7 @@ namespace game_config
 
     // Read the game's update manifest from local appdata. Throws std::runtime_error if missing/unreadable.
     std::string read_manifest(const game_config_t& config);
+
+    // Returns the union of a game's required_redists with its base_game's list (if any), deduplicated.
+    std::vector<std::string> resolve_required_redists(const std::string& game);
 }

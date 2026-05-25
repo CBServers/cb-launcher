@@ -36,6 +36,13 @@ namespace redist
         std::vector<package_state> packages;
     };
 
+    struct missing_group
+    {
+        std::string group_id;
+        std::string group_name;
+        std::vector<std::string> archs;
+    };
+
     class redist_installer
     {
     public:
@@ -44,6 +51,9 @@ namespace redist
         void refresh_detection();
         bool start_install(const std::vector<std::string>& target_ids = {});
         redist_state get_state() const;
+
+        // For each requested group ID, returns one entry listing any archs whose detection failed. Unknown group IDs are skipped silently.
+        std::vector<missing_group> get_missing(const std::vector<std::string>& required_group_ids) const;
 
     private:
         redist_installer() = default;

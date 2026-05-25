@@ -10,6 +10,8 @@
 #include "redist/redist_installer.hpp"
 #include "redist/redist_packages.hpp"
 
+#include "game_config.hpp"
+
 namespace commands::ui_commands
 {
     void register_commands(cef::cef_ui& cef_ui, command_context&)
@@ -173,6 +175,52 @@ namespace commands::ui_commands
                 packages.PushBack(obj, allocator);
             }
             response.AddMember("packages", packages, allocator);
+        });
+
+        cef_ui.add_command("get-missing-redists-for-game", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto str = [&allocator](const std::string& s)
+            {
+                rapidjson::Value v;
+                v.SetString(s.data(), static_cast<rapidjson::SizeType>(s.length()), allocator);
+                return v;
+            };
+
+            rapidjson::Value missing(rapidjson::kArrayType);
+
+            if (utils::nt::is_wine_environment())
+            {
+                response.AddMember("missing", missing, allocator);
+                return;
+            }
+
+            if (!value.IsObject() || !value.HasMember("game") || !value["game"].IsString())
+            {
+                response.AddMember("missing", missing, allocator);
+                return;
+            }
+
+            const std::string game = value["game"].GetString();
+            const auto required = game_config::resolve_required_redists(game);
+            const auto groups = redist::redist_installer::instance().get_missing(required);
+
+            for (const auto& g : groups)
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                obj.AddMember("group_id", str(g.group_id), allocator);
+                obj.AddMember("group_name", str(g.group_name), allocator);
+
+                rapidjson::Value archs(rapidjson::kArrayType);
+                for (const auto& arch : g.archs) archs.PushBack(str(arch), allocator);
+                obj.AddMember("archs", archs, allocator);
+
+                missing.PushBack(obj, allocator);
+            }
+
+            response.AddMember("missing", missing, allocator);
         });
 
         cef_ui.add_command("get-discord-info", [](const auto&, rapidjson::Document& response)
