@@ -587,6 +587,10 @@
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => `
             <article class="library-card" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                <span class="library-card-player-pill" data-player-badge hidden>
+                    <span class="library-card-player-dot"></span>
+                    <span data-player-count>0</span>
+                </span>
                 <span class="library-card-size-pill" data-size-badge hidden></span>
                 <div class="library-card-progress" aria-hidden="true">
                     <span></span>
@@ -618,7 +622,54 @@
             }
         });
 
+        if (window.PlayerCountManager) {
+            window.PlayerCountManager.applyToVisibleCards();
+        }
+
         bindLibraryControls();
+    }
+
+    function updateLibraryCardPlayerCount(gameId, count) {
+        const card = document.querySelector(`.library-card[data-game="${gameId}"]`);
+        if (!card) return;
+        const pill = card.querySelector('[data-player-badge]');
+        const label = card.querySelector('[data-player-count]');
+        if (!pill || !label) return;
+        const safe = typeof count === 'number' && count > 0 ? count : 0;
+        if (safe > 0) {
+            label.textContent = safe.toLocaleString();
+            pill.hidden = false;
+        } else {
+            pill.hidden = true;
+        }
+    }
+
+    function updateGamePagePlayerCount(gameId, count) {
+        const page = document.getElementById(`${gameId}-page`);
+        if (!page) return;
+        const pill = page.querySelector('[data-game-player-badge]');
+        if (!pill) return;
+        const safe = typeof count === 'number' && count > 0 ? count : 0;
+        if (safe > 0) {
+            pill.textContent = safe.toLocaleString();
+            pill.hidden = false;
+        } else {
+            pill.hidden = true;
+        }
+    }
+
+    function updateGamePageInstallSize(gameId, bytes) {
+        const page = document.getElementById(`${gameId}-page`);
+        if (!page) return;
+        const pill = page.querySelector('[data-game-size-badge]');
+        if (!pill) return;
+        if (typeof bytes === 'number' && bytes > 0) {
+            pill.textContent = GameUtils.formatBytes(bytes);
+            pill.hidden = false;
+        } else {
+            pill.hidden = true;
+            pill.textContent = '';
+        }
     }
 
     const KNOWN_CLIENT_FILTERS = ['plutonium', 'alterware', 'aurora'];
@@ -743,10 +794,13 @@
             const installed = info.installed || [];
             const sizes = info.sizes || {};
             const total = installed.reduce((sum, id) => sum + (sizes[id] || 0), 0);
+            if (total <= 0) return;
             const sizeEl = card.querySelector('[data-size-badge]');
-            if (!sizeEl || total <= 0) return;
-            sizeEl.textContent = GameUtils.formatBytes(total);
-            sizeEl.hidden = false;
+            if (sizeEl) {
+                sizeEl.textContent = GameUtils.formatBytes(total);
+                sizeEl.hidden = false;
+            }
+            updateGamePageInstallSize(gameId, total);
         } catch (error) {
             console.warn(`Failed to fetch install size for ${gameId}:`, error);
         }
@@ -793,6 +847,7 @@
                 sizeBadge.hidden = true;
                 sizeBadge.textContent = '';
             }
+            updateGamePageInstallSize(gameId, 0);
         }
     }
 
@@ -832,7 +887,9 @@
                     <div class="hero-bottom-content">
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
                         <div class="game-meta-row">
+                            <span class="game-meta-player" data-game-player-badge hidden>0</span>
                             <span>${escapeHtml(config.codeName)}</span>
+                            <span class="game-meta-size" data-game-size-badge hidden></span>
                         </div>
                     </div>
                 </div>
@@ -844,13 +901,13 @@
                         <section class="description">
                             <strong>${escapeHtml(config.displayName)}</strong>
                             <p>${escapeHtml(gameDescription(config))}</p>
-                            ${gameDescriptionNote(config) ? `<br><p>${gameDescriptionNote(config)}</p>` : ''}
+                            ${gameDescriptionNote(config) ? `<p>${gameDescriptionNote(config)}</p>` : ''}
                             <br>
                             <strong>${escapeHtml(t('detail.credits'))}</strong>
                             <p>${gameCredits(config)}</p>
                             <br>
                             <strong>${escapeHtml(t('detail.note'))}</strong>
-                            <p>${escapeHtml(t('detail.noteBody'))}</p>
+                            <p>${t('detail.noteBody', { provider: escapeHtml(config.provider) })}</p>
                         </section>
 
                         <aside class="detail-actions-panel">
@@ -1174,6 +1231,9 @@
         refreshInstallationStates,
         refreshHomeInstalledClients,
         updateLibraryCard,
+        updateLibraryCardPlayerCount,
+        updateGamePagePlayerCount,
+        updateGamePageInstallSize,
         navigateTo,
         updateSidebarMyGames
     };

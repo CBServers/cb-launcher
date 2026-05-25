@@ -83,7 +83,7 @@
                 showInstalled: 'Show installed',
                 welcomeTitle: 'Welcome to CB Launcher',
                 welcomeBody: 'Welcome to CB Servers Launcher! Your one-stop launcher for Call of Duty community clients. Install, update, and play supported clients all from one place. Head to the <strong>Library</strong> tab to browse every available client and start playing. Need a hand? Head over to the <strong>Support</strong> tab or check out our <a href="https://docs.cbservers.xyz/launcher" target="_blank">docs</a>.',
-                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please do not contact the original client maintainers with support requests regarding this launcher.'
+                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
             },
             library: {
                 title: 'Library',
@@ -121,7 +121,7 @@
                 redistStatusInstalling: 'Installing',
                 redistStatusFailed: 'Failed',
                 popup: { title: 'Manage redistributables' },
-                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, or HorizonMW. Please use CB Servers support channels for this launcher and its forks.',
+                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -204,7 +204,7 @@
                 modsScripts: 'Mods/Scripts',
                 credits: 'Credits',
                 note: 'Note',
-                noteBody: 'Do not contact original client maintainers for support requests related to this launcher. Use the CB Servers Discord instead.',
+                noteBody: 'This launcher is not affiliated with or endorsed by {{provider}}. Please do not contact the original client maintainers with support requests regarding this launcher, use our <a href="https://cbservers.xyz/discord" target="_blank">Discord</a> instead.',
                 verifySteamFiles: 'Verify Steam files',
                 client: 'Client',
                 provider: 'Provider',
@@ -412,7 +412,7 @@
                 },
                 'bo4': {
                     description: 'Black Ops 4 enhanced with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies, with improved stability and additional features.',
-                    credits: 'Online and offline play are provided by the <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> and developed by <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                    credits: 'Online and offline play are provided by the <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> and maintained by <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
                 },
                 'mw2r': {
                     description: 'Modern Warfare 2 Campaign Remastered with H2-Mod support. Run the remastered MW2 campaign with stability and quality-of-life patches.',
@@ -507,7 +507,7 @@
                 showInstalled: 'Voir les installes',
                 welcomeTitle: 'Bienvenue sur CB Launcher',
                 welcomeBody: 'Bienvenue sur CB Servers Launcher&nbsp;! Votre launcher tout-en-un pour les clients communautaires Call of Duty. Installez, mettez a jour et jouez aux clients pris en charge depuis un seul endroit. Rendez-vous dans l\'onglet <strong>Bibliotheque</strong> pour parcourir tous les clients disponibles et commencer a jouer. Besoin d\'aide&nbsp;? Rendez-vous dans l\'onglet <strong>Support</strong> ou consultez notre <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentation</a>.',
-                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora ou HorizonMW. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
+                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
             },
             library: {
                 title: 'Bibliotheque',
@@ -545,7 +545,7 @@
                 redistStatusInstalling: 'Installation',
                 redistStatusFailed: 'Echec',
                 popup: { title: 'Gerer les redistribuables' },
-                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora ou HorizonMW. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
+                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
             installer: {
@@ -628,7 +628,7 @@
                 modsScripts: 'Mods/Scripts',
                 credits: 'Credits',
                 note: 'Note',
-                noteBody: "Ne contactez pas les mainteneurs originaux du client pour des demandes de support liees a ce launcher. Utilisez plutot le Discord CB Servers.",
+                noteBody: "Ce launcher n'est ni affilie ni approuve par {{provider}}. Merci de ne pas contacter les developpeurs des clients d'origine pour des demandes de support concernant ce launcher, utilisez plutot notre <a href=\"https://cbservers.xyz/discord\" target=\"_blank\">Discord</a>.",
                 verifySteamFiles: 'Verifier les fichiers Steam',
                 client: 'Client',
                 provider: 'Fournisseur',
@@ -931,7 +931,7 @@
                 showInstalled: 'Mostrar instalados',
                 welcomeTitle: 'Bienvenido a CB Launcher',
                 welcomeBody: 'Bienvenido a CB Servers Launcher! Tu launcher todo-en-uno para los clientes comunitarios de Call of Duty. Instala, actualiza y juega a los clientes compatibles desde un solo lugar. Ve a la pestana <strong>Biblioteca</strong> para explorar todos los clientes disponibles y empezar a jugar. Necesitas ayuda? Pasa por la pestana <strong>Soporte</strong> o consulta nuestra <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentacion</a>.',
-                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora ni HorizonMW. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
+                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
             },
             library: {
                 title: 'Biblioteca',
@@ -969,7 +969,7 @@
                 redistStatusInstalling: 'Instalando',
                 redistStatusFailed: 'Fallo',
                 popup: { title: 'Administrar redistribuibles' },
-                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora ni HorizonMW. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
+                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
             },
             installer: {
@@ -1052,7 +1052,7 @@
                 modsScripts: 'Mods/Scripts',
                 credits: 'Creditos',
                 note: 'Nota',
-                noteBody: 'No contactes a los desarrolladores originales del cliente para consultas de soporte relacionadas con este launcher. Usa el Discord de CB Servers en su lugar.',
+                noteBody: 'Este launcher no esta afiliado ni respaldado por {{provider}}. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher, usa nuestro <a href="https://cbservers.xyz/discord" target="_blank">Discord</a> en su lugar.',
                 verifySteamFiles: 'Verificar archivos de Steam',
                 client: 'Cliente',
                 provider: 'Proveedor',

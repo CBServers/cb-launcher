@@ -344,7 +344,7 @@ class GameUtils {
             version: 'T8',
             installStateLabel: 'Ready to play',
             description: 'Black Ops 4 with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies.',
-            credits: 'Online and offline play are provided by Project BO4 Launcher, developed by NotNierPea.',
+            credits: 'Online and offline play are provided by Project BO4 Launcher, maintained by NotNierPea.',
             accent: '#FE890A',
             assetBase: './assets/img/games/bo4',
             iconPath: './assets/img/games/bo4/capsule.jpg',

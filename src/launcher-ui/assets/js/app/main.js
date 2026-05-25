@@ -229,6 +229,10 @@ async function initialize() {
                 window.GameStateManager.startPolling();
             }
 
+            if (window.PlayerCountManager) {
+                window.PlayerCountManager.start();
+            }
+
             handleStartupLaunchArg();
         });
 
