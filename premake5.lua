@@ -279,7 +279,8 @@ targetname "cb-launcher"
 pchheader "std_include.hpp"
 pchsource "src/launcher/std_include.cpp"
 
-linkoptions {"/IGNORE:4254", "/DYNAMICBASE:NO", "/SAFESEH:NO", "/LARGEADDRESSAWARE", "/LAST:.main", "/PDBCompress"}
+-- /DEPENDENTLOADFLAG:0x800 = LOAD_LIBRARY_SEARCH_SYSTEM32 for all delay-loaded DLLs.
+linkoptions {"/IGNORE:4254", "/DYNAMICBASE:NO", "/SAFESEH:NO", "/LARGEADDRESSAWARE", "/LAST:.main", "/PDBCompress", "/DEPENDENTLOADFLAG:0x800"}
 
 files {"./src/launcher/**.rc", "./src/launcher/**.hpp", "./src/launcher/**.cpp", "./src/launcher/**.manifest", "./src/launcher/resources/**.*"}
 

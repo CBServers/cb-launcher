@@ -7,6 +7,9 @@ function curl.import()
 	
 	filter "toolset:msc*"
 	links { "Crypt32.lib", "secur32.lib" }
+	-- Delay-load so these resolve from System32 (per /DEPENDENTLOADFLAG) instead of
+	-- being pulled in at process startup via the EXE-dir-first legacy search.
+	linkoptions { "/DELAYLOAD:crypt32.dll", "/DELAYLOAD:secur32.dll", "/DELAYLOAD:bcrypt.dll" }
 	filter {}
 	
 	curl.includes()

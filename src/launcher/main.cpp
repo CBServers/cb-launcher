@@ -131,6 +131,10 @@ namespace
 
 int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
+    // Harden DLL search before anything else runs: System32 + AddDllDirectory entries only.
+    // Prevents planting via stray DLLs in the launcher's own directory.
+    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+
     try
     {
         set_working_directory();
