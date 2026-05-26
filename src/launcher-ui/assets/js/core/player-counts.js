@@ -1,39 +1,29 @@
-// Live player counts for library cards — polls gameserve.rs/api/v1/stats once a minute.
+// Live player counts for library cards — polls api.brad.stream/v1/stats once a minute.
 
 (function () {
-    const API_URL = 'https://gameserve.rs/api/v1/stats';
-    const POLL_INTERVAL_MS = 60 * 1000;
+    const API_URL = 'https://api.brad.stream/v1/stats';
+    const POLL_INTERVAL_MS = 30 * 1000;
 
-    // uiId -> array of byGame keys to sum
+    // uiId -> games key
     const MAPPING = {
-        't4':       ['T4', 'T4ZM'],
-        't5':       ['T5', 'T5ZM'],
-        't6':       ['T6', 'T6ZM'],
-        'boiii':    ['T7'],
-        'iw4x':     ['IW4'],
-        'iw5':      ['IW5'],
-        'iw6x':     ['IW6'],
-        'iw7-mod':  ['IW7'],
-        's1x':      ['S1'],
-        'h1-mod':   ['H1'],
-        'hmw-mod':  ['H2M'],
-        'cod4x':    ['IW3']
+        'cod4x':    'IW3',
+        't4':       'T4',
+        't5':       'T5',
+        't6':       'T6',
+        'boiii':    'T7',
+        'bo4':      'T8',
+        'iw4x':     'IW4',
+        'iw5':      'IW5',
+        'iw6x':     'IW6',
+        'iw7-mod':  'IW7',
+        's1x':      'S1',
+        'h1-mod':   'H1',
+        'hmw-mod':  'HMW'
     };
 
     const latestCounts = {};
     let pollTimer = null;
     let started = false;
-
-    function sumKeys(byGame, keys) {
-        let total = 0;
-        for (const key of keys) {
-            const entry = byGame[key];
-            if (entry && typeof entry.players === 'number') {
-                total += entry.players;
-            }
-        }
-        return total;
-    }
 
     function applyToVisibleCards() {
         if (!window.AppViews) return;
@@ -53,11 +43,12 @@
             const res = await fetch(API_URL, { cache: 'no-store' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
-            const byGame = json && json.data && json.data.current && json.data.current.byGame;
-            if (!byGame || typeof byGame !== 'object') throw new Error('Malformed response: missing byGame');
+            const games = json && json.games;
+            if (!games || typeof games !== 'object') throw new Error('Malformed response: missing games');
 
-            for (const [uiId, keys] of Object.entries(MAPPING)) {
-                latestCounts[uiId] = sumKeys(byGame, keys);
+            for (const [uiId, key] of Object.entries(MAPPING)) {
+                const entry = games[key];
+                latestCounts[uiId] = (entry && typeof entry.players === 'number') ? entry.players : 0;
             }
             applyToVisibleCards();
         } catch (error) {
