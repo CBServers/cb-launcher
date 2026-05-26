@@ -362,6 +362,7 @@ namespace game_updater
         }
 
         const auto keep_going = [this]() { return !is_update_cancelled() && !is_update_paused(); };
+        const auto on_abort = [this]() -> bool { wait_if_paused_or_cancelled(); return true; };
 
         int currentPercent = 0;
         const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
@@ -393,7 +394,7 @@ namespace game_updater
 
             return keep_going();
         },
-        0, 5, existing_size);
+        0, 5, existing_size, on_abort);
 
         ofs.close();
 
@@ -405,19 +406,6 @@ namespace game_updater
         }
 
         const auto& result = data.value();
-        if (result.code == CURLE_ABORTED_BY_CALLBACK)
-        {
-            if (this->is_update_cancelled())
-            {
-                return;
-            }
-            if (this->is_update_paused())
-            {
-                // Block until resumed/cancelled; outer retry loop re-enters and appends from existing_size
-                wait_if_paused_or_cancelled();
-                return;
-            }
-        }
 
         if (result.response_code == 416)
         {

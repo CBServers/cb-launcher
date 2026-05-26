@@ -212,7 +212,7 @@ namespace utils::http
     std::optional<result> get_data_stream(const std::string& url, const headers& headers,
         const std::string& fields, const std::function<bool(size_t, size_t, size_t)>& progress_callback_,
         const std::function<bool(const char*, size_t)>& stream_callback, int timeout, uint32_t retries,
-        size_t resume_from)
+        size_t resume_from, const std::function<bool()>& on_abort)
     {
         curl_slist* header_list = nullptr;
         auto* curl = curl_easy_init();
@@ -260,10 +260,10 @@ namespace utils::http
         write_helper.callback = &stream_callback;
         write_helper.bytes_written = static_cast<curl_off_t>(resume_from);
 
-        // Retry loop
-        for (auto i = 0u; i < retries + 1; ++i)
+        // Manual counter so callback aborts (pause) don't burn retry slots
+        uint32_t attempt = 0;
+        while (true)
         {
-            // Reset progress helper for each attempt (speed calculation needs reset)
             progress_helper helper{};
             helper.callback = &progress_callback_;
             helper.start = std::chrono::high_resolution_clock::now();
@@ -284,11 +284,9 @@ namespace utils::http
             unsigned int response_code{};
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-            // Track last error for reporting if all retries fail
             last_code = code;
             last_response_code = response_code;
 
-            // Handle exceptions from callbacks
             if (helper.exception)
             {
                 std::rethrow_exception(helper.exception);
@@ -299,16 +297,20 @@ namespace utils::http
                 std::rethrow_exception(write_helper.exception);
             }
 
-            // Stream-callback abort surfaces as CURLE_WRITE_ERROR; normalise to ABORTED_BY_CALLBACK
-            if (write_helper.aborted_by_callback)
+            // Stream-callback abort surfaces as CURLE_WRITE_ERROR, progress-callback abort as CURLE_ABORTED_BY_CALLBACK
+            if (write_helper.aborted_by_callback || code == CURLE_ABORTED_BY_CALLBACK)
             {
+                write_helper.aborted_by_callback = false;
+                if (on_abort && on_abort())
+                {
+                    continue;
+                }
                 result result;
                 result.code = CURLE_ABORTED_BY_CALLBACK;
                 result.response_code = response_code;
                 return result;
             }
 
-            // Check if we should retry this request
             if (!should_retry_request(code, response_code))
             {
                 result result;
@@ -317,13 +319,15 @@ namespace utils::http
                 return result;
             }
 
-            // If we have more retries left, wait a bit before trying again
-            if (i < retries)
+            if (attempt >= retries)
             {
-                printf("HTTP stream request failed for %s (code: %d, response: %u), retrying in 1s... (attempt %u/%u)\n",
-                    url.data(), code, response_code, i + 1, retries);
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                break;
             }
+
+            printf("HTTP stream request failed for %s (code: %d, response: %u), retrying in 1s... (attempt %u/%u)\n",
+                url.data(), code, response_code, attempt + 1, retries);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            ++attempt;
         }
 
         // All retries failed - return the actual last error
