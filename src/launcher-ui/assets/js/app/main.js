@@ -48,6 +48,19 @@ function t(key, variables) {
     return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;
 }
 
+function busyKindFor(gameId) {
+    const q = window.DownloadQueueManager;
+    if (!q || typeof q.isBusy !== 'function' || !q.isBusy(gameId)) return null;
+    if (q.active && q.active.gameId === gameId && q.active.blocksGameButtons) return 'active';
+    return 'queued';
+}
+
+function setupButtonLabel(installStatus, busyKind) {
+    if (busyKind === 'queued') return t('common.queued');
+    if (busyKind === 'active') return t('common.installing');
+    return installStatus === 'partial' ? t('common.finishSetup') : t('common.setup');
+}
+
 async function initializeLanguage() {
     let language = 'en';
 
@@ -1049,27 +1062,41 @@ window.DownloadQueueManager = {
     }
 };
 
-// Apply per-game button disable state across visible game pages.
-// Only ADDS the queue-busy disable; doesn't override install-status disables from createGameButtons.
+// Detail-page button enable/disable; mirrors the context-menu logic.
 function applyDownloadQueueButtonState() {
     const queue = window.DownloadQueueManager;
     if (!queue) return;
 
-    function isInstalled(gameId) {
+    function getStatus(gameId) {
         const state = window.GameStateManager && typeof window.GameStateManager.getGameState === 'function'
             ? window.GameStateManager.getGameState(gameId) : null;
-        if (state) return state.installStatus === 'installed';
+        if (state && state.installStatus) return state.installStatus;
         const card = document.querySelector(`.library-card[data-game="${gameId}"]`);
-        return card ? card.dataset.status === 'installed' : false;
+        return card ? (card.dataset.status || 'not-setup') : 'not-setup';
     }
 
-    document.querySelectorAll('.detail-verify-action, .detail-manage-install-action, .detail-settings-action').forEach(btn => {
+    // Browse — installed/partial; not gated by busy.
+    document.querySelectorAll('.detail-browse-files-action').forEach(btn => {
         const gameId = btn.dataset.game;
         if (!gameId) return;
-        const busy = queue.isBusy(gameId);
-        const installed = isInstalled(gameId);
-        // These actions only make sense when installed; queue-busy further disables them.
-        btn.disabled = busy || !installed;
+        const status = getStatus(gameId);
+        btn.disabled = status !== 'installed' && status !== 'partial';
+    });
+
+    // Verify — installed only.
+    document.querySelectorAll('.detail-verify-action').forEach(btn => {
+        const gameId = btn.dataset.game;
+        if (!gameId) return;
+        const status = getStatus(gameId);
+        btn.disabled = queue.isBusy(gameId) || status !== 'installed';
+    });
+
+    // Settings / Manage Install — installed or partial.
+    document.querySelectorAll('.detail-manage-install-action, .detail-settings-action').forEach(btn => {
+        const gameId = btn.dataset.game;
+        if (!gameId) return;
+        const status = getStatus(gameId);
+        btn.disabled = queue.isBusy(gameId) || (status !== 'installed' && status !== 'partial');
     });
 
     // Play: disabled across all games while any blocking op is running, since
@@ -1099,6 +1126,8 @@ function applyDownloadQueueButtonState() {
         if (!gameId) return;
         btn.disabled = queue.isBusy(gameId);
         btn.removeAttribute('title');
+        const installStatus = btn.dataset.installStatus || 'not-setup';
+        btn.textContent = setupButtonLabel(installStatus, busyKindFor(gameId));
     });
 
     const downloadsBadge = document.getElementById('downloads-badge');
@@ -1115,6 +1144,9 @@ function applyDownloadQueueButtonState() {
 
 window.addEventListener('cb-download-queue-changed', () => {
     applyDownloadQueueButtonState();
+    if (window.AppViews && typeof window.AppViews.applyDownloadQueueInstallingState === 'function') {
+        window.AppViews.applyDownloadQueueInstallingState();
+    }
     if (window.ProgressManager && typeof window.ProgressManager._updatePauseIcon === 'function') {
         window.ProgressManager._updatePauseIcon();
     }
@@ -1276,25 +1308,17 @@ async function createGameButtons(gameId) {
             document.getElementById(`${gameId}-play-button`).onclick = () => launchGame(gameId);
         }
     } else {
-        const buttonText = gameState.installStatus === 'partial' ? t('common.finishSetup') : t('common.setup');
+        const buttonText = setupButtonLabel(gameState.installStatus, busyKindFor(gameId));
 
         buttonGroup.innerHTML = `
             <div class="left-buttons">
-                <button class="setup-button" id="${gameId}-setup-button">
+                <button class="setup-button" id="${gameId}-setup-button" data-install-status="${gameState.installStatus}">
                     ${buttonText}
                 </button>
             </div>
         `;
 
         document.getElementById(`${gameId}-setup-button`).onclick = () => showSetupFlow(gameId);
-    }
-
-    // Disable secondary action buttons when game is not fully installed
-    const detailPage = document.getElementById(`${gameId}-page`);
-    if (detailPage) {
-        const secondaryButtons = detailPage.querySelectorAll('.detail-actions-panel .secondary-action');
-        const notInstalled = gameState.installStatus !== 'installed';
-        secondaryButtons.forEach(btn => { btn.disabled = notInstalled; });
     }
 
     applyDownloadQueueButtonState();

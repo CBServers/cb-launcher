@@ -1330,6 +1330,21 @@ html[data-theme="dark"] .setup-button {
     box-shadow: 0 6px 24px rgba(0, 120, 212, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+#hub-hero-play.is-installing,
+#hub-hero-play.setup-button.is-installing {
+    background: rgba(255, 178, 63, 0.16);
+    border: 1px solid rgba(255, 178, 63, 0.34);
+    box-shadow: none;
+    color: var(--text);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#hub-hero-play.is-installing:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 .stop-button {
     background: linear-gradient(135deg, #FF4D5E 0%, #CC3A47 100%);
     box-shadow: 0 6px 24px rgba(255, 77, 94, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -3384,6 +3399,18 @@ button { font-family: inherit; cursor: pointer; }
     border-color: rgba(255, 178, 63, 0.34);
 }
 
+.library-card.is-installing .library-install-btn {
+    background: rgba(255, 178, 63, 0.16);
+    border-color: rgba(255, 178, 63, 0.34);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.library-card.is-installing .library-install-btn:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 /* ============================================================ */
 /* GAME DETAIL REWORK                                           */
 /* ============================================================ */
@@ -4071,6 +4098,16 @@ html[data-theme="dark"] .secondary-action:hover {
     background: rgba(255, 77, 94, 0.15);
 }
 
+.library-card-menu-item.is-disabled,
+.library-card-menu-item.is-disabled:hover,
+.library-card-menu-item.is-disabled:focus {
+    color: var(--text-muted);
+    background: transparent;
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.55;
+}
+
 .library-card-menu-separator {
     height: 1px;
     margin: 6px 4px;
@@ -4104,7 +4141,7 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .hub-hero:hover .hub-hero-arrow { opacity: 1; }
 
-.hub-hero-arrow:hover { background: rgba(108, 99, 255, 0.45); }
+.hub-hero-arrow:hover { background: var(--accent-glow); }
 
 .hub-hero-arrow:active { transform: translateY(-50%) scale(0.94); }
 
@@ -4192,6 +4229,15 @@ html[data-theme="dark"] .secondary-action:hover {
     background: rgba(255, 178, 63, 0.16);
     border-color: rgba(255, 178, 63, 0.34);
 }
+
+.client-card.is-installing .client-card-play .library-install-btn {
+    background: rgba(255, 178, 63, 0.16);
+    border-color: rgba(255, 178, 63, 0.34);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.client-card.is-installing .client-card-play { opacity: 1; }
 
 /* Launch-redist modal (shown when clicking Play with missing components) */
 

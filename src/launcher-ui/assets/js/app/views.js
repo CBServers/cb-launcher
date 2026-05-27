@@ -37,6 +37,18 @@
         return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;
     }
 
+    function isGameBusy(gameId) {
+        const q = window.DownloadQueueManager;
+        return !!(q && typeof q.isBusy === 'function' && q.isBusy(gameId));
+    }
+
+    function busyKindFor(gameId) {
+        const q = window.DownloadQueueManager;
+        if (!q || typeof q.isBusy !== 'function' || !q.isBusy(gameId)) return null;
+        if (q.active && q.active.gameId === gameId && q.active.blocksGameButtons) return 'active';
+        return 'queued';
+    }
+
     function gameDescription(config) {
         return window.LauncherI18n
             ? window.LauncherI18n.getGameText(config.uiId, 'description', config.description)
@@ -82,10 +94,14 @@
 
     function clientCardHTML(config, { smallText = null, status = null } = {}) {
         const small = smallText == null ? config.client : smallText;
-        const cls = status ? `client-card has-overlay status-${escapeHtml(status)}` : 'client-card';
+        const busyKind = busyKindFor(config.uiId);
+        const installingCls = busyKind ? ' is-installing' : '';
+        const cls = status
+            ? `client-card has-overlay status-${escapeHtml(status)}${installingCls}`
+            : `client-card${installingCls}`;
         const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : '';
         const overlay = status
-            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status))}</button></div>`
+            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status, busyKind))}</button></div>`
             : '';
         return `
             <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${statusAttr}>
@@ -117,16 +133,22 @@
     }
 
     function bindClientCardClick(card) {
-        card.addEventListener('click', () => runGameAction(card.dataset.game, card.dataset.status));
+        card.addEventListener('click', () => {
+            if (isGameBusy(card.dataset.game)) return;
+            runGameAction(card.dataset.game, card.dataset.status);
+        });
     }
 
-    function homeActionLabel(status) {
+    function homeActionLabel(status, busyKind) {
+        if (busyKind === 'queued') return t('common.queued');
+        if (busyKind === 'active') return t('common.installing');
         if (status === 'installed') return t('common.play');
         if (status === 'partial') return t('common.finishSetup');
         return t('common.install');
     }
 
     function runGameAction(gameId, status) {
+        if (isGameBusy(gameId)) return;
         if (status === 'installed' && typeof launchGame === 'function') {
             launchGame(gameId);
         } else if (typeof showSetupFlow === 'function') {
@@ -161,13 +183,16 @@
         }
         if (sub) sub.textContent = gameDescription(config);
         if (cta) {
-            const label = homeActionLabel(normalizedStatus);
+            const busyKind = busyKindFor(config.uiId);
+            const label = homeActionLabel(normalizedStatus, busyKind);
             cta.classList.toggle('setup-button', !isInstalled);
-            cta.innerHTML = isInstalled
+            cta.classList.toggle('is-installing', !!busyKind);
+            cta.innerHTML = (isInstalled && !busyKind)
                 ? `<span class="play-icon"></span>${escapeHtml(label)}`
                 : escapeHtml(label);
             cta.onclick = (event) => {
                 event.stopPropagation();
+                if (isGameBusy(config.uiId)) return;
                 runGameAction(config.uiId, normalizedStatus);
             };
         }
@@ -511,25 +536,26 @@
         const status = card.dataset.status || 'not-setup';
         const isInstalled = status === 'installed';
         const isPartial = status === 'partial';
+        const isBusy = isGameBusy(gameId);
         const items = [];
 
         if (isInstalled) {
-            items.push({ label: t('common.play'), action: () => callGlobal('launchGame', gameId) });
+            items.push({ label: t('common.play'), action: () => callGlobal('launchGame', gameId), disabled: isBusy });
         } else if (isPartial) {
-            items.push({ label: t('common.finishSetup'), action: () => callGlobal('showSetupFlow', gameId) });
+            items.push({ label: t('common.finishSetup'), action: () => callGlobal('showSetupFlow', gameId), disabled: isBusy });
         } else {
-            items.push({ label: t('common.install'), action: () => callGlobal('showSetupFlow', gameId) });
+            items.push({ label: t('common.install'), action: () => callGlobal('showSetupFlow', gameId), disabled: isBusy });
         }
 
         if (isInstalled || isPartial) {
             items.push({ label: t('common.browseLocalFiles'), action: () => openInstallFolder(gameId) });
             if (isInstalled) {
-                items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId) });
+                items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId), hidden: isBusy });
             }
-            items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId) });
-            items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId) });
+            items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId), hidden: isBusy });
+            items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId), hidden: isBusy });
             items.push({ separator: true });
-            items.push({ label: t('common.uninstall'), action: () => callGlobal('uninstallGameDirect', gameId), danger: true });
+            items.push({ label: t('common.uninstall'), action: () => callGlobal('uninstallGameDirect', gameId), danger: true, disabled: isBusy });
         }
 
         items.push({ separator: true });
@@ -541,15 +567,32 @@
         return items;
     }
 
+    function collapseSeparators(items) {
+        const out = [];
+        for (const it of items) {
+            if (it.separator) {
+                if (out.length === 0) continue;
+                if (out[out.length - 1].separator) continue;
+                out.push(it);
+            } else {
+                out.push(it);
+            }
+        }
+        while (out.length && out[out.length - 1].separator) out.pop();
+        return out;
+    }
+
     function showCardContextMenu(card, x, y) {
         const menu = ensureCardMenu();
-        const items = buildCardMenuItems(card);
+        const items = collapseSeparators(buildCardMenuItems(card).filter(i => !i.hidden));
         menu.innerHTML = items.map((item, idx) => {
             if (item.separator) {
                 return '<div class="library-card-menu-separator" role="separator"></div>';
             }
             const danger = item.danger ? ' is-danger' : '';
-            return `<button type="button" class="library-card-menu-item${danger}" role="menuitem" data-idx="${idx}">${escapeHtml(item.label)}</button>`;
+            const dis = item.disabled ? ' is-disabled' : '';
+            const disAttrs = item.disabled ? ' aria-disabled="true" disabled' : '';
+            return `<button type="button" class="library-card-menu-item${danger}${dis}" role="menuitem"${disAttrs} data-idx="${idx}">${escapeHtml(item.label)}</button>`;
         }).join('');
 
         menu.style.left = '0px';
@@ -567,6 +610,7 @@
         menu.querySelectorAll('.library-card-menu-item').forEach(btn => {
             btn.addEventListener('click', () => {
                 const item = items[parseInt(btn.dataset.idx, 10)];
+                if (!item || item.disabled) return;
                 hideCardContextMenu();
                 try { item.action(); } catch (error) { console.error('Context menu action failed:', error); }
             });
@@ -617,6 +661,7 @@
             if (button) {
                 button.addEventListener('click', (event) => {
                     event.stopPropagation();
+                    if (isGameBusy(card.dataset.game)) return;
                     runGameAction(card.dataset.game, card.dataset.status);
                 });
             }
@@ -820,6 +865,8 @@
         card.dataset.status = normalizedStatus;
         card.classList.toggle('is-installed', normalizedStatus === 'installed');
         card.classList.toggle('is-partial', normalizedStatus === 'partial');
+        const busyKind = busyKindFor(gameId);
+        card.classList.toggle('is-installing', !!busyKind);
 
         if (badge) {
             badge.className = `badge ${statusClass(normalizedStatus)}`;
@@ -827,13 +874,7 @@
         }
 
         if (action) {
-            if (normalizedStatus === 'installed') {
-                action.textContent = t('common.play');
-            } else if (normalizedStatus === 'partial') {
-                action.textContent = t('common.finishSetup');
-            } else {
-                action.textContent = t('common.install');
-            }
+            action.textContent = homeActionLabel(normalizedStatus, busyKind);
         }
 
         if (normalizedStatus === 'installed' || normalizedStatus === 'partial') {
@@ -1220,6 +1261,47 @@
         renderComponentLibrary();
     }
 
+    function applyDownloadQueueInstallingState() {
+        document.querySelectorAll('.library-card').forEach(card => {
+            const gameId = card.dataset.game;
+            if (!gameId) return;
+            const busyKind = busyKindFor(gameId);
+            card.classList.toggle('is-installing', !!busyKind);
+            const action = card.querySelector('[data-action-label]');
+            if (!action) return;
+            const status = card.dataset.status || 'not-setup';
+            action.textContent = homeActionLabel(status, busyKind);
+        });
+
+        document.querySelectorAll('.client-card').forEach(card => {
+            const gameId = card.dataset.game;
+            if (!gameId) return;
+            const busyKind = busyKindFor(gameId);
+            card.classList.toggle('is-installing', !!busyKind);
+            const btn = card.querySelector('.client-card-play .library-install-btn');
+            if (!btn) return;
+            const status = card.dataset.status || 'not-setup';
+            btn.textContent = homeActionLabel(status, busyKind);
+        });
+
+        const cta = document.getElementById('hub-hero-play');
+        const hero = document.getElementById('hub-hero');
+        if (cta && hero) {
+            const gameId = hero.dataset.game;
+            if (gameId) {
+                const busyKind = busyKindFor(gameId);
+                const slide = homeHeroStates[homeHeroSlideIndex];
+                const status = (slide && slide.status) || 'not-setup';
+                const isInstalled = status === 'installed';
+                cta.classList.toggle('is-installing', !!busyKind);
+                const label = homeActionLabel(status, busyKind);
+                cta.innerHTML = (isInstalled && !busyKind)
+                    ? `<span class="play-icon"></span>${escapeHtml(label)}`
+                    : escapeHtml(label);
+            }
+        }
+    }
+
     window.AppViews = {
         renderAll,
         renderSidebarGames,
@@ -1235,6 +1317,7 @@
         updateGamePagePlayerCount,
         updateGamePageInstallSize,
         navigateTo,
-        updateSidebarMyGames
+        updateSidebarMyGames,
+        applyDownloadQueueInstallingState
     };
 })();
