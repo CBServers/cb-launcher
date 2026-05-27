@@ -4,6 +4,7 @@
 #include "redist_packages.hpp"
 
 #include <utils/http.hpp>
+#include <utils/io.hpp>
 #include <utils/properties.hpp>
 
 #include <algorithm>
@@ -125,8 +126,7 @@ namespace redist
                     break;
                 case detect_kind::file_exists:
                 {
-                    std::error_code ec;
-                    if (std::filesystem::exists(expand_env(path), ec)) any = true;
+                    if (utils::io::file_exists(expand_env(path))) any = true;
                     break;
                 }
                 }
@@ -321,8 +321,7 @@ namespace redist
 
         if (!result || result->response_code >= 400)
         {
-            std::error_code ec;
-            std::filesystem::remove(dest, ec);
+            utils::io::remove_file(dest);
             return this->fail(ps, "HTTP " + std::to_string(result ? result->response_code : 0));
         }
         return true;
@@ -358,7 +357,7 @@ namespace redist
         }
 
         const auto dxsetup = extract_dir / "DXSETUP.exe";
-        if (!std::filesystem::exists(dxsetup, ec))
+        if (!utils::io::file_exists(dxsetup))
         {
             return this->fail(ps, "DXSETUP.exe missing after extract");
         }

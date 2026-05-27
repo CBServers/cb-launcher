@@ -15,17 +15,16 @@ namespace utils::io
         return MoveFileW(src.wstring().data(), target.wstring().data()) == TRUE;
     }
 
-    bool file_exists(const std::string& file)
+    bool file_exists(const std::filesystem::path& file)
     {
         return std::ifstream(file).good();
     }
 
-    bool write_file(const std::string& file, const std::string& data, const bool append)
+    bool write_file(const std::filesystem::path& file, const std::string& data, const bool append)
     {
-        const auto pos = file.find_last_of("/\\");
-        if (pos != std::string::npos)
+        if (file.has_parent_path())
         {
-            create_directory(file.substr(0, pos));
+            utils::io::create_directory(file.parent_path());
         }
 
         std::ofstream stream(file, std::ios::binary | std::ofstream::out | (append ? std::ofstream::app : 0));
@@ -40,14 +39,14 @@ namespace utils::io
         return false;
     }
 
-    std::string read_file(const std::string& file)
+    std::string read_file(const std::filesystem::path& file)
     {
         std::string data;
         read_file(file, &data);
         return data;
     }
 
-    bool read_file(const std::string& file, std::string* data)
+    bool read_file(const std::filesystem::path& file, std::string* data)
     {
         if (!data) return false;
         data->clear();
@@ -73,7 +72,7 @@ namespace utils::io
         return false;
     }
 
-    std::size_t file_size(const std::string& file)
+    std::size_t file_size(const std::filesystem::path& file)
     {
         if (file_exists(file))
         {
@@ -89,9 +88,9 @@ namespace utils::io
         return 0;
     }
 
-    std::unordered_map<std::string, file_stat_result> batch_stat_files(const std::vector<std::string>& paths)
+    std::unordered_map<std::filesystem::path, file_stat_result> batch_stat_files(const std::vector<std::filesystem::path>& paths)
     {
-        std::unordered_map<std::string, file_stat_result> results;
+        std::unordered_map<std::filesystem::path, file_stat_result> results;
         results.reserve(paths.size());
 
         for (const auto& path : paths)

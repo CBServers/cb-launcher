@@ -331,9 +331,16 @@ namespace game_updater
         const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
         const auto out_file = this->get_drive_filename(file);
 
-        const size_t existing_size = utils::io::file_exists(out_file) ? utils::io::file_size(out_file) : 0;
+        size_t existing_size = utils::io::file_exists(out_file) ? utils::io::file_size(out_file) : 0;
 
-        if (file.size > 0 && existing_size >= file.size)
+        // Oversized partial: previous run wrote past the expected end. Drop and refetch from byte 0.
+        if (file.size > 0 && existing_size > file.size)
+        {
+            utils::io::remove_file(out_file);
+            existing_size = 0;
+        }
+
+        if (file.size > 0 && existing_size == file.size)
         {
             if (this->progress_listener_)
             {
@@ -367,10 +374,12 @@ namespace game_updater
         int currentPercent = 0;
         const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
         {
+            if (!keep_going()) return false;
+
             auto progressRatio = (total_size > 0 && progress >= 0) ? static_cast<double>(progress) / total_size : 0.0;
             auto progressPercent = int(progressRatio * 100.0);
             if (progressPercent == currentPercent)
-                return keep_going();
+                return true;
 
             currentPercent = progressPercent;
             printf("Updating file: %s (%.2f/%.2f MB) %d%%\n",
@@ -378,10 +387,13 @@ namespace game_updater
             progress / (1024.0 * 1024.0),
             total_size / (1024.0 * 1024.0),
             progressPercent);
-            return keep_going();
+            return true;
         },
         [&](const char* chunk, size_t size) -> bool
         {
+            // Check pause/cancel BEFORE consuming the chunk so bytes_written stays consistent with disk
+            if (!keep_going()) return false;
+
             if (chunk && size > 0)
             {
                 ofs.write(chunk, size);
@@ -392,7 +404,7 @@ namespace game_updater
                 this->progress_listener_->file_progress(file, size);
             }
 
-            return keep_going();
+            return true;
         },
         0, 5, existing_size, on_abort);
 
@@ -410,8 +422,7 @@ namespace game_updater
         if (result.response_code == 416)
         {
             // Our resume offset is past the remote's view of the file; drop the partial so retry refetches from byte 0
-            std::error_code ec{};
-            std::filesystem::remove(out_file, ec);
+            utils::io::remove_file(out_file);
             throw std::runtime_error(utils::string::va(
                 "HTTP 416 for %s - partial deleted, will retry from byte 0", url.data()));
         }
@@ -730,7 +741,7 @@ namespace game_updater
         }
 
         // Build list of all file paths to check
-        std::vector<std::string> paths_to_check;
+        std::vector<std::filesystem::path> paths_to_check;
         paths_to_check.reserve(this->manifest_.files.size());
 
         for (const auto& file : this->manifest_.files)
