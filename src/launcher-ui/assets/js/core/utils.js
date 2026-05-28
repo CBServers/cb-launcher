@@ -77,7 +77,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'COD4x / IW3SP-Mod',
             version: 'IW3',
-            installStateLabel: 'Ready to play',
             description: 'COD4: Modern Warfare with COD4x multiplayer and IW3SP-Mod for singleplayer. Built for classic MW1 sessions and modern client maintenance.',
             credits: 'Multiplayer is provided by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
             accent: '#46D744',
@@ -101,7 +100,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T4',
             version: 'T4',
-            installStateLabel: 'Ready to play',
             description: 'World at War enhanced with Plutonium T4. Campaign, multiplayer and zombies stay close to the original game with modern stability patches.',
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T4 client and developed by Plutonium.',
             accent: '#B94E14',
@@ -125,7 +123,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T5',
             version: 'T5',
-            installStateLabel: 'Ready to play',
             description: 'Black Ops enhanced with Plutonium T5. Campaign, multiplayer and zombies are grouped in one clean client flow.',
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T5 client and developed by Plutonium.',
             accent: '#186AC6',
@@ -149,7 +146,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW4x / IW4-SP',
             version: 'IW4',
-            installStateLabel: 'Ready to play',
             description: 'Modern Warfare 2 with IW4x multiplayer and IW4-SP support. Built for fast access to classic MW2 sessions and client maintenance.',
             credits: 'Multiplayer is provided by IW4x. Singleplayer is provided by IW4-SP and developed by AlterWare.',
             accent: '#FBC751',
@@ -173,7 +169,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium IW5 / IW5-Mod',
             version: 'IW5',
-            installStateLabel: 'Ready to play',
             description: 'Modern Warfare 3 with Plutonium multiplayer and IW5-Mod singleplayer support. Pick a mode only when the client actually needs it.',
             credits: 'Multiplayer is provided by Plutonium. Singleplayer is provided by IW5-Mod and developed by AlterWare.',
             accent: '#09FF00',
@@ -197,7 +192,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Plutonium T6',
             version: 'T6',
-            installStateLabel: 'Ready to play',
             featured: true,
             description: 'Black Ops 2 campaign, multiplayer and zombies through Plutonium T6 and T6SP-Mod, with client updates, verification and base-game linking handled from one detail view.',
             credits: 'Multiplayer and Zombies are provided by the T6 client and developed by Plutonium. Singleplayer is provided by T6SP-Mod and developed by Rattpak.',
@@ -222,7 +216,6 @@ class GameUtils {
             specialSettings: ['skip-intro-cinematic'],
             codeName: 'BOIII',
             version: 'T7',
-            installStateLabel: 'Update available',
             description: 'Black Ops 3 with BOIII client support for campaign, multiplayer and zombies. Includes client-specific settings such as intro-skip behavior.',
             credits: 'BOIII is a CB Servers fork of the original BOIII/T7x client developed by momo5502 and AlterWare.',
             accent: '#F3751B',
@@ -246,7 +239,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW6x',
             version: 'IW6',
-            installStateLabel: 'Base game missing',
             description: 'Ghosts with IW6x support for campaign and multiplayer. The launcher keeps install setup and client updates in the same place.',
             credits: 'IW6x is a CB Servers fork of the original IW6x/iw6-mod client developed by AlterWare.',
             accent: '#3B718C',
@@ -270,7 +262,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'S1x',
             version: 'S1',
-            installStateLabel: 'Ready to play',
             description: 'Advanced Warfare through S1x, with campaign, multiplayer, zombies and survival mode choices presented only when relevant.',
             credits: 'S1x is a CB Servers fork of the original S1x/s1-mod client developed by AlterWare.',
             accent: '#F9D406',
@@ -294,7 +285,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'H1-Mod',
             version: 'H1',
-            installStateLabel: 'Ready to play',
             description: 'Modern Warfare Remastered with H1-Mod support. Campaign and multiplayer launch modes stay behind one focused client page.',
             credits: 'H1-Mod is a CB Servers fork of the original H1-Mod client developed by Aurora.',
             accent: '#46D744',
@@ -318,7 +308,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'IW7-Mod',
             version: 'IW7',
-            installStateLabel: 'Ready to play',
             description: 'Infinite Warfare with IW7-Mod support for campaign, multiplayer and zombies. Secondary actions stay close to install maintenance.',
             credits: 'IW7-Mod is a CB Servers fork of the original IW7-Mod client developed by Aurora.',
             accent: '#FFFFFF',
@@ -342,7 +331,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'Project BO4',
             version: 'T8',
-            installStateLabel: 'Ready to play',
             description: 'Black Ops 4 with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies.',
             credits: 'Online and offline play are provided by Project BO4 Launcher, maintained by NotNierPea.',
             accent: '#FE890A',
@@ -366,7 +354,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'H2-Mod',
             version: 'H2',
-            installStateLabel: 'Ready to play',
             description: 'Modern Warfare 2 Campaign Remastered with H2-Mod support. Run the remastered MW2 campaign with stability and quality-of-life patches.',
             credits: 'MW2 Campaign Remastered support is provided by H2-Mod, developed by Alice.',
             accent: '#FBC751',
@@ -390,7 +377,6 @@ class GameUtils {
             specialSettings: [],
             codeName: 'HMW-Mod',
             version: 'HMW',
-            installStateLabel: 'Ready to play',
             description: 'HorizonMW is a faithful community remaster of Modern Warfare 2 multiplayer with additional content inspired by MW3.',
             credits: 'HMW-Mod is a CB Servers fork of the original HorizonMW client.',
             accent: '#97838A',
@@ -475,26 +461,6 @@ class GameUtils {
     }
 
     /**
-     * Check if a game supports multiple modes
-     * @param {string} game - The game identifier (backend ID)
-     * @returns {boolean} True if game has multiple modes
-     */
-    static hasMultipleModes(game) {
-        const config = this.getGameConfig(game);
-        return config ? config.hasMultipleModes : false;
-    }
-
-    /**
-     * Get supported modes for a game
-     * @param {string} game - The game identifier (backend ID)
-     * @returns {array} Array of supported mode strings
-     */
-    static getSupportedModes(game) {
-        const config = this.getGameConfig(game);
-        return config ? config.supportedModes : [];
-    }
-
-    /**
      * Get every game config in UI display order.
      * @returns {array} Ordered game configuration objects
      */
@@ -552,26 +518,6 @@ class GameUtils {
     static getHeroImagePath(uiId) {
         const config = this.getGameConfigByUIId(uiId);
         return config ? config.heroImagePath : null;
-    }
-
-    /**
-     * Get capsule path for a UI game ID.
-     * @param {string} uiId - The UI game identifier
-     * @returns {string} Capsule path or null
-     */
-    static getCapsulePath(uiId) {
-        const config = this.getGameConfigByUIId(uiId);
-        return config ? config.capsulePath : null;
-    }
-
-    /**
-     * Get transparent logo path for a UI game ID.
-     * @param {string} uiId - The UI game identifier
-     * @returns {string} Logo path or null
-     */
-    static getLogoPath(uiId) {
-        const config = this.getGameConfigByUIId(uiId);
-        return config ? config.logoPath : null;
     }
 
     /**
@@ -904,7 +850,7 @@ class GameUtils {
         }
 
         // Track launch progress
-        return this.trackCommandProgress({
+        const result = await this.trackCommandProgress({
             gameId: uiGameId,
             command: 'launch-game',
             commandArgs: commandArgs,
@@ -913,6 +859,12 @@ class GameUtils {
                 : `Launching ${gameConfig.displayName}...`,
             completeMessage: window.LauncherI18n ? window.LauncherI18n.t('progress.launchComplete') : 'Launch complete!'
         });
+
+        if (window.GameStateManager && typeof window.GameStateManager.markGameLaunched === 'function') {
+            window.GameStateManager.markGameLaunched(uiGameId);
+        }
+
+        return result;
     }
 }
 

@@ -1345,6 +1345,16 @@ html[data-theme="dark"] .setup-button {
     box-shadow: none;
 }
 
+#hub-hero-play.is-running {
+    background: linear-gradient(135deg, #FF4D5E 0%, #CC3A47 100%);
+    box-shadow: 0 6px 24px rgba(255, 77, 94, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+#hub-hero-play.is-running:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 36px rgba(255, 77, 94, 0.5);
+}
+
 .stop-button {
     background: linear-gradient(135deg, #FF4D5E 0%, #CC3A47 100%);
     box-shadow: 0 6px 24px rgba(255, 77, 94, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -2291,7 +2301,7 @@ html[data-theme="dark"] .setup-button {
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text-muted);
-    font-size: 20px;
+    font-size: 0;
     cursor: pointer;
     width: 32px;
     height: 32px;
@@ -2302,6 +2312,15 @@ html[data-theme="dark"] .setup-button {
     transition: all 0.2s var(--ease);
     font-family: inherit;
     line-height: 1;
+}
+
+.popup-close::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    background: currentColor;
+    -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>') no-repeat center / 14px;
+    mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>') no-repeat center / 14px;
 }
 
 .popup-close:hover {
@@ -3411,6 +3430,16 @@ button { font-family: inherit; cursor: pointer; }
     box-shadow: none;
 }
 
+.library-card.is-running .library-install-btn {
+    background: rgba(255, 77, 94, 0.18);
+    border-color: rgba(255, 77, 94, 0.42);
+}
+
+.library-card.is-running .library-install-btn:hover {
+    border-color: rgba(255, 77, 94, 0.7);
+    box-shadow: 0 0 24px rgba(255, 77, 94, 0.35);
+}
+
 /* ============================================================ */
 /* GAME DETAIL REWORK                                           */
 /* ============================================================ */
@@ -3665,8 +3694,7 @@ html[data-theme="dark"] .secondary-action:hover {
 }
 
 .support-panel,
-.settings-section,
-.component-frame {
+.settings-section {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -3749,12 +3777,6 @@ html[data-theme="dark"] .secondary-action:hover {
     box-shadow: 0 0 6px rgba(59, 165, 93, 0.7);
 }
 .support-action.faq { background: linear-gradient(135deg, #6C63FF 0%, #4B45C7 100%); }
-.support-action.bug { background: #24292e; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
-.support-action.logs {
-    background: var(--surface-hi);
-    border: 1px solid var(--border-hi);
-    box-shadow: none;
-}
 
 .support-action:hover,
 .support-link:hover {
@@ -3912,15 +3934,38 @@ html[data-theme="dark"] .secondary-action:hover {
     font-size: 12px;
 }
 
-.support-footer a {
+.support-footer-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+#support-page .support-footer a[href],
+#support-page .support-footer-links a[href] {
+    display: inline;
+    background: none;
+    border: 0;
+    border-radius: 0 !important;
+    box-shadow: none;
+    padding: 0;
+    min-height: 0;
+    font-size: 12px;
+    letter-spacing: normal;
     color: var(--text-muted);
-    text-decoration: none;
+    text-decoration: none !important;
     font-weight: 600;
+    white-space: nowrap;
     transition: color 0.2s var(--ease);
 }
 
-.support-footer a:hover {
+#support-page .support-footer a[href]:hover,
+#support-page .support-footer-links a[href]:hover {
+    background: none;
     color: #fff;
+    text-decoration: underline !important;
+    box-shadow: none;
+    transform: none;
 }
 
 .settings-content .settings-section {
@@ -3997,48 +4042,11 @@ html[data-theme="dark"] .secondary-action:hover {
     text-overflow: ellipsis;
 }
 
-/* ============================================================ */
-/* COMPONENT LIBRARY                                            */
-/* ============================================================ */
-
-.component-library-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 18px;
-    padding: 10px 36px 34px 36px;
-}
-
-.component-frame {
-    padding: 18px;
-    min-height: 180px;
-}
-
-.component-frame h3 {
-    color: #fff;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin: 0 0 14px 0;
-}
-
-.component-frame > * + * {
-    margin-top: 10px;
-}
-
-.component-search { width: 100%; }
-
-.component-card {
-    width: 150px;
-    max-width: 100%;
-}
-
 @media (max-width: 1100px) {
     .library-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
     .detail-panel-grid,
     .support-layout,
-    .directory-list,
-    .component-library-grid {
+    .directory-list {
         grid-template-columns: 1fr;
     }
 
@@ -4235,6 +4243,11 @@ html[data-theme="dark"] .secondary-action:hover {
     border-color: rgba(255, 178, 63, 0.34);
     cursor: not-allowed;
     pointer-events: none;
+}
+
+.client-card.is-running .client-card-play .library-install-btn {
+    background: rgba(255, 77, 94, 0.18);
+    border-color: rgba(255, 77, 94, 0.42);
 }
 
 .client-card.is-installing .client-card-play { opacity: 1; }

@@ -41,7 +41,7 @@ class RedistPopupController {
         });
         this.popup.querySelector('.popup-close').addEventListener('click', () => this.hide());
         this.popup.querySelector('.redist-popup-close-btn').addEventListener('click', () => this.hide());
-        this.popup.querySelector('.redist-popup-install-all').addEventListener('click', () => this.install());
+        this.popup.querySelector('.redist-popup-install-all').addEventListener('click', () => this.installAllClick());
         this.popup.querySelector('.redist-popup-list').addEventListener('click', (e) => {
             const btn = e.target.closest('[data-install-id]');
             if (btn) this.install([btn.dataset.installId]);
@@ -104,6 +104,7 @@ class RedistPopupController {
     }
 
     render(state) {
+        this.lastState = state;
         const listEl = this.popup.querySelector('.redist-popup-list');
         const summaryEl = this.popup.querySelector('.redist-popup-summary');
         const installAllBtn = this.popup.querySelector('.redist-popup-install-all');
@@ -126,10 +127,29 @@ class RedistPopupController {
         summaryEl.textContent = state.message
             || this.t('support.redistSummary', { installed, total: packages.length });
 
-        installAllBtn.disabled = running || missing === 0;
+        installAllBtn.disabled = running;
         installAllBtn.textContent = missing === 0
-            ? this.t('support.redistAllInstalled')
+            ? this.t('support.reinstallAll')
             : this.t('support.installAllMissing');
+    }
+
+    async installAllClick() {
+        const packages = (this.lastState && this.lastState.packages) || [];
+        const missing = packages.filter(isMissingRedist).length;
+
+        if (missing === 0) {
+            if (typeof window.showMessageBox === 'function') {
+                const result = await window.showMessageBox(
+                    this.t('support.popup.reinstallAllTitle'),
+                    this.t('support.popup.reinstallAllBody', { total: packages.length }),
+                    [this.t('common.cancel'), this.t('support.reinstallAll')]
+                );
+                if (result !== 1) return;
+            }
+            await this.install(packages.map(p => p.id));
+        } else {
+            await this.install();
+        }
     }
 
     async poll() {

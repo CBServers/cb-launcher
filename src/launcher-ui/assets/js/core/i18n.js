@@ -52,6 +52,8 @@
                 verify: 'Verify Files',
                 install: 'Install',
                 installing: 'Installing',
+                verifying: 'Verifying',
+                uninstalling: 'Uninstalling',
                 queued: 'Queued',
                 reinstall: 'Reinstall',
                 manage: 'Manage',
@@ -113,16 +115,21 @@
                 openLogs: 'Open log folder',
                 redistTitle: 'Redistributables',
                 redistBody: 'Install the Visual C++ and DirectX runtimes needed by older Call of Duty clients.',
-                manageRedist: 'Manage redistributables',
+                manageRedist: 'Manage Redistributables',
                 redistSummary: '{{installed}} of {{total}} installed',
                 installAllMissing: 'Install all missing',
                 redistAllInstalled: 'All installed',
+                reinstallAll: 'Reinstall All',
                 redistStatusInstalled: 'Installed',
                 redistStatusPending: 'Pending',
                 redistStatusDownloading: 'Downloading',
                 redistStatusInstalling: 'Installing',
                 redistStatusFailed: 'Failed',
-                popup: { title: 'Manage redistributables' },
+                popup: {
+                    title: 'Manage Redistributables',
+                    reinstallAllTitle: 'Reinstall all redistributables?',
+                    reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. You must click <strong>Yes</strong> on every Windows User Account Control (UAC) prompt that appears. There is one for each package. Continue?'
+                },
                 noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
@@ -211,14 +218,6 @@
                 client: 'Client',
                 provider: 'Provider',
                 customClient: 'Custom client'
-            },
-            componentLibrary: {
-                title: 'Component Library',
-                subtitle: 'Reusable UI states for buttons, cards, fields and badges.',
-                buttons: 'Buttons',
-                inputs: 'Inputs',
-                badges: 'Badges',
-                card: 'Card'
             },
             popup: {
                 gameMode: {
@@ -478,6 +477,8 @@
                 verify: 'Verifier les fichiers',
                 install: 'Installer',
                 installing: 'Installation...',
+                verifying: 'Verification...',
+                uninstalling: 'Desinstallation...',
                 queued: 'En file',
                 reinstall: 'Reinstaller',
                 manage: 'Gerer',
@@ -543,12 +544,17 @@
                 redistSummary: '{{installed}} sur {{total}} installes',
                 installAllMissing: 'Installer tous les manquants',
                 redistAllInstalled: 'Tous installes',
+                reinstallAll: 'Tout reinstaller',
                 redistStatusInstalled: 'Installe',
                 redistStatusPending: 'En attente',
                 redistStatusDownloading: 'Telechargement',
                 redistStatusInstalling: 'Installation',
                 redistStatusFailed: 'Echec',
-                popup: { title: 'Gerer les redistribuables' },
+                popup: {
+                    title: 'Gerer les redistribuables',
+                    reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
+                    reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Vous devez cliquer sur <strong>Oui</strong> a chaque invite de controle de compte utilisateur (UAC) qui apparait. Il y en a une pour chaque paquet. Continuer ?'
+                },
                 noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
@@ -637,14 +643,6 @@
                 client: 'Client',
                 provider: 'Fournisseur',
                 customClient: 'Client personnalise'
-            },
-            componentLibrary: {
-                title: 'Bibliotheque de composants',
-                subtitle: 'Etats reutilisables pour les boutons, cartes, champs et badges.',
-                buttons: 'Boutons',
-                inputs: 'Champs',
-                badges: 'Badges',
-                card: 'Carte'
             },
             popup: {
                 gameMode: {
@@ -904,6 +902,8 @@
                 verify: 'Verificar archivos',
                 install: 'Instalar',
                 installing: 'Instalando',
+                verifying: 'Verificando',
+                uninstalling: 'Desinstalando',
                 queued: 'En cola',
                 reinstall: 'Reinstalar',
                 manage: 'Gestionar',
@@ -969,12 +969,17 @@
                 redistSummary: '{{installed}} de {{total}} instalados',
                 installAllMissing: 'Instalar todos los faltantes',
                 redistAllInstalled: 'Todos instalados',
+                reinstallAll: 'Reinstalar todo',
                 redistStatusInstalled: 'Instalado',
                 redistStatusPending: 'Pendiente',
                 redistStatusDownloading: 'Descargando',
                 redistStatusInstalling: 'Instalando',
                 redistStatusFailed: 'Fallo',
-                popup: { title: 'Administrar redistribuibles' },
+                popup: {
+                    title: 'Administrar redistribuibles',
+                    reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
+                    reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Debes hacer clic en <strong>Si</strong> en cada ventana de Control de cuentas de usuario (UAC) que aparezca. Hay una por cada paquete. ¿Continuar?'
+                },
                 noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
             },
@@ -1063,14 +1068,6 @@
                 client: 'Cliente',
                 provider: 'Proveedor',
                 customClient: 'Cliente personalizado'
-            },
-            componentLibrary: {
-                title: 'Biblioteca de componentes',
-                subtitle: 'Estados reutilizables para botones, tarjetas, campos y placas.',
-                buttons: 'Botones',
-                inputs: 'Campos',
-                badges: 'Placas',
-                card: 'Tarjeta'
             },
             popup: {
                 gameMode: {
@@ -1280,13 +1277,6 @@
         }
     };
 
-    const installStateKeys = {
-        'Ready to play': 'status.readyToPlay',
-        'Update client': 'status.updateClient',
-        'Base game missing': 'status.baseGameMissing',
-        'Update available': 'status.updateAvailable'
-    };
-
     let currentLanguage = 'en';
 
     function lookup(path, language) {
@@ -1325,11 +1315,6 @@
         return typeof value === 'string' ? value : fallback;
     }
 
-    function translateInstallStateLabel(label) {
-        const key = installStateKeys[label];
-        return key ? t(key) : label;
-    }
-
     function applyStaticTranslations() {
         document.title = t('app.title');
 
@@ -1360,7 +1345,6 @@
         setLanguage,
         getLanguage,
         getGameText,
-        translateInstallStateLabel,
         applyStaticTranslations
     };
 })();

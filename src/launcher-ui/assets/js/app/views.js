@@ -49,6 +49,26 @@
         return 'queued';
     }
 
+    function activeOpFor(gameId) {
+        const q = window.DownloadQueueManager;
+        if (!q || !q.active || q.active.gameId !== gameId || !q.active.blocksGameButtons) return null;
+        return q.active.op || 'install';
+    }
+
+    function busyOpLabel(op) {
+        if (op === 'verify') return t('common.verifying');
+        if (op === 'uninstall') return t('common.uninstalling');
+        return t('common.installing');
+    }
+
+    function isGameRunning(gameId) {
+        const gsm = window.GameStateManager;
+        if (!gsm) return false;
+        if (gsm.runningGameId === gameId) return true;
+        const state = gsm.gameStates && gsm.gameStates[gameId];
+        return !!(state && state.isRunning);
+    }
+
     function gameDescription(config) {
         return window.LauncherI18n
             ? window.LauncherI18n.getGameText(config.uiId, 'description', config.description)
@@ -80,28 +100,17 @@
         }
     }
 
-    function installLabel(status, config) {
-        if (status === 'installed') return t('status.readyToPlay');
-        if (status === 'partial') return t('common.finishSetup');
-        return t('status.notInstalled');
-    }
-
-    function statusClass(status) {
-        if (status === 'installed') return 'status-installed';
-        if (status === 'partial') return 'status-partial';
-        return 'status-missing';
-    }
-
     function clientCardHTML(config, { smallText = null, status = null } = {}) {
         const small = smallText == null ? config.client : smallText;
         const busyKind = busyKindFor(config.uiId);
-        const installingCls = busyKind ? ' is-installing' : '';
+        const running = !busyKind && isGameRunning(config.uiId);
+        const stateCls = `${busyKind ? ' is-installing' : ''}${running ? ' is-running' : ''}`;
         const cls = status
-            ? `client-card has-overlay status-${escapeHtml(status)}${installingCls}`
-            : `client-card${installingCls}`;
+            ? `client-card has-overlay status-${escapeHtml(status)}${stateCls}`
+            : `client-card${stateCls}`;
         const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : '';
         const overlay = status
-            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status, busyKind))}</button></div>`
+            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status, busyKind, config.uiId))}</button></div>`
             : '';
         return `
             <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${statusAttr}>
@@ -139,9 +148,10 @@
         });
     }
 
-    function homeActionLabel(status, busyKind) {
+    function homeActionLabel(status, busyKind, gameId) {
         if (busyKind === 'queued') return t('common.queued');
-        if (busyKind === 'active') return t('common.installing');
+        if (busyKind === 'active') return busyOpLabel(activeOpFor(gameId));
+        if (isGameRunning(gameId)) return t('common.stop');
         if (status === 'installed') return t('common.play');
         if (status === 'partial') return t('common.finishSetup');
         return t('common.install');
@@ -149,6 +159,10 @@
 
     function runGameAction(gameId, status) {
         if (isGameBusy(gameId)) return;
+        if (isGameRunning(gameId)) {
+            if (typeof stopGame === 'function') stopGame(gameId);
+            return;
+        }
         if (status === 'installed' && typeof launchGame === 'function') {
             launchGame(gameId);
         } else if (typeof showSetupFlow === 'function') {
@@ -184,10 +198,12 @@
         if (sub) sub.textContent = gameDescription(config);
         if (cta) {
             const busyKind = busyKindFor(config.uiId);
-            const label = homeActionLabel(normalizedStatus, busyKind);
+            const running = !busyKind && isGameRunning(config.uiId);
+            const label = homeActionLabel(normalizedStatus, busyKind, config.uiId);
             cta.classList.toggle('setup-button', !isInstalled);
             cta.classList.toggle('is-installing', !!busyKind);
-            cta.innerHTML = (isInstalled && !busyKind)
+            cta.classList.toggle('is-running', running);
+            cta.innerHTML = (isInstalled && !busyKind && !running)
                 ? `<span class="play-icon"></span>${escapeHtml(label)}`
                 : escapeHtml(label);
             cta.onclick = (event) => {
@@ -643,7 +659,6 @@
                     <div class="library-card-title">${escapeHtml(config.displayName)}</div>
                     <div class="library-card-meta">
                         <span class="badge client">${escapeHtml(config.client)}</span>
-                        <span class="badge status-missing" data-status-badge>${escapeHtml(installLabel('not-setup', config))}</span>
                     </div>
                     <button class="library-install-btn" data-action="setup">
                         <span class="progress-ring"></span>
@@ -857,7 +872,6 @@
         if (!card || !config) return;
 
         const normalizedStatus = status || 'not-setup';
-        const badge = card.querySelector('[data-status-badge]');
         const action = card.querySelector('[data-action-label]');
         const sizeBadge = card.querySelector('[data-size-badge]');
 
@@ -867,14 +881,10 @@
         card.classList.toggle('is-partial', normalizedStatus === 'partial');
         const busyKind = busyKindFor(gameId);
         card.classList.toggle('is-installing', !!busyKind);
-
-        if (badge) {
-            badge.className = `badge ${statusClass(normalizedStatus)}`;
-            badge.textContent = installLabel(normalizedStatus, config);
-        }
+        card.classList.toggle('is-running', !busyKind && isGameRunning(gameId));
 
         if (action) {
-            action.textContent = homeActionLabel(normalizedStatus, busyKind);
+            action.textContent = homeActionLabel(normalizedStatus, busyKind, gameId);
         }
 
         if (normalizedStatus === 'installed' || normalizedStatus === 'partial') {
@@ -1067,54 +1077,6 @@
         });
     }
 
-    function renderComponentLibrary() {
-        const page = document.getElementById('component-library-page');
-        if (!page) return;
-
-        const sample = GameUtils.getFeaturedGame() || GameUtils.getAllGameConfigs()[0];
-        page.innerHTML = `
-            <div class="page-header">
-                <div class="page-title">${escapeHtml(t('componentLibrary.title'))}</div>
-                <div class="page-subtitle">${escapeHtml(t('componentLibrary.subtitle'))}</div>
-            </div>
-            <div class="component-library-grid">
-                <section class="component-frame">
-                    <h3>${escapeHtml(t('componentLibrary.buttons'))}</h3>
-                    <button class="play-button"><span class="play-icon"></span>${escapeHtml(t('common.play'))}</button>
-                    <button class="verify-button">${escapeHtml(t('common.verify'))}</button>
-                    <button class="manage-install-button">${escapeHtml(t('common.manageInstall'))}</button>
-                    <button class="setup-button" disabled>${escapeHtml(t('common.disabled'))}</button>
-                </section>
-                <section class="component-frame">
-                    <h3>${escapeHtml(t('componentLibrary.inputs'))}</h3>
-                    <div class="search-field component-search">
-                        <input type="text" placeholder="${escapeHtml(t('library.searchPlaceholder'))}" value="Plutonium">
-                    </div>
-                    <div class="toggle-group small">
-                        <button class="toggle-btn">OFF</button>
-                        <button class="toggle-btn active">ON</button>
-                    </div>
-                </section>
-                <section class="component-frame">
-                    <h3>${escapeHtml(t('componentLibrary.badges'))}</h3>
-                    <span class="badge client">Plutonium</span>
-                    <span class="badge status-installed">${escapeHtml(t('status.readyToPlay'))}</span>
-                    <span class="badge status-partial">${escapeHtml(t('status.updateClient'))}</span>
-                    <span class="badge status-missing">${escapeHtml(t('status.baseGameMissing'))}</span>
-                </section>
-                <section class="component-frame">
-                    <h3>${escapeHtml(t('componentLibrary.card'))}</h3>
-                    <article class="library-card component-card">
-                        <img class="library-card-art" src="${escapeHtml(sample ? sample.capsulePath : '')}" alt="${sample ? escapeHtml(sample.displayName) : 'Client'}" loading="lazy">
-                        <div class="library-card-body">
-                            <div class="library-card-title">${sample ? escapeHtml(sample.displayName) : 'Client'}</div>
-                        </div>
-                    </article>
-                </section>
-            </div>
-        `;
-    }
-
     function downloadStatusLabel(entry, activePercent) {
         if (entry.paused) {
             if (entry.isActive) {
@@ -1258,7 +1220,6 @@
         renderLibrary();
         renderGamePages();
         renderSettingsDirectories();
-        renderComponentLibrary();
     }
 
     function applyDownloadQueueInstallingState() {
@@ -1266,22 +1227,26 @@
             const gameId = card.dataset.game;
             if (!gameId) return;
             const busyKind = busyKindFor(gameId);
+            const running = !busyKind && isGameRunning(gameId);
             card.classList.toggle('is-installing', !!busyKind);
+            card.classList.toggle('is-running', running);
             const action = card.querySelector('[data-action-label]');
             if (!action) return;
             const status = card.dataset.status || 'not-setup';
-            action.textContent = homeActionLabel(status, busyKind);
+            action.textContent = homeActionLabel(status, busyKind, gameId);
         });
 
         document.querySelectorAll('.client-card').forEach(card => {
             const gameId = card.dataset.game;
             if (!gameId) return;
             const busyKind = busyKindFor(gameId);
+            const running = !busyKind && isGameRunning(gameId);
             card.classList.toggle('is-installing', !!busyKind);
+            card.classList.toggle('is-running', running);
             const btn = card.querySelector('.client-card-play .library-install-btn');
             if (!btn) return;
             const status = card.dataset.status || 'not-setup';
-            btn.textContent = homeActionLabel(status, busyKind);
+            btn.textContent = homeActionLabel(status, busyKind, gameId);
         });
 
         const cta = document.getElementById('hub-hero-play');
@@ -1290,12 +1255,14 @@
             const gameId = hero.dataset.game;
             if (gameId) {
                 const busyKind = busyKindFor(gameId);
+                const running = !busyKind && isGameRunning(gameId);
                 const slide = homeHeroStates[homeHeroSlideIndex];
                 const status = (slide && slide.status) || 'not-setup';
                 const isInstalled = status === 'installed';
                 cta.classList.toggle('is-installing', !!busyKind);
-                const label = homeActionLabel(status, busyKind);
-                cta.innerHTML = (isInstalled && !busyKind)
+                cta.classList.toggle('is-running', running);
+                const label = homeActionLabel(status, busyKind, gameId);
+                cta.innerHTML = (isInstalled && !busyKind && !running)
                     ? `<span class="play-icon"></span>${escapeHtml(label)}`
                     : escapeHtml(label);
             }
@@ -1318,6 +1285,7 @@
         updateGamePageInstallSize,
         navigateTo,
         updateSidebarMyGames,
-        applyDownloadQueueInstallingState
+        applyDownloadQueueInstallingState,
+        refreshActionButtons: applyDownloadQueueInstallingState
     };
 })();

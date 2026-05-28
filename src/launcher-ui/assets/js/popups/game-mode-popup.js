@@ -165,11 +165,6 @@ class GameModePopup {
         });
     }
 
-    getGameDisplayName(game) {
-        const config = GameUtils.getGameConfig(game);
-        return config ? config.displayName : game;
-    }
-
     async getSavedPreference(game) {
         if (typeof window.executeCommand === 'function') {
             try {

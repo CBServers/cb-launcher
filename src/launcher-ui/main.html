@@ -5,9 +5,9 @@
     <title>CB Servers Launcher</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="./assets/css/main.css" rel="stylesheet" />
+    <link href="./assets/css/main.css?v=4" rel="stylesheet" />
     <script src="./assets/js/core/utils.js"></script>
-    <script src="./assets/js/core/i18n.js"></script>
+    <script src="./assets/js/core/i18n.js?v=3"></script>
     <script src="./assets/js/core/command.js"></script>
     <script src="./assets/js/core/player-counts.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
@@ -18,7 +18,7 @@
     <script src="./assets/js/popups/setup-flow-popup.js"></script>
     <script src="./assets/js/popups/component-selection-popup.js"></script>
     <script src="./assets/js/popups/custom-server-popup.js"></script>
-    <script src="./assets/js/popups/redist-popup.js"></script>
+    <script src="./assets/js/popups/redist-popup.js?v=3"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -183,8 +183,6 @@
                                     <span data-i18n="support.discordServer">Discord Server</span>
                                     <span class="discord-online" id="discord-online" hidden></span>
                                 </a>
-                                <button type="button" class="support-action bug" onclick="window.executeCommand('open-url', { url: 'https://github.com/CBServers/cb-launcher/issues/new' })" data-i18n="support.reportBug">Report a bug</button>
-                                <button type="button" class="support-action logs" onclick="window.executeCommand('open-logs')" data-i18n="support.openLogs">Open log folder</button>
                             </div>
                         </section>
                         <section class="support-panel">
@@ -200,7 +198,10 @@
                     </div>
                     <div class="support-footer">
                         <span data-i18n="support.noteBody">This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.</span>
-                        <a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="support.github">CB Servers GitHub</a>
+                        <div class="support-footer-links">
+                            <a href="#" onclick="window.executeCommand('open-url', { url: 'https://github.com/CBServers/cb-launcher/issues/new' }); return false;" data-i18n="support.reportBug">Report a bug</a>
+                            <a href="https://github.com/CBServers/cb-launcher" target="_blank" data-i18n="support.github">CB Servers GitHub</a>
+                        </div>
                     </div>
                 </div>
 
@@ -318,6 +319,7 @@
                             <div class="settings-actions">
                                 <button class="settings-action-btn reset-btn" id="reset-all-settings-btn" data-i18n="settings.resetAllSettings">Reset All Settings</button>
                                 <button class="settings-action-btn console-btn" id="show-console-btn">Show Console</button>
+                                <button class="settings-action-btn logs-btn" id="open-logs-btn" onclick="window.executeCommand('open-logs')" data-i18n="support.openLogs">Open log folder</button>
                                 <button class="settings-action-btn update-btn" id="check-updates-btn" data-i18n="settings.checkForUpdates">Check for Updates</button>
                             </div>
                         </section>
@@ -334,7 +336,6 @@
                 </div>
 
                 <div id="game-pages"></div>
-                <div class="page-section" id="component-library-page" style="display: none;"></div>
             </main>
         </div>
 

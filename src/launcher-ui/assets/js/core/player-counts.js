@@ -22,7 +22,6 @@
     };
 
     const latestCounts = {};
-    let pollTimer = null;
     let started = false;
 
     function applyToVisibleCards() {
@@ -57,25 +56,13 @@
     }
 
     window.PlayerCountManager = {
-        getCount(uiId) {
-            return latestCounts[uiId] || 0;
-        },
-
         applyToVisibleCards,
 
         start() {
             if (started) return;
             started = true;
             fetchAndUpdate();
-            pollTimer = setInterval(fetchAndUpdate, POLL_INTERVAL_MS);
-        },
-
-        stop() {
-            if (pollTimer) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-            }
-            started = false;
+            setInterval(fetchAndUpdate, POLL_INTERVAL_MS);
         }
     };
 })();

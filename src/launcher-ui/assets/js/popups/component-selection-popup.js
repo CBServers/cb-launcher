@@ -584,10 +584,11 @@ class ComponentSelectionPopup {
             // Close popup
             this.hide();
 
-            // Auto-start verification (pass willDeleteFiles to enable component deletion)
+            // Auto-start verification (pass willDeleteFiles to enable component deletion).
+            // A fresh download is tagged as an install so the UI labels it correctly.
             const gameId = GameUtils.getUIIdFromBackendId(this.currentGame);
             if (gameId) {
-                verifyGame(gameId, willDeleteFiles);
+                verifyGame(gameId, willDeleteFiles, shouldStartDownload ? 'install' : 'verify');
             }
 
         } catch (error) {
