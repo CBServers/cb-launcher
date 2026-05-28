@@ -44,12 +44,12 @@ namespace commands::ui_commands
             {
                 const auto path = value["path"].GetString();
                 const auto wide_path = std::wstring(path, path + strlen(path));
-                const auto result = ShellExecuteW(nullptr, L"explore", wide_path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                const auto result = ShellExecuteW(nullptr, L"explore", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
 
                 // Under Wine, "explore" may fail — fall back to "open" which Wine can route to xdg-open
                 if (reinterpret_cast<INT_PTR>(result) <= 32 && utils::nt::is_wine_environment())
                 {
-                    ShellExecuteW(nullptr, L"open", wide_path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                    ShellExecuteW(nullptr, L"open", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
                 }
             }
         });
@@ -57,11 +57,11 @@ namespace commands::ui_commands
         cef_ui.add_command("open-logs", [](const auto&, auto&)
         {
             const auto wide_path = utils::properties::get_appdata_path().wstring();
-            const auto result = ShellExecuteW(nullptr, L"explore", wide_path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            const auto result = ShellExecuteW(nullptr, L"explore", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
 
             if (reinterpret_cast<INT_PTR>(result) <= 32 && utils::nt::is_wine_environment())
             {
-                ShellExecuteW(nullptr, L"open", wide_path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                ShellExecuteW(nullptr, L"open", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
             }
         });
 

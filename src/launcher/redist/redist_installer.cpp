@@ -18,7 +18,7 @@ namespace redist
         std::wstring expand_env(const std::wstring& input)
         {
             wchar_t buf[MAX_PATH * 2];
-            const auto n = ExpandEnvironmentStringsW(input.c_str(), buf, ARRAYSIZE(buf));
+            const auto n = ExpandEnvironmentStringsW(input.data(), buf, ARRAYSIZE(buf));
             if (n == 0 || n > ARRAYSIZE(buf)) return input;
             return std::wstring(buf, n - 1);
         }
@@ -27,14 +27,14 @@ namespace redist
         {
             HKEY hkey = nullptr;
             const REGSAM access = KEY_READ | KEY_WOW64_64KEY;
-            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.c_str(), 0, access, &hkey) != ERROR_SUCCESS)
+            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.data(), 0, access, &hkey) != ERROR_SUCCESS)
             {
                 return false;
             }
             DWORD value = 0;
             DWORD size = sizeof(value);
             DWORD type = 0;
-            const auto rc = RegQueryValueExW(hkey, value_name.c_str(), nullptr, &type, reinterpret_cast<LPBYTE>(&value), &size);
+            const auto rc = RegQueryValueExW(hkey, value_name.data(), nullptr, &type, reinterpret_cast<LPBYTE>(&value), &size);
             RegCloseKey(hkey);
             if (rc != ERROR_SUCCESS || type != REG_DWORD) return false;
             return value == expected;
@@ -44,7 +44,7 @@ namespace redist
         {
             HKEY hkey = nullptr;
             const REGSAM access = KEY_READ | KEY_WOW64_64KEY;
-            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.c_str(), 0, access, &hkey) != ERROR_SUCCESS)
+            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.data(), 0, access, &hkey) != ERROR_SUCCESS)
             {
                 return false;
             }
@@ -66,10 +66,10 @@ namespace redist
             SHELLEXECUTEINFOW info{};
             info.cbSize = sizeof(info);
             info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
-            info.lpVerb = verb.c_str();
-            info.lpFile = file.c_str();
-            info.lpParameters = params.empty() ? nullptr : params.c_str();
-            info.lpDirectory = working_dir.empty() ? nullptr : working_dir.c_str();
+            info.lpVerb = verb.data();
+            info.lpFile = file.data();
+            info.lpParameters = params.empty() ? nullptr : params.data();
+            info.lpDirectory = working_dir.empty() ? nullptr : working_dir.data();
             info.nShow = SW_HIDE;
 
             if (!ShellExecuteExW(&info) || !info.hProcess)

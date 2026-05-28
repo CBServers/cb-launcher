@@ -490,7 +490,7 @@ namespace client_updater
                 std::filesystem::remove(dir, ec);
                 if (!ec)
                 {
-                    printf("Removed empty directory: %s\n", dir.filename().string().c_str());
+                    printf("Removed empty directory: %s\n", dir.filename().string().data());
                 }
             }
         }

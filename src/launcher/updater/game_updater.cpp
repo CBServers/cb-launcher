@@ -271,7 +271,7 @@ namespace game_updater
             }
 
             // Mark game as fully installed
-            utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
+            this->write_installed_hash(this->manifest_.hash);
             config_.set_installed(true);
             return;
         }
@@ -307,7 +307,7 @@ namespace game_updater
             }
 
             // Mark game as fully installed
-            utils::io::write_file(this->get_manifest_file_path(), this->manifest_.hash);
+            this->write_installed_hash(this->manifest_.hash);
             config_.set_installed(true);
         }
 
@@ -331,44 +331,19 @@ namespace game_updater
         const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
         const auto out_file = this->get_drive_filename(file);
 
-        size_t existing_size = utils::io::file_exists(out_file) ? utils::io::file_size(out_file) : 0;
-
-        // Oversized partial: previous run wrote past the expected end. Drop and refetch from byte 0.
-        if (file.size > 0 && existing_size > file.size)
-        {
-            utils::io::remove_file(out_file);
-            existing_size = 0;
-        }
-
-        if (file.size > 0 && existing_size == file.size)
-        {
-            if (this->progress_listener_)
-            {
-                this->progress_listener_->file_progress(file, file.size);
-            }
-            return;
-        }
-
-        // append=true: no-op for an existing partial (must not truncate), creates parent dir + empty file otherwise
         std::string empty{};
-        if (!utils::io::write_file(out_file, empty, true))
+        if (!utils::io::write_file(out_file, empty))
         {
             throw std::runtime_error("Failed to write file: " + out_file);
         }
 
-        std::ofstream ofs(out_file, std::ios::binary | std::ios::app);
+        std::ofstream ofs(out_file, std::ios::binary);
         if (!ofs)
         {
             throw std::runtime_error("Failed to open file: " + out_file);
         }
 
-        // Pre-credit existing bytes so the progress percent reflects the full file, not just the resumed tail
-        if (existing_size > 0 && this->progress_listener_)
-        {
-            this->progress_listener_->file_progress(file, existing_size);
-        }
-
-        const auto keep_going = [this]() { return !is_update_cancelled() && !is_update_paused(); };
+        const auto keep_going = [this]()  -> bool { return !is_update_cancelled() && !is_update_paused(); };
         const auto on_abort = [this]() -> bool { wait_if_paused_or_cancelled(); return true; };
 
         int currentPercent = 0;
@@ -406,7 +381,7 @@ namespace game_updater
 
             return true;
         },
-        0, 5, existing_size, on_abort);
+        on_abort, 0, 5);
 
         ofs.close();
 
@@ -474,23 +449,8 @@ namespace game_updater
 
     bool game_updater::needs_to_update(const std::string& hash) const
     {
-        const auto manifest_path = this->get_manifest_file_path();
-        if (utils::io::file_exists(manifest_path))
-        {
-            auto manifest_hash = utils::io::read_file(manifest_path);
-
-            if (manifest_hash.empty())
-            {
-                return true;
-            }
-
-            if (manifest_hash == hash)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        const auto installed_hash = this->read_installed_hash();
+        return installed_hash.empty() || installed_hash != hash;
     }
 
     std::size_t game_updater::get_update_size(const std::vector<updater::file_info>& outdated_files) const
@@ -686,9 +646,111 @@ namespace game_updater
         return (this->install_path / file.name).string();
     }
 
-    std::string game_updater::get_manifest_file_path() const
+    std::filesystem::path game_updater::get_manifest_file_path() const
     {
-        return (this->install_path / "latest.manifest").string();
+        return this->install_path / "manifest.json";
+    }
+
+    std::string game_updater::read_installed_hash() const
+    {
+        const auto manifest_path = this->get_manifest_file_path();
+        if (!utils::io::file_exists(manifest_path))
+        {
+            return {};
+        }
+
+        const auto contents = utils::io::read_file(manifest_path);
+        if (contents.empty())
+        {
+            return {};
+        }
+
+        rapidjson::Document doc;
+        if (doc.Parse(contents.data()).HasParseError() || !doc.IsObject())
+        {
+            return {};
+        }
+
+        const auto it = doc.FindMember(this->config_.game_key.data());
+        if (it == doc.MemberEnd() || !it->value.IsString())
+        {
+            return {};
+        }
+
+        return it->value.GetString();
+    }
+
+    void game_updater::write_installed_hash(const std::string& hash) const
+    {
+        const auto manifest_path = this->get_manifest_file_path();
+
+        rapidjson::Document doc;
+        bool valid = false;
+        if (utils::io::file_exists(manifest_path))
+        {
+            const auto contents = utils::io::read_file(manifest_path);
+            if (!contents.empty() && !doc.Parse(contents.data()).HasParseError() && doc.IsObject())
+            {
+                valid = true;
+            }
+        }
+
+        if (!valid)
+        {
+            doc.SetObject();
+        }
+
+        auto& allocator = doc.GetAllocator();
+        rapidjson::Value key(this->config_.game_key.data(), allocator);
+        rapidjson::Value value(hash.data(), allocator);
+
+        const auto it = doc.FindMember(this->config_.game_key.data());
+        if (it != doc.MemberEnd())
+        {
+            it->value = value;
+        }
+        else
+        {
+            doc.AddMember(key, value, allocator);
+        }
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        doc.Accept(writer);
+
+        utils::io::write_file(manifest_path, buffer.GetString());
+    }
+
+    void game_updater::delete_installed_hash() const
+    {
+        const auto manifest_path = this->get_manifest_file_path();
+        if (!utils::io::file_exists(manifest_path))
+        {
+            return;
+        }
+
+        const auto contents = utils::io::read_file(manifest_path);
+
+        rapidjson::Document doc;
+        if (contents.empty() || doc.Parse(contents.data()).HasParseError() || !doc.IsObject())
+        {
+            utils::io::remove_file(manifest_path);
+            return;
+        }
+
+        doc.RemoveMember(this->config_.game_key.data());
+
+        if (doc.MemberCount() == 0)
+        {
+            utils::io::remove_file(manifest_path);
+            return;
+        }
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        doc.Accept(writer);
+
+        utils::io::write_file(manifest_path, buffer.GetString());
     }
 
     bool game_updater::is_update_cancelled() const
@@ -931,20 +993,13 @@ namespace game_updater
             }
         }
 
-        // Add latest.manifest
-        const auto manifest_path = this->get_manifest_file_path();
-        if (utils::io::file_exists(manifest_path))
-        {
-            updater::file_info info;
-            info.name = "latest.manifest";
-            info.size = 0;
-            files_to_delete.push_back(info);
-        }
-
         if (!files_to_delete.empty())
         {
             this->delete_files(files_to_delete);
         }
+
+        // Remove this game's entry from manifest.json (deletes the file if empty).
+        this->delete_installed_hash();
 
         // Clean up empty directories (deepest first)
         // Collect all unique parent directories from deleted files
@@ -976,7 +1031,7 @@ namespace game_updater
                 std::filesystem::remove(dir, ec);
                 if (!ec)
                 {
-                    printf("Removed empty directory: %s\n", dir.filename().string().c_str());
+                    printf("Removed empty directory: %s\n", dir.filename().string().data());
                 }
             }
         }

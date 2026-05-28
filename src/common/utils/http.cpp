@@ -211,8 +211,8 @@ namespace utils::http
 
     std::optional<result> get_data_stream(const std::string& url, const headers& headers,
         const std::string& fields, const std::function<bool(size_t, size_t, size_t)>& progress_callback_,
-        const std::function<bool(const char*, size_t)>& stream_callback, int timeout, uint32_t retries,
-        size_t resume_from, const std::function<bool()>& on_abort)
+        const std::function<bool(const char*, size_t)>& stream_callback, const std::function<bool()>& on_abort,
+        int timeout, uint32_t retries)
     {
         curl_slist* header_list = nullptr;
         auto* curl = curl_easy_init();
@@ -258,7 +258,6 @@ namespace utils::http
         // Keep stream_helper outside retry loop so bytes_written accumulates across retries
         stream_helper write_helper{};
         write_helper.callback = &stream_callback;
-        write_helper.bytes_written = static_cast<curl_off_t>(resume_from);
 
         // Manual counter so callback aborts (pause) don't burn retry slots
         uint32_t attempt = 0;

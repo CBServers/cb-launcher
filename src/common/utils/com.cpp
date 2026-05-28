@@ -154,7 +154,7 @@ namespace utils::com
         }
 
         shell_link->SetPath(target_path.c_str());
-        shell_link->SetDescription(string::convert(description).c_str());
+        shell_link->SetDescription(string::convert(description).data());
 
         if (!working_directory.empty())
         {

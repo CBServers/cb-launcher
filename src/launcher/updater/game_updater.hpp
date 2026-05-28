@@ -52,7 +52,10 @@ namespace game_updater
 
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
         [[nodiscard]] std::string get_drive_filename(const updater::file_info& file) const;
-        [[nodiscard]] std::string get_manifest_file_path() const;
+        [[nodiscard]] std::filesystem::path get_manifest_file_path() const;
+        [[nodiscard]] std::string read_installed_hash() const;
+        void write_installed_hash(const std::string& hash) const;
+        void delete_installed_hash() const;
         [[nodiscard]] bool is_update_cancelled() const;
         [[nodiscard]] bool is_update_paused() const;
         void check_cancelled() const; // Throws update_cancelled exception if cancelled
