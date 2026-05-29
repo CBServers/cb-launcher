@@ -141,6 +141,35 @@ namespace utils::com
         return std::filesystem::path(path);
     }
 
+    std::filesystem::path read_shortcut_target(const std::filesystem::path& shortcut_path)
+    {
+        CComPtr<IShellLinkW> shell_link{};
+        if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shell_link))))
+        {
+            return {};
+        }
+
+        CComPtr<IPersistFile> persist_file{};
+        if (FAILED(shell_link->QueryInterface(IID_PPV_ARGS(&persist_file))))
+        {
+            return {};
+        }
+
+        if (FAILED(persist_file->Load(shortcut_path.c_str(), STGM_READ)))
+        {
+            return {};
+        }
+
+        wchar_t target[MAX_PATH]{};
+        // SLGP_RAWPATH: read the literal stored target, don't let link-tracking auto-resolve a moved exe
+        if (FAILED(shell_link->GetPath(target, MAX_PATH, nullptr, SLGP_RAWPATH)))
+        {
+            return {};
+        }
+
+        return std::filesystem::path(target);
+    }
+
     bool create_shortcut(
         const std::filesystem::path& target_path,
         const std::filesystem::path& shortcut_path,

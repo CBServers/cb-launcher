@@ -98,15 +98,15 @@ namespace
         cef::cef_ui::work();
     }
 
+    bool same_path(const std::filesystem::path& a, const std::filesystem::path& b)
+    {
+        return _wcsicmp(a.lexically_normal().c_str(), b.lexically_normal().c_str()) == 0;
+    }
+
     void create_shortcut()
     {
         try
         {
-            if (utils::properties::load(property_keys::SHORTCUT_CREATED) == "true")
-            {
-                return;
-            }
-
             const auto launcher_path = utils::nt::library{}.get_path();
             const auto desktop_path = utils::com::get_desktop_path();
 
@@ -116,7 +116,25 @@ namespace
             }
 
             const auto shortcut_path = desktop_path / "CB Servers Launcher.lnk";
+            const auto already_created = utils::properties::load(property_keys::SHORTCUT_CREATED) == "true";
 
+            if (already_created)
+            {
+                // User deleted it on purpose — respect that, don't resurrect it.
+                if (!std::filesystem::exists(shortcut_path))
+                {
+                    return;
+                }
+
+                // Still points at the current exe? Nothing to do.
+                const auto current_target = utils::com::read_shortcut_target(shortcut_path);
+                if (!current_target.empty() && same_path(current_target, launcher_path))
+                {
+                    return;
+                }
+            }
+
+            // First run, or exe moved/renamed — (re)write the same .lnk in place.
             if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
             {
                 utils::properties::store(property_keys::SHORTCUT_CREATED, "true");

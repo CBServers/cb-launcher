@@ -273,6 +273,13 @@ namespace cef
 
     void cef_ui_handler::save_window_placement(const HWND window) const
     {
+        // Once closing, ignore saves: teardown un-maximizes the window (WM_SIZE/SIZE_RESTORED),
+        // which would otherwise clobber the maximized flag we saved when the user maximized.
+        if (GetPropA(window, "cb_closing"))
+        {
+            return;
+        }
+
         WINDOWPLACEMENT placement{sizeof(placement)};
         if (!GetWindowPlacement(window, &placement))
         {
@@ -451,6 +458,12 @@ namespace cef
         if (message == WM_EXITSIZEMOVE && window == root_window)
         {
             this->save_window_placement(window);
+        }
+
+        if (message == WM_CLOSE && window == root_window)
+        {
+            // Mark closing so the teardown resize doesn't overwrite the saved placement.
+            SetPropA(window, "cb_closing", reinterpret_cast<HANDLE>(1));
         }
 
         if (message == WM_DELAYEDDPICHANGE && window == root_window)

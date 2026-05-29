@@ -66,6 +66,11 @@ namespace commands::ui_commands
 
         cef_ui.add_command("close", [&cef_ui](const auto&, auto&)
         {
+            // Mark closing first so the teardown resize doesn't overwrite the saved placement.
+            if (auto* const window = cef_ui.get_window())
+            {
+                SetPropA(window, "cb_closing", reinterpret_cast<HANDLE>(1));
+            }
             cef_ui.close_browser();
         });
 
