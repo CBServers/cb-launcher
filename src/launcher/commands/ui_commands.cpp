@@ -75,10 +75,36 @@ namespace commands::ui_commands
             ShowWindow(cef_ui.get_window(), SW_MINIMIZE);
         });
 
+        cef_ui.add_command("toggle-maximize", [&cef_ui](const auto&, auto&)
+        {
+            auto* const window = cef_ui.get_window();
+            ShowWindow(window, IsZoomed(window) ? SW_RESTORE : SW_MAXIMIZE);
+        });
+
+        cef_ui.add_command("is-maximized", [&cef_ui](const auto&, rapidjson::Document& response)
+        {
+            response.SetBool(IsZoomed(cef_ui.get_window()) != FALSE);
+        });
+
         cef_ui.add_command("show", [&cef_ui](const auto&, auto&)
         {
             auto* const window = cef_ui.get_window();
-            ShowWindow(window, SW_SHOWDEFAULT);
+
+            // Preserve the window's current state. SW_SHOWDEFAULT would un-maximize a
+            // window that was restored maximized on launch, and clobber the saved flag.
+            if (IsIconic(window))
+            {
+                ShowWindow(window, SW_RESTORE);
+            }
+            else if (IsZoomed(window))
+            {
+                ShowWindow(window, SW_SHOWMAXIMIZED);
+            }
+            else
+            {
+                ShowWindow(window, SW_SHOWNORMAL);
+            }
+
             SetForegroundWindow(window);
 
             PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);

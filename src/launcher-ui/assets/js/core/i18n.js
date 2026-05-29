@@ -6,6 +6,8 @@
             },
             window: {
                 minimize: 'Minimize',
+                maximize: 'Maximize',
+                restore: 'Restore',
                 close: 'Close'
             },
             brand: {
@@ -431,6 +433,8 @@
             },
             window: {
                 minimize: 'Reduire',
+                maximize: 'Agrandir',
+                restore: 'Restaurer',
                 close: 'Fermer'
             },
             brand: {
@@ -856,6 +860,8 @@
             },
             window: {
                 minimize: 'Minimizar',
+                maximize: 'Maximizar',
+                restore: 'Restaurar',
                 close: 'Cerrar'
             },
             brand: {

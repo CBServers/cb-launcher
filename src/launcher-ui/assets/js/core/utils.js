@@ -49,7 +49,7 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'boiii', 'iw6x', 's1x', 'h1-mod', 'iw7-mod', 'bo4', 'mw2r', 'hmw-mod'];
+    static GAME_ORDER = ['cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
 
     // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
     // Covers common CoD names that don't already match a UI ID or backend key.

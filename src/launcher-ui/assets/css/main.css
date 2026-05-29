@@ -11,7 +11,7 @@
     --surface: rgba(255, 255, 255, 0.05);
     --surface-hi: rgba(255, 255, 255, 0.08);
     --surface-lo: rgba(255, 255, 255, 0.03);
-    --surface-popup: rgba(12, 12, 20, 0.9);
+    --surface-popup: rgba(12, 12, 20, 0.97);
     --border: rgba(255, 255, 255, 0.08);
     --border-hi: rgba(255, 255, 255, 0.14);
 
@@ -45,7 +45,6 @@
     --radius: 18px;
     --radius-sm: 12px;
     --radius-lg: 24px;
-    --blur: 24px;
 
     --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.35);
     --shadow-glow: 0 0 32px rgba(108, 99, 255, 0.25);
@@ -237,6 +236,16 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>');
 }
 
+.control-icon.maximize-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>');
+}
+
+.control-icon.restore-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"><rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M5 16V6.5A1.5 1.5 0 0 1 6.5 5H16"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"><rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M5 16V6.5A1.5 1.5 0 0 1 6.5 5H16"/></svg>');
+}
+
 .control-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
@@ -244,6 +253,7 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 
 #close-button:hover { background: rgba(255, 77, 94, 0.85); color: #fff; }
 #minimize-button:hover { background: rgba(255, 178, 63, 0.85); color: #000; }
+#maximize-button:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
 
 /* ============================================================ */
 /* LAYOUT                                                       */
@@ -266,8 +276,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 .sidebar {
     width: var(--sidebar-w-collapsed);
     background: var(--surface);
-    backdrop-filter: blur(var(--blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     display: flex;
@@ -768,8 +776,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--border);
     cursor: pointer;
     transition: all 0.3s var(--ease);
@@ -823,8 +829,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 .welcome-card {
     position: relative;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 18px 22px;
@@ -895,8 +899,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
 .chip {
     padding: 8px 16px;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--border);
     border-radius: 999px;
     font-size: 12px;
@@ -927,8 +929,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     width: 100%;
     padding: 10px 36px 10px 40px;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--border);
     border-radius: 12px;
     color: #fff;
@@ -998,8 +998,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--border);
     cursor: pointer;
     transition: all 0.35s var(--ease);
@@ -1068,8 +1066,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     font-weight: 600;
     letter-spacing: 1px;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
 }
 
 .badge.client {
@@ -1104,8 +1100,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     padding: 4px 10px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
     font-size: 11px;
@@ -1127,8 +1121,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     padding: 4px 10px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
     font-size: 11px;
@@ -1234,8 +1226,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     padding: 4px 12px;
     border-radius: 999px;
     background: var(--surface-hi);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border);
     color: #fff;
     font-size: 11px;
@@ -1260,8 +1250,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     margin-bottom: 24px;
     padding: 18px;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
     border: 1px solid var(--border);
     border-radius: var(--radius);
 }
@@ -1273,8 +1261,6 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     background: transparent;
     border: 0;
     box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
 }
 
 .left-buttons { display: flex; gap: 12px; align-items: center; }
@@ -1378,8 +1364,6 @@ html[data-theme="dark"] .setup-button {
     transition: all 0.25s var(--ease);
     color: #fff;
     background: var(--surface-hi);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     font-family: inherit;
 }
 
@@ -1420,8 +1404,6 @@ html[data-theme="dark"] .setup-button {
     width: 46px;
     height: 46px;
     background: var(--surface-hi);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-hi);
     border-radius: 12px;
     cursor: pointer;
@@ -1450,8 +1432,6 @@ html[data-theme="dark"] .setup-button {
 
 .description {
     background: var(--surface);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 24px 26px;
@@ -1573,8 +1553,6 @@ html[data-theme="dark"] .setup-button {
 .settings-content .settings-section {
     margin-bottom: 28px;
     background: var(--surface);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 22px 24px;
@@ -1888,8 +1866,6 @@ html[data-theme="dark"] .setup-button {
 
 .global-progress-bar {
     background: var(--surface);
-    backdrop-filter: blur(var(--blur)) saturate(180%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
     border: 1px solid var(--border);
     padding: 12px 22px;
     display: flex;
@@ -2205,8 +2181,6 @@ html[data-theme="dark"] .setup-button {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2229,8 +2203,6 @@ html[data-theme="dark"] .setup-button {
 .install-confirm-popup,
 .custom-server-popup {
     background: var(--surface-popup);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
     border: 1px solid var(--border-hi);
     border-radius: var(--radius);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.06);
@@ -2649,8 +2621,6 @@ html[data-theme="dark"] .setup-button {
     border: none;
     border-radius: 0;
     box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
 }
 
 .game-settings-popup .settings-section h4,
@@ -3087,8 +3057,6 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
 
 #message-box {
     background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     position: fixed;
     inset: 0;
     z-index: 9999;
@@ -3107,8 +3075,6 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
     width: 440px;
     max-width: 90vw;
     background: var(--surface-popup);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
     border-radius: var(--radius);
     padding: 0;
     margin: 0;
@@ -3213,8 +3179,6 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
 
 .toast {
     background: var(--surface-popup);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--border-hi);
     border-left-width: 3px;
     border-radius: 12px;
@@ -3361,8 +3325,6 @@ button { font-family: inherit; cursor: pointer; }
     justify-content: center;
     z-index: 4;
     background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
 }
 
 .library-card.is-downloading .library-card-progress { display: flex; }
@@ -3583,8 +3545,6 @@ button { font-family: inherit; cursor: pointer; }
     border-radius: var(--radius);
     background: var(--surface);
     border: 1px solid var(--border);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
 }
 
 .secondary-action {
@@ -3698,8 +3658,6 @@ html[data-theme="dark"] .secondary-action:hover {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    backdrop-filter: blur(var(--blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
     box-shadow: var(--shadow-soft);
 }
 
@@ -4067,8 +4025,6 @@ html[data-theme="dark"] .secondary-action:hover {
     min-width: 200px;
     padding: 6px;
     background: var(--surface-popup);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-hi);
     border-radius: 10px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
@@ -4143,8 +4099,6 @@ html[data-theme="dark"] .secondary-action:hover {
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
 }
 
 .hub-hero:hover .hub-hero-arrow { opacity: 1; }
@@ -4185,8 +4139,6 @@ html[data-theme="dark"] .secondary-action:hover {
     padding: 4px 8px;
     background: rgba(10, 10, 15, 0.4);
     border-radius: 999px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
 }
 
 .hub-hero-dot {
@@ -4220,8 +4172,6 @@ html[data-theme="dark"] .secondary-action:hover {
     opacity: 0;
     transition: opacity 0.2s var(--ease);
     pointer-events: none;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
 }
 
 .client-card.has-overlay:hover .client-card-play { opacity: 1; }

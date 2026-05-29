@@ -4,6 +4,7 @@
 #include "cef/cef_ui_handler.hpp"
 
 #include <utils/nt.hpp>
+#include <utils/properties.hpp>
 
 #ifdef _WIN64
 using number = double;
@@ -56,6 +57,38 @@ namespace cef
             constexpr auto unaware_dpi = USER_DEFAULT_SCREEN_DPI * 1.0;
             const auto dpi = get_dpi(window);
             return static_cast<number>(dpi / unaware_dpi);
+        }
+
+        // Maps a screen point to a resize-border hit code, or HTNOWHERE if not on a border.
+        // Needed because WM_NCCALCSIZE removes the native frame and CEF's child render window
+        // covers the client area, so the OS can't hit-test the sizing border on its own.
+        LRESULT hit_test_resize(const HWND root_window, const LPARAM l_param)
+        {
+            if (IsZoomed(root_window))
+            {
+                return HTNOWHERE;
+            }
+
+            RECT rect;
+            GetWindowRect(root_window, &rect);
+
+            const POINT point{static_cast<short>(LOWORD(l_param)), static_cast<short>(HIWORD(l_param))};
+            const auto border = std::max(6, static_cast<int>(8 * get_dpi_scale(root_window)));
+
+            const bool left = point.x >= rect.left && point.x < rect.left + border;
+            const bool right = point.x < rect.right && point.x >= rect.right - border;
+            const bool top = point.y >= rect.top && point.y < rect.top + border;
+            const bool bottom = point.y < rect.bottom && point.y >= rect.bottom - border;
+
+            if (top && left) return HTTOPLEFT;
+            if (top && right) return HTTOPRIGHT;
+            if (bottom && left) return HTBOTTOMLEFT;
+            if (bottom && right) return HTBOTTOMRIGHT;
+            if (left) return HTLEFT;
+            if (right) return HTRIGHT;
+            if (top) return HTTOP;
+            if (bottom) return HTBOTTOM;
+            return HTNOWHERE;
         }
 
         void apply_window_style(const HWND window)
@@ -222,6 +255,69 @@ namespace cef
         }
     }
 
+    void cef_ui_handler::apply_window_region(const HWND window) const
+    {
+        // Rounded corners look wrong on a maximized window and leave gaps at the screen corners.
+        if (utils::nt::is_wine_environment() || IsZoomed(window))
+        {
+            SetWindowRgn(window, nullptr, TRUE);
+            return;
+        }
+
+        RECT rect;
+        GetWindowRect(window, &rect);
+        const auto round_rect = CreateRoundRectRgn(0, 0, rect.right - rect.left, rect.bottom - rect.top, 15, 15);
+        SetWindowRgn(window, round_rect, TRUE);
+        DeleteObject(round_rect);
+    }
+
+    void cef_ui_handler::save_window_placement(const HWND window) const
+    {
+        WINDOWPLACEMENT placement{sizeof(placement)};
+        if (!GetWindowPlacement(window, &placement))
+        {
+            return;
+        }
+
+        const bool maximized = placement.showCmd == SW_SHOWMAXIMIZED || IsZoomed(window);
+
+        RECT rect;
+        if (maximized)
+        {
+            rect = placement.rcNormalPosition; // restore size/pos to use when un-maximized
+        }
+        else
+        {
+            GetWindowRect(window, &rect);
+        }
+
+        utils::properties::store("launcher-window-x", std::to_string(rect.left));
+        utils::properties::store("launcher-window-y", std::to_string(rect.top));
+        utils::properties::store("launcher-window-w", std::to_string(rect.right - rect.left));
+        utils::properties::store("launcher-window-h", std::to_string(rect.bottom - rect.top));
+        utils::properties::store("launcher-window-maximized", maximized ? "1" : "0");
+    }
+
+    void cef_ui_handler::push_maximize_state(const HWND window, const bool maximized) const
+    {
+        for (const auto& browser : this->browser_list)
+        {
+            if (browser->GetHost()->GetWindowHandle() != window)
+            {
+                continue;
+            }
+
+            auto frame = browser->GetMainFrame();
+            if (frame)
+            {
+                const std::string code = "if (typeof window.__setMaximized === 'function') { window.__setMaximized("
+                    + std::string(maximized ? "true" : "false") + "); }";
+                frame->ExecuteJavaScript(code, frame->GetURL(), 0);
+            }
+            return;
+        }
+    }
+
     void cef_ui_handler::setup_event_handler(const HWND window, const bool setup_children, HWND root_window)
     {
         root_window = root_window ? root_window : window;
@@ -258,6 +354,16 @@ namespace cef
             return DefWindowProcW(window, message, w_param, l_param);
         }
 
+        if (message == WM_NCHITTEST)
+        {
+            const auto hit = hit_test_resize(static_cast<HWND>(root_window), l_param);
+            if (hit != HTNOWHERE)
+            {
+                // The root reports the resize code; children pass the hit through to the root.
+                return window == root_window ? hit : HTTRANSPARENT;
+            }
+        }
+
         if (message == WM_LBUTTONDOWN)
         {
             const POINTS points = MAKEPOINTS(l_param);
@@ -278,50 +384,78 @@ namespace cef
             }
         }
 
+        if (message == WM_GETMINMAXINFO && window == root_window)
+        {
+            auto* const info = reinterpret_cast<MINMAXINFO*>(l_param);
+
+            const auto monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO mi{sizeof(mi)};
+            if (GetMonitorInfoW(monitor, &mi))
+            {
+                // Maximize to the work area only, so the taskbar stays visible and the frameless
+                // window does not overhang the screen edges.
+                info->ptMaxPosition.x = mi.rcWork.left - mi.rcMonitor.left;
+                info->ptMaxPosition.y = mi.rcWork.top - mi.rcMonitor.top;
+                info->ptMaxSize.x = mi.rcWork.right - mi.rcWork.left;
+                info->ptMaxSize.y = mi.rcWork.bottom - mi.rcWork.top;
+
+                const auto dpi_scale = get_dpi_scale(window);
+                info->ptMinTrackSize.x = static_cast<LONG>(LAUNCHER_WINDOW_MIN_WIDTH * dpi_scale);
+                info->ptMinTrackSize.y = static_cast<LONG>(LAUNCHER_WINDOW_MIN_HEIGHT * dpi_scale);
+                info->ptMaxTrackSize.x = (std::max)(static_cast<LONG>(LAUNCHER_WINDOW_MAX_WIDTH), info->ptMaxSize.x);
+                info->ptMaxTrackSize.y = (std::max)(static_cast<LONG>(LAUNCHER_WINDOW_MAX_HEIGHT), info->ptMaxSize.y);
+            }
+            return 0;
+        }
+
         if (message == WM_DPICHANGED && window == root_window)
         {
+            // Honor the size/position Windows suggests for the new DPI (e.g. moving between
+            // monitors with different scaling) instead of forcing a fixed size.
+            const auto* const suggested = reinterpret_cast<const RECT*>(l_param);
+            if (suggested)
+            {
+                SetWindowPos(window, nullptr, suggested->left, suggested->top,
+                             suggested->right - suggested->left, suggested->bottom - suggested->top,
+                             SWP_NOZORDER | SWP_NOACTIVATE);
+            }
             PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
+            return 0;
         }
 
         if (message == WM_SIZE && window == root_window)
         {
-            PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
+            if (w_param != SIZE_MINIMIZED)
+            {
+                PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
+            }
+
+            const bool maximized = w_param == SIZE_MAXIMIZED;
+            const bool was_maximized = GetPropA(window, "cb_maximized") != nullptr;
+            if (w_param != SIZE_MINIMIZED && maximized != was_maximized)
+            {
+                if (maximized)
+                {
+                    SetPropA(window, "cb_maximized", reinterpret_cast<HANDLE>(1));
+                }
+                else
+                {
+                    RemovePropA(window, "cb_maximized");
+                }
+
+                this->push_maximize_state(window, maximized);
+                this->save_window_placement(window);
+            }
+        }
+
+        if (message == WM_EXITSIZEMOVE && window == root_window)
+        {
+            this->save_window_placement(window);
         }
 
         if (message == WM_DELAYEDDPICHANGE && window == root_window)
         {
-            RECT rect;
-            GetWindowRect(window, &rect);
-
-            const auto width = rect.right - rect.left;
-            const auto height = rect.bottom - rect.top;
-
-            const POINT center
-            {
-                rect.left + width / 2,
-                rect.top + height / 2,
-            };
-
-            const auto dpi_scale = get_dpi_scale(window);
-            //const auto last_scale = get_last_dpi_scale(window);
-            //store_dpi_scale(window, dpi_scale);
-
-            const auto new_width = int(LAUNCHER_WINDOW_WIDTH * dpi_scale); //int((width * dpi_scale) / last_scale);
-            const auto new_height = int(LAUNCHER_WINDOW_HEIGHT * dpi_scale);//int((height * dpi_scale) / last_scale);
-
-            const auto new_x = center.x - (new_width / 2);
-            const auto new_y = center.y - (new_height / 2);
-
-            SetWindowPos(window, nullptr, new_x, new_y, new_width, new_height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
-
-            // Update rounded corners (skip on Wine — SetWindowRgn with rounded regions causes visual artifacts)
-            if (!utils::nt::is_wine_environment())
-            {
-                const auto round_rect = CreateRoundRectRgn(0, 0, rect.right - rect.left, rect.bottom - rect.top, 15, 15);
-                SetWindowRgn(window, round_rect, TRUE);
-                DeleteObject(round_rect);
-            }
-
+            this->apply_window_region(window);
             this->update_drag_regions(window);
             return TRUE;
         }

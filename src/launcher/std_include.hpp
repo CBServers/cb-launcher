@@ -12,6 +12,7 @@
 #include <dwmapi.h>
 #include <ShellScalingApi.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <filesystem>

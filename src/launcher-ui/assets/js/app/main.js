@@ -267,6 +267,14 @@ async function initialize() {
         }
     };
 
+    document.querySelector("#maximize-button").onclick = () => {
+        try {
+            window.executeCommand("toggle-maximize");
+        } catch (error) {
+            console.log("Toggle-maximize command not available:", error);
+        }
+    };
+
     document.querySelector("#close-button").onclick = () => {
         try {
             window.executeCommand("close");
@@ -274,6 +282,35 @@ async function initialize() {
             console.log("Close command not available:", error);
         }
     };
+
+    // Updates the maximize/restore button icon + tooltip. Called by the launcher (C++) whenever the
+    // window's maximized state changes (button, Aero Snap, Win+Up, etc.).
+    window.__setMaximized = (maximized) => {
+        const button = document.querySelector("#maximize-button");
+        if (!button) return;
+
+        const icon = button.querySelector(".control-icon");
+        if (icon) {
+            icon.classList.toggle("maximize-icon", !maximized);
+            icon.classList.toggle("restore-icon", !!maximized);
+        }
+
+        const key = maximized ? "window.restore" : "window.maximize";
+        button.setAttribute("data-i18n-title", key);
+        try {
+            button.title = window.LauncherI18n ? window.LauncherI18n.t(key) : (maximized ? "Restore" : "Maximize");
+        } catch (error) {
+            button.title = maximized ? "Restore" : "Maximize";
+        }
+    };
+
+    try {
+        Promise.resolve(window.executeCommand("is-maximized"))
+            .then((maximized) => window.__setMaximized(!!maximized))
+            .catch(() => {});
+    } catch (error) {
+        console.log("is-maximized command not available:", error);
+    }
 
     // Handle external links on support and game pages - open in default browser
     document.addEventListener('click', function(e) {
