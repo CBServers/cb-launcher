@@ -352,7 +352,8 @@ window.RedistManager = (function() {
 })();
 
 window.DiscordWidget = (function() {
-    let cached = null;
+    const INVITE_URL = 'https://discord.com/api/v10/invites/WyJQCwCCGW?with_counts=true';
+    let cachedOnline = null;
     let lastFetch = 0;
     const TTL_MS = 5 * 60 * 1000;
 
@@ -366,20 +367,22 @@ window.DiscordWidget = (function() {
         if (!el) return;
 
         const now = Date.now();
-        if (!cached || (now - lastFetch) > TTL_MS) {
+        if (cachedOnline === null || (now - lastFetch) > TTL_MS) {
             try {
-                const info = await window.executeCommand('get-discord-info');
-                if (info && info.ok && typeof info.online === 'number') {
-                    cached = info;
+                const res = await fetch(INVITE_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                if (typeof json.approximate_presence_count === 'number') {
+                    cachedOnline = json.approximate_presence_count;
                     lastFetch = now;
                 }
             } catch (e) {
-                console.error('get-discord-info failed', e);
+                console.warn('DiscordWidget: fetch failed, keeping last known count.', e);
             }
         }
 
-        if (cached && typeof cached.online === 'number') {
-            el.textContent = format(cached.online);
+        if (cachedOnline !== null) {
+            el.textContent = format(cachedOnline);
             el.hidden = false;
         }
     }

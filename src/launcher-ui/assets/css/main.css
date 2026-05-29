@@ -480,11 +480,14 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     gap: 2px;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     border-top: 1px solid var(--border);
     margin-top: 4px;
     padding-top: 6px;
 }
+
+.game-list::-webkit-scrollbar { width: 0; height: 0; }
 
 .sidebar-bottom {
     border-top: 1px solid var(--border);
