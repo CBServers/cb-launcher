@@ -9,6 +9,8 @@
 #include "io.hpp"
 #include "com.hpp"
 #include "string.hpp"
+#include "nt.hpp"
+#include "flags.hpp"
 
 namespace utils::properties
 {
@@ -59,6 +61,13 @@ namespace utils::properties
 
     std::filesystem::path get_appdata_path()
     {
+        // -portable writes launcher data next to the exe instead of %LOCALAPPDATA%
+        if (flags::has_flag("portable"))
+        {
+            static auto portable = nt::library{}.get_folder() / "cbservers";
+            return portable;
+        }
+
         PWSTR path;
         if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
         {
