@@ -18,22 +18,22 @@ namespace commands::game_commands
 {
     namespace
     {
-        std::atomic_bool* get_termination_barrier()
+        std::atomic_bool* get_launch_barrier()
         {
             static std::atomic_bool barrier{ false };
             return &barrier;
         }
 
-        bool try_lock_termination_barrier()
+        bool try_lock_launch_barrier()
         {
-            auto* barrier = get_termination_barrier();
+            auto* barrier = get_launch_barrier();
             auto expected = false;
             return barrier->compare_exchange_strong(expected, true);
         }
 
-        void unlock_termination_barrier()
+        void unlock_launch_barrier()
         {
-            auto* barrier = get_termination_barrier();
+            auto* barrier = get_launch_barrier();
             barrier->store(false);
         }
 
@@ -51,7 +51,7 @@ namespace commands::game_commands
                 utils::nt::wait_for_process(pid);
 
                 // Grace period for updater→child handoff before polling.
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::this_thread::sleep_for(std::chrono::seconds(1));
 
                 int empty_ticks = 0;
                 while (empty_ticks < 2)
@@ -71,7 +71,7 @@ namespace commands::game_commands
                     empty_ticks = any_running ? 0 : empty_ticks + 1;
                 }
 
-                unlock_termination_barrier();
+                unlock_launch_barrier();
             }).detach();
         }
 
@@ -121,9 +121,7 @@ namespace commands::game_commands
             return name;
         }
 
-        // Returns the effective player name to inject for this game, or empty when
-        // nothing should be injected (game doesn't support a name argument, or no
-        // override / global is set).
+        // Returns the effective player name to inject for this game, or empty when nothing should be injected
         std::string resolve_player_name(const game_config::game_config_t& config)
         {
             if (config.name_argument.empty()) return "";
@@ -144,8 +142,7 @@ namespace commands::game_commands
         std::string format_name_arg(const std::string& prefix, const std::string& name)
         {
             if (prefix.empty() || name.empty()) return "";
-            // Names without whitespace don't need quoting; avoids embedding inner
-            // double-quotes in the wrapper's --pass "..." token.
+            // Names without whitespace don't need quoting
             if (name.find_first_of(" \t") == std::string::npos)
             {
                 return std::format("{} {}", prefix, name);
@@ -178,14 +175,15 @@ namespace commands::game_commands
             return std::format("{} {}", base_args, extras);
         }
 
-        void launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
+        // Assumes the caller already holds the launch barrier.
+        bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
         {
             if (config.mode_arguments.size() > 0 && !mode.empty())
             {
                 if (config.mode_arguments.find(mode) == config.mode_arguments.end())
                 {
                     cef_ui.show_message_box("Game Launch Error", "Unknown game mode: " + mode);
-                    return;
+                    return false;
                 }
             }
 
@@ -194,7 +192,7 @@ namespace commands::game_commands
             if (!game_install)
             {
                 cef_ui.show_message_box("Game Launch Error", "Failed to get game install path.");
-                return;
+                return false;
             }
 
             const auto game_directory = std::filesystem::path(game_install->data());
@@ -221,12 +219,6 @@ namespace commands::game_commands
             const auto game_exe = game_directory / exe_name;
             if (utils::io::file_exists(game_exe.string()))
             {
-                if (!try_lock_termination_barrier())
-                {
-                    cef_ui.show_message_box("Game Launch Error", "Another game is already running! Please close it before running this game.");
-                    return;
-                }
-
                 const auto player_name = resolve_player_name(config);
                 const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config, player_name);
 
@@ -244,11 +236,10 @@ namespace commands::game_commands
 
                 if (pid == 0)
                 {
-                    unlock_termination_barrier();
                     const auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, GetLastError());
                     printf("Launch failed: %s\n", error_msg.data());
                     cef_ui.show_message_box("Game Launch Error", error_msg);
-                    return;
+                    return false;
                 }
 
                 // Check if launcher should close after game starts
@@ -258,15 +249,15 @@ namespace commands::game_commands
                     printf("Close on launch enabled - closing launcher\n");
                     // Close the launcher browser window
                     cef_ui.close_browser();
-                    return;
+                    return true;
                 }
 
                 spawn_exit_watchdog(pid, config);
+                return true;
             }
-            else
-            {
-                cef_ui.show_message_box("Game Launch Error", "Could not find: " + exe_name);
-            }
+
+            cef_ui.show_message_box("Game Launch Error", "Could not find: " + exe_name);
+            return false;
         }
     }
 
@@ -285,12 +276,19 @@ namespace commands::game_commands
             // Get mode if provided, otherwise empty string
             const auto mode = value.HasMember("mode") ? std::string{ value["mode"].GetString() } : std::string{};
 
+            if (!try_lock_launch_barrier())
+            {
+                cef_ui.show_message_box("Game Launch Error", "This game is already launching or running. Please wait for it to finish, or close it before launching again.");
+                return;
+            }
+
             updater::ui_progress_listener progress_listener;
             progress_listener.reset(true);
 
             // Run update and launch in a separate thread with progress tracking
             std::thread([config = *config, mode, game, &progress_listener, &cef_ui, &ctx]()
             {
+                bool launched = false;
                 try
                 {
                     // Check for game updates if configured (reduce unnecessary manifest fetch)
@@ -322,7 +320,7 @@ namespace commands::game_commands
                     }
                     progress_listener.done_update();
 
-                    launch_game(config, game, mode, cef_ui);
+                    launched = launch_game(config, game, mode, cef_ui);
                 }
                 catch (const updater::update_cancelled&)
                 {
@@ -338,7 +336,7 @@ namespace commands::game_commands
                     printf("Launch error: %s\n", e.what());
                     cef_ui.show_message_box("Game Launch Error", e.what());
 
-                    launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
+                    launched = launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
                 }
                 catch (...)
                 {
@@ -348,7 +346,13 @@ namespace commands::game_commands
                     printf("Unknown launch error\n");
                     cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
 
-                    launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
+                    launched = launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
+                }
+
+                // Release the barrier unless a game process is now running (in which case the exit watchdog or stop-game owns it).
+                if (!launched)
+                {
+                    unlock_launch_barrier();
                 }
             }).detach();
         });
@@ -403,10 +407,10 @@ namespace commands::game_commands
             }
             response.SetBool(stopped);
 
-            // If we successfully stopped the game, unlock the termination barrier
+            // If we successfully stopped the game, unlock the launch barrier
             if (stopped)
             {
-                unlock_termination_barrier();
+                unlock_launch_barrier();
             }
         });
 

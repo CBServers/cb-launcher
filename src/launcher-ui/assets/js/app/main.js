@@ -933,7 +933,9 @@ window.DownloadQueueManager = {
     queue: [],
 
     enqueue: function(item) {
-        if (item.blocksGameButtons) {
+        // Dedup blocking ops (verify/install/uninstall) and launches so spam-clicking Play
+        // can't queue a second launch behind the one already verifying/running.
+        if (item.blocksGameButtons || item.op === 'launch') {
             const isDup = (this.active && this.active.gameId === item.gameId && this.active.op === item.op)
                 || this.queue.some(q => q.gameId === item.gameId && q.op === item.op);
             if (isDup) {
