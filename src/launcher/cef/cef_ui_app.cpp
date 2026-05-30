@@ -2,6 +2,8 @@
 
 #include "cef/cef_ui_app.hpp"
 
+#include <utils/flags.hpp>
+
 namespace cef
 {
     cef_ui_app::cef_ui_app() = default;
@@ -14,6 +16,12 @@ namespace cef
     void cef_ui_app::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line)
     {
         command_line->AppendSwitch("cb-subprocess");
+
+        // Propagate -portable so child processes resolve the same data dir.
+        if (utils::flags::has_flag("portable"))
+        {
+            command_line->AppendArgument("-portable");
+        }
     }
 
     void cef_ui_app::OnBeforeCommandLineProcessing(const CefString& /*process_type*/,
