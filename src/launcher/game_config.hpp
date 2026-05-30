@@ -67,6 +67,8 @@ namespace game_config
         std::filesystem::path client_default_path;
         // Files that always go to install_path even when client_default_path is set
         std::unordered_set<std::string> client_install_path_files;
+        // Relative folder path(s) under the client data root to clean of non-manifest files.
+        std::vector<std::string> client_data_folders;
 
         // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
         std::vector<std::string> required_redists;

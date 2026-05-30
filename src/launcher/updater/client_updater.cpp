@@ -133,12 +133,14 @@ namespace client_updater
 
         this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
         this->client_install_path_files_ = config.client_install_path_files;
+        this->client_data_folders_ = config.client_data_folders;
 
         this->update_manifest_url_ = config.update_manifest_url;
         this->update_folder_url_ = config.update_folder_url;
 
         // Fetch manifest and compute valid files
         const auto manifest_files = get_file_infos(this->update_manifest_url_);
+        this->manifest_files_ = manifest_files;
         this->valid_files_ = config.required_updater_files.empty() ? manifest_files : find_file_infos(config.required_updater_files, manifest_files);
 
         // Filter out files that should be skipped
@@ -158,6 +160,8 @@ namespace client_updater
         {
             return;
         }
+
+        this->cleanup_data_directories();
 
         // Initialize progress tracking for verification phase
         if (this->progress_listener_)
@@ -388,14 +392,19 @@ namespace client_updater
 
     std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
     {
+        return this->resolve_drive_path(file.name);
+    }
+
+    std::filesystem::path client_updater::resolve_drive_path(const std::string& name) const
+    {
         if (this->client_install_path_files_.empty())
         {
-            return this->client_default_path_ / file.name;
+            return this->client_default_path_ / name;
         }
 
-        if (this->client_install_path_files_.contains(file.name))
+        if (this->client_install_path_files_.contains(name))
         {
-            return this->install_path / file.name;
+            return this->install_path / name;
         }
 
         for (const auto& entry : this->client_install_path_files_)
@@ -403,13 +412,95 @@ namespace client_updater
             const auto star = entry.find('*');
             if (star == std::string::npos) continue;
             const auto prefix = entry.substr(0, star);
-            if (utils::string::starts_with(file.name, prefix))
+            if (utils::string::starts_with(name, prefix))
             {
-                return this->install_path / file.name;
+                return this->install_path / name;
             }
         }
 
-        return this->client_default_path_ / file.name;
+        return this->client_default_path_ / name;
+    }
+
+    std::filesystem::path client_updater::resolve_data_dir(const std::string& folder) const
+    {
+        if (this->client_install_path_files_.empty())
+        {
+            return this->client_default_path_ / folder;
+        }
+
+        if (this->client_install_path_files_.contains(folder))
+        {
+            return this->install_path / folder;
+        }
+
+        for (const auto& entry : this->client_install_path_files_)
+        {
+            const auto star = entry.find('*');
+            if (star == std::string::npos) continue;
+            const auto prefix = entry.substr(0, star);
+            const auto folder_slash = folder + "/";
+            if (utils::string::starts_with(folder_slash, prefix) ||
+                utils::string::starts_with(prefix, folder_slash))
+            {
+                return this->install_path / folder;
+            }
+        }
+
+        return this->client_default_path_ / folder;
+    }
+
+    void client_updater::cleanup_data_directories() const
+    {
+        if (this->client_data_folders_.empty() || this->manifest_files_.empty())
+        {
+            return;
+        }
+
+        std::vector<std::filesystem::path> legal_files{};
+        legal_files.reserve(this->manifest_files_.size());
+        for (const auto& file : this->manifest_files_)
+        {
+            legal_files.emplace_back(std::filesystem::absolute(this->get_drive_filename(file)));
+        }
+
+        for (const auto& folder : this->client_data_folders_)
+        {
+            const auto data_dir = this->resolve_data_dir(folder);
+            if (!utils::io::directory_exists(data_dir))
+            {
+                continue;
+            }
+
+            const auto existing_files = utils::io::list_files(data_dir, true);
+            for (auto& entry : existing_files)
+            {
+                const auto is_file = std::filesystem::is_regular_file(entry);
+                const auto is_folder = std::filesystem::is_directory(entry);
+
+                if (is_file || is_folder)
+                {
+                    bool is_legal = false;
+
+                    for (const auto& legal_file : legal_files)
+                    {
+                        if ((is_folder && is_inside_folder(legal_file, entry)) ||
+                            (is_file && legal_file == entry))
+                        {
+                            is_legal = true;
+                            break;
+                        }
+                    }
+
+                    if (is_legal)
+                    {
+                        continue;
+                    }
+                }
+
+                std::error_code code{};
+                std::filesystem::remove_all(entry, code);
+            }
+        }
     }
 
     void client_updater::delete_client() const

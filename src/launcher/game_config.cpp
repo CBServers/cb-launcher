@@ -261,6 +261,7 @@ namespace game_config
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
                 .client_install_path_files = {"miles32.dll", "mss32.dll", "iw3mp.exe", "iw3sp_mod.exe", "game.dll", "iw3sp_data/*"},
+                .client_data_folders = {"bin", "main", "zone", "iw3sp_data/assets", "iw3sp_data/miles", "iw3sp_data/zone"},
                 .required_redists = {"vcr2005", "vcr2008", "dx_jun2010"}
             }
         },
@@ -283,6 +284,7 @@ namespace game_config
                 .base_folder = "waw_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {},
                 .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
@@ -305,6 +307,7 @@ namespace game_config
                 .base_folder = "bo1_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {},
                 .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
@@ -336,6 +339,7 @@ namespace game_config
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {"iw4x", "zone/patch", "zone/zonebuilder"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
@@ -367,6 +371,7 @@ namespace game_config
                 .base_folder = "bo2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {},
                 .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
@@ -399,6 +404,7 @@ namespace game_config
                 .base_folder = "mw3_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {},
                 .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
@@ -422,6 +428,7 @@ namespace game_config
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("boiii"),
                 .client_install_path_files = {"boiii.exe", "BlackOps3.exe"},
+                .client_data_folders = {"data"},
                 .required_redists = {"vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
             }
         },
@@ -446,6 +453,7 @@ namespace game_config
                 .base_folder = "ghosts_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {"data"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
@@ -472,6 +480,7 @@ namespace game_config
                 .base_folder = "aw_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {"data"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
@@ -498,6 +507,7 @@ namespace game_config
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
                 .client_install_path_files = {"h1-mod.exe"},
+                .client_data_folders = {"cdata"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
@@ -521,6 +531,7 @@ namespace game_config
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
                 .client_install_path_files = {"iw7-mod.exe"},
+                .client_data_folders = {"cdata"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
@@ -543,6 +554,7 @@ namespace game_config
                 .property_overrides = {},
                 .client_default_path = utils::properties::get_appdata_folder_path("h2-mod"),
                 .client_install_path_files = {"h2-mod.exe"},
+                .client_data_folders = {"cdata"},
                 .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
@@ -567,6 +579,7 @@ namespace game_config
                 .base_folder = "bo4_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .client_data_folders = {"project-bo4/launcher"},
                 .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
@@ -595,7 +608,8 @@ namespace game_config
                     {property_keys::LAUNCH_OPTIONS, "hmw"},
                     {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },
-                .required_redists = {"vcr2022", "dx_jun2010"}
+                .client_data_folders = {},
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         }
     };
