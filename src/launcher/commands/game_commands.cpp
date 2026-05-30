@@ -208,7 +208,7 @@ namespace commands::game_commands
                         printf("[Wine] Disabling CB Extension (d3d11 proxy) - not compatible with Wine/Proton\n");
                     }
                     const auto dll_path = game_directory / "d3d11.dll";
-                    if (utils::io::file_exists(dll_path.string()))
+                    if (utils::io::file_exists(dll_path))
                     {
                         utils::io::remove_file(dll_path);
                     }
@@ -217,7 +217,7 @@ namespace commands::game_commands
 
             const auto exe_name = game_config::get_exe_for_mode(game, mode);
             const auto game_exe = game_directory / exe_name;
-            if (utils::io::file_exists(game_exe.string()))
+            if (utils::io::file_exists(game_exe))
             {
                 const auto player_name = resolve_player_name(config);
                 const auto launch_args = build_launch_args(game_config::get_launch_arguments(game, mode), mode, config, player_name);

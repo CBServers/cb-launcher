@@ -239,7 +239,7 @@ namespace client_updater
             }
 
             const auto out_file = this->get_drive_filename(file);
-            if (!utils::io::write_file(out_file.string(), result.buffer, false))
+            if (!utils::io::write_file(out_file, result.buffer, false))
             {
                 utils::logger::write("Failed to write {}. Error code: ", file.name,
                     std::system_category().message(static_cast<int>(::GetLastError())));
@@ -372,7 +372,7 @@ namespace client_updater
     {
         std::string data{};
         const auto drive_name = this->get_drive_filename(file);
-        if (!utils::io::read_file(drive_name.string(), &data))
+        if (!utils::io::read_file(drive_name, &data))
         {
             return true;
         }
@@ -424,7 +424,7 @@ namespace client_updater
         for (const auto& file : this->valid_files_)
         {
             const auto drive_name = this->get_drive_filename(file);
-            if (utils::io::file_exists(drive_name.string()))
+            if (utils::io::file_exists(drive_name))
             {
                 files_to_delete.push_back(file);
             }
@@ -449,7 +449,7 @@ namespace client_updater
             }
 
             const auto drive_name = this->get_drive_filename(file);
-            if (!utils::io::remove_file(drive_name.string()))
+            if (!utils::io::remove_file(drive_name))
             {
                 printf("Warning: Failed to delete client file: %s\n", drive_name.string().data());
             }

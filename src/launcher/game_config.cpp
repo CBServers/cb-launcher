@@ -110,7 +110,7 @@ namespace game_config
         doc.SetObject();
 
         std::string data;
-        if (utils::io::read_file(config_path.string(), &data))
+        if (utils::io::read_file(config_path, &data))
         {
             rapidjson::Document existing;
             if (!existing.Parse(data).HasParseError() && existing.IsObject())
@@ -152,7 +152,7 @@ namespace game_config
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         doc.Accept(writer);
 
-        utils::io::write_file(config_path.string(),
+        utils::io::write_file(config_path,
             std::string(buffer.GetString(), buffer.GetLength()));
     }
 
@@ -726,7 +726,7 @@ namespace game_config
         for (const auto& exe : config->valid_game_files)
         {
             const auto exe_path = path / exe;
-            if (utils::io::file_exists(exe_path.string()))
+            if (utils::io::file_exists(exe_path))
             {
                 return true;
             }

@@ -420,7 +420,7 @@ namespace cef
 
         const auto file = this->folder_ / path;
         std::string content;
-        if (utils::io::read_file(file.string(), &content))
+        if (utils::io::read_file(file, &content))
         {
             const auto& mime_type = get_mime_type(file);
             const auto stream = CefStreamReader::CreateForData(content.data(), content.size());

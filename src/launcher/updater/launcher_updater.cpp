@@ -223,7 +223,7 @@ namespace launcher_updater
             }
 
             const auto out_file = this->get_drive_filename(file);
-            if (!utils::io::write_file(out_file.string(), result.buffer, false))
+            if (!utils::io::write_file(out_file, result.buffer, false))
             {
                 utils::logger::write("Failed to write {}. Error code: ", file.name,
                     std::system_category().message(static_cast<int>(::GetLastError())));
@@ -356,7 +356,7 @@ namespace launcher_updater
 
         std::string data{};
         const auto drive_name = this->get_drive_filename(file);
-        if (!utils::io::read_file(drive_name.string(), &data))
+        if (!utils::io::read_file(drive_name, &data))
         {
             return true;
         }
@@ -396,7 +396,7 @@ namespace launcher_updater
         for (auto i = 0; i < 4; ++i)
         {
             utils::io::remove_file(this->dead_process_file_);
-            if (!utils::io::file_exists(this->dead_process_file_.string()))
+            if (!utils::io::file_exists(this->dead_process_file_))
             {
                 break;
             }
@@ -435,7 +435,7 @@ namespace launcher_updater
     void launcher_updater::cleanup_data_directory(const std::vector<updater::file_info>& files) const
     {
         const auto base = std::filesystem::path(this->base_);
-        if (!utils::io::directory_exists(base.string()))
+        if (!utils::io::directory_exists(base))
         {
             return;
         }
