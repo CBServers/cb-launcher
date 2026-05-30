@@ -81,9 +81,9 @@ class GameUtils {
             credits: 'Multiplayer is provided by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
             accent: '#46D744',
             assetBase: './assets/img/games/cod4x',
-            iconPath: './assets/img/games/cod4x/capsule.png',
-            capsulePath: './assets/img/games/cod4x/capsule.png',
-            heroImagePath: './assets/img/games/cod4x/hero.png',
+            iconPath: './assets/img/games/cod4x/capsule.jpg',
+            capsulePath: './assets/img/games/cod4x/capsule.jpg',
+            heroImagePath: './assets/img/games/cod4x/hero.jpg',
             logoPath: './assets/img/games/cod4x/logo.png'
         },
         't4': {
@@ -289,9 +289,9 @@ class GameUtils {
             credits: 'H1-Mod is a CB Servers fork of the original H1-Mod client developed by Aurora.',
             accent: '#46D744',
             assetBase: './assets/img/games/h1-mod',
-            iconPath: './assets/img/games/h1-mod/capsule.png',
-            capsulePath: './assets/img/games/h1-mod/capsule.png',
-            heroImagePath: './assets/img/games/h1-mod/hero.png',
+            iconPath: './assets/img/games/h1-mod/capsule.jpg',
+            capsulePath: './assets/img/games/h1-mod/capsule.jpg',
+            heroImagePath: './assets/img/games/h1-mod/hero.jpg',
             logoPath: './assets/img/games/h1-mod/logo.png'
         },
         'iw': {
@@ -358,8 +358,8 @@ class GameUtils {
             credits: 'MW2 Campaign Remastered support is provided by H2-Mod, developed by Alice.',
             accent: '#FBC751',
             assetBase: './assets/img/games/h2-mod',
-            iconPath: './assets/img/games/h2-mod/capsule.png',
-            capsulePath: './assets/img/games/h2-mod/capsule.png',
+            iconPath: './assets/img/games/h2-mod/capsule.jpg',
+            capsulePath: './assets/img/games/h2-mod/capsule.jpg',
             heroImagePath: './assets/img/games/h2-mod/hero.jpg',
             logoPath: './assets/img/games/h2-mod/logo.png'
         },
@@ -381,9 +381,9 @@ class GameUtils {
             credits: 'HMW-Mod is a CB Servers fork of the original HorizonMW client.',
             accent: '#97838A',
             assetBase: './assets/img/games/hmw-mod',
-            iconPath: './assets/img/games/hmw-mod/capsule.png',
-            capsulePath: './assets/img/games/hmw-mod/capsule.png',
-            heroImagePath: './assets/img/games/hmw-mod/hero.png',
+            iconPath: './assets/img/games/hmw-mod/capsule.jpg',
+            capsulePath: './assets/img/games/hmw-mod/capsule.jpg',
+            heroImagePath: './assets/img/games/hmw-mod/hero.jpg',
             logoPath: './assets/img/games/hmw-mod/logo.png'
         }
     };
