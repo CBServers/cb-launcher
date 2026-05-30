@@ -89,7 +89,7 @@
                 showInstalled: 'Show installed',
                 welcomeTitle: 'Welcome to CB Launcher',
                 welcomeBody: 'Welcome to CB Servers Launcher! Your one-stop launcher for Call of Duty community clients. Install, update, and play supported clients all from one place. Head to the <strong>Library</strong> tab to browse every available client and start playing. Need a hand? Head over to the <strong>Support</strong> tab or check out our <a href="https://docs.cbservers.xyz/launcher" target="_blank">docs</a>.',
-                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
+                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
             },
             library: {
                 title: 'Library',
@@ -132,7 +132,7 @@
                     reinstallAllTitle: 'Reinstall all redistributables?',
                     reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. You must click <strong>Yes</strong> on every Windows User Account Control (UAC) prompt that appears. There is one for each package. Continue?'
                 },
-                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
+                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -516,7 +516,7 @@
                 showInstalled: 'Voir les installes',
                 welcomeTitle: 'Bienvenue sur CB Launcher',
                 welcomeBody: 'Bienvenue sur CB Servers Launcher&nbsp;! Votre launcher tout-en-un pour les clients communautaires Call of Duty. Installez, mettez a jour et jouez aux clients pris en charge depuis un seul endroit. Rendez-vous dans l\'onglet <strong>Bibliotheque</strong> pour parcourir tous les clients disponibles et commencer a jouer. Besoin d\'aide&nbsp;? Rendez-vous dans l\'onglet <strong>Support</strong> ou consultez notre <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentation</a>.',
-                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
+                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
             },
             library: {
                 title: 'Bibliotheque',
@@ -559,7 +559,7 @@
                     reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
                     reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Vous devez cliquer sur <strong>Oui</strong> a chaque invite de controle de compte utilisateur (UAC) qui apparait. Il y en a une pour chaque paquet. Continuer ?'
                 },
-                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
+                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
             installer: {
@@ -943,7 +943,7 @@
                 showInstalled: 'Mostrar instalados',
                 welcomeTitle: 'Bienvenido a CB Launcher',
                 welcomeBody: 'Bienvenido a CB Servers Launcher! Tu launcher todo-en-uno para los clientes comunitarios de Call of Duty. Instala, actualiza y juega a los clientes compatibles desde un solo lugar. Ve a la pestana <strong>Biblioteca</strong> para explorar todos los clientes disponibles y empezar a jugar. Necesitas ayuda? Pasa por la pestana <strong>Soporte</strong> o consulta nuestra <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentacion</a>.',
-                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
+                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
             },
             library: {
                 title: 'Biblioteca',
@@ -986,7 +986,7 @@
                     reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
                     reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Debes hacer clic en <strong>Si</strong> en cada ventana de Control de cuentas de usuario (UAC) que aparezca. Hay una por cada paquete. ¿Continuar?'
                 },
-                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
+                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
             },
             installer: {
