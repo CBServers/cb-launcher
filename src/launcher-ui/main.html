@@ -214,6 +214,19 @@
 
                     <div class="settings-content">
                         <section class="settings-section">
+                            <h3 data-i18n="settings.player">Player</h3>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.globalPlayerName">Global in-game name</label>
+                                    <span class="setting-description" data-i18n="settings.globalPlayerNameBody">Applied to all clients except Plutonium ones (which use their own auth).</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <input type="text" id="setting-global-player-name" class="setting-text-input" maxlength="16" placeholder="PlayerName" autocomplete="off" spellcheck="false" />
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="settings-section">
                             <h3 data-i18n="settings.launcher">Launcher</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
@@ -269,19 +282,6 @@
                                 <div class="toggle-group small" id="skip-client-update-toggle">
                                     <button class="toggle-btn active" data-value="false">OFF</button>
                                     <button class="toggle-btn" data-value="true">ON</button>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="settings-section">
-                            <h3 data-i18n="settings.player">Player</h3>
-                            <div class="setting-item inline-setting">
-                                <div class="setting-info">
-                                    <label data-i18n="settings.globalPlayerName">Global in-game name</label>
-                                    <span class="setting-description" data-i18n="settings.globalPlayerNameBody">Applied to all clients except Plutonium ones (which use their own auth).</span>
-                                </div>
-                                <div class="cdn-control">
-                                    <input type="text" id="setting-global-player-name" class="setting-text-input" maxlength="16" placeholder="PlayerName" autocomplete="off" spellcheck="false" />
                                 </div>
                             </div>
                         </section>
