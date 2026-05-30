@@ -285,7 +285,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {},
-                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2005", "vcr2008", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -308,7 +308,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {},
-                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -372,7 +372,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {},
-                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2012", "vcr2022", "dx_jun2010"}
             }
         },
         {
@@ -405,7 +405,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {},
-                .required_redists = {"vcr2005", "vcr2008", "vcr2010", "vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
         {
