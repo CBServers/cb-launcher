@@ -1265,6 +1265,64 @@
         });
     }
 
+    // Mock data — replaced when the Discord Social SDK bridge is wired up.
+    const MOCK_FRIENDS = [
+        { id: '1', name: 'Player 1', status: 'online',  activity: 'Playing IW4x' },
+        { id: '2', name: 'Player 2', status: 'online',  activity: 'Playing Plutonium T6' },
+        { id: '3', name: 'Player 3', status: 'online',  activity: null },
+        { id: '4', name: 'Player 4', status: 'idle',    activity: 'Away — 12m' },
+        { id: '5', name: 'Player 5', status: 'offline', activity: null },
+        { id: '6', name: 'Player 6', status: 'offline', activity: null },
+        { id: '7', name: 'Player 7', status: 'offline', activity: null }
+    ];
+
+    function friendStatusLabel(status) {
+        if (status === 'online') return t('friends.statusOnline');
+        if (status === 'idle')   return t('friends.statusIdle');
+        return t('friends.statusOffline');
+    }
+
+    function friendInitials(name) {
+        const parts = String(name || '?').trim().split(/\s+/);
+        const first = parts[0] ? parts[0][0] : '?';
+        const second = parts.length > 1 ? parts[parts.length - 1][0] : '';
+        return (first + second).toUpperCase();
+    }
+
+    function renderFriends() {
+        const list = document.getElementById('friends-list');
+        const empty = document.getElementById('friends-empty');
+        if (!list) return;
+
+        if (MOCK_FRIENDS.length === 0) {
+            list.innerHTML = '';
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        const online  = MOCK_FRIENDS.filter(f => f.status === 'online' || f.status === 'idle');
+        const offline = MOCK_FRIENDS.filter(f => f.status === 'offline');
+
+        const header = online.length === 0 ? '' : `
+            <div class="friends-group-head">${escapeHtml(t('friends.statusOnline'))} <span class="friends-group-count">${online.length}</span></div>
+        `;
+        const rows = online.concat(offline).map(f => `
+            <div class="friend-row" data-status="${escapeHtml(f.status)}">
+                <div class="friend-avatar">
+                    <span class="friend-avatar-initials">${escapeHtml(friendInitials(f.name))}</span>
+                    <span class="friend-status-dot" data-status="${escapeHtml(f.status)}"></span>
+                </div>
+                <div class="friend-row-body">
+                    <div class="friend-name">${escapeHtml(f.name)}</div>
+                    <div class="friend-activity">${escapeHtml(f.activity || friendStatusLabel(f.status))}</div>
+                </div>
+            </div>
+        `).join('');
+
+        list.innerHTML = header + rows;
+    }
+
     function renderAll() {
         renderSidebarGames();
         renderHome();
@@ -1328,6 +1386,7 @@
         renderGamePages,
         renderSettingsDirectories,
         renderDownloads,
+        renderFriends,
         refreshInstallationStates,
         refreshHomeInstalledClients,
         updateLibraryCard,

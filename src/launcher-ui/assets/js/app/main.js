@@ -405,6 +405,12 @@ async function initializeNavigation() {
         downloadsElement.addEventListener("click", handleDownloadsClick);
     }
 
+    // Handle friends navigation
+    const friendsElement = document.querySelector("#friends");
+    if (friendsElement) {
+        friendsElement.addEventListener("click", handleFriendsClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -472,6 +478,17 @@ function handleDownloadsClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("downloads");
+}
+
+function handleFriendsClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("friends");
 }
 
 function handleGameClick(e) {
@@ -1274,6 +1291,10 @@ function loadNavigationPage(page) {
     } else if (page === 'downloads') {
         if (window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
             window.AppViews.renderDownloads();
+        }
+    } else if (page === 'friends') {
+        if (window.AppViews && typeof window.AppViews.renderFriends === 'function') {
+            window.AppViews.renderFriends();
         }
     } else if (GameUtils.getAllGameIds().includes(page)) {
         initializeGamePage(page);

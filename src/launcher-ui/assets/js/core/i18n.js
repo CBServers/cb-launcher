@@ -17,6 +17,7 @@
                 home: 'Home',
                 library: 'Library',
                 downloads: 'Downloads',
+                friends: 'Friends',
                 support: 'Support',
                 settings: 'Settings',
                 myGames: 'My Games'
@@ -34,6 +35,14 @@
                 statusPausedAt: 'Paused — {{percent}}%',
                 pause: 'Pause',
                 resume: 'Resume'
+            },
+            friends: {
+                title: 'Friends',
+                subtitle: "See who's online and what they're playing.",
+                empty: 'No friends to show yet.',
+                statusOnline: 'Online',
+                statusIdle: 'Idle',
+                statusOffline: 'Offline'
             },
             toasts: {
                 queued: '{{game}} added to queue',
@@ -446,6 +455,7 @@
                 home: 'Accueil',
                 library: 'Bibliotheque',
                 downloads: 'Telechargements',
+                friends: 'Amis',
                 support: 'Support',
                 settings: 'Parametres',
                 myGames: 'Mes Jeux'
@@ -463,6 +473,14 @@
                 statusPausedAt: 'En pause - {{percent}}%',
                 pause: 'Mettre en pause',
                 resume: 'Reprendre'
+            },
+            friends: {
+                title: 'Amis',
+                subtitle: 'Voyez qui est en ligne et a quoi ils jouent.',
+                empty: 'Aucun ami a afficher pour le moment.',
+                statusOnline: 'En ligne',
+                statusIdle: 'Absent',
+                statusOffline: 'Hors ligne'
             },
             toasts: {
                 queued: '{{game}} ajoute a la file',
@@ -875,6 +893,7 @@
                 home: 'Inicio',
                 library: 'Biblioteca',
                 downloads: 'Descargas',
+                friends: 'Amigos',
                 support: 'Soporte',
                 settings: 'Ajustes',
                 myGames: 'Mis Juegos'
@@ -892,6 +911,14 @@
                 statusPausedAt: 'En pausa - {{percent}}%',
                 pause: 'Pausar',
                 resume: 'Reanudar'
+            },
+            friends: {
+                title: 'Amigos',
+                subtitle: 'Mira quien esta en linea y a que estan jugando.',
+                empty: 'No hay amigos que mostrar todavia.',
+                statusOnline: 'En linea',
+                statusIdle: 'Ausente',
+                statusOffline: 'Desconectado'
             },
             toasts: {
                 queued: '{{game}} anadido a la cola',
