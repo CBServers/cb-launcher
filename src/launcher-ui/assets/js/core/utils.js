@@ -49,7 +49,7 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
+    static GAME_ORDER = ['cod1', 'codu', 'cod2', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
 
     // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
     // Covers common CoD names that don't already match a UI ID or backend key.
@@ -385,6 +385,78 @@ class GameUtils {
             capsulePath: './assets/img/games/hmw-mod/capsule.jpg',
             heroImagePath: './assets/img/games/hmw-mod/hero.jpg',
             logoPath: './assets/img/games/hmw-mod/logo.png'
+        },
+        'cod1': {
+            displayName: 'Call of Duty',
+            shortName: 'CoD',
+            defaultInstallPath: 'cod1_game_files',
+            uiId: 'cod1',
+            client: 'TBD',
+            provider: '',
+            clientKey: 'others',
+            hasMultipleModes: false,
+            supportedModes: [],
+            supportsName: false,
+            specialSettings: [],
+            codeName: 'Call of Duty (2003)',
+            version: 'IDtech3',
+            description: 'The original Call of Duty (2003). Client integration is in the works — the tile is live so you can see what is coming.',
+            credits: '',
+            accent: '#8B7355',
+            assetBase: './assets/img/games/cod1',
+            iconPath: './assets/img/games/cod1/capsule.jpg',
+            capsulePath: './assets/img/games/cod1/capsule.jpg',
+            heroImagePath: './assets/img/games/cod1/hero.jpg',
+            logoPath: './assets/img/games/cod1/logo.png',
+            comingSoon: true
+        },
+        'codu': {
+            displayName: 'Call of Duty: United Offensive',
+            shortName: 'UO',
+            defaultInstallPath: 'codu_game_files',
+            uiId: 'codu',
+            client: 'TBD',
+            provider: '',
+            clientKey: 'others',
+            hasMultipleModes: false,
+            supportedModes: [],
+            supportsName: false,
+            specialSettings: [],
+            codeName: 'United Offensive (2004)',
+            version: 'IDtech3',
+            description: 'The 2004 expansion to the original Call of Duty. Client integration is in the works.',
+            credits: '',
+            accent: '#6B7A3F',
+            assetBase: './assets/img/games/codu',
+            iconPath: './assets/img/games/codu/capsule.png',
+            capsulePath: './assets/img/games/codu/capsule.png',
+            heroImagePath: './assets/img/games/codu/hero.jpg',
+            logoPath: './assets/img/games/codu/logo.png',
+            comingSoon: true
+        },
+        'cod2': {
+            displayName: 'Call of Duty 2',
+            shortName: 'CoD2',
+            defaultInstallPath: 'cod2_game_files',
+            uiId: 'cod2',
+            client: 'TBD',
+            provider: '',
+            clientKey: 'others',
+            hasMultipleModes: false,
+            supportedModes: [],
+            supportsName: false,
+            specialSettings: [],
+            codeName: 'Call of Duty 2 (2005)',
+            version: 'IW2',
+            description: 'Call of Duty 2 (2005). Client integration is in the works.',
+            credits: '',
+            accent: '#A04B2A',
+            assetBase: './assets/img/games/cod2',
+            iconPath: './assets/img/games/cod2/capsule.jpg',
+            capsulePath: './assets/img/games/cod2/capsule.jpg',
+            heroImagePath: './assets/img/games/cod2/hero.jpg',
+            logoPath: './assets/img/games/cod2/logo.png',
+            comingSoon: true
         }
     };
 
@@ -405,6 +477,11 @@ class GameUtils {
     static getGameConfigByUIId(uiId) {
         const backendId = this.UI_TO_BACKEND_MAP[uiId] || uiId;
         return this.getGameConfig(backendId);
+    }
+
+    static isComingSoon(uiId) {
+        const config = this.getGameConfigByUIId(uiId);
+        return !!(config && config.comingSoon);
     }
 
     /**

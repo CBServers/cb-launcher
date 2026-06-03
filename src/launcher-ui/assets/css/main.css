@@ -4247,3 +4247,116 @@ html[data-theme="dark"] .secondary-action:hover {
     gap: 10px;
     margin-top: 4px;
 }
+
+.library-card.is-coming-soon .library-card-art {
+    filter: grayscale(0.55) brightness(0.85);
+}
+
+.library-card.is-coming-soon:hover .library-card-art {
+    filter: grayscale(0.35) brightness(0.95);
+}
+
+.library-card-soon-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.library-install-btn.is-coming-soon,
+.library-install-btn.is-coming-soon:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.55);
+    cursor: default;
+    box-shadow: none;
+    transform: none;
+}
+
+.game-item.is-coming-soon .game-item-thumb img {
+    filter: grayscale(0.45) brightness(0.9);
+}
+
+.game-item-soon-chip {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.65);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    pointer-events: none;
+}
+
+.detail-actions-panel.is-coming-soon {
+    align-items: stretch;
+    text-align: center;
+    padding: 24px 18px;
+    gap: 12px;
+}
+
+.detail-coming-soon-chip {
+    display: inline-block;
+    align-self: center;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+}
+
+.detail-coming-soon-note {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.coming-soon-button,
+.coming-soon-button:hover {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 28px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    cursor: default;
+    box-shadow: none;
+    transform: none;
+}
+
+#hub-hero-play.is-coming-soon,
+#hub-hero-play.is-coming-soon:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: default;
+    box-shadow: none;
+}
+

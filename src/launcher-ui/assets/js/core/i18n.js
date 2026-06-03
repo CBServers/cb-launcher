@@ -77,7 +77,8 @@
                 error: 'Error',
                 pinToHome: 'Pin to home',
                 unpinFromHome: 'Unpin from home',
-                gameDetails: 'Game details'
+                gameDetails: 'Game details',
+                comingSoon: 'Coming soon'
             },
             home: {
                 installedClients: 'Ready to Play',
@@ -94,6 +95,7 @@
             library: {
                 title: 'Library',
                 subtitle: 'Call of Duty clients available through CB Launcher.',
+                comingSoonHint: 'Client support is on the way.',
                 filterAll: 'All',
                 filterInstalled: 'Installed',
                 filterNotInstalled: 'Not installed',
@@ -504,7 +506,8 @@
                 error: 'Erreur',
                 pinToHome: "Epingler a l'accueil",
                 unpinFromHome: "Detacher de l'accueil",
-                gameDetails: 'Details du jeu'
+                gameDetails: 'Details du jeu',
+                comingSoon: 'Bientot disponible'
             },
             home: {
                 installedClients: 'Pret a jouer',
@@ -521,6 +524,7 @@
             library: {
                 title: 'Bibliotheque',
                 subtitle: 'Clients Call of Duty disponibles dans CB Launcher.',
+                comingSoonHint: "Le support du client est en cours d'arrivee.",
                 filterAll: 'Tous',
                 filterInstalled: 'Installes',
                 filterNotInstalled: 'Non installes',
@@ -931,7 +935,8 @@
                 error: 'Error',
                 pinToHome: 'Anclar al inicio',
                 unpinFromHome: 'Desanclar del inicio',
-                gameDetails: 'Detalles del juego'
+                gameDetails: 'Detalles del juego',
+                comingSoon: 'Proximamente'
             },
             home: {
                 installedClients: 'Listos para jugar',
@@ -948,6 +953,7 @@
             library: {
                 title: 'Biblioteca',
                 subtitle: 'Clientes de Call of Duty disponibles a traves de CB Launcher.',
+                comingSoonHint: 'El soporte del cliente esta en camino.',
                 filterAll: 'Todos',
                 filterInstalled: 'Instalados',
                 filterNotInstalled: 'No instalados',
