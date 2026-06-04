@@ -1324,7 +1324,15 @@ async function createGameButtons(gameId) {
     if (!buttonGroup) return;
     buttonGroup.classList.add('button-group-compact');
 
-    // Get game state from StateManager if available, otherwise check directly
+    if (GameUtils.isComingSoon(gameId)) {
+        buttonGroup.innerHTML = `
+            <div class="left-buttons">
+                <button class="coming-soon-button" disabled>${t('common.comingSoon')}</button>
+            </div>
+        `;
+        return;
+    }
+
     let gameState = window.GameStateManager.getGameState(gameId);
     if (!gameState) {
         const installStatus = await checkGameInstallation(gameId);
@@ -1609,6 +1617,7 @@ async function checkGameInstallation(gameId) {
     const gameMapping = GameUtils.getGameMapping(gameId);
     const config = GameUtils.getGameConfigByUIId(gameId);
     if (!config) return { hasAnySetup: false, status: 'not-setup' };
+    if (config.comingSoon) return { hasAnySetup: false, status: 'not-setup' };
 
     try {
         if (typeof window.executeCommand === 'function') {

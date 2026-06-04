@@ -158,6 +158,7 @@
     }
 
     function runGameAction(gameId, status) {
+        if (GameUtils.isComingSoon(gameId)) return;
         if (isGameBusy(gameId)) return;
         if (isGameRunning(gameId)) {
             if (typeof stopGame === 'function') stopGame(gameId);
@@ -197,6 +198,14 @@
         }
         if (sub) sub.textContent = gameDescription(config);
         if (cta) {
+            if (config.comingSoon) {
+                cta.classList.remove('is-installing', 'is-running');
+                cta.classList.add('setup-button', 'is-coming-soon');
+                cta.innerHTML = escapeHtml(t('common.comingSoon'));
+                cta.onclick = (event) => event.stopPropagation();
+                return;
+            }
+            cta.classList.remove('is-coming-soon');
             const busyKind = busyKindFor(config.uiId);
             const running = !busyKind && isGameRunning(config.uiId);
             const label = homeActionLabel(normalizedStatus, busyKind, config.uiId);
@@ -477,6 +486,7 @@
             if (!config) return;
 
             item.style.setProperty('--game-accent', config.accent || '#8AA4FF');
+            item.classList.toggle('is-coming-soon', !!config.comingSoon);
             item.innerHTML = `
                 <div class="game-item-thumb">
                     <img src="${escapeHtml(config.iconPath || config.capsulePath || config.logoPath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
@@ -485,6 +495,7 @@
                     <span class="game-item-title">${escapeHtml(config.displayName)}</span>
                     <small class="game-item-sub">${escapeHtml(config.codeName)}</small>
                 </div>
+                ${config.comingSoon ? `<span class="game-item-soon-chip">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
             `;
             item.setAttribute('title', config.displayName);
             item.setAttribute('aria-label', config.displayName);
@@ -533,6 +544,7 @@
 
     async function openInstallFolder(gameId) {
         if (typeof window.executeCommand !== 'function') return;
+        if (GameUtils.isComingSoon(gameId)) return;
         try {
             const backendGame = GameUtils.getGameMapping(gameId);
             const path = await window.executeCommand('get-game-property', {
@@ -549,6 +561,17 @@
 
     function buildCardMenuItems(card) {
         const gameId = card.dataset.game;
+        if (GameUtils.isComingSoon(gameId)) {
+            return [
+                { label: t('common.comingSoon'), disabled: true },
+                { separator: true },
+                {
+                    label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
+                    action: () => togglePin(gameId)
+                },
+                { label: t('common.gameDetails'), action: () => navigateTo(gameId) }
+            ];
+        }
         const status = card.dataset.status || 'not-setup';
         const isInstalled = status === 'installed';
         const isPartial = status === 'partial';
@@ -644,9 +667,21 @@
         const grid = document.getElementById('library-grid');
         if (!grid) return;
 
-        grid.innerHTML = GameUtils.getAllGameConfigs().map(config => `
-            <article class="library-card" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
+        grid.innerHTML = GameUtils.getAllGameConfigs().map(config => {
+            const comingSoon = !!config.comingSoon;
+            const cardCls = `library-card${comingSoon ? ' is-coming-soon' : ''}`;
+            const buttonHtml = comingSoon
+                ? `<button class="library-install-btn is-coming-soon" disabled title="${escapeHtml(t('library.comingSoonHint'))}">
+                       <span data-action-label>${escapeHtml(t('common.comingSoon'))}</span>
+                   </button>`
+                : `<button class="library-install-btn" data-action="setup">
+                       <span class="progress-ring"></span>
+                       <span data-action-label>${escapeHtml(t('common.install'))}</span>
+                   </button>`;
+            return `
+            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                ${comingSoon ? `<span class="library-card-soon-badge">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
                 <span class="library-card-player-pill" data-player-badge hidden>
                     <span class="library-card-player-dot"></span>
                     <span data-player-count>0</span>
@@ -660,26 +695,27 @@
                     <div class="library-card-meta">
                         <span class="badge client">${escapeHtml(config.client)}</span>
                     </div>
-                    <button class="library-install-btn" data-action="setup">
-                        <span class="progress-ring"></span>
-                        <span data-action-label>${escapeHtml(t('common.install'))}</span>
-                    </button>
+                    ${buttonHtml}
                 </div>
             </article>
-        `).join('');
+        `;
+        }).join('');
 
         grid.querySelectorAll('.library-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
             bindCardContextMenu(card);
 
             const button = card.querySelector('.library-install-btn');
-            if (button) {
-                button.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    if (isGameBusy(card.dataset.game)) return;
-                    runGameAction(card.dataset.game, card.dataset.status);
-                });
+            if (!button) return;
+            if (button.disabled) {
+                button.addEventListener('click', (event) => event.stopPropagation());
+                return;
             }
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (isGameBusy(card.dataset.game)) return;
+                runGameAction(card.dataset.game, card.dataset.status);
+            });
         });
 
         if (window.PlayerCountManager) {
@@ -932,8 +968,56 @@
         const host = document.getElementById('game-pages');
         if (!host) return;
 
-        host.innerHTML = GameUtils.getAllGameConfigs().map(config => `
-            <div class="page-section game-page" id="${escapeHtml(config.uiId)}-page" style="display: none;">
+        host.innerHTML = GameUtils.getAllGameConfigs().map(config => {
+            const comingSoon = !!config.comingSoon;
+            const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}`;
+            const credits = gameCredits(config);
+            const hasCredits = credits && String(credits).trim().length > 0;
+            const hasProvider = config.provider && String(config.provider).trim().length > 0;
+
+            const descriptionSection = `
+                        <section class="description">
+                            <strong>${escapeHtml(config.displayName)}</strong>
+                            <p>${escapeHtml(gameDescription(config))}</p>
+                            ${gameDescriptionNote(config) ? `<p>${gameDescriptionNote(config)}</p>` : ''}
+                            ${hasCredits ? `<br><strong>${escapeHtml(t('detail.credits'))}</strong><p>${credits}</p>` : ''}
+                            ${hasProvider ? `<br><strong>${escapeHtml(t('detail.note'))}</strong><p>${t('detail.noteBody', { provider: escapeHtml(config.provider) })}</p>` : ''}
+                        </section>`;
+
+            const actionsAside = comingSoon
+                ? `<aside class="detail-actions-panel is-coming-soon">
+                        <div class="detail-coming-soon-chip">${escapeHtml(t('common.comingSoon'))}</div>
+                        <p class="detail-coming-soon-note">${escapeHtml(t('library.comingSoonHint'))}</p>
+                    </aside>`
+                : `<aside class="detail-actions-panel">
+                        <button class="secondary-action detail-browse-files-action" data-game="${escapeHtml(config.uiId)}">
+                            <span class="secondary-action-icon folder-icon"></span>
+                            ${escapeHtml(t('common.browseLocalFiles'))}
+                        </button>
+                        <button class="secondary-action detail-verify-action" data-game="${escapeHtml(config.uiId)}">
+                            <span class="secondary-action-icon verify-icon"></span>
+                            ${escapeHtml(t('common.verify'))}
+                        </button>
+                        <button class="secondary-action detail-manage-install-action" data-game="${escapeHtml(config.uiId)}">
+                            <span class="secondary-action-icon files-icon"></span>
+                            ${escapeHtml(t('common.manageInstall'))}
+                        </button>
+                        <button class="secondary-action detail-settings-action" data-game="${escapeHtml(config.uiId)}">
+                            <span class="secondary-action-icon settings-action-icon"></span>
+                            ${escapeHtml(t('detail.clientSettings'))}
+                        </button>
+                        <div class="detail-stat">
+                            <span>${escapeHtml(t('detail.client'))}</span>
+                            <strong>${escapeHtml(config.client)}</strong>
+                        </div>
+                        <div class="detail-stat">
+                            <span>${escapeHtml(t('detail.provider'))}</span>
+                            <strong>${escapeHtml(config.provider)}</strong>
+                        </div>
+                    </aside>`;
+
+            return `
+            <div class="${pageCls}" id="${escapeHtml(config.uiId)}-page" style="display: none;">
                 <div class="hero-section ${escapeHtml(config.uiId)}" style="--hero-image: ${cssUrl(config.heroImagePath)}">
                     <div class="hero-bottom-content">
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
@@ -949,48 +1033,13 @@
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
 
                     <div class="detail-panel-grid">
-                        <section class="description">
-                            <strong>${escapeHtml(config.displayName)}</strong>
-                            <p>${escapeHtml(gameDescription(config))}</p>
-                            ${gameDescriptionNote(config) ? `<p>${gameDescriptionNote(config)}</p>` : ''}
-                            <br>
-                            <strong>${escapeHtml(t('detail.credits'))}</strong>
-                            <p>${gameCredits(config)}</p>
-                            <br>
-                            <strong>${escapeHtml(t('detail.note'))}</strong>
-                            <p>${t('detail.noteBody', { provider: escapeHtml(config.provider) })}</p>
-                        </section>
-
-                        <aside class="detail-actions-panel">
-                            <button class="secondary-action detail-browse-files-action" data-game="${escapeHtml(config.uiId)}">
-                                <span class="secondary-action-icon folder-icon"></span>
-                                ${escapeHtml(t('common.browseLocalFiles'))}
-                            </button>
-                            <button class="secondary-action detail-verify-action" data-game="${escapeHtml(config.uiId)}">
-                                <span class="secondary-action-icon verify-icon"></span>
-                                ${escapeHtml(t('common.verify'))}
-                            </button>
-                            <button class="secondary-action detail-manage-install-action" data-game="${escapeHtml(config.uiId)}">
-                                <span class="secondary-action-icon files-icon"></span>
-                                ${escapeHtml(t('common.manageInstall'))}
-                            </button>
-                            <button class="secondary-action detail-settings-action" data-game="${escapeHtml(config.uiId)}">
-                                <span class="secondary-action-icon settings-action-icon"></span>
-                                ${escapeHtml(t('detail.clientSettings'))}
-                            </button>
-                            <div class="detail-stat">
-                                <span>${escapeHtml(t('detail.client'))}</span>
-                                <strong>${escapeHtml(config.client)}</strong>
-                            </div>
-                            <div class="detail-stat">
-                                <span>${escapeHtml(t('detail.provider'))}</span>
-                                <strong>${escapeHtml(config.provider)}</strong>
-                            </div>
-                        </aside>
+                        ${descriptionSection}
+                        ${actionsAside}
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
             button.addEventListener('click', async () => {
@@ -1035,10 +1084,12 @@
         const list = document.getElementById('settings-directory-list');
         if (!list) return;
 
+        const allConfigs = GameUtils.getAllGameConfigs();
+        const playableConfigs = allConfigs.filter(c => !c.comingSoon);
         const installPaths = {};
 
         if (typeof window.executeCommand === 'function') {
-            await Promise.all(GameUtils.getAllGameConfigs().map(async config => {
+            await Promise.all(playableConfigs.map(async config => {
                 try {
                     const savedPath = await window.executeCommand('get-game-property', {
                         game: GameUtils.getGameMapping(config.uiId),
@@ -1053,7 +1104,7 @@
             }));
         }
 
-        list.innerHTML = GameUtils.getAllGameConfigs().map(config => `
+        list.innerHTML = playableConfigs.map(config => `
             <div class="directory-row">
                 <div class="directory-game">
                     <img src="${escapeHtml(config.capsulePath)}" alt="">
