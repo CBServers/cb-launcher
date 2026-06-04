@@ -669,7 +669,6 @@ window.GameStateManager = {
         try {
             if (typeof window.executeCommand === 'function') {
                 const gameMapping = GameUtils.getGameMapping(gameId);
-                if (!gameMapping) return false;
                 const isRunning = await window.executeCommand('is-game-running', { game: gameMapping });
                 return isRunning === true || isRunning === 'true';
             }
@@ -1618,7 +1617,7 @@ async function checkGameInstallation(gameId) {
     const gameMapping = GameUtils.getGameMapping(gameId);
     const config = GameUtils.getGameConfigByUIId(gameId);
     if (!config) return { hasAnySetup: false, status: 'not-setup' };
-    if (config.comingSoon || !gameMapping) return { hasAnySetup: false, status: 'not-setup' };
+    if (config.comingSoon) return { hasAnySetup: false, status: 'not-setup' };
 
     try {
         if (typeof window.executeCommand === 'function') {

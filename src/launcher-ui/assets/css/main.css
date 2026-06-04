@@ -4249,11 +4249,11 @@ html[data-theme="dark"] .secondary-action:hover {
 }
 
 .library-card.is-coming-soon .library-card-art {
-    filter: grayscale(0.55) brightness(0.85);
+    filter: grayscale(1) brightness(0.85);
 }
 
 .library-card.is-coming-soon:hover .library-card-art {
-    filter: grayscale(0.35) brightness(0.95);
+    filter: grayscale(1) brightness(0.95);
 }
 
 .library-card-soon-badge {
@@ -4283,8 +4283,13 @@ html[data-theme="dark"] .secondary-action:hover {
     transform: none;
 }
 
-.game-item.is-coming-soon .game-item-thumb img {
-    filter: grayscale(0.45) brightness(0.9);
+.game-item.is-coming-soon .game-item-thumb img,
+.game-page.is-coming-soon .hero-section {
+    filter: grayscale(1) brightness(0.9);
+}
+
+.game-page.is-coming-soon .game-logo-img {
+    filter: grayscale(1);
 }
 
 .game-item-soon-chip {
