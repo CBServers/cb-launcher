@@ -64,7 +64,7 @@ class GameUtils {
 
     static GAME_CONFIGS = {
         'cod4x': {
-            displayName: 'COD4: Modern Warfare',
+            displayName: 'Modern Warfare',
             shortName: 'COD4',
             defaultInstallPath: 'cod4_game_files',
             uiId: 'cod4x',
@@ -411,7 +411,7 @@ class GameUtils {
             comingSoon: true
         },
         'codu': {
-            displayName: 'Call of Duty: United Offensive',
+            displayName: 'United Offensive',
             shortName: 'UO',
             defaultInstallPath: 'codu_game_files',
             uiId: 'codu',
