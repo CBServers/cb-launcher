@@ -21,8 +21,8 @@ namespace game_config
         void set_list(const std::string& property_suffix, const std::vector<std::string>& values) const;
 
         // Convenience methods for common properties
-        std::optional<std::string> get_install_path() const;
-        void set_install_path(const std::string& path) const;
+        std::optional<std::filesystem::path> get_install_path() const;
+        void set_install_path(const std::filesystem::path& path) const;
         bool is_installed() const;
         void set_installed(bool installed) const;
         bool is_steam_install() const;

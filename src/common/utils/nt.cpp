@@ -288,8 +288,8 @@ namespace utils::nt
         GetCurrentDirectoryW(MAX_PATH, current_dir);
 
         // Prepend exe path to command line for proper argv[0] parsing
-        const auto full_command_line = "\"" + process.string() + "\" " + command_line;
-        const auto success = CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, current_dir,
+        auto full_command_line = L"\"" + process.wstring() + L"\" " + string::convert(command_line);
+        const auto success = CreateProcessW(process.wstring().data(), full_command_line.data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, current_dir,
                        &startup_info, &process_info);
 
         if (!success)
@@ -311,8 +311,8 @@ namespace utils::nt
         startup_info.cb = sizeof(startup_info);
 
         // Prepend exe path to command line for proper argv[0] parsing
-        const auto full_command_line = "\"" + process.string() + "\" " + command_line;
-        const auto success = CreateProcessW(process.wstring().data(), string::convert(full_command_line).data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, working_directory.wstring().data(),
+        auto full_command_line = L"\"" + process.wstring() + L"\" " + string::convert(command_line);
+        const auto success = CreateProcessW(process.wstring().data(), full_command_line.data(), nullptr, nullptr, false, CREATE_NEW_PROCESS_GROUP, nullptr, working_directory.wstring().data(),
                        &startup_info, &process_info);
 
         if (!success)

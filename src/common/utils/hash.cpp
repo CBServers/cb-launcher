@@ -62,7 +62,7 @@ namespace utils::hash
         }
     }
 
-    std::string get_file_hash(const std::string& file, const cancel_check& check)
+    std::string get_file_hash(const std::filesystem::path& file, const cancel_check& check)
     {
         std::ifstream file_stream(file, std::ios::binary);
         if (!file_stream.is_open())

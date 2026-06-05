@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "component_commands.hpp"
 #include <utils/property_keys.hpp>
+#include <utils/string.hpp>
 #include "cef/cef_ui.hpp"
 
 #include <game_config.hpp>
@@ -221,7 +222,7 @@ namespace commands::component_commands
                 return;
             }
 
-            auto path = std::filesystem::path{ value["path"].GetString() };
+            auto path = utils::string::utf8_to_path(value["path"].GetString());
 
             // If the path doesn't exist, check parent directories until we find one that exists
             while (!path.empty() && !std::filesystem::exists(path))

@@ -4,6 +4,7 @@
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
 #include <utils/cdn.hpp>
+#include <utils/string.hpp>
 #include <unordered_set>
 
 #define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
@@ -157,18 +158,25 @@ namespace game_config
     }
 
     // Convenience methods
-    std::optional<std::string> game_config_t::get_install_path() const
+    std::optional<std::filesystem::path> game_config_t::get_install_path() const
     {
-        return this->get(property_keys::INSTALL);
+        const auto value = this->get(property_keys::INSTALL);
+        if (!value)
+        {
+            return std::nullopt;
+        }
+
+        return utils::string::utf8_to_path(*value);
     }
 
-    void game_config_t::set_install_path(const std::string& path) const
+    void game_config_t::set_install_path(const std::filesystem::path& path) const
     {
-        this->set(property_keys::INSTALL, path);
+        const auto utf8 = utils::string::path_to_utf8(path);
+        this->set(property_keys::INSTALL, utf8);
 
         if (!this->pluto_path_key.empty())
         {
-            set_plutonium_path(this->pluto_path_key, path);
+            set_plutonium_path(this->pluto_path_key, utf8);
         }
     }
 
@@ -771,19 +779,19 @@ namespace game_config
             throw std::runtime_error("No manifest_path configured for " + config.display_name);
         }
 
-        const auto full_path = (utils::properties::get_appdata_path() / config.manifest_path).string();
+        const auto full_path = utils::properties::get_appdata_path() / config.manifest_path;
 
         if (!utils::io::file_exists(full_path))
         {
             throw std::runtime_error("Failed to read manifest for " + config.display_name +
-                ": file not found at " + full_path);
+                ": file not found at " + full_path.string());
         }
 
         std::string data;
         if (!utils::io::read_file(full_path, &data))
         {
             throw std::runtime_error("Failed to read manifest for " + config.display_name +
-                ": unable to read " + full_path);
+                ": unable to read " + full_path.string());
         }
 
         return data;

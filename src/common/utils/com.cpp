@@ -49,7 +49,7 @@ namespace utils::com
             throw std::runtime_error("Failed to set options");
         }
 
-        auto wide_title = std::wstring{ title.begin(), title.end() };
+        auto wide_title = string::convert(title);
         if (FAILED(file_dialog->SetTitle(wide_title.data())))
         {
             throw std::runtime_error("Failed to set title");
@@ -59,7 +59,7 @@ namespace utils::com
         {
             file_dialog->ClearClientData();
 
-            auto wide_selected_folder = std::wstring{ selected_folder.begin(), selected_folder.end() };
+            auto wide_selected_folder = string::convert(selected_folder);
             for (auto& chr : wide_selected_folder)
             {
                 if (chr == L'/')

@@ -29,7 +29,7 @@ namespace utils::properties
 
             std::string data{};
             const auto& props = get_properties_file();
-            if (!io::read_file(props.string(), &data))
+            if (!io::read_file(props, &data))
             {
                 return default_doc;
             }
@@ -55,7 +55,7 @@ namespace utils::properties
             const std::string json{ buffer.GetString(), buffer.GetLength() };
 
             const auto& props = get_properties_file();
-            io::write_file(props.string(), json);
+            io::write_file(props, json);
         }
     }
 

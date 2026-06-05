@@ -128,7 +128,7 @@ namespace client_updater
 
         if (install_path_prop.has_value())
         {
-            this->install_path = std::filesystem::path(install_path_prop->data());
+            this->install_path = *install_path_prop;
         }
 
         this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;

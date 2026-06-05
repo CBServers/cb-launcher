@@ -175,7 +175,7 @@ namespace game_updater
         const auto install_path_prop = config.get_install_path();
         if (install_path_prop.has_value())
         {
-            this->install_path = std::filesystem::path(install_path_prop->data());
+            this->install_path = *install_path_prop;
         }
 
         this->is_steam_install = config.is_steam_install();
@@ -334,13 +334,13 @@ namespace game_updater
         std::string empty{};
         if (!utils::io::write_file(out_file, empty))
         {
-            throw std::runtime_error("Failed to write file: " + out_file);
+            throw std::runtime_error("Failed to write file: " + out_file.string());
         }
 
         std::ofstream ofs(out_file, std::ios::binary);
         if (!ofs)
         {
-            throw std::runtime_error("Failed to open file: " + out_file);
+            throw std::runtime_error("Failed to open file: " + out_file.string());
         }
 
         const auto keep_going = [this]()  -> bool { return !is_update_cancelled() && !is_update_paused(); };
@@ -627,23 +627,23 @@ namespace game_updater
         return false;
     }
 
-    std::string game_updater::get_drive_filename(const updater::file_info& file) const
+    std::filesystem::path game_updater::get_drive_filename(const updater::file_info& file) const
     {
         if(this->is_steam_install)
         {
             if (utils::string::starts_with(file.name, "zone/"))
             {
                 const auto filename = utils::string::replace(file.name, "zone/", "");
-                return (this->install_path / filename).string();
+                return this->install_path / filename;
             }
             else if (utils::string::starts_with(file.name, "raw/video/"))
             {
                 const auto filename = utils::string::replace(file.name, "raw/video/", "");
-                return (this->install_path / filename).string();
+                return this->install_path / filename;
             }
         }
 
-        return (this->install_path / file.name).string();
+        return this->install_path / file.name;
     }
 
     std::filesystem::path game_updater::get_manifest_file_path() const
@@ -1072,7 +1072,7 @@ namespace game_updater
             {
                 if (!utils::io::remove_file(drive_name))
                 {
-                    printf("Warning: Failed to delete file: %s\n", drive_name.data());
+                    printf("Warning: Failed to delete file: %s\n", drive_name.string().data());
                 }
             }
 

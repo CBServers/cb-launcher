@@ -135,28 +135,39 @@ namespace utils::string
 
     std::string convert(const std::wstring& wstr)
     {
-        std::string result;
-        result.reserve(wstr.size());
+        if (wstr.empty()) return {};
 
-        for (const auto& chr : wstr)
-        {
-            result.push_back(static_cast<char>(chr));
-        }
+        const auto size = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()),
+                                              nullptr, 0, nullptr, nullptr);
+        if (size <= 0) return {};
+
+        std::string result(static_cast<size_t>(size), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), result.data(), size, nullptr, nullptr);
 
         return result;
     }
 
     std::wstring convert(const std::string& str)
     {
-        std::wstring result;
-        result.reserve(str.size());
+        if (str.empty()) return {};
 
-        for (const auto& chr : str)
-        {
-            result.push_back(static_cast<wchar_t>(chr));
-        }
+        const auto size = MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), nullptr, 0);
+        if (size <= 0) return {};
+
+        std::wstring result(static_cast<size_t>(size), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()), result.data(), size);
 
         return result;
+    }
+
+    std::filesystem::path utf8_to_path(const std::string& utf8)
+    {
+        return std::filesystem::path{ convert(utf8) };
+    }
+
+    std::string path_to_utf8(const std::filesystem::path& path)
+    {
+        return convert(path.wstring());
     }
 
     std::string replace(std::string str, const std::string& from, const std::string& to)

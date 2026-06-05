@@ -463,7 +463,15 @@ namespace cef
             const auto handler = this->command_handlers_.find(command_name);
             if (handler != this->command_handlers_.end())
             {
-                handler->second(data, response);
+                // A throwing handler must not terminate the process; report and return the partial response.
+                try
+                {
+                    handler->second(data, response);
+                }
+                catch (const std::exception& e)
+                {
+                    printf("Command '%s' failed: %s\n", command_name.data(), e.what());
+                }
             }
         }
 

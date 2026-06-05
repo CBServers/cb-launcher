@@ -51,7 +51,7 @@ namespace game_updater
         std::size_t get_available_drive_space() const;
 
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
-        [[nodiscard]] std::string get_drive_filename(const updater::file_info& file) const;
+        [[nodiscard]] std::filesystem::path get_drive_filename(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path get_manifest_file_path() const;
         [[nodiscard]] std::string read_installed_hash() const;
         void write_installed_hash(const std::string& hash) const;

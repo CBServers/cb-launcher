@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 #include <utils/io.hpp>
 #include <utils/properties.hpp>
+#include <utils/string.hpp>
 #include <game_config.hpp>
 
 namespace commands::property_commands
@@ -111,7 +112,7 @@ namespace commands::property_commands
             }
 
             const auto game = std::string{ value["game"].GetString() };
-            const auto path = std::filesystem::path{ value["path"].GetString() };
+            const auto path = utils::string::utf8_to_path(value["path"].GetString());
             const auto existing_install = value["existing_install"].GetBool();
 
             // Get game config
@@ -153,8 +154,8 @@ namespace commands::property_commands
                 utils::io::create_directory(path);
             }
 
-            // Path is valid, store it
-            config->set_install_path(path.string());
+            // Path is valid, store it (set_install_path serializes to UTF-8 internally)
+            config->set_install_path(path);
             response.SetBool(true); // Success
         });
 

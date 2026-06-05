@@ -1,6 +1,7 @@
 #pragma once
 #include "memory.hpp"
 #include <cstdint>
+#include <filesystem>
 
 #ifndef ARRAYSIZE
 template <class Type, size_t n>
@@ -95,6 +96,10 @@ namespace utils::string
 
     std::string convert(const std::wstring& wstr);
     std::wstring convert(const std::string& str);
+
+    // UTF-8 <-> path helpers; use at every std::string boundary so non-ASCII paths aren't mangled by the ANSI code page.
+    std::filesystem::path utf8_to_path(const std::string& utf8);
+    std::string path_to_utf8(const std::filesystem::path& path);
 
     std::string replace(std::string str, const std::string& from, const std::string& to);
 

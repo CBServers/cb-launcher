@@ -7,6 +7,7 @@
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/registry.hpp>
+#include <utils/string.hpp>
 #include <game_config.hpp>
 
 #include "updater/updater.hpp"
@@ -195,7 +196,7 @@ namespace commands::game_commands
                 return false;
             }
 
-            const auto game_directory = std::filesystem::path(game_install->data());
+            const auto game_directory = *game_install;
             // Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
             if (game == "hmw")
             {

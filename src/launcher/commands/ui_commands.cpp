@@ -5,6 +5,7 @@
 #include <utils/com.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
+#include <utils/string.hpp>
 
 #include "redist/redist_installer.hpp"
 #include "redist/redist_packages.hpp"
@@ -41,8 +42,7 @@ namespace commands::ui_commands
         {
             if (value.IsObject() && value.HasMember("path") && value["path"].IsString())
             {
-                const auto path = value["path"].GetString();
-                const auto wide_path = std::wstring(path, path + strlen(path));
+                const auto wide_path = utils::string::convert(value["path"].GetString());
                 const auto result = ShellExecuteW(nullptr, L"explore", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
 
                 // Under Wine, "explore" may fail — fall back to "open" which Wine can route to xdg-open
