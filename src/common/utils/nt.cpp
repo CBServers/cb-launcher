@@ -95,15 +95,6 @@ namespace utils::nt
         return reinterpret_cast<std::uint8_t*>(this->module_);
     }
 
-    void library::unprotect() const
-    {
-        if (!this->is_valid()) return;
-
-        DWORD protection;
-        VirtualProtect(this->get_ptr(), this->get_optional_header()->SizeOfImage, PAGE_EXECUTE_READWRITE,
-                       &protection);
-    }
-
     size_t library::get_relative_entry_point() const
     {
         if (!this->is_valid()) return 0;

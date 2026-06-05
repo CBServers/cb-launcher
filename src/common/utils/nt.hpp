@@ -39,7 +39,6 @@ namespace utils::nt
         operator bool() const;
         operator HMODULE() const;
 
-        void unprotect() const;
         [[nodiscard]] void* get_entry_point() const;
         [[nodiscard]] size_t get_relative_entry_point() const;
 

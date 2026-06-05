@@ -262,6 +262,8 @@ project "common"
 kind "StaticLib"
 language "C++"
 
+buildoptions {"/guard:cf"}
+
 files {"./src/common/**.hpp", "./src/common/**.cpp"}
 
 includedirs {"./src/common", "%{prj.location}/src"}
@@ -280,7 +282,8 @@ pchheader "std_include.hpp"
 pchsource "src/launcher/std_include.cpp"
 
 -- /DEPENDENTLOADFLAG:0x800 = LOAD_LIBRARY_SEARCH_SYSTEM32 for all delay-loaded DLLs.
-linkoptions {"/IGNORE:4254", "/DYNAMICBASE:NO", "/SAFESEH:NO", "/LARGEADDRESSAWARE", "/LAST:.main", "/PDBCompress", "/DEPENDENTLOADFLAG:0x800"}
+linkoptions {"/IGNORE:4254", "/DYNAMICBASE", "/HIGHENTROPYVA", "/GUARD:CF", "/CETCOMPAT", "/LARGEADDRESSAWARE", "/PDBCompress", "/DEPENDENTLOADFLAG:0x800"}
+buildoptions {"/guard:cf"}
 
 files {"./src/launcher/**.rc", "./src/launcher/**.hpp", "./src/launcher/**.cpp", "./src/launcher/**.manifest", "./src/launcher/resources/**.*"}
 
