@@ -10,6 +10,7 @@
     <script src="./assets/js/core/i18n.js"></script>
     <script src="./assets/js/core/command.js"></script>
     <script src="./assets/js/core/player-counts.js"></script>
+    <script src="./assets/js/core/discord-friends.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
     <script src="./assets/js/ui/toast.js"></script>
     <script src="./assets/js/ui/launch-redist-modal.js"></script>
@@ -181,6 +182,11 @@
                         <div class="page-title" data-i18n="friends.title">Friends</div>
                         <div class="page-subtitle" data-i18n="friends.subtitle">See who's online and what they're playing.</div>
                     </div>
+                    <div class="friends-link-cta" id="friends-link-cta" style="display: none;">
+                        <p data-i18n="friends.linkBody">Link the launcher to your Discord account to see which of your friends use CB Launcher.</p>
+                        <button class="friends-link-btn" id="friends-link-btn" data-i18n="friends.linkCta">Link launcher to Discord account</button>
+                    </div>
+                    <div class="friends-notice" id="friends-notice" style="display: none;"></div>
                     <div class="friends-list" id="friends-list"></div>
                     <div class="friends-empty" id="friends-empty" style="display: none;" data-i18n="friends.empty">No friends to show yet.</div>
                 </div>
@@ -238,6 +244,17 @@
                                 </div>
                                 <div class="cdn-control">
                                     <input type="text" id="setting-global-player-name" class="setting-text-input" maxlength="16" placeholder="PlayerName" autocomplete="off" spellcheck="false" />
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting" id="setting-discord-item" style="display: none;">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.discord">Discord account</label>
+                                    <span class="setting-description" id="setting-discord-description" data-i18n="settings.discordBody">Link your Discord account to use the friends list. While linked, Discord friends see you as playing CB Launcher.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <span class="setting-discord-account" id="setting-discord-account"></span>
+                                    <button class="settings-action-btn" id="setting-discord-link-btn" data-i18n="settings.discordLink">Link</button>
+                                    <button class="settings-action-btn reset-btn" id="setting-discord-unlink-btn" style="display: none;" data-i18n="settings.discordUnlink">Unlink</button>
                                 </div>
                             </div>
                         </section>

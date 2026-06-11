@@ -11,6 +11,13 @@ namespace property_keys
     constexpr const char* CDN_CUSTOM_URL = "launcher-cdn-custom-url";
     constexpr const char* GLOBAL_PLAYER_NAME = "launcher-global-player-name";
 
+    // Discord account link (tokens are DPAPI-encrypted + base64)
+    constexpr const char* DISCORD_ACCESS_TOKEN = "launcher-discord-access-token";
+    constexpr const char* DISCORD_REFRESH_TOKEN = "launcher-discord-refresh-token";
+    constexpr const char* DISCORD_TOKEN_EXPIRY = "launcher-discord-token-expiry";
+    constexpr const char* DISCORD_USER_ID = "launcher-discord-user-id";
+    constexpr const char* DISCORD_DISPLAY_NAME = "launcher-discord-display-name";
+
     // Game property suffixes (used with game_config_t::get/set)
     constexpr const char* INSTALL = "install";
     constexpr const char* IS_INSTALLED = "is-installed";

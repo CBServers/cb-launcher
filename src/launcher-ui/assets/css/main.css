@@ -4384,6 +4384,71 @@ html[data-theme="dark"] .secondary-action:hover {
     gap: 8px;
 }
 
+.friends-link-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--surface-lo);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.friends-link-cta p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 420px;
+}
+
+.friends-link-btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-grad);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.friends-link-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.friends-link-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.friends-notice {
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.friend-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.setting-discord-account {
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
 .friends-empty {
     padding: 40px 24px;
     text-align: center;

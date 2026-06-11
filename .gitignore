@@ -152,5 +152,9 @@ user*.bat
 deps/cef
 deps/cef_
 
+# For licensing reasons the Discord Social SDK cannot be committed; devs download
+# it from the developer portal, CI downloads it from the CDN (see build.yml).
+deps/discord_social_sdk
+
 CLAUDE.md
 .claude

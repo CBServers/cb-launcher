@@ -38,6 +38,13 @@ function mockCommand(command, data) {
             };
         case 'get-update-progress':
             return { active: false, progress: 100, message: 'Complete' };
+        case 'discord-get-status':
+            return { status: 'unlinked', profile: null, error: null };
+        case 'discord-get-friends':
+            return { available: false, registryOk: true, friends: [] };
+        case 'discord-link':
+        case 'discord-unlink':
+            return { started: false };
         default:
             return null;
     }

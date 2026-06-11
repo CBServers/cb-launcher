@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
 #include "commands/commands.hpp"
+#include "discord/discord_service.hpp"
 #include "updater/updater.hpp"
 
 #include <utils/flags.hpp>
@@ -94,8 +95,10 @@ namespace
     {
         cef::cef_ui cef_ui{process, path};
         commands::register_all_commands(cef_ui);
+        discord::discord_service::instance().start();
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
         cef::cef_ui::work();
+        discord::discord_service::instance().stop();
     }
 
     bool same_path(const std::filesystem::path& a, const std::filesystem::path& b)
