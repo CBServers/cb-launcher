@@ -1,4 +1,5 @@
 discord_social_sdk = {
+	versionShort = "1.9.16441",
 	source = path.join(dependencies.basePath, "discord_social_sdk"),
 }
 
@@ -21,14 +22,36 @@ function discord_social_sdk.includes()
 	}
 end
 
-function discord_social_sdk.project()
-	if not os.isfile(path.join(discord_social_sdk.source, "include/discordpp.h")) then
-		premake.error("Discord Social SDK is missing from 'deps/discord_social_sdk'.\n"
-			.. "For licensing reasons it cannot be committed to this repository.\n"
-			.. "Download it from the Discord developer portal (your application -> Social SDK -> Downloads)\n"
-			.. "and extract 'include', 'lib/release' and 'bin/release' into 'deps/discord_social_sdk'."
-		)
+function discord_social_sdk.install()
+	if os.host() == "windows" then
+		local result = os.executef("powershell -c \"Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process; %s %s\"", ".\\scripts\\get-discord-sdk.ps1", discord_social_sdk.versionShort)
+		return result == true
+	else
+		premake.error(string.format("Your OS does not support automatic Discord Social SDK installation.\n"
+			.. "Please download the SDK version '%s' yourself and place it in 'deps/discord_social_sdk'.\n"
+			.. "Afterwards create a file 'deps/discord_social_sdk/.launcher_version.txt' with content '%s'.",
+			discord_social_sdk.versionShort, discord_social_sdk.versionShort
+		))
 	end
+	return true
+end
+
+function discord_social_sdk.checkVersion()
+	local versionFile = path.join(discord_social_sdk.source, ".launcher_version.txt")
+	local installedVersion = io.readfile(versionFile)
+
+	if installedVersion ~= discord_social_sdk.versionShort then
+		print("Discord Social SDK dependency outdated. Attempting to install new version.")
+		if discord_social_sdk.install() then
+			io.writefile(versionFile, discord_social_sdk.versionShort)
+		else
+			premake.error("Failed to install Discord Social SDK.")
+		end
+	end
+end
+
+function discord_social_sdk.project()
+	discord_social_sdk.checkVersion()
 end
 
 table.insert(dependencies, discord_social_sdk)

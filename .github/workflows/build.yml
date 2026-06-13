@@ -40,13 +40,6 @@ jobs:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      # For licensing reasons the Discord Social SDK is not committed to the repo
-      - name: Download Discord Social SDK
-        run: |
-          Invoke-WebRequest -Uri "https://cdn-na.cbservers.xyz/sdk/discord_social_sdk-1.9.16441.zip" -OutFile discord_sdk.zip
-          Expand-Archive -Path discord_sdk.zip -DestinationPath deps/discord_social_sdk
-          Remove-Item discord_sdk.zip
-
       - name: Generate project files
         run: tools/premake5 vs2022
 

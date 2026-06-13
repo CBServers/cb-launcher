@@ -51,7 +51,7 @@
         const wasLinking = previous === 'linking' || previous === 'connecting';
         if (status === 'linked' && wasLinking) {
             window.showToast(t('toasts.discordLinked'), 'success');
-        } else if (status === 'unlinked' && previous === 'linking') {
+        } else if (status === 'unlinked' && wasLinking) {
             const error = window.AppViews.getFriendsState().error;
             window.showToast(t('toasts.discordLinkFailed') + (error ? ` (${error})` : ''), 'error');
         }
@@ -79,7 +79,6 @@
     async function beginLink() {
         try {
             await window.executeCommand('discord-link');
-            lastStatus = 'linking';
             pollFast();
             refresh();
         } catch (error) {

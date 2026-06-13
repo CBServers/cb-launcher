@@ -226,13 +226,6 @@ namespace discord
 
         void begin_link_flow()
         {
-            const auto status = this->current_status();
-            if (status != link_status::unlinked && status != link_status::error)
-            {
-                return;
-            }
-
-            this->set_status(link_status::linking);
             utils::logger::write("Discord link started");
 
             const auto verifier = this->client->CreateAuthorizationCodeVerifier();
@@ -493,22 +486,18 @@ namespace discord
 
             if (tokens)
             {
-                // Deregister from the registry while the token is still valid,
-                // then revoke it on the discord thread.
                 const auto access_token = tokens->access_token;
                 const auto refresh_token = tokens->refresh_token;
 
-                std::thread([this, access_token, refresh_token]()
+                this->client->RevokeToken(APPLICATION_ID, refresh_token, [](const discordpp::ClientResult&)
+                {
+                });
+                this->client->Disconnect();
+
+                // Token-only capture so this worker cannot outlive the service impl.
+                std::thread([access_token]()
                 {
                     link_registry::unregister_link(access_token);
-
-                    this->post([this, refresh_token]()
-                    {
-                        this->client->RevokeToken(APPLICATION_ID, refresh_token, [](const discordpp::ClientResult&)
-                        {
-                        });
-                        this->client->Disconnect();
-                    });
                 }).detach();
             }
             else
@@ -609,6 +598,23 @@ namespace discord
 
     void discord_service::begin_link()
     {
+        // Flip synchronously so the frontend's next status poll is not racing the queued flow.
+        auto accepted = false;
+        this->impl_->state->access([&accepted](shared_state& s)
+        {
+            if (s.status == link_status::unlinked || s.status == link_status::error)
+            {
+                s.status = link_status::linking;
+                s.last_error.clear();
+                accepted = true;
+            }
+        });
+
+        if (!accepted)
+        {
+            return;
+        }
+
         this->impl_->post([i = this->impl_.get()]()
         {
             i->begin_link_flow();
