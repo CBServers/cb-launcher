@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <tomcrypt.h>
 
@@ -114,5 +115,12 @@ namespace utils::cryptography
         uint32_t get_integer();
         std::string get_challenge();
         void get_data(void* data, size_t size);
+    }
+
+    // Windows DPAPI, encrypts per user. Returns nullopt on failure.
+    namespace dpapi
+    {
+        std::optional<std::string> protect(const std::string& data);
+        std::optional<std::string> unprotect(const std::string& data);
     }
 }

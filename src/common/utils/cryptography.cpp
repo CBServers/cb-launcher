@@ -3,6 +3,8 @@
 #include "nt.hpp"
 #include "finally.hpp"
 
+#include <dpapi.h>
+
 #undef max
 using namespace std::string_literals;
 
@@ -636,5 +638,39 @@ namespace utils::cryptography
     void random::get_data(void* data, const size_t size)
     {
         prng_.read(data, size);
+    }
+
+    namespace
+    {
+        std::optional<std::string> dpapi_crypt(const std::string& data, const bool encrypt)
+        {
+            DATA_BLOB input{};
+            input.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(data.data()));
+            input.cbData = static_cast<DWORD>(data.size());
+
+            DATA_BLOB output{};
+            const auto success = encrypt
+                ? CryptProtectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)
+                : CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output);
+
+            if (!success)
+            {
+                return {};
+            }
+
+            std::string result(reinterpret_cast<char*>(output.pbData), output.cbData);
+            LocalFree(output.pbData);
+            return result;
+        }
+    }
+
+    std::optional<std::string> dpapi::protect(const std::string& data)
+    {
+        return dpapi_crypt(data, true);
+    }
+
+    std::optional<std::string> dpapi::unprotect(const std::string& data)
+    {
+        return dpapi_crypt(data, false);
     }
 }

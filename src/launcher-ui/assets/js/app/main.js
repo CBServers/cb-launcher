@@ -256,6 +256,10 @@ async function initialize() {
                 window.PlayerCountManager.start();
             }
 
+            if (window.DiscordFriendsManager) {
+                window.DiscordFriendsManager.start();
+            }
+
             handleStartupLaunchArg();
         });
 
@@ -405,6 +409,12 @@ async function initializeNavigation() {
         downloadsElement.addEventListener("click", handleDownloadsClick);
     }
 
+    // Handle friends navigation
+    const friendsElement = document.querySelector("#friends");
+    if (friendsElement) {
+        friendsElement.addEventListener("click", handleFriendsClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -472,6 +482,17 @@ function handleDownloadsClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("downloads");
+}
+
+function handleFriendsClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("friends");
 }
 
 function handleGameClick(e) {
@@ -1274,6 +1295,11 @@ function loadNavigationPage(page) {
     } else if (page === 'downloads') {
         if (window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
             window.AppViews.renderDownloads();
+        }
+    } else if (page === 'friends') {
+        if (window.AppViews && typeof window.AppViews.refreshFriends === 'function') {
+            window.AppViews.renderFriends();
+            window.AppViews.refreshFriends();
         }
     } else if (GameUtils.getAllGameIds().includes(page)) {
         initializeGamePage(page);
@@ -2260,6 +2286,61 @@ async function loadVersion() {
     }
 }
 
+async function setupDiscordSettings() {
+    const item = document.getElementById('setting-discord-item');
+    if (!item) return;
+
+    let status = null;
+    try {
+        status = await window.executeCommand('discord-get-status');
+    } catch (error) {
+        console.warn('Failed to query Discord status:', error);
+    }
+
+    const state = (status && status.status) || 'unavailable';
+    if (state === 'unavailable') {
+        item.style.display = 'none';
+        return;
+    }
+    item.style.display = '';
+
+    const account = document.getElementById('setting-discord-account');
+    const linkBtn = document.getElementById('setting-discord-link-btn');
+    const unlinkBtn = document.getElementById('setting-discord-unlink-btn');
+    const linked = state === 'linked';
+    const busy = state === 'linking' || state === 'connecting';
+
+    if (account) {
+        if (linked && status.profile) {
+            account.textContent = t('settings.discordLinkedAs', { name: status.profile.displayName });
+        } else if (busy) {
+            account.textContent = t('friends.linking');
+        } else {
+            account.textContent = t('settings.discordNotLinked');
+        }
+    }
+
+    if (linkBtn) {
+        linkBtn.style.display = (linked || busy) ? 'none' : '';
+        linkBtn.onclick = async () => {
+            if (window.DiscordFriendsManager) {
+                await window.DiscordFriendsManager.beginLink();
+            }
+            setupDiscordSettings();
+        };
+    }
+
+    if (unlinkBtn) {
+        unlinkBtn.style.display = linked ? '' : 'none';
+        unlinkBtn.onclick = async () => {
+            if (window.DiscordFriendsManager) {
+                await window.DiscordFriendsManager.unlink();
+            }
+            setupDiscordSettings();
+        };
+    }
+}
+
 async function initializeSettingsPage() {
     console.log('=== Initializing settings page ===');
     if (window.AppViews) {
@@ -2268,6 +2349,7 @@ async function initializeSettingsPage() {
     await loadLauncherSettings();
     setupLauncherSettingsToggles();
     setupGlobalPlayerNameInput();
+    await setupDiscordSettings();
     await setupLanguageSelect();
     setupThemeSelect();
 

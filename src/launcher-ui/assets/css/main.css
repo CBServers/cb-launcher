@@ -430,6 +430,11 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/></svg>');
 }
 
+.nav-icon.friends-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11a3 3 0 100-6 3 3 0 000 6zM8 11a3 3 0 100-6 3 3 0 000 6zM2 20c0-2.8 2.7-5 6-5s6 2.2 6 5M14 15c.6-.1 1.3-.1 2-.1 3.3 0 6 2.2 6 5"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11a3 3 0 100-6 3 3 0 000 6zM8 11a3 3 0 100-6 3 3 0 000 6zM2 20c0-2.8 2.7-5 6-5s6 2.2 6 5M14 15c.6-.1 1.3-.1 2-.1 3.3 0 6 2.2 6 5"/></svg>');
+}
+
 .nav-badge {
     margin-left: auto;
     min-width: 20px;
@@ -4365,3 +4370,202 @@ html[data-theme="dark"] .secondary-action:hover {
     box-shadow: none;
 }
 
+/* ============================================================ */
+/* FRIENDS                                                      */
+/* ============================================================ */
+
+#friends-page {
+    padding: 0 36px 30px 36px;
+}
+
+.friends-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.friends-link-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--surface-lo);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.friends-link-cta p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 420px;
+}
+
+.friends-link-btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-grad);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.friends-link-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.friends-link-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.friends-notice {
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.friend-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.setting-discord-account {
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.friends-empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    background: var(--surface-lo);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.friends-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.friends-group-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface-hi);
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.friend-row:hover {
+    background: var(--surface-hi);
+    border-color: var(--border-hi);
+}
+
+.friend-row[data-status="offline"] {
+    opacity: 0.6;
+}
+
+.friend-avatar {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent-grad);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.friend-avatar-initials {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.friend-status-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-base);
+    background: var(--text-dim);
+}
+
+.friend-status-dot[data-status="online"] {
+    background: var(--play);
+    box-shadow: 0 0 8px var(--play-glow);
+}
+
+.friend-status-dot[data-status="idle"] {
+    background: var(--warn);
+}
+
+.friend-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.friend-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.friend-activity {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

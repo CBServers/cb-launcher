@@ -73,6 +73,14 @@ jobs:
           path: |
             src/launcher-ui/*
 
+      - name: Upload ${{matrix.configuration}} Discord artifacts
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} Discord artifacts
+          path: |
+            build/runtime/x64/${{matrix.configuration}}/discord/*
+
   deploy:
     name: Deploy artifacts
     needs: build
@@ -100,6 +108,12 @@ jobs:
         with:
           name: Release UI artifacts
           path: data/launcher-ui
+
+      - name: Download Discord artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: Release Discord artifacts
+          path: data/discord
 
       - name: Set artifact folder name
         run: |

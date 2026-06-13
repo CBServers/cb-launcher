@@ -1265,6 +1265,126 @@
         });
     }
 
+    // Live state fed by the Discord Social SDK bridge (polled by discord-friends.js).
+    const friendsState = { status: 'unknown', profile: null, friends: [], registryOk: true, error: null };
+
+    async function refreshFriends() {
+        try {
+            const statusRes = await window.executeCommand('discord-get-status');
+            friendsState.status = (statusRes && statusRes.status) || 'unavailable';
+            friendsState.profile = (statusRes && statusRes.profile) || null;
+            friendsState.error = (statusRes && statusRes.error) || null;
+
+            if (friendsState.status === 'linked') {
+                const friendsRes = await window.executeCommand('discord-get-friends');
+                friendsState.friends = (friendsRes && friendsRes.friends) || [];
+                friendsState.registryOk = !friendsRes || friendsRes.registryOk !== false;
+            } else {
+                friendsState.friends = [];
+                friendsState.registryOk = true;
+            }
+        } catch (error) {
+            console.warn('Failed to refresh Discord friends:', error);
+        }
+        renderFriends();
+    }
+
+    function getFriendsState() {
+        return friendsState;
+    }
+
+    function friendStatusLabel(status) {
+        if (status === 'online') return t('friends.statusOnline');
+        if (status === 'idle')   return t('friends.statusIdle');
+        return t('friends.statusOffline');
+    }
+
+    function friendInitials(name) {
+        const parts = String(name || '?').trim().split(/\s+/);
+        const first = parts[0] ? parts[0][0] : '?';
+        const second = parts.length > 1 ? parts[parts.length - 1][0] : '';
+        return (first + second).toUpperCase();
+    }
+
+    function friendAvatar(f) {
+        const dot = `<span class="friend-status-dot" data-status="${escapeHtml(f.status)}"></span>`;
+        if (f.avatarUrl) {
+            return `
+                <div class="friend-avatar">
+                    <img class="friend-avatar-img" src="${escapeHtml(f.avatarUrl)}" alt="" loading="lazy" />
+                    ${dot}
+                </div>
+            `;
+        }
+        return `
+            <div class="friend-avatar">
+                <span class="friend-avatar-initials">${escapeHtml(friendInitials(f.displayName))}</span>
+                ${dot}
+            </div>
+        `;
+    }
+
+    function renderFriends() {
+        const list = document.getElementById('friends-list');
+        const empty = document.getElementById('friends-empty');
+        const cta = document.getElementById('friends-link-cta');
+        const notice = document.getElementById('friends-notice');
+        if (!list) return;
+
+        const status = friendsState.status;
+        const showCta = status === 'unlinked' || status === 'unavailable' || status === 'error';
+
+        if (cta) {
+            cta.style.display = showCta ? '' : 'none';
+            const btn = document.getElementById('friends-link-btn');
+            if (btn) btn.disabled = status === 'unavailable';
+        }
+
+        if (notice) {
+            if (status === 'linking' || status === 'connecting') {
+                notice.textContent = t('friends.linking');
+                notice.style.display = '';
+            } else if (status === 'linked' && !friendsState.registryOk) {
+                notice.textContent = t('friends.degraded');
+                notice.style.display = '';
+            } else {
+                notice.style.display = 'none';
+            }
+        }
+
+        if (status !== 'linked') {
+            list.innerHTML = '';
+            if (empty) empty.style.display = 'none';
+            return;
+        }
+
+        const friends = friendsState.friends;
+        if (friends.length === 0) {
+            list.innerHTML = '';
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        const online  = friends.filter(f => f.status === 'online' || f.status === 'idle');
+        const offline = friends.filter(f => f.status !== 'online' && f.status !== 'idle');
+
+        const header = online.length === 0 ? '' : `
+            <div class="friends-group-head">${escapeHtml(t('friends.statusOnline'))} <span class="friends-group-count">${online.length}</span></div>
+        `;
+        const rows = online.concat(offline).map(f => `
+            <div class="friend-row" data-status="${escapeHtml(f.status)}">
+                ${friendAvatar(f)}
+                <div class="friend-row-body">
+                    <div class="friend-name">${escapeHtml(f.displayName)}</div>
+                    <div class="friend-activity">${escapeHtml(f.inLauncher ? t('friends.inLauncher') : friendStatusLabel(f.status))}</div>
+                </div>
+            </div>
+        `).join('');
+
+        list.innerHTML = header + rows;
+    }
+
     function renderAll() {
         renderSidebarGames();
         renderHome();
@@ -1328,6 +1448,9 @@
         renderGamePages,
         renderSettingsDirectories,
         renderDownloads,
+        renderFriends,
+        refreshFriends,
+        getFriendsState,
         refreshInstallationStates,
         refreshHomeInstalledClients,
         updateLibraryCard,
