@@ -246,7 +246,7 @@ namespace game_config
             "cod4x",
             {
                 .game_key = "cod4x",
-                .display_name = "COD4",
+                .display_name = "Modern Warfare",
                 .id = "cod4x",
                 .exe_name = "iw3mp.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "cod4x.json",
@@ -277,7 +277,7 @@ namespace game_config
             "t4",
             {
                 .game_key = "t4",
-                .display_name = "WAW",
+                .display_name = "World at War",
                 .id = "t4",
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
@@ -300,7 +300,7 @@ namespace game_config
             "t5",
             {
                 .game_key = "t5",
-                .display_name = "BO1",
+                .display_name = "Black Ops",
                 .id = "t5",
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
@@ -323,7 +323,7 @@ namespace game_config
             "iw4x",
             {
                 .game_key = "iw4x",
-                .display_name = "MW2",
+                .display_name = "Modern Warfare 2",
                 .id = "iw4x",
                 .exe_name = "iw4x.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "iw4x.json",
@@ -355,7 +355,7 @@ namespace game_config
             "t6",
             {
                 .game_key = "t6",
-                .display_name = "BO2",
+                .display_name = "Black Ops 2",
                 .id = "t6",
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "t6.json",
@@ -387,7 +387,7 @@ namespace game_config
             "iw5",
             {
                 .game_key = "iw5",
-                .display_name = "MW3",
+                .display_name = "Modern Warfare 3",
                 .id = "iw5",
                 .exe_name = "plutonium.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "alt-launchers.json",
@@ -420,7 +420,7 @@ namespace game_config
             "bo3",
             {
                 .game_key = "bo3",
-                .display_name = "BO3",
+                .display_name = "Black Ops 3",
                 .id = "boiii",
                 .exe_name = "boiii.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
@@ -469,7 +469,7 @@ namespace game_config
             "aw",
             {
                 .game_key = "aw",
-                .display_name = "AW",
+                .display_name = "Advanced Warfare",
                 .id = "s1x",
                 .exe_name = "s1x.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
@@ -496,7 +496,7 @@ namespace game_config
             "mwr",
             {
                 .game_key = "mwr",
-                .display_name = "MWR",
+                .display_name = "Modern Warfare Remastered",
                 .id = "h1-mod",
                 .exe_name = "h1-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
@@ -523,7 +523,7 @@ namespace game_config
             "iw",
             {
                 .game_key = "iw",
-                .display_name = "IW",
+                .display_name = "Infinite Warfare",
                 .id = "iw7-mod",
                 .exe_name = "iw7-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
@@ -547,7 +547,7 @@ namespace game_config
             "mw2r",
             {
                 .game_key = "mw2r",
-                .display_name = "MW2CR",
+                .display_name = "Modern Warfare 2 Campaign Remastered",
                 .id = "mw2r",
                 .exe_name = "h2-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "h2-mod.json",
@@ -570,7 +570,7 @@ namespace game_config
             "bo4",
             {
                 .game_key = "bo4",
-                .display_name = "BO4",
+                .display_name = "Black Ops 4",
                 .id = "bo4",
                 .exe_name = "Launch Project BO4.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "project-bo4.json",
@@ -595,7 +595,7 @@ namespace game_config
             "hmw",
             {
                 .game_key = "hmw",
-                .display_name = "HMW",
+                .display_name = "HorizonMW",
                 .id = "hmw-mod",
                 .exe_name = "hmw-mod.exe",
                 .update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",

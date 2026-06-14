@@ -52,6 +52,20 @@ namespace discord
 
             return user.AvatarUrl(discordpp::UserHandle::AvatarType::Png, discordpp::UserHandle::AvatarType::Png);
         }
+
+        std::string mode_display_name(const std::string& mode)
+        {
+            if (mode == "mp") return "Multiplayer";
+            if (mode == "zm") return "Zombies";
+            if (mode == "sp") return "Campaign";
+            if (mode == "sv") return "Survival";
+            return {};
+        }
+
+        std::string presence_art_url(const std::string& game_id)
+        {
+            return std::string(PRESENCE_ART_BASE) + game_id + ".png";
+        }
     }
 
     std::string link_status_to_string(const link_status status)
@@ -98,6 +112,16 @@ namespace discord
         std::shared_ptr<discordpp::Client> client{};
         bool have_tokens{false};
         bool unlinking{false};
+
+        struct game_activity
+        {
+            std::string game_id;
+            std::string display_name;
+            std::string mode;
+            int64_t start_time{0};
+        };
+
+        std::optional<game_activity> current_activity{};
         std::chrono::steady_clock::duration connect_backoff{CONNECT_RETRY_INITIAL};
         std::chrono::steady_clock::time_point next_connect_retry{};
         std::chrono::steady_clock::time_point next_registry_refresh{};
@@ -125,6 +149,49 @@ namespace discord
             {
                 return s.status;
             });
+        }
+
+        // Republishes the current game activity if one is set and we're linked.
+        // Called on set and on (re)connect so presence survives SDK reconnects.
+        void publish_activity()
+        {
+            if (!this->client || this->current_status() != link_status::linked || !this->current_activity)
+            {
+                return;
+            }
+
+            const auto& a = *this->current_activity;
+
+            discordpp::Activity activity{};
+            activity.SetType(discordpp::ActivityTypes::Playing);
+            activity.SetDetails(a.display_name);
+
+            if (const auto mode_name = mode_display_name(a.mode); !mode_name.empty())
+            {
+                activity.SetState(mode_name);
+            }
+
+            discordpp::ActivityAssets assets{};
+            assets.SetLargeImage(presence_art_url(a.game_id));
+            assets.SetLargeText(a.display_name);
+            activity.SetAssets(assets);
+
+            discordpp::ActivityTimestamps timestamps{};
+            timestamps.SetStart(static_cast<uint64_t>(a.start_time));
+            activity.SetTimestamps(timestamps);
+
+            this->client->UpdateRichPresence(std::move(activity), [](const discordpp::ClientResult&)
+            {
+            });
+        }
+
+        void apply_clear_activity()
+        {
+            this->current_activity.reset();
+            if (this->client && this->current_status() == link_status::linked)
+            {
+                this->client->ClearRichPresence();
+            }
         }
 
         void fail_with_retry(const std::string& error)
@@ -342,6 +409,9 @@ namespace discord
 
             this->rebuild_friends();
 
+            // Republish presence if a game was launched before/while connecting.
+            this->publish_activity();
+
             if (!access_token.empty())
             {
                 std::thread([access_token]()
@@ -391,6 +461,15 @@ namespace discord
                 entry.avatar_url = avatar_url_for(*user);
                 entry.status = map_status(user->Status());
                 entry.in_launcher = in_launcher.contains(user->Id());
+
+                // GameActivity() only exposes presence published under our app id,
+                // i.e. friends playing through the launcher.
+                if (const auto activity = user->GameActivity())
+                {
+                    entry.activity_details = activity->Details().value_or("");
+                    entry.activity_state = activity->State().value_or("");
+                }
+
                 friends.push_back(std::move(entry));
             }
 
@@ -626,6 +705,30 @@ namespace discord
         this->impl_->post([i = this->impl_.get()]()
         {
             i->unlink_flow();
+        });
+    }
+
+    void discord_service::set_game_activity(const std::string& game_id, const std::string& display_name,
+                                            const std::string& mode)
+    {
+        impl::game_activity activity{};
+        activity.game_id = game_id;
+        activity.display_name = display_name;
+        activity.mode = mode;
+        activity.start_time = static_cast<int64_t>(std::time(nullptr));
+
+        this->impl_->post([i = this->impl_.get(), activity = std::move(activity)]() mutable
+        {
+            i->current_activity = std::move(activity);
+            i->publish_activity();
+        });
+    }
+
+    void discord_service::clear_activity()
+    {
+        this->impl_->post([i = this->impl_.get()]()
+        {
+            i->apply_clear_activity();
         });
     }
 

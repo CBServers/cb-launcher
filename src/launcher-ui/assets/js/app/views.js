@@ -1299,6 +1299,14 @@
         return t('friends.statusOffline');
     }
 
+    function friendActivityLabel(f) {
+        if (f.activityDetails) {
+            return f.activityState ? `${f.activityDetails} — ${f.activityState}` : f.activityDetails;
+        }
+        if (f.inLauncher) return t('friends.inLauncher');
+        return friendStatusLabel(f.status);
+    }
+
     function friendInitials(name) {
         const parts = String(name || '?').trim().split(/\s+/);
         const first = parts[0] ? parts[0][0] : '?';
@@ -1377,7 +1385,7 @@
                 ${friendAvatar(f)}
                 <div class="friend-row-body">
                     <div class="friend-name">${escapeHtml(f.displayName)}</div>
-                    <div class="friend-activity">${escapeHtml(f.inLauncher ? t('friends.inLauncher') : friendStatusLabel(f.status))}</div>
+                    <div class="friend-activity">${escapeHtml(friendActivityLabel(f))}</div>
                 </div>
             </div>
         `).join('');

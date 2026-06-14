@@ -27,6 +27,8 @@ namespace discord
         std::string status; // "online" | "idle" | "offline"
         bool in_launcher{false};
         bool linked{false};
+        std::string activity_details; // game name from their launcher presence, empty if none
+        std::string activity_state;   // mode/line 3 from their launcher presence, empty if none
     };
 
     struct own_profile
@@ -46,6 +48,12 @@ namespace discord
 
         void begin_link();
         void unlink();
+
+        // Publish "Playing <display_name> — <mode>" rich presence with game art.
+        // game_id is the client id (e.g. "boiii") used to resolve the art URL.
+        void set_game_activity(const std::string& game_id, const std::string& display_name,
+                               const std::string& mode);
+        void clear_activity();
 
         link_status get_status() const;
         std::optional<own_profile> get_profile() const;

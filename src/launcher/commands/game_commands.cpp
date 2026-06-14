@@ -10,6 +10,8 @@
 #include <utils/string.hpp>
 #include <game_config.hpp>
 
+#include "discord/discord_service.hpp"
+
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/client_updater.hpp"
@@ -72,6 +74,7 @@ namespace commands::game_commands
                     empty_ticks = any_running ? 0 : empty_ticks + 1;
                 }
 
+                discord::discord_service::instance().clear_activity();
                 unlock_launch_barrier();
             }).detach();
         }
@@ -242,6 +245,8 @@ namespace commands::game_commands
                     cef_ui.show_message_box("Game Launch Error", error_msg);
                     return false;
                 }
+
+                discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
 
                 // Check if launcher should close after game starts
                 const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);

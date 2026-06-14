@@ -120,6 +120,8 @@ namespace commands::discord_commands
                     add_string(friend_obj, "avatarUrl", entry.avatar_url, allocator);
                     add_string(friend_obj, "status", entry.status, allocator);
                     friend_obj.AddMember("inLauncher", entry.in_launcher, allocator);
+                    add_string(friend_obj, "activityDetails", entry.activity_details, allocator);
+                    add_string(friend_obj, "activityState", entry.activity_state, allocator);
                     friends_array.PushBack(friend_obj, allocator);
                 }
             }

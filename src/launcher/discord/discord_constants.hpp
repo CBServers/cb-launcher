@@ -11,4 +11,8 @@ namespace discord
     // Link registry worker (worker/discord-link). Records which Discord
     // accounts have linked the launcher.
     constexpr const char* LINK_REGISTRY_URL = "https://auth.cbservers.xyz";
+
+    // Base URL for per-game rich-presence art (large image), keyed by game id
+    // (e.g. "boiii"). Full URL is PRESENCE_ART_BASE + id + ".png".
+    constexpr const char* PRESENCE_ART_BASE = "https://docs.cbservers.xyz/images/client-logos/";
 }
