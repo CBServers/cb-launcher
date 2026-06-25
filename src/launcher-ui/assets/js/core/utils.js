@@ -692,7 +692,8 @@ class GameUtils {
         const runFn = (registerCancel) => new Promise((resolve, reject) => {
             let pollIntervalId;
             let cancelRequested = false;
-            let lastBytes = 0, lastTime = 0, emaSpeed = 0; // bytes, ms, bytes/sec (smoothed)
+            let lastBytes = 0, lastTime = 0, emaSpeed = 0; // bytes, ms, bytes/sec
+            let startTime = 0, startBytes = 0;             // ms, bytes (download-start baseline)
 
             const cancelOperation = async () => {
                 cancelRequested = true;
@@ -764,6 +765,7 @@ class GameUtils {
                             if (result.paused) {
                                 emaSpeed = 0;
                                 lastTime = 0;
+                                startTime = 0;
                                 const pausedMsg = window.LauncherI18n
                                     ? window.LauncherI18n.t('downloads.statusPausedAt', { percent: Number(result.progress || 0).toFixed(2) })
                                     : `Paused — ${Number(result.progress || 0).toFixed(2)}%`;
@@ -771,12 +773,15 @@ class GameUtils {
                                 return;
                             }
 
-                            // Speed/ETA from byte deltas — only when total size is known (downloads, not verify).
+                            // Speed/ETA from byte deltas — only while actually downloading. Verify/delete
+                            // also report byte totals, but their "speed" is disk throughput, not a download.
                             let stats = null;
                             const downloaded = Number(result.downloadedBytes) || 0;
                             const total = Number(result.totalBytes) || 0;
-                            if (total > 0) {
+                            if (total > 0 && result.mode === 'downloading') {
                                 const now = Date.now();
+
+                                // Live, smoothed speed for the MB/s readout.
                                 if (lastTime === 0) {
                                     lastTime = now;
                                     lastBytes = downloaded;
@@ -789,8 +794,23 @@ class GameUtils {
                                         lastTime = now;
                                     }
                                 }
-                                const etaSeconds = emaSpeed > 0 ? (total - downloaded) / emaSpeed : null;
+
+                                // Cumulative average (since start) for a smoothly counting-down ETA.
+                                if (startTime === 0) {
+                                    startTime = now;
+                                    startBytes = downloaded;
+                                }
+                                const elapsed = (now - startTime) / 1000;
+                                const avgSpeed = elapsed > 0 ? (downloaded - startBytes) / elapsed : 0;
+                                const etaSeconds = avgSpeed > 0 ? (total - downloaded) / avgSpeed : null;
+
                                 stats = { speed: emaSpeed, etaSeconds };
+                            } else {
+                                // Leaving the download phase (verify/retry) — re-baseline so the next
+                                // download phase measures from scratch instead of a stale offset.
+                                lastTime = 0;
+                                startTime = 0;
+                                emaSpeed = 0;
                             }
 
                             window.ProgressManager.update(result.progress, result.message, stats);

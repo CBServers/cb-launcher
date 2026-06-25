@@ -31,6 +31,7 @@ namespace updater
             bool is_cancelled = false;
             bool is_paused = false;
             float progress_percent = 0.0f;
+            progress_mode mode = progress_mode::verifying;
         };
 
         static progress_tracker& instance();
@@ -75,7 +76,6 @@ namespace updater
         std::condition_variable_any pause_cv_;
         std::condition_variable_any active_cv_;
         progress_state state_;
-        progress_mode mode_ = progress_mode::verifying;
         std::vector<std::string> files_in_progress_;  // Track all files currently being processed
 
         void recalculate_progress();
