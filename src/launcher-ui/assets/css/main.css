@@ -1922,6 +1922,18 @@ html[data-theme="dark"] .setup-button {
     box-shadow: 0 0 12px var(--accent-glow);
 }
 
+.progress-stats {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.progress-stats:empty {
+    display: none;
+}
+
 .progress-percent {
     font-size: 12.5px;
     color: #fff;
@@ -2094,6 +2106,16 @@ html[data-theme="dark"] .setup-button {
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-right: 12px;
+}
+
+.download-progress-stats {
+    white-space: nowrap;
+    margin-right: 12px;
+    color: var(--text-muted);
+}
+
+.download-progress-stats:empty {
+    display: none;
 }
 
 .download-progress-percent {

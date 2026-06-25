@@ -34,7 +34,8 @@
                 statusPaused: 'Paused',
                 statusPausedAt: 'Paused — {{percent}}%',
                 pause: 'Pause',
-                resume: 'Resume'
+                resume: 'Resume',
+                etaLeft: '{{time}} left'
             },
             friends: {
                 title: 'Friends',
@@ -486,7 +487,8 @@
                 statusPaused: 'En pause',
                 statusPausedAt: 'En pause - {{percent}}%',
                 pause: 'Mettre en pause',
-                resume: 'Reprendre'
+                resume: 'Reprendre',
+                etaLeft: '{{time}} restant'
             },
             friends: {
                 title: 'Amis',
@@ -938,7 +940,8 @@
                 statusPaused: 'En pausa',
                 statusPausedAt: 'En pausa - {{percent}}%',
                 pause: 'Pausar',
-                resume: 'Reanudar'
+                resume: 'Reanudar',
+                etaLeft: '{{time}} restante'
             },
             friends: {
                 title: 'Amigos',

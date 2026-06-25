@@ -799,6 +799,7 @@ window.ProgressManager = {
     isActive: false,
     currentGame: null,
     cancelCallback: null,
+    lastStats: null,
 
     show: function(gameId, message = t('common.loading'), onCancel = null) {
         const progressBar = document.getElementById('global-progress-bar');
@@ -848,6 +849,10 @@ window.ProgressManager = {
         progressFill.style.width = '0%';
         progressPercent.textContent = '0%';
 
+        this.lastStats = null;
+        const progressStats = document.getElementById('progress-stats');
+        if (progressStats) progressStats.textContent = '';
+
         if (cancelBtn) {
             cancelBtn.onclick = () => this.cancel();
         }
@@ -889,10 +894,11 @@ window.ProgressManager = {
         if (progressBar) progressBar.classList.toggle('paused', isPaused);
     },
 
-    update: function(progress, message = null) {
+    update: function(progress, message = null, stats = null) {
         const progressInfo = document.getElementById('progress-info');
         const progressFill = document.getElementById('global-progress-fill');
         const progressPercent = document.getElementById('global-progress-percent');
+        const progressStats = document.getElementById('progress-stats');
 
         if (message) {
             progressInfo.textContent = message;
@@ -901,11 +907,31 @@ window.ProgressManager = {
         progressFill.style.width = `${progress}%`;
         progressPercent.textContent = `${progress.toFixed(2)}%`;
 
+        this.lastStats = stats;
+        if (progressStats) {
+            progressStats.textContent = this._formatStats(stats);
+        }
+
         try {
             window.dispatchEvent(new CustomEvent('cb-progress-tick', {
-                detail: { progress: progress, message: message }
+                detail: {
+                    progress: progress,
+                    message: message,
+                    speed: stats ? stats.speed : null,
+                    etaSeconds: stats ? stats.etaSeconds : null
+                }
             }));
         } catch (_) {}
+    },
+
+    _formatStats: function(stats) {
+        if (!stats) return '';
+        const speed = GameUtils.formatSpeed(stats.speed);
+        const eta = GameUtils.formatDuration(stats.etaSeconds);
+        const etaLabel = eta
+            ? (window.LauncherI18n ? window.LauncherI18n.t('downloads.etaLeft', { time: eta }) : `${eta} left`)
+            : '';
+        return [speed, etaLabel].filter(Boolean).join(' • ');
     },
 
     cancel: function() {
@@ -930,6 +956,9 @@ window.ProgressManager = {
         this.isActive = false;
         this.currentGame = null;
         this.cancelCallback = null;
+        this.lastStats = null;
+        const progressStats = document.getElementById('progress-stats');
+        if (progressStats) progressStats.textContent = '';
         refreshSidebarMyGames();
     },
 
@@ -1254,11 +1283,15 @@ window.addEventListener('cb-progress-tick', (event) => {
     const fill = activeRow.querySelector('.download-progress-fill');
     const percentEl = activeRow.querySelector('.download-progress-percent');
     const messageEl = activeRow.querySelector('.download-progress-message');
+    const statsEl = activeRow.querySelector('.download-progress-stats');
     const percent = Math.max(0, Math.min(100, Number(detail.progress) || 0));
 
     if (fill) fill.style.width = `${percent}%`;
     if (percentEl) percentEl.textContent = `${percent.toFixed(2)}%`;
     if (messageEl && detail.message) messageEl.textContent = detail.message;
+    if (statsEl) {
+        statsEl.textContent = window.ProgressManager ? window.ProgressManager._formatStats(detail) : '';
+    }
 });
 
 function loadNavigationPage(page) {

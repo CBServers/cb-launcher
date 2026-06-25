@@ -628,6 +628,24 @@ class GameUtils {
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
 
+    static formatSpeed(bytesPerSec) {
+        if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '';
+        return GameUtils.formatBytes(bytesPerSec) + '/s';
+    }
+
+    static formatDuration(seconds) {
+        if (!Number.isFinite(seconds) || seconds <= 0) return '';
+
+        const total = Math.round(seconds);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+
+        if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+        if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
+        return `${s}s`;
+    }
+
     /**
      * Track progress of a backend command with polling
      * @param {object} config - Configuration object
@@ -674,6 +692,7 @@ class GameUtils {
         const runFn = (registerCancel) => new Promise((resolve, reject) => {
             let pollIntervalId;
             let cancelRequested = false;
+            let lastBytes = 0, lastTime = 0, emaSpeed = 0; // bytes, ms, bytes/sec (smoothed)
 
             const cancelOperation = async () => {
                 cancelRequested = true;
@@ -726,6 +745,7 @@ class GameUtils {
                             if (!result.active) {
                                 clearInterval(pollIntervalId);
                                 pollIntervalId = null;
+                                emaSpeed = 0;
                                 window.ProgressManager.update(100, completeMessage);
 
                                 if (onComplete) {
@@ -740,15 +760,40 @@ class GameUtils {
                             }
 
                             // Paused: keep the bar alive at the current percent, just relabel.
+                            // Reset the rate so a resumed download re-measures from scratch.
                             if (result.paused) {
+                                emaSpeed = 0;
+                                lastTime = 0;
                                 const pausedMsg = window.LauncherI18n
                                     ? window.LauncherI18n.t('downloads.statusPausedAt', { percent: Number(result.progress || 0).toFixed(2) })
                                     : `Paused — ${Number(result.progress || 0).toFixed(2)}%`;
-                                window.ProgressManager.update(result.progress, pausedMsg);
+                                window.ProgressManager.update(result.progress, pausedMsg, null);
                                 return;
                             }
 
-                            window.ProgressManager.update(result.progress, result.message);
+                            // Speed/ETA from byte deltas — only when total size is known (downloads, not verify).
+                            let stats = null;
+                            const downloaded = Number(result.downloadedBytes) || 0;
+                            const total = Number(result.totalBytes) || 0;
+                            if (total > 0) {
+                                const now = Date.now();
+                                if (lastTime === 0) {
+                                    lastTime = now;
+                                    lastBytes = downloaded;
+                                } else {
+                                    const dt = (now - lastTime) / 1000;
+                                    if (dt >= 0.25 && downloaded >= lastBytes) {
+                                        const inst = (downloaded - lastBytes) / dt;
+                                        emaSpeed = emaSpeed ? emaSpeed * 0.7 + inst * 0.3 : inst;
+                                        lastBytes = downloaded;
+                                        lastTime = now;
+                                    }
+                                }
+                                const etaSeconds = emaSpeed > 0 ? (total - downloaded) / emaSpeed : null;
+                                stats = { speed: emaSpeed, etaSeconds };
+                            }
+
+                            window.ProgressManager.update(result.progress, result.message, stats);
                         } catch (error) {
                             console.error('Error polling progress:', error);
                             clearInterval(pollIntervalId);

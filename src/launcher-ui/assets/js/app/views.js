@@ -1175,6 +1175,9 @@
 
             // Active rows keep the bar even when paused (frozen at last percent).
             const showProgress = entry.isActive;
+            const statsText = (entry.isActive && !entry.paused && window.ProgressManager)
+                ? window.ProgressManager._formatStats(window.ProgressManager.lastStats)
+                : '';
             const progressBlock = showProgress ? `
                 <div class="download-progress">
                     <div class="download-progress-bar">
@@ -1182,6 +1185,7 @@
                     </div>
                     <div class="download-progress-meta">
                         <span class="download-progress-message">${escapeHtml(message)}</span>
+                        <span class="download-progress-stats">${escapeHtml(statsText)}</span>
                         <span class="download-progress-percent">${percent.toFixed(2)}%</span>
                     </div>
                 </div>` : '';
