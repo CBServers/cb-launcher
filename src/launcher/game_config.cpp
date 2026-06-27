@@ -347,7 +347,7 @@ namespace game_config
                 .base_folder = "mw2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
-                .client_data_folders = {"iw4x", "zone/patch", "zone/zonebuilder"},
+                .client_data_folders = {"zone/patch", "zone/zonebuilder"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
             }
         },
