@@ -649,6 +649,19 @@ namespace game_config
         return std::nullopt;
     }
 
+    // Lookup by wire id (game_config.id, e.g. "boiii"), as used by the IPC protocol / join secrets.
+    std::optional<game_config_t> get_game_config_by_id(const std::string& id)
+    {
+        for (const auto& [game_key, config] : game_configs_)
+        {
+            if (config.id == id)
+            {
+                return config;
+            }
+        }
+        return std::nullopt;
+    }
+
     bool has_multiple_modes(const std::string& game)
     {
         const auto config = get_game_config(game);

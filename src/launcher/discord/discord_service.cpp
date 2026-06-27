@@ -15,8 +15,10 @@
 #include <discordpp.h>
 #pragma warning(pop)
 
+#include <cstdio>
 #include <ctime>
 #include <deque>
+#include <map>
 #include <unordered_set>
 
 namespace discord
@@ -27,6 +29,13 @@ namespace discord
         constexpr auto CONNECT_RETRY_INITIAL = 30s;
         constexpr auto CONNECT_RETRY_MAX = 10min;
         constexpr auto TICK_INTERVAL = 16ms;
+
+        // Party Id prefix marks a joinable match; the secret is hidden, so the exposed party Id carries the join signal + direct-vs-request.
+        constexpr auto PARTY_JOIN_DIRECT_PREFIX = "joind-";  // public/dedicated server => "Join", no approval
+        constexpr auto PARTY_JOIN_REQUEST_PREFIX = "joinr-"; // private host (nat) => "Ask to Join", host approves
+
+        // Window after asking to join in which the host's incoming Join invite counts as approval of our request, not an unsolicited invite.
+        constexpr auto JOIN_REQUEST_TTL = 2min;
 
         std::string map_status(const discordpp::StatusType status)
         {
@@ -66,6 +75,43 @@ namespace discord
         {
             return std::string(PRESENCE_ART_BASE) + game_id + ".png";
         }
+
+        // Discord caps details/state at 128 bytes.
+        std::string clamp_field(std::string value)
+        {
+            if (value.size() > 128)
+            {
+                value.resize(128);
+            }
+            return value;
+        }
+
+        // "<Game> - <gametype> on <map>"; just "<Game>" in menus (empty map).
+        std::string build_rich_details(const std::string& display_name, const std::string& gametype,
+                                       const std::string& map_display)
+        {
+            if (map_display.empty())
+            {
+                return display_name;
+            }
+
+            const auto context = gametype.empty() ? map_display : (gametype + " on " + map_display);
+            return display_name + " - " + context;
+        }
+
+        // Server name on a public server; "Private Match" in-game otherwise; "In Menu" in menus.
+        std::string build_rich_state(const std::string& map_display, const std::string& server_name)
+        {
+            if (map_display.empty())
+            {
+                return "In Menu";
+            }
+            if (!server_name.empty())
+            {
+                return server_name;
+            }
+            return "Private Match";
+        }
     }
 
     std::string link_status_to_string(const link_status status)
@@ -96,6 +142,8 @@ namespace discord
         bool registry_succeeded{false};
         std::string last_error{};
         std::string access_token{};
+        std::vector<invite_entry> invites{}; // pending invites/join-requests
+        bool joinable{false};                // local game is publishing a joinable presence
     };
 
     using state_container = utils::concurrency::container<shared_state>;
@@ -119,9 +167,30 @@ namespace discord
             std::string display_name;
             std::string mode;
             int64_t start_time{0};
+
+            // Live enrichment; rich==false is the baseline (game + mode only).
+            bool rich{false};
+            std::string map_display;
+            std::string gametype;
+            std::string server_name;
+            int players{0};
+            int max_players{0};
+            std::string join_secret; // unified cbl: secret; empty => not joinable
+            bool direct_join{false}; // joinable on a public/dedicated server (vs nat/private host)
         };
 
         std::optional<game_activity> current_activity{};
+
+        // Ownership signal (discord thread only).
+        std::function<void(bool)> ownership_cb{};
+        bool last_owns{false};
+
+        // Invites (discord thread only).
+        std::function<void(std::string)> join_secret_cb{};
+        std::map<std::string, discordpp::ActivityInvite> invite_objs{};
+        std::map<uint64_t, std::chrono::steady_clock::time_point> pending_join_requests{}; // hosts we asked to join
+        bool launch_command_registered{false}; // Discord cold-launch handler (registered once on ready)
+
         std::chrono::steady_clock::duration connect_backoff{CONNECT_RETRY_INITIAL};
         std::chrono::steady_clock::time_point next_connect_retry{};
         std::chrono::steady_clock::time_point next_registry_refresh{};
@@ -141,6 +210,7 @@ namespace discord
                 s.status = status;
                 s.last_error = error;
             });
+            this->update_joinable();
         }
 
         link_status current_status() const
@@ -151,10 +221,24 @@ namespace discord
             });
         }
 
-        // Republishes the current game activity if one is set and we're linked.
-        // Called on set and on (re)connect so presence survives SDK reconnects.
+        // Mirrors "can we invite right now" into shared state for the frontend.
+        void update_joinable()
+        {
+            const bool joinable = this->current_activity && this->current_activity->rich
+                && !this->current_activity->join_secret.empty()
+                && this->current_status() == link_status::linked;
+
+            this->state->access([joinable](shared_state& s)
+            {
+                s.joinable = joinable;
+            });
+        }
+
+        // Republishes the current game activity (on set and on reconnect) so presence survives SDK reconnects.
         void publish_activity()
         {
+            this->update_joinable();
+
             if (!this->client || this->current_status() != link_status::linked || !this->current_activity)
             {
                 return;
@@ -164,11 +248,59 @@ namespace discord
 
             discordpp::Activity activity{};
             activity.SetType(discordpp::ActivityTypes::Playing);
-            activity.SetDetails(a.display_name);
 
-            if (const auto mode_name = mode_display_name(a.mode); !mode_name.empty())
+            if (a.rich)
             {
-                activity.SetState(mode_name);
+                activity.SetDetails(clamp_field(build_rich_details(a.display_name, a.gametype, a.map_display)));
+                activity.SetState(clamp_field(build_rich_state(a.map_display, a.server_name)));
+
+                const bool joinable = !a.join_secret.empty();
+                if (a.max_players > 0 || joinable)
+                {
+                    const int size = a.players > 0 ? a.players : 1;
+                    int max = a.max_players > 0 ? a.max_players : size;
+                    if (joinable && max <= size)
+                    {
+                        max = size + 1; // a joinable party must have room for the invitee
+                    }
+
+                    // Id is unique per host; when joinable its prefix encodes direct (public => "Join") vs nat (private => "Ask to Join").
+                    const auto uid = this->own_user_id();
+                    const auto party_base = (uid != 0 ? std::to_string(uid) : std::string("cbl")) + "-" + a.game_id;
+
+                    discordpp::ActivityParty party{};
+                    if (joinable)
+                    {
+                        const auto* prefix = a.direct_join ? PARTY_JOIN_DIRECT_PREFIX : PARTY_JOIN_REQUEST_PREFIX;
+                        party.SetId(prefix + party_base);
+                        // Public => Discord shows "Join"; private stays Private => "Ask to Join" (host approves).
+                        party.SetPrivacy(a.direct_join ? discordpp::ActivityPartyPrivacy::Public
+                                                       : discordpp::ActivityPartyPrivacy::Private);
+                    }
+                    else
+                    {
+                        party.SetId(party_base);
+                    }
+                    party.SetCurrentSize(size);
+                    party.SetMaxSize(max);
+                    activity.SetParty(std::move(party));
+                }
+
+                if (joinable)
+                {
+                    discordpp::ActivitySecrets secrets{};
+                    secrets.SetJoin(a.join_secret);
+                    activity.SetSecrets(std::move(secrets));
+                }
+            }
+            else
+            {
+                activity.SetDetails(a.display_name);
+
+                if (const auto mode_name = mode_display_name(a.mode); !mode_name.empty())
+                {
+                    activity.SetState(mode_name);
+                }
             }
 
             discordpp::ActivityAssets assets{};
@@ -192,6 +324,7 @@ namespace discord
             {
                 this->client->ClearRichPresence();
             }
+            this->update_joinable();
         }
 
         void fail_with_retry(const std::string& error)
@@ -242,6 +375,159 @@ namespace discord
             {
                 this->rebuild_friends();
             });
+
+            this->client->SetActivityInviteCreatedCallback([this](const discordpp::ActivityInvite& invite)
+            {
+                this->on_invite(invite);
+            });
+
+            this->client->SetActivityInviteUpdatedCallback([this](const discordpp::ActivityInvite& invite)
+            {
+                // The only mutable field is validity; drop invites that expired or whose sender stopped playing.
+                if (!invite.IsValid())
+                {
+                    printf("[cbl-invite] invite from %llu invalidated; dropping\n",
+                           static_cast<unsigned long long>(invite.SenderId()));
+                    fflush(stdout);
+                    this->remove_invite(std::to_string(invite.SenderId()));
+                }
+            });
+
+            // Fired when the user accepts via the Discord client (DM "Join"); routes the same cbl: secret as the in-launcher accept path.
+            this->client->SetActivityJoinCallback([this](const std::string& secret)
+            {
+                printf("[cbl-invite] SetActivityJoinCallback (Discord DM accept) secret='%s'\n", secret.data());
+                fflush(stdout);
+                if (this->join_secret_cb && !secret.empty())
+                {
+                    this->join_secret_cb(secret);
+                }
+            });
+        }
+
+        uint64_t own_user_id() const
+        {
+            if (const auto self = this->client->GetCurrentUserV2())
+            {
+                return self->Id();
+            }
+            return 0;
+        }
+
+        // True when our match is a public/dedicated server: join requests need no approval (auto-approved, not prompted).
+        bool hosting_public_match() const
+        {
+            return this->current_activity && this->current_activity->rich
+                && !this->current_activity->join_secret.empty()
+                && this->current_activity->direct_join;
+        }
+
+        // Accept an invite addressed to us and route the resulting join secret into the game.
+        void accept_join_invite(const discordpp::ActivityInvite& invite)
+        {
+            this->client->AcceptActivityInvite(invite,
+                [i = this](const discordpp::ClientResult& result, const std::string& secret)
+                {
+                    printf("[cbl-invite] AcceptActivityInvite: %s, secret='%s'\n",
+                           result.Successful() ? "ok" : result.ToString().data(), secret.data());
+                    fflush(stdout);
+                    if (result.Successful() && i->join_secret_cb && !secret.empty())
+                    {
+                        i->join_secret_cb(secret);
+                    }
+                });
+        }
+
+        void on_invite(const discordpp::ActivityInvite& invite)
+        {
+            const auto sender = invite.SenderId();
+            const bool is_request = invite.Type() == discordpp::ActivityActionTypes::JoinRequest;
+            const auto own = this->own_user_id();
+
+            printf("[cbl-invite] on_invite sender=%llu own=%llu type=%s valid=%d\n",
+                   static_cast<unsigned long long>(sender), static_cast<unsigned long long>(own),
+                   is_request ? "join-request" : "invite", invite.IsValid() ? 1 : 0);
+            fflush(stdout);
+
+            if (!invite.IsValid())
+            {
+                return;
+            }
+
+            // The created callback also fires on the sender's own client; only surface invites addressed to us.
+            if (own != 0 && sender == own)
+            {
+                printf("[cbl-invite] ignoring our own outgoing invite\n");
+                fflush(stdout);
+                return;
+            }
+
+            // A host approving a join we asked for (within the TTL) prompts as an approval, not auto-join.
+            bool is_approval = false;
+            if (!is_request)
+            {
+                const auto it = this->pending_join_requests.find(sender);
+                if (it != this->pending_join_requests.end())
+                {
+                    is_approval = (std::chrono::steady_clock::now() - it->second) < JOIN_REQUEST_TTL;
+                    this->pending_join_requests.erase(it);
+                }
+            }
+
+            // Public/dedicated server: approve join requests immediately (private host matches still queue for approval below).
+            if (is_request && this->hosting_public_match())
+            {
+                printf("[cbl-invite] auto-approving join-request from %llu (public match)\n",
+                       static_cast<unsigned long long>(sender));
+                fflush(stdout);
+                this->client->SendActivityJoinRequestReply(invite, [sender](const discordpp::ClientResult& result)
+                {
+                    printf("[cbl-invite] auto join-request reply to %llu: %s\n",
+                           static_cast<unsigned long long>(sender),
+                           result.Successful() ? "ok" : result.ToString().data());
+                    fflush(stdout);
+                });
+                return;
+            }
+
+            const auto sender_id = std::to_string(sender);
+            this->invite_objs[sender_id] = invite;
+
+            this->state->access([&](shared_state& s)
+            {
+                invite_entry entry{};
+                entry.id = sender_id;
+                entry.sender_id = sender_id;
+                entry.is_request = is_request;
+                entry.is_approval = is_approval;
+
+                // Resolve a friendly name/avatar from the friends cache if we have it.
+                for (const auto& f : s.friends)
+                {
+                    if (f.id == sender_id)
+                    {
+                        entry.sender_name = f.display_name;
+                        entry.sender_avatar = f.avatar_url;
+                        break;
+                    }
+                }
+
+                std::erase_if(s.invites, [&](const invite_entry& e) { return e.id == sender_id; });
+                s.invites.push_back(std::move(entry));
+            });
+
+            printf("[cbl-invite] queued incoming %s from %s for the in-launcher prompt\n",
+                   is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id.data());
+            fflush(stdout);
+        }
+
+        void remove_invite(const std::string& id)
+        {
+            this->invite_objs.erase(id);
+            this->state->access([&id](shared_state& s)
+            {
+                std::erase_if(s.invites, [&id](const invite_entry& e) { return e.id == id; });
+            });
         }
 
         void on_connection_status(const discordpp::Client::Status status)
@@ -280,8 +566,7 @@ namespace discord
             this->have_tokens = true;
             this->set_status(link_status::connecting);
 
-            // Access tokens expire after ~7 days; unconditionally refreshing
-            // on startup is simpler than tracking expiry.
+            // Access tokens expire after ~7 days; refresh unconditionally on startup rather than tracking expiry.
             this->client->RefreshToken(
                 APPLICATION_ID, tokens->refresh_token,
                 [this](const discordpp::ClientResult& result, std::string access_token, std::string refresh_token,
@@ -398,6 +683,15 @@ namespace discord
 
             utils::logger::write("Discord connected as {}", profile ? profile->display_name : "<unknown>");
 
+            // Register cold-launch so Discord can start us on invite-accept while closed (empty => current exe); the join arrives via SetActivityJoinCallback on reconnect.
+            if (!this->launch_command_registered)
+            {
+                const bool ok = this->client->RegisterLaunchCommand(APPLICATION_ID, "");
+                this->launch_command_registered = ok;
+                printf("[cbl-invite] RegisterLaunchCommand: %s\n", ok ? "ok" : "failed");
+                fflush(stdout);
+            }
+
             std::string access_token{};
             this->state->access([&](shared_state& s)
             {
@@ -462,12 +756,22 @@ namespace discord
                 entry.status = map_status(user->Status());
                 entry.in_launcher = in_launcher.contains(user->Id());
 
-                // GameActivity() only exposes presence published under our app id,
-                // i.e. friends playing through the launcher.
+                // GameActivity() only exposes presence under our app id (friends playing through the launcher).
                 if (const auto activity = user->GameActivity())
                 {
                     entry.activity_details = activity->Details().value_or("");
                     entry.activity_state = activity->State().value_or("");
+
+                    // Joinable => party Id carries a join prefix and there is room; the prefix also encodes direct ("Join") vs request ("Ask to Join").
+                    if (const auto party = activity->Party())
+                    {
+                        const auto party_id = party->Id();
+                        const bool direct = party_id.rfind(PARTY_JOIN_DIRECT_PREFIX, 0) == 0;
+                        const bool request = party_id.rfind(PARTY_JOIN_REQUEST_PREFIX, 0) == 0;
+                        const bool has_room = party->CurrentSize() < party->MaxSize();
+                        entry.joinable = (direct || request) && has_room;
+                        entry.direct_join = direct && has_room;
+                    }
                 }
 
                 friends.push_back(std::move(entry));
@@ -552,6 +856,7 @@ namespace discord
                 utils::properties::store(property_keys::DISCORD_DISPLAY_NAME, "");
             }
 
+            this->invite_objs.clear();
             this->state->access([](shared_state& s)
             {
                 s.status = link_status::unlinked;
@@ -561,6 +866,8 @@ namespace discord
                 s.linked_ids.clear();
                 s.access_token.clear();
                 s.registry_succeeded = false;
+                s.invites.clear();
+                s.joinable = false;
             });
 
             if (tokens)
@@ -624,6 +931,17 @@ namespace discord
                 {
                     this->next_registry_refresh = now + REGISTRY_REFRESH_INTERVAL;
                     this->start_registry_refresh();
+                }
+
+                // Notify on ownership change so the IPC server can hand presence to/from the fork.
+                const bool owns = (status == link_status::linked);
+                if (owns != this->last_owns)
+                {
+                    this->last_owns = owns;
+                    if (this->ownership_cb)
+                    {
+                        this->ownership_cb(owns);
+                    }
                 }
 
                 std::this_thread::sleep_for(TICK_INTERVAL);
@@ -729,6 +1047,218 @@ namespace discord
         this->impl_->post([i = this->impl_.get()]()
         {
             i->apply_clear_activity();
+        });
+    }
+
+    void discord_service::set_rich_game_activity(const std::string& game_id, const std::string& display_name,
+                                                 const std::string& mode, const rich_presence_info& info)
+    {
+        impl::game_activity activity{};
+        activity.game_id = game_id;
+        activity.display_name = display_name;
+        activity.mode = mode;
+        activity.rich = true;
+        activity.map_display = info.map_display;
+        activity.gametype = info.gametype;
+        activity.server_name = info.server_name;
+        activity.players = info.players;
+        activity.max_players = info.max_players;
+        activity.join_secret = info.join_secret;
+        activity.direct_join = info.direct_join;
+
+        this->impl_->post([i = this->impl_.get(), activity = std::move(activity)]() mutable
+        {
+            // Preserve the elapsed timer across presence updates for the same game.
+            if (i->current_activity && i->current_activity->game_id == activity.game_id &&
+                i->current_activity->start_time != 0)
+            {
+                activity.start_time = i->current_activity->start_time;
+            }
+            else
+            {
+                activity.start_time = static_cast<int64_t>(std::time(nullptr));
+            }
+
+            i->current_activity = std::move(activity);
+            i->publish_activity();
+        });
+    }
+
+    void discord_service::clear_rich_activity()
+    {
+        this->impl_->post([i = this->impl_.get()]()
+        {
+            if (!i->current_activity)
+            {
+                return;
+            }
+
+            auto& a = *i->current_activity;
+            a.rich = false;
+            a.map_display.clear();
+            a.gametype.clear();
+            a.server_name.clear();
+            a.players = 0;
+            a.max_players = 0;
+            a.join_secret.clear();
+
+            i->publish_activity();
+        });
+    }
+
+    bool discord_service::owns_presence() const
+    {
+        return this->impl_->state->access<bool>([](const shared_state& s)
+        {
+            return s.status == link_status::linked;
+        });
+    }
+
+    void discord_service::set_presence_owner_callback(std::function<void(bool)> callback)
+    {
+        this->impl_->post([i = this->impl_.get(), callback = std::move(callback)]() mutable
+        {
+            i->ownership_cb = std::move(callback);
+
+            // Sync the listener with the current state immediately.
+            i->last_owns = (i->current_status() == link_status::linked);
+            if (i->ownership_cb)
+            {
+                i->ownership_cb(i->last_owns);
+            }
+        });
+    }
+
+    bool discord_service::is_joinable() const
+    {
+        return this->impl_->state->access<bool>([](const shared_state& s)
+        {
+            return s.joinable;
+        });
+    }
+
+    void discord_service::send_invite(const std::string& user_id)
+    {
+        this->impl_->post([i = this->impl_.get(), user_id]()
+        {
+            if (!i->client || i->current_status() != link_status::linked)
+            {
+                return;
+            }
+
+            const auto uid = std::strtoull(user_id.data(), nullptr, 10);
+            if (uid == 0)
+            {
+                printf("[cbl-invite] send_invite: bad user id '%s'\n", user_id.data());
+                fflush(stdout);
+                return;
+            }
+
+            printf("[cbl-invite] send_invite -> %llu\n", static_cast<unsigned long long>(uid));
+            fflush(stdout);
+
+            i->client->SendActivityInvite(uid, "Join my game on CB Servers",
+                                          [uid](const discordpp::ClientResult& result)
+            {
+                printf("[cbl-invite] SendActivityInvite to %llu: %s\n",
+                       static_cast<unsigned long long>(uid),
+                       result.Successful() ? "ok" : result.ToString().data());
+                fflush(stdout);
+            });
+        });
+    }
+
+    void discord_service::request_join(const std::string& user_id)
+    {
+        this->impl_->post([i = this->impl_.get(), user_id]()
+        {
+            if (!i->client || i->current_status() != link_status::linked)
+            {
+                return;
+            }
+
+            const auto uid = std::strtoull(user_id.data(), nullptr, 10);
+            if (uid == 0)
+            {
+                printf("[cbl-invite] request_join: bad user id '%s'\n", user_id.data());
+                fflush(stdout);
+                return;
+            }
+
+            printf("[cbl-invite] request_join -> %llu\n", static_cast<unsigned long long>(uid));
+            fflush(stdout);
+
+            // Remember we asked so the host's approval (an incoming Join invite) prompts as an approval, not an unsolicited invite.
+            i->pending_join_requests[uid] = std::chrono::steady_clock::now();
+
+            i->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
+            {
+                printf("[cbl-invite] SendActivityJoinRequest to %llu: %s\n",
+                       static_cast<unsigned long long>(uid),
+                       result.Successful() ? "ok" : result.ToString().data());
+                fflush(stdout);
+            });
+        });
+    }
+
+    std::vector<invite_entry> discord_service::get_invites() const
+    {
+        return this->impl_->state->access<std::vector<invite_entry>>([](const shared_state& s)
+        {
+            return s.invites;
+        });
+    }
+
+    void discord_service::accept_invite(const std::string& id)
+    {
+        this->impl_->post([i = this->impl_.get(), id]()
+        {
+            const auto it = i->invite_objs.find(id);
+            if (it == i->invite_objs.end() || !i->client)
+            {
+                printf("[cbl-invite] accept_invite: no pending invite for id '%s'\n", id.data());
+                fflush(stdout);
+                return;
+            }
+
+            const auto invite = it->second;
+
+            // Their request to join us => approve it; their invite to us => accept and route the secret.
+            if (invite.Type() == discordpp::ActivityActionTypes::JoinRequest)
+            {
+                printf("[cbl-invite] accept_invite: approving join-request from %s\n", id.data());
+                fflush(stdout);
+                i->client->SendActivityJoinRequestReply(invite, [id](const discordpp::ClientResult& result)
+                {
+                    printf("[cbl-invite] join-request reply to %s: %s\n", id.data(),
+                           result.Successful() ? "ok" : result.ToString().data());
+                    fflush(stdout);
+                });
+            }
+            else
+            {
+                printf("[cbl-invite] accept_invite: accepting invite from %s\n", id.data());
+                fflush(stdout);
+                i->accept_join_invite(invite);
+            }
+
+            i->remove_invite(id);
+        });
+    }
+
+    void discord_service::decline_invite(const std::string& id)
+    {
+        this->impl_->post([i = this->impl_.get(), id]()
+        {
+            i->remove_invite(id);
+        });
+    }
+
+    void discord_service::set_join_secret_callback(std::function<void(std::string)> callback)
+    {
+        this->impl_->post([i = this->impl_.get(), callback = std::move(callback)]() mutable
+        {
+            i->join_secret_cb = std::move(callback);
         });
     }
 

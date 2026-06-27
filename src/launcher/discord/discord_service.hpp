@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +28,8 @@ namespace discord
         std::string status; // "online" | "idle" | "offline"
         bool in_launcher{false};
         bool linked{false};
+        bool joinable{false};         // their game has a joinable party => we can join/ask to join
+        bool direct_join{false};      // joinable on a public/dedicated server => "Join" (no host approval)
         std::string activity_details; // game name from their launcher presence, empty if none
         std::string activity_state;   // mode/line 3 from their launcher presence, empty if none
     };
@@ -36,6 +39,17 @@ namespace discord
         std::string id;
         std::string display_name;
         std::string avatar_url;
+    };
+
+    // A pending Discord activity invite or join-request.
+    struct invite_entry
+    {
+        std::string id;          // keyed by sender id (one pending per sender)
+        std::string sender_id;
+        std::string sender_name; // resolved from the friends cache
+        std::string sender_avatar;
+        bool is_request{false};  // true => friend asked to join us; false => friend invited us
+        bool is_approval{false}; // true => a host accepted a join request WE sent (prompt with approval text)
     };
 
     class discord_service
@@ -49,11 +63,43 @@ namespace discord
         void begin_link();
         void unlink();
 
-        // Publish "Playing <display_name> — <mode>" rich presence with game art.
-        // game_id is the client id (e.g. "boiii") used to resolve the art URL.
+        // Publish "Playing <display_name> — <mode>" rich presence with game art (game_id resolves the art URL).
         void set_game_activity(const std::string& game_id, const std::string& display_name,
                                const std::string& mode);
         void clear_activity();
+
+        // Live state reported by a fork over IPC.
+        struct rich_presence_info
+        {
+            std::string map_display; // empty => in menu
+            std::string gametype;    // friendly, e.g. "Zombies"
+            std::string server_name; // empty => private match
+            int players{0};
+            int max_players{0};
+            std::string join_secret; // unified cbl: secret; empty => not joinable
+            bool direct_join{false}; // transport is direct (public/dedicated server) vs nat (private host)
+        };
+
+        // Enrich the card with live fork state; self-contained so it works without a prior set_game_activity.
+        void set_rich_game_activity(const std::string& game_id, const std::string& display_name,
+                                    const std::string& mode, const rich_presence_info& info);
+        // Strip enrichment back to the baseline (game + mode).
+        void clear_rich_activity();
+
+        // The launcher owns presence iff linked (SDK connected + ready). Forks go silent while it does.
+        bool owns_presence() const;
+        // Invoked (on the discord thread) whenever ownership flips; also fired once with the current value on set.
+        void set_presence_owner_callback(std::function<void(bool)> callback);
+
+        // Invites. The local game must publish a joinable presence (is_joinable) to send invites.
+        bool is_joinable() const;
+        void send_invite(const std::string& user_id);
+        void request_join(const std::string& user_id); // ask a joinable friend to let us join (hop 1)
+        std::vector<invite_entry> get_invites() const;
+        void accept_invite(const std::string& id); // Join => accept+route; JoinRequest => approve
+        void decline_invite(const std::string& id);
+        // Invoked (on the discord thread) with a join secret when the user accepts an invite.
+        void set_join_secret_callback(std::function<void(std::string)> callback);
 
         link_status get_status() const;
         std::optional<own_profile> get_profile() const;

@@ -4569,3 +4569,31 @@ html[data-theme="dark"] .secondary-action:hover {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.friend-actions {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.friend-invite-btn,
+.friend-join-btn {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border: 1px solid var(--accent, #5865f2);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--accent, #5865f2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.friend-invite-btn:hover,
+.friend-join-btn:hover {
+    background: var(--accent, #5865f2);
+    color: #fff;
+}

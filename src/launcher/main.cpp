@@ -2,6 +2,7 @@
 #include "cef/cef_ui.hpp"
 #include "commands/commands.hpp"
 #include "discord/discord_service.hpp"
+#include "ipc/ipc_server.hpp"
 #include "updater/updater.hpp"
 
 #include <utils/flags.hpp>
@@ -96,8 +97,18 @@ namespace
         cef::cef_ui cef_ui{process, path};
         commands::register_all_commands(cef_ui);
         discord::discord_service::instance().start();
+        ipc::ipc_server::instance().start();
+        discord::discord_service::instance().set_presence_owner_callback([](const bool owns)
+        {
+            ipc::ipc_server::instance().notify_presence_owner(owns);
+        });
+        discord::discord_service::instance().set_join_secret_callback([](const std::string& secret)
+        {
+            ipc::ipc_server::instance().handle_join_secret(secret);
+        });
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
         cef::cef_ui::work();
+        ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
     }
 

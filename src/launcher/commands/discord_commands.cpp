@@ -50,6 +50,9 @@ namespace commands::discord_commands
             {
                 add_string(response, "error", error, allocator);
             }
+
+            // True when the local game is publishing a joinable presence: gates the Invite button.
+            response.AddMember("joinable", service.is_joinable(), allocator);
         });
 
         cef_ui.add_command("discord-link", [](const rapidjson::Value&, rapidjson::Document& response)
@@ -120,6 +123,8 @@ namespace commands::discord_commands
                     add_string(friend_obj, "avatarUrl", entry.avatar_url, allocator);
                     add_string(friend_obj, "status", entry.status, allocator);
                     friend_obj.AddMember("inLauncher", entry.in_launcher, allocator);
+                    friend_obj.AddMember("joinable", entry.joinable, allocator);
+                    friend_obj.AddMember("directJoin", entry.direct_join, allocator);
                     add_string(friend_obj, "activityDetails", entry.activity_details, allocator);
                     add_string(friend_obj, "activityState", entry.activity_state, allocator);
                     friends_array.PushBack(friend_obj, allocator);
@@ -127,6 +132,90 @@ namespace commands::discord_commands
             }
 
             response.AddMember("friends", friends_array, allocator);
+        });
+
+        cef_ui.add_command("discord-invite-friend", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto user_id = value.HasMember("userId") && value["userId"].IsString()
+                ? std::string{value["userId"].GetString()} : std::string{};
+
+            const bool ok = !user_id.empty();
+            if (ok)
+            {
+                discord::discord_service::instance().send_invite(user_id);
+            }
+            response.AddMember("sent", ok, allocator);
+        });
+
+        cef_ui.add_command("discord-request-join", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto user_id = value.HasMember("userId") && value["userId"].IsString()
+                ? std::string{value["userId"].GetString()} : std::string{};
+
+            const bool ok = !user_id.empty();
+            if (ok)
+            {
+                discord::discord_service::instance().request_join(user_id);
+            }
+            response.AddMember("sent", ok, allocator);
+        });
+
+        cef_ui.add_command("discord-get-invites", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value invites_array(rapidjson::kArrayType);
+            for (const auto& invite : discord::discord_service::instance().get_invites())
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                add_string(obj, "id", invite.id, allocator);
+                add_string(obj, "senderId", invite.sender_id, allocator);
+                add_string(obj, "senderName", invite.sender_name, allocator);
+                add_string(obj, "senderAvatar", invite.sender_avatar, allocator);
+                obj.AddMember("isRequest", invite.is_request, allocator);
+                obj.AddMember("isApproval", invite.is_approval, allocator);
+                invites_array.PushBack(obj, allocator);
+            }
+            response.AddMember("invites", invites_array, allocator);
+        });
+
+        cef_ui.add_command("discord-accept-invite", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto id = value.HasMember("id") && value["id"].IsString()
+                ? std::string{value["id"].GetString()} : std::string{};
+
+            const bool ok = !id.empty();
+            if (ok)
+            {
+                discord::discord_service::instance().accept_invite(id);
+            }
+            response.AddMember("ok", ok, allocator);
+        });
+
+        cef_ui.add_command("discord-decline-invite", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto id = value.HasMember("id") && value["id"].IsString()
+                ? std::string{value["id"].GetString()} : std::string{};
+
+            const bool ok = !id.empty();
+            if (ok)
+            {
+                discord::discord_service::instance().decline_invite(id);
+            }
+            response.AddMember("ok", ok, allocator);
         });
     }
 }

@@ -83,6 +83,8 @@ namespace game_config
 
     // Function declarations
     std::optional<game_config_t> get_game_config(const std::string& game);
+    // Lookup by wire id (game_config.id, e.g. "boiii"), as used by the IPC protocol / join secrets.
+    std::optional<game_config_t> get_game_config_by_id(const std::string& id);
     bool has_multiple_modes(const std::string& game);
     std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
     std::string get_launch_arguments(const std::string& game, const std::string& mode = "");

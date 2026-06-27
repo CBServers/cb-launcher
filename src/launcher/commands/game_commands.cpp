@@ -3,6 +3,7 @@
 #include <utils/property_keys.hpp>
 #include "cef/cef_ui.hpp"
 
+#include <utils/concurrency.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
@@ -11,6 +12,7 @@
 #include <game_config.hpp>
 
 #include "discord/discord_service.hpp"
+#include "ipc/ipc_server.hpp"
 
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
@@ -40,8 +42,111 @@ namespace commands::game_commands
             barrier->store(false);
         }
 
+        // Monotonic launch id; a relaunch reserves a fresh one so the old exit watchdog can't unlock the barrier mid-handoff.
+        std::atomic<uint64_t>& launch_generation()
+        {
+            static std::atomic<uint64_t> gen{0};
+            return gen;
+        }
+
+        uint64_t reserve_launch_generation()
+        {
+            return ++launch_generation();
+        }
+
+        bool is_current_generation(const uint64_t generation)
+        {
+            return launch_generation().load() == generation;
+        }
+
+        // The single launched game's PID + id (one game at a time via the launch barrier).
+        struct tracked_launch
+        {
+            unsigned long pid{0};
+            std::string game_id{};
+            bool active{false};
+            uint64_t generation{0};
+        };
+
+        utils::concurrency::container<tracked_launch>& get_tracked_launch()
+        {
+            static utils::concurrency::container<tracked_launch> tracked{};
+            return tracked;
+        }
+
+        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation)
+        {
+            get_tracked_launch().access([&](tracked_launch& t)
+            {
+                t.pid = pid;
+                t.game_id = game_id;
+                t.active = true;
+                t.generation = generation;
+            });
+        }
+
+        void clear_tracked_launch()
+        {
+            get_tracked_launch().access([](tracked_launch& t)
+            {
+                t = {};
+            });
+        }
+
+        // Stops the game holding the barrier and waits for it to fully exit (single-instance; barrier stays held).
+        void stop_tracked_game_and_wait()
+        {
+            const auto running_id = get_tracked_launch().access<std::string>([](const tracked_launch& t)
+            {
+                return t.active ? t.game_id : std::string{};
+            });
+            if (running_id.empty())
+            {
+                return;
+            }
+
+            const auto config = game_config::get_game_config_by_id(running_id);
+            if (!config)
+            {
+                return;
+            }
+
+            std::vector<std::string> exes{ config->exe_name };
+            for (const auto& exe : config->check_running_exes)
+            {
+                exes.push_back(exe);
+            }
+
+            for (const auto& exe : exes)
+            {
+                if (!exe.empty())
+                {
+                    utils::nt::stop_process(exe);
+                }
+            }
+
+            // Poll for up to ~10s for every tracked exe to disappear.
+            for (int i = 0; i < 100; ++i)
+            {
+                bool any_running = false;
+                for (const auto& exe : exes)
+                {
+                    if (!exe.empty() && utils::nt::is_process_running(exe))
+                    {
+                        any_running = true;
+                        break;
+                    }
+                }
+                if (!any_running)
+                {
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }
+
         // Some clients (e.g. Plutonium) exit the launched PID and continue under a child with a different PID, so poll the full exe list.
-        void spawn_exit_watchdog(unsigned long pid, const game_config::game_config_t& config)
+        void spawn_exit_watchdog(unsigned long pid, const game_config::game_config_t& config, const uint64_t generation)
         {
             std::vector<std::string> tracked_exes{ config.exe_name };
             for (const auto& exe : config.check_running_exes)
@@ -49,7 +154,7 @@ namespace commands::game_commands
                 tracked_exes.push_back(exe);
             }
 
-            std::thread([pid, tracked_exes = std::move(tracked_exes)]()
+            std::thread([pid, generation, tracked_exes = std::move(tracked_exes)]()
             {
                 utils::nt::wait_for_process(pid);
 
@@ -74,7 +179,14 @@ namespace commands::game_commands
                     empty_ticks = any_running ? 0 : empty_ticks + 1;
                 }
 
+                // A newer launch (e.g. a mode-switch relaunch) superseded us; it owns the barrier now.
+                if (!is_current_generation(generation))
+                {
+                    return;
+                }
+
                 discord::discord_service::instance().clear_activity();
+                clear_tracked_launch();
                 unlock_launch_barrier();
             }).detach();
         }
@@ -160,9 +272,7 @@ namespace commands::game_commands
             const auto user_options = config.get_launch_options().value_or("");
             const auto name_arg = format_name_arg(config.name_argument, player_name);
 
-            // Modes that route through a wrapper launcher (e.g. AlterWare) need
-            // their built-in pass-args + the user's options forwarded as a single
-            // quoted token after --pass.
+            // Wrapper-launcher modes (e.g. AlterWare) forward pass-args + user options as one --pass token.
             const auto pass_it = config.mode_pass_arguments.find(mode);
             if (pass_it != config.mode_pass_arguments.end())
             {
@@ -179,8 +289,8 @@ namespace commands::game_commands
             return std::format("{} {}", base_args, extras);
         }
 
-        // Assumes the caller already holds the launch barrier.
-        bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui)
+        // Assumes the caller already holds the launch barrier and reserved `generation`.
+        bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui, const uint64_t generation)
         {
             if (config.mode_arguments.size() > 0 && !mode.empty())
             {
@@ -247,6 +357,7 @@ namespace commands::game_commands
                 }
 
                 discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
+                set_tracked_launch(pid, config.id, generation);
 
                 // Check if launcher should close after game starts
                 const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
@@ -258,17 +369,223 @@ namespace commands::game_commands
                     return true;
                 }
 
-                spawn_exit_watchdog(pid, config);
+                spawn_exit_watchdog(pid, config, generation);
                 return true;
             }
 
             cef_ui.show_message_box("Game Launch Error", "Could not find: " + exe_name);
             return false;
         }
+
+        // Set at command registration so the invite-accept path (no command scope) can launch.
+        cef::cef_ui* g_cef_ui = nullptr;
+        command_context* g_ctx = nullptr;
+
+        // Update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
+        void run_launch_worker(game_config::game_config_t config, std::string game, std::string mode,
+            cef::cef_ui& cef_ui, command_context& ctx, const uint64_t generation)
+        {
+            updater::ui_progress_listener progress_listener;
+            progress_listener.reset(true);
+
+            bool launched = false;
+            try
+            {
+                if (config.check_for_game_updates)
+                {
+                    game_updater::game_updater game_updater(config, false, false, &progress_listener);
+                    if (game_updater.is_update_needed())
+                    {
+                        cef_ui.show_message_box("Game Update Required", config.display_name + " requires an update. Please wait for update to complete before you can start playing.");
+                        game_updater.run();
+                    }
+                }
+
+                const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
+                const bool skip_client_update = skip_client_update_prop && *skip_client_update_prop == "true";
+
+                if (skip_client_update)
+                {
+                    printf("Skip client update enabled - skipping client update check\n");
+                }
+                else
+                {
+                    const auto skip_files = ctx.get_skip_files(game, config);
+                    client_updater::run(config, skip_files, &progress_listener);
+                    apply_post_client_update(config);
+                }
+                progress_listener.done_update();
+
+                launched = launch_game(config, game, mode, cef_ui, generation);
+            }
+            catch (const updater::update_cancelled&)
+            {
+                progress_listener.cancel_update();
+                progress_listener.done_update();
+                printf("Update cancelled by user\n");
+            }
+            catch (const std::exception& e)
+            {
+                progress_listener.cancel_update();
+                progress_listener.done_update();
+                printf("Launch error: %s\n", e.what());
+                cef_ui.show_message_box("Game Launch Error", e.what());
+
+                launched = launch_game(config, game, mode, cef_ui, generation); //Attempt to launch game even if error in update
+            }
+            catch (...)
+            {
+                progress_listener.cancel_update();
+                progress_listener.done_update();
+                printf("Unknown launch error\n");
+                cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
+
+                launched = launch_game(config, game, mode, cef_ui, generation); //Attempt to launch game even if error in update
+            }
+
+            // Release the barrier unless a game process is now running (the exit watchdog or stop-game owns it).
+            if (!launched)
+            {
+                // Drop any join queued against this launch so a stale connect can't fire on a later hello.
+                ipc::ipc_server::instance().clear_pending_join();
+                unlock_launch_barrier();
+            }
+        }
+
+        // A sensible mode for an invite cold-launch; connecting switches mode as needed (parity with native cold-start).
+        std::string default_join_mode(const game_config::game_config_t& config)
+        {
+            if (config.mode_arguments.empty())
+            {
+                return {};
+            }
+            if (config.mode_arguments.contains("mp"))
+            {
+                return "mp";
+            }
+            return config.mode_arguments.begin()->first;
+        }
+
+        // The host's mode from the secret when it's a real mode for this game; otherwise a sensible default.
+        std::string resolve_join_mode(const game_config::game_config_t& config, const std::string& mode)
+        {
+            if (!mode.empty() && config.mode_arguments.contains(mode))
+            {
+                return mode;
+            }
+            return default_join_mode(config);
+        }
+
+        // True if the game is installed and the exe for `mode` exists, so a launch can actually succeed.
+        bool is_game_launchable(const game_config::game_config_t& config, const std::string& mode)
+        {
+            const auto install = config.get_install_path();
+            if (!install)
+            {
+                return false;
+            }
+            const auto exe = game_config::get_exe_for_mode(config.game_key, mode);
+            return !exe.empty() && utils::io::file_exists(*install / exe);
+        }
+    }
+
+    void launch_for_join(const std::string& game_id, const std::string& mode)
+    {
+        if (!g_cef_ui || !g_ctx)
+        {
+            return;
+        }
+
+        const auto config = game_config::get_game_config_by_id(game_id);
+        if (!config)
+        {
+            return;
+        }
+
+        const auto launch_mode = resolve_join_mode(*config, mode);
+
+        if (!is_game_launchable(*config, launch_mode))
+        {
+            g_cef_ui->show_message_box("Join Failed",
+                config->display_name + " isn't installed. Install it from the library to join.");
+            return;
+        }
+
+        // Already launching/running => the running-game accept path (send_connect/relaunch) handles it.
+        if (!try_lock_launch_barrier())
+        {
+            g_cef_ui->show_message_box("Join Failed",
+                "Another game is already launching or running. Close it before joining.");
+            return;
+        }
+
+        const auto generation = reserve_launch_generation();
+        std::thread([cfg = *config, game = config->game_key, mode = launch_mode,
+            cef = g_cef_ui, ctx = g_ctx, generation]()
+        {
+            run_launch_worker(cfg, game, mode, *cef, *ctx, generation);
+        }).detach();
+    }
+
+    void relaunch_for_join(const std::string& game_id, const std::string& mode)
+    {
+        if (!g_cef_ui || !g_ctx)
+        {
+            return;
+        }
+
+        const auto config = game_config::get_game_config_by_id(game_id);
+        if (!config)
+        {
+            return;
+        }
+
+        const auto launch_mode = resolve_join_mode(*config, mode);
+
+        // Validate the target before stopping anything, so we never kill the running game for a doomed launch.
+        if (!is_game_launchable(*config, launch_mode))
+        {
+            g_cef_ui->show_message_box("Join Failed",
+                config->display_name + " isn't installed. Install it from the library to join.");
+            return;
+        }
+
+        // Inherit the barrier from the running game (or take it if free); a fresh generation supersedes its old watchdog.
+        const bool already_running = !try_lock_launch_barrier();
+        const auto generation = reserve_launch_generation();
+
+        std::thread([cfg = *config, game = config->game_key, mode = launch_mode,
+            cef = g_cef_ui, ctx = g_ctx, generation, already_running]()
+        {
+            if (already_running)
+            {
+                stop_tracked_game_and_wait();
+            }
+            run_launch_worker(cfg, game, mode, *cef, *ctx, generation);
+        }).detach();
+    }
+
+    bool is_tracked_game_pid(const unsigned long pid, const std::string_view game_id)
+    {
+        return get_tracked_launch().access<bool>([&](const tracked_launch& t)
+        {
+            return t.active && t.pid == pid && t.game_id == game_id;
+        });
+    }
+
+    std::string tracked_game_id()
+    {
+        return get_tracked_launch().access<std::string>([](const tracked_launch& t)
+        {
+            return t.active ? t.game_id : std::string{};
+        });
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
+        g_cef_ui = &cef_ui;
+        g_ctx = &ctx;
+
         cef_ui.add_command("launch-game", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
         {
             const auto config = ctx.get_game_config_from_request(value);
@@ -288,78 +605,11 @@ namespace commands::game_commands
                 return;
             }
 
-            updater::ui_progress_listener progress_listener;
-            progress_listener.reset(true);
-
             // Run update and launch in a separate thread with progress tracking
-            std::thread([config = *config, mode, game, &progress_listener, &cef_ui, &ctx]()
+            const auto generation = reserve_launch_generation();
+            std::thread([config = *config, mode, game, &cef_ui, &ctx, generation]()
             {
-                bool launched = false;
-                try
-                {
-                    // Check for game updates if configured (reduce unnecessary manifest fetch)
-                    if (config.check_for_game_updates)
-                    {
-                        game_updater::game_updater game_updater(config, false, false, &progress_listener);
-                        if (game_updater.is_update_needed())
-                        {
-                            cef_ui.show_message_box("Game Update Required", config.display_name + " requires an update. Please wait for update to complete before you can start playing.");
-                            game_updater.run();
-                        }
-                    }
-
-                    // Check if client update should be skipped
-                    const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
-                    const bool skip_client_update = skip_client_update_prop && *skip_client_update_prop == "true";
-
-                    if (skip_client_update)
-                    {
-                        printf("Skip client update enabled - skipping client update check\n");
-                    }
-                    else
-                    {
-                        // Get files to skip based on game configuration
-                        const auto skip_files = ctx.get_skip_files(game, config);
-
-                        client_updater::run(config, skip_files, &progress_listener);
-                        apply_post_client_update(config);
-                    }
-                    progress_listener.done_update();
-
-                    launched = launch_game(config, game, mode, cef_ui);
-                }
-                catch (const updater::update_cancelled&)
-                {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Update cancelled by user\n");
-                }
-                catch (const std::exception& e)
-                {
-                    // Set error in progress tracker and show error popup in UI
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Launch error: %s\n", e.what());
-                    cef_ui.show_message_box("Game Launch Error", e.what());
-
-                    launched = launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
-                }
-                catch (...)
-                {
-                    // Set generic error for unknown exceptions
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Unknown launch error\n");
-                    cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
-
-                    launched = launch_game(config, game, mode, cef_ui); //Attempt to launch game even if error in update
-                }
-
-                // Release the barrier unless a game process is now running (in which case the exit watchdog or stop-game owns it).
-                if (!launched)
-                {
-                    unlock_launch_barrier();
-                }
+                run_launch_worker(config, game, mode, cef_ui, ctx, generation);
             }).detach();
         });
 
@@ -416,6 +666,7 @@ namespace commands::game_commands
             // If we successfully stopped the game, unlock the launch barrier
             if (stopped)
             {
+                clear_tracked_launch();
                 unlock_launch_barrier();
             }
         });

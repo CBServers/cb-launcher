@@ -114,6 +114,18 @@ namespace commands::ui_commands
             PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
         });
 
+        cef_ui.add_command("flash-taskbar", [&cef_ui](const auto&, auto&)
+        {
+            auto* const window = cef_ui.get_window();
+            if (!window || GetForegroundWindow() == window) return; // already focused; nothing to flash
+
+            FLASHWINFO fi{};
+            fi.cbSize = sizeof(fi);
+            fi.hwnd = window;
+            fi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG; // flash until the launcher is brought to front
+            FlashWindowEx(&fi);
+        });
+
         cef_ui.add_command("open-url", [](const rapidjson::Value& value, auto&)
         {
             if (value.IsObject() && value.HasMember("url") && value["url"].IsString())

@@ -1266,7 +1266,7 @@
     }
 
     // Live state fed by the Discord Social SDK bridge (polled by discord-friends.js).
-    const friendsState = { status: 'unknown', profile: null, friends: [], registryOk: true, error: null };
+    const friendsState = { status: 'unknown', profile: null, friends: [], registryOk: true, error: null, joinable: false };
 
     async function refreshFriends() {
         try {
@@ -1274,6 +1274,7 @@
             friendsState.status = (statusRes && statusRes.status) || 'unavailable';
             friendsState.profile = (statusRes && statusRes.profile) || null;
             friendsState.error = (statusRes && statusRes.error) || null;
+            friendsState.joinable = !!(statusRes && statusRes.joinable);
 
             if (friendsState.status === 'linked') {
                 const friendsRes = await window.executeCommand('discord-get-friends');
@@ -1380,6 +1381,21 @@
         const header = online.length === 0 ? '' : `
             <div class="friends-group-head">${escapeHtml(t('friends.statusOnline'))} <span class="friends-group-count">${online.length}</span></div>
         `;
+        const canInvite = friendsState.joinable;
+        // A friend can be both joinable (we ask to join them) and invitable (we're hosting too) —
+        // show both buttons side by side rather than letting one override the other.
+        const actionBtns = f => {
+            const btns = [];
+            if (f.joinable) {
+                // Direct/public server => "Join" (no host approval); private host => "Ask to Join".
+                const joinLabel = f.directJoin ? t('friends.join') : t('friends.askToJoin');
+                btns.push(`<button class="friend-join-btn" data-join-user="${escapeHtml(f.id)}" title="${escapeHtml(joinLabel)}">${escapeHtml(joinLabel)}</button>`);
+            }
+            if (canInvite && (f.status === 'online' || f.status === 'idle')) {
+                btns.push(`<button class="friend-invite-btn" data-invite-user="${escapeHtml(f.id)}" title="${escapeHtml(t('friends.invite'))}">${escapeHtml(t('friends.invite'))}</button>`);
+            }
+            return btns.length ? `<div class="friend-actions">${btns.join('')}</div>` : '';
+        };
         const rows = online.concat(offline).map(f => `
             <div class="friend-row" data-status="${escapeHtml(f.status)}">
                 ${friendAvatar(f)}
@@ -1387,6 +1403,7 @@
                     <div class="friend-name">${escapeHtml(f.displayName)}</div>
                     <div class="friend-activity">${escapeHtml(friendActivityLabel(f))}</div>
                 </div>
+                ${actionBtns(f)}
             </div>
         `).join('');
 
