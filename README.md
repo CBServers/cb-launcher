@@ -21,7 +21,7 @@ The launcher accepts the following optional command line arguments.
 | Argument | Value | Description |
 |----------|-------|-------------|
 | `-noupdate` | — | Skips the launcher's self-update check on startup. |
-| `-offline` | — | Runs the launcher in offline mode. Updates, downloads and online features are disable. |
+| `-offline` | — | Runs the launcher in offline mode. Updates, downloads and online features are disabled. |
 | `-portable` | — | Runs the launcher in portable mode. Launcher data (user settings, CEF cache, UI files) is stored in a `cbservers` folder next to the executable instead of `%LOCALAPPDATA%/cbservers`. |
 | `-launch` | game id | Auto-launches the given game once the launcher finishes loading. Accepts one of: `cod1`, `coduo`, `cod2`, `cod4`, `waw`, `mw2`, `bo1`, `bo2`, `mw3`, `ghosts`, `aw`, `bo3`, `iw`, `mwr`, `bo4`, `mw2r`, `hmw`. |
 | `-mode` | `sp` / `mp` / `zm` / `sv` | Used together with `-launch` to choose which mode to start: singleplayer, multiplayer, zombies, or survival. |
