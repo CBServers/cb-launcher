@@ -62,7 +62,8 @@ class GameUtils {
         'mw2': 'iw4x',
         'bo1': 't5',
         'mw3': 'iw5',
-        'bo2': 't6'
+        'bo2': 't6',
+        'cod2': 'cod2x'
     };
 
     static GAME_CONFIGS = {
