@@ -1550,22 +1550,20 @@ async function uninstallGameDirect(gameId) {
         if (result === 0) return false;
     }
 
-    try {
-        await GameUtils.trackCommandProgress({
-            gameId: gameId,
-            command: 'delete-game',
-            commandArgs: { game: backendId },
-            initialMessage: t('popup.componentSelection.uninstalling', { game: config.displayName }),
-            completeMessage: t('progress.uninstallComplete'),
-            onComplete: () => {
-                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
-                    detail: { game: backendId }
-                }));
-            }
-        });
-    } catch (error) {
+    GameUtils.trackCommandProgress({
+        gameId: gameId,
+        command: 'delete-game',
+        commandArgs: { game: backendId },
+        initialMessage: t('popup.componentSelection.uninstalling', { game: config.displayName }),
+        completeMessage: t('progress.uninstallComplete'),
+        onComplete: () => {
+            window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
+                detail: { game: backendId }
+            }));
+        }
+    }).catch(error => {
         console.error('Failed to uninstall game:', error);
-    }
+    });
     return true;
 }
 
