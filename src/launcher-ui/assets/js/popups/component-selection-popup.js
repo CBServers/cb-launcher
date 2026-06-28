@@ -536,6 +536,9 @@ class ComponentSelectionPopup {
                 return;
             }
 
+            // Reaching here means a verify/download will run — blocked in offline mode.
+            if (!await window.guardOnline()) return;
+
             // Determine if components are being deselected (potential file deletion)
             const deselectedComponents = this.installedComponents.filter(
                 comp => !this.selectedComponents.has(comp)

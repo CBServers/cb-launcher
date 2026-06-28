@@ -96,16 +96,20 @@ namespace
     {
         cef::cef_ui cef_ui{process, path};
         commands::register_all_commands(cef_ui);
-        discord::discord_service::instance().start();
+        const auto offline = utils::flags::has_flag("offline");
         ipc::ipc_server::instance().start();
-        discord::discord_service::instance().set_presence_owner_callback([](const bool owns)
+        if (!offline)
         {
-            ipc::ipc_server::instance().notify_presence_owner(owns);
-        });
-        discord::discord_service::instance().set_join_secret_callback([](const std::string& secret)
-        {
-            ipc::ipc_server::instance().handle_join_secret(secret);
-        });
+            discord::discord_service::instance().start();
+            discord::discord_service::instance().set_presence_owner_callback([](const bool owns)
+            {
+                ipc::ipc_server::instance().notify_presence_owner(owns);
+            });
+            discord::discord_service::instance().set_join_secret_callback([](const std::string& secret)
+            {
+                ipc::ipc_server::instance().handle_join_secret(secret);
+            });
+        }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
         cef::cef_ui::work();
         ipc::ipc_server::instance().stop();
@@ -192,9 +196,31 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         printf("Debug console enabled\n");
 #endif
 
-        if (!utils::flags::has_flag("noupdate"))
+        if (!utils::flags::has_flag("noupdate") && !utils::flags::has_flag("offline"))
         {
-            launcher_updater::run(path);
+            try
+            {
+                launcher_updater::run(path);
+            }
+            catch (const updater::update_cancelled&)
+            {
+                return 0;
+            }
+            catch (const std::exception&)
+            {
+                const auto choice = MessageBoxA(nullptr,
+                    "Could not reach the update server to check for launcher updates.\n\n"
+                    "Would you like to start in offline mode? Updates, downloads and online features will be disabled.\n\n"
+                    "If this is your first time running the launcher, it may fail to launch if you continue.",
+                    "CB Servers Launcher", MB_ICONWARNING | MB_YESNO);
+
+                if (choice != IDYES)
+                {
+                    return 0;
+                }
+
+                utils::flags::add_flag("offline");
+            }
         }
 
         if (!utils::nt::is_wine_environment())

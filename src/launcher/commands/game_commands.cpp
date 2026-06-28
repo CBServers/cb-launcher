@@ -4,6 +4,7 @@
 #include "cef/cef_ui.hpp"
 
 #include <utils/concurrency.hpp>
+#include <utils/flags.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
@@ -422,7 +423,7 @@ namespace commands::game_commands
             bool launched = false;
             try
             {
-                if (config.check_for_game_updates)
+                if (config.check_for_game_updates && !utils::flags::has_flag("offline"))
                 {
                     game_updater::game_updater game_updater(config, false, false, &progress_listener);
                     if (game_updater.is_update_needed())
@@ -433,7 +434,8 @@ namespace commands::game_commands
                 }
 
                 const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
-                const bool skip_client_update = skip_client_update_prop && *skip_client_update_prop == "true";
+                const bool skip_client_update = (skip_client_update_prop && *skip_client_update_prop == "true")
+                    || utils::flags::has_flag("offline");
 
                 if (skip_client_update)
                 {

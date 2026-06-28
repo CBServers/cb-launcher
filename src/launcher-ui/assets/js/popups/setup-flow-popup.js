@@ -166,6 +166,8 @@ class SetupFlowPopup {
 
     async handleDownloadInstallation() {
         try {
+            if (!await window.guardOnline()) return;
+
             const gameId = this.getGameIdFromMapping(this.currentGame);
             this.hide();
 

@@ -192,6 +192,16 @@ body:not(.hidden) { opacity: 1; transition: opacity 0.3s ease; }
     pointer-events: none;
 }
 
+.title-offline {
+    color: #e0a23a;
+    font-weight: 700;
+}
+
+/* Discord-backed Friends page is inert in offline mode */
+body.offline-mode #friends {
+    display: none;
+}
+
 .window-controls {
     display: flex;
     gap: 6px;

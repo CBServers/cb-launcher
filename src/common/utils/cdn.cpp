@@ -1,5 +1,6 @@
 #include "cdn.hpp"
 #include "properties.hpp"
+#include "flags.hpp"
 
 #include <curl/curl.h>
 #include <chrono>
@@ -47,8 +48,8 @@ namespace utils::cdn
         case cdn_region::automatic:
         default:
 
-            // If we haven't tested, test latencies
-            if (!this->latency_tested_)
+            // If we haven't tested, test latencies (never ping CDNs in offline mode)
+            if (!this->latency_tested_ && !flags::has_flag("offline"))
             {
                 printf("Testing CDN server latencies...\n");
                 const auto result = this->test_all_latencies();

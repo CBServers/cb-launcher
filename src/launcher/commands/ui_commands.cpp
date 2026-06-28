@@ -135,6 +135,13 @@ namespace commands::ui_commands
             }
         });
 
+        cef_ui.add_command("relaunch-online", [](const auto&, rapidjson::Document& response)
+        {
+            response.SetBool(true);
+            utils::nt::relaunch_self(""); // empty args drops -offline
+            utils::nt::terminate();
+        });
+
         cef_ui.add_command("install-redist", [&cef_ui](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetBool(false);

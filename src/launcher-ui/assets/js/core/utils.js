@@ -808,6 +808,8 @@ class GameUtils {
     static async installRedistsWithProgressBar(missingGroups, uiGameId) {
         const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
 
+        if (!await window.guardOnline()) return false;
+
         const scopeIds = this.expandMissingToPackageIds(missingGroups);
 
         let initial;
@@ -947,3 +949,24 @@ class GameUtils {
 
 // Make GameUtils available globally
 window.GameUtils = GameUtils;
+
+// Offline-mode guard for any network action (verify/download/update).
+// Returns true if the action may proceed; false if blocked. If the user
+// chooses to go online, relaunches the launcher without -offline.
+window.guardOnline = async function guardOnline() {
+    if (!window.IS_OFFLINE) return true;
+
+    const t = (k) => window.LauncherI18n ? window.LauncherI18n.t(k) : k;
+    if (typeof window.showMessageBox !== 'function') return false;
+
+    const choice = await window.showMessageBox(
+        t('offline.blockTitle'),
+        t('offline.blockBody'),
+        [t('offline.relaunchOnline'), t('common.cancel')]
+    );
+
+    if (choice === 0) {
+        try { await window.executeCommand('relaunch-online'); } catch (_) {}
+    }
+    return false;
+};

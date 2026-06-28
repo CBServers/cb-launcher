@@ -101,10 +101,24 @@ namespace commands::info_commands
             response.AddMember("mode", mode_value, allocator);
         });
 
+        cef_ui.add_command("get-offline-mode", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
+        });
+
         cef_ui.add_command("check-launcher-update", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             response.SetObject();
             auto& allocator = response.GetAllocator();
+
+            if (utils::flags::has_flag("offline"))
+            {
+                response.AddMember("updateComplete", false, allocator);
+                response.AddMember("offline", true, allocator);
+                return;
+            }
 
             try
             {

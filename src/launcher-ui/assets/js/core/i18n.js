@@ -76,6 +76,12 @@
                 cancelledUninstall: '{{game}} uninstall cancelled',
                 cancelled: '{{game}} cancelled'
             },
+            offline: {
+                titleSuffix: '(OFFLINE)',
+                blockTitle: 'Offline Mode',
+                blockBody: 'The launcher is running in offline mode, so downloads, updates and file verification are disabled. Relaunch online to continue?',
+                relaunchOnline: 'Relaunch Online'
+            },
             common: {
                 ok: 'OK',
                 cancel: 'Cancel',
@@ -554,6 +560,12 @@
                 cancelledUninstall: 'Desinstallation de {{game}} annulee',
                 cancelled: '{{game}} annule'
             },
+            offline: {
+                titleSuffix: '(HORS LIGNE)',
+                blockTitle: 'Mode hors ligne',
+                blockBody: 'Le lanceur est en mode hors ligne ; les telechargements, mises a jour et la verification des fichiers sont desactives. Relancer en ligne pour continuer ?',
+                relaunchOnline: 'Relancer en ligne'
+            },
             common: {
                 ok: 'OK',
                 cancel: 'Annuler',
@@ -1031,6 +1043,12 @@
                 cancelledInstall: 'Descarga de {{game}} cancelada',
                 cancelledUninstall: 'Desinstalacion de {{game}} cancelada',
                 cancelled: '{{game}} cancelado'
+            },
+            offline: {
+                titleSuffix: '(SIN CONEXION)',
+                blockTitle: 'Modo sin conexion',
+                blockBody: 'El lanzador esta en modo sin conexion, por lo que las descargas, actualizaciones y la verificacion de archivos estan desactivadas. Relanzar en linea para continuar?',
+                relaunchOnline: 'Relanzar en linea'
             },
             common: {
                 ok: 'OK',

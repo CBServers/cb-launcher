@@ -30,6 +30,20 @@ namespace utils::flags
         }
     }
 
+    namespace
+    {
+        std::vector<std::string>& enabled_flags()
+        {
+            static std::vector<std::string> flags = []
+            {
+                std::vector<std::string> parsed;
+                parse_flags(parsed);
+                return parsed;
+            }();
+            return flags;
+        }
+    }
+
     std::unordered_map<std::string, std::string> parse_flag_values()
     {
         int num_args{};
@@ -61,17 +75,21 @@ namespace utils::flags
 
     bool has_flag(const std::string& flag)
     {
-        static auto parsed = false;
-        static std::vector<std::string> enabled_flags;
+        const auto lower = string::to_lower(flag);
+        const auto& flags = enabled_flags();
+        return std::ranges::any_of(flags.cbegin(), flags.cend(),
+            [&lower](const auto& elem) { return elem == lower; });
+    }
 
-        if (!parsed)
+    void add_flag(const std::string& flag)
+    {
+        auto lower = string::to_lower(flag);
+        auto& flags = enabled_flags();
+        if (std::ranges::none_of(flags.cbegin(), flags.cend(),
+            [&lower](const auto& elem) { return elem == lower; }))
         {
-            parse_flags(enabled_flags);
-            parsed = true;
+            flags.emplace_back(std::move(lower));
         }
-
-        return std::ranges::any_of(enabled_flags.cbegin(), enabled_flags.cend(),
-            [&flag](const auto& elem) { return elem == string::to_lower(flag); });
     }
 
     std::optional<std::string> get_flag_value(const std::string& flag)

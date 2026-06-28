@@ -173,6 +173,7 @@ class RedistPopupController {
     }
 
     async install(ids) {
+        if (!await window.guardOnline()) return;
         try { await window.executeCommand('install-redist', ids ? { ids } : {}); }
         catch (e) { console.error('install-redist failed', e); return; }
         await this.poll();

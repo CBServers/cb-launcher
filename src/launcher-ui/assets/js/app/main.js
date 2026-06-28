@@ -114,6 +114,8 @@ async function refreshLocalizedUI(targetPage) {
         window.LauncherI18n.applyStaticTranslations();
     }
 
+    applyOfflineIndicator();
+
     syncConsoleButtonLabel();
 
     if (window.AppViews) {
@@ -197,7 +199,34 @@ function applyTheme(theme) {
     }
 }
 
+function applyOfflineIndicator() {
+    if (!window.IS_OFFLINE) return;
+    document.body.classList.add('offline-mode');
+
+    const suffix = window.LauncherI18n ? window.LauncherI18n.t('offline.titleSuffix') : '(OFFLINE)';
+    const titleText = document.querySelector('.title-text');
+    if (titleText) {
+        let tag = titleText.querySelector('.title-offline');
+        if (!tag) {
+            tag = document.createElement('span');
+            tag.className = 'title-offline';
+            titleText.appendChild(tag);
+        }
+        tag.textContent = ' ' + suffix;
+    }
+    document.title = 'CB Servers Launcher ' + suffix;
+}
+
 async function initialize() {
+    // Detect offline mode (-offline flag) before anything network-facing starts
+    window.IS_OFFLINE = false;
+    if (typeof window.executeCommand === 'function') {
+        try {
+            const res = await window.executeCommand('get-offline-mode');
+            window.IS_OFFLINE = !!(res && res.offline);
+        } catch (_) {}
+    }
+
     // Apply saved theme before rendering to avoid flash
     if (typeof window.executeCommand === 'function') {
         try {
@@ -211,6 +240,8 @@ async function initialize() {
     if (window.LauncherI18n) {
         window.LauncherI18n.applyStaticTranslations();
     }
+
+    applyOfflineIndicator();
 
     loadRecentGames();
 
@@ -252,11 +283,11 @@ async function initialize() {
                 window.GameStateManager.startPolling();
             }
 
-            if (window.PlayerCountManager) {
+            if (!window.IS_OFFLINE && window.PlayerCountManager) {
                 window.PlayerCountManager.start();
             }
 
-            if (window.DiscordFriendsManager) {
+            if (!window.IS_OFFLINE && window.DiscordFriendsManager) {
                 window.DiscordFriendsManager.start();
             }
 
@@ -367,6 +398,7 @@ window.DiscordWidget = (function() {
     }
 
     async function refresh() {
+        if (window.IS_OFFLINE) return;
         const el = document.getElementById('discord-online');
         if (!el) return;
 
@@ -1567,8 +1599,10 @@ async function uninstallGameDirect(gameId) {
     return true;
 }
 
-function verifyGame(gameId, deleteComponents = false, op = 'verify') {
+async function verifyGame(gameId, deleteComponents = false, op = 'verify') {
     console.log(`Verify button clicked for ${gameId}, deleteComponents: ${deleteComponents}, op: ${op}`);
+
+    if (!await window.guardOnline()) return false;
 
     const gameMapping = GameUtils.getGameMapping(gameId);
     const displayName = window.GameInstallationManager.getGameDisplayName(gameId);
@@ -2040,6 +2074,8 @@ function setupThemeSelect() {
 }
 
 async function handleCdnTest() {
+    if (!await window.guardOnline()) return;
+
     const cdnTestBtn = document.getElementById('cdn-test-btn');
     const cdnSelect = document.getElementById('cdn-server-select');
 
@@ -2207,6 +2243,8 @@ async function handleToggleConsole() {
 }
 
 async function handleCheckForUpdates() {
+    if (!await window.guardOnline()) return;
+
     const updateBtn = document.getElementById('check-updates-btn');
     if (!updateBtn) return;
 
