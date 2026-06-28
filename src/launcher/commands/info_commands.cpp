@@ -26,6 +26,12 @@ namespace commands::info_commands
             response.AddMember("paused", state.is_paused, allocator);
             response.AddMember("progress", state.progress_percent, allocator);
 
+            const char* mode_str = (state.mode == updater::progress_mode::downloading) ? "downloading"
+                : (state.mode == updater::progress_mode::deleting) ? "deleting" : "verifying";
+            rapidjson::Value mode_value;
+            mode_value.SetString(mode_str, allocator);
+            response.AddMember("mode", mode_value, allocator);
+
             rapidjson::Value message_value;
             message_value.SetString(state.status_message.data(), static_cast<rapidjson::SizeType>(state.status_message.length()), allocator);
             response.AddMember("message", message_value, allocator);
