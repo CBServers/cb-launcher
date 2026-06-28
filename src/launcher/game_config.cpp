@@ -243,6 +243,90 @@ namespace game_config
     // Game configurations
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {
+            "cod1",
+            {
+                .game_key = "cod1",
+                .display_name = "Call of Duty",
+                .id = "cod1",
+                .exe_name = "CoDMP.exe",
+                .update_manifest_url = "",
+                .update_folder_url = "",
+                .manifest_path = "manifest/cod1.json",
+                .required_updater_files = {},
+                .valid_game_files = {"CoDSP.exe", "CoDMP.exe"},
+                .check_running_exes = {"CoDSP.exe", "CoDMP.exe"},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""}
+                },
+                .mode_executables = {
+                    {"sp", "CoDSP.exe"},
+                    {"mp", "CoDMP.exe"}
+                },
+                .name_argument = "+set name",
+                .base_folder = "cod1_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "dx_jun2010"}
+            },
+        },
+        {
+            "coduo",
+            {
+                .game_key = "coduo",
+                .display_name = "United Offensive",
+                .id = "coduo",
+                .exe_name = "CoDUOMP.exe",
+                .update_manifest_url = "",
+                .update_folder_url = "",
+                .manifest_path = "manifest/coduo.json",
+                .required_updater_files = {},
+                .valid_game_files = {"CoDUOSP.exe", "CoDUOMP.exe"},
+                .check_running_exes = {"CoDUOSP.exe", "CoDUOMP.exe"},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""}
+                },
+                .mode_executables = {
+                    {"sp", "CoDUOSP.exe"},
+                    {"mp", "CoDUOMP.exe"}
+                },
+                .name_argument = "+set name",
+                .base_folder = "coduo_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "dx_jun2010"}
+            },
+        },
+        {
+            "cod2x",
+            {
+                .game_key = "cod2x",
+                .display_name = "Call of Duty 2",
+                .id = "cod2x",
+                .exe_name = "CoD2MP_s.exe",
+                .update_manifest_url = CLIENT_UPDATE_SERVER "cod2x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "cod2x/",
+                .manifest_path = "manifest/cod2.json",
+                .required_updater_files = {},
+                .valid_game_files = {"CoD2SP_s.exe", "CoD2MP_s.exe"},
+                .check_running_exes = {"CoD2SP_s.exe", "CoD2MP_s.exe"},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""}
+                },
+                .mode_executables = {
+                    {"sp", "CoD2SP_s.exe"},
+                    {"mp", "CoD2MP_s.exe"}
+                },
+                .name_argument = "+set name",
+                .base_folder = "cod2_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .required_redists = {"vcr2005", "dx_jun2010"}
+            },
+        },
+        {
             "cod4x",
             {
                 .game_key = "cod4x",
@@ -623,6 +707,9 @@ namespace game_config
     };
 
     const std::unordered_map<std::string, std::string> ui_to_backend_mapping_ = {
+        {"cod1", "cod1"},
+        {"coduo", "coduo"},
+        {"cod2x", "cod2x"},
         {"cod4x", "cod4x"},
         {"t4", "t4"},
         {"t5", "t5"},

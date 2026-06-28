@@ -131,12 +131,17 @@ namespace client_updater
             this->install_path = *install_path_prop;
         }
 
+        this->update_manifest_url_ = config.update_manifest_url;
+        this->update_folder_url_ = config.update_folder_url;
+
+        if (this->update_manifest_url_.empty() || this->update_folder_url_.empty())
+        {
+            return;
+        }
+
         this->client_default_path_ = config.client_default_path.empty() ? this->install_path : config.client_default_path;
         this->client_install_path_files_ = config.client_install_path_files;
         this->client_data_folders_ = config.client_data_folders;
-
-        this->update_manifest_url_ = config.update_manifest_url;
-        this->update_folder_url_ = config.update_folder_url;
 
         // Fetch manifest and compute valid files
         const auto manifest_files = get_file_infos(this->update_manifest_url_);

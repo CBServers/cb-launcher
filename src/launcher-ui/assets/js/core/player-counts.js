@@ -6,6 +6,9 @@
 
     // uiId -> games key
     const MAPPING = {
+        'cod1':     'COD1',
+        'coduo':    'CODUO',
+        'cod2x':    'COD2',
         'cod4x':    'IW3',
         't4':       'T4',
         't5':       'T5',

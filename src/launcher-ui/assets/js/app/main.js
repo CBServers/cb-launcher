@@ -975,7 +975,7 @@ window.DownloadQueueManager = {
                 const cfg = window.GameUtils && typeof window.GameUtils.getGameConfigByUIId === 'function'
                     ? window.GameUtils.getGameConfigByUIId(item.gameId)
                     : null;
-                const gameName = (cfg && (cfg.shortName || cfg.displayName)) || item.gameId;
+                const gameName = (cfg && (cfg.displayName || cfg.shortName)) || item.gameId;
                 const i18n = window.LauncherI18n;
                 let key;
                 if (item.op === 'verify') key = 'toasts.queuedVerify';
@@ -1039,7 +1039,7 @@ window.DownloadQueueManager = {
                 const cfg = window.GameUtils && typeof window.GameUtils.getGameConfigByUIId === 'function'
                     ? window.GameUtils.getGameConfigByUIId(removed.gameId)
                     : null;
-                const gameName = (cfg && (cfg.shortName || cfg.displayName)) || removed.gameId;
+                const gameName = (cfg && (cfg.displayName || cfg.shortName)) || removed.gameId;
                 const i18n = window.LauncherI18n;
                 let key;
                 if (removed.op === 'verify') key = 'toasts.cancelledVerify';

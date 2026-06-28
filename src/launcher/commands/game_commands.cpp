@@ -193,6 +193,37 @@ namespace commands::game_commands
 
         void apply_post_client_update(const game_config::game_config_t& config)
         {
+            if (config.game_key == "cod2x")
+            {
+                // CoD2 reads the virtualized HKLM path; unelevated writes land in the per-user VirtualStore, so target it directly.
+                const std::wstring subkey = L"SOFTWARE\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\Activision\\Call of Duty 2";
+                const std::wstring value_name = L"codkey";
+                if (!utils::registry::hkcu_string_value_exists(subkey, value_name))
+                {
+                    if (!utils::registry::set_hkcu_string(subkey, value_name, L"65JHZ75PW67WLJGJF0FF"))
+                    {
+                        printf("Failed to write COD2 codkey registry value\n");
+                    }
+                }
+            }
+
+            if (config.game_key == "coduo")
+            {
+                // CoDUO reads the virtualized HKLM path; unelevated writes land in the per-user VirtualStore, so target it directly.
+                const std::wstring subkey = L"SOFTWARE\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\Activision\\Call of Duty United Offensive";
+                const std::vector<std::wstring> value_names = {L"key", L"codkey"};
+                for (const auto& name : value_names)
+                {
+                    if (!utils::registry::hkcu_string_value_exists(subkey, name))
+                    {
+                        if (!utils::registry::set_hkcu_string(subkey, name, L"KW7RWZ77JJJDRUZ4EBEC"))
+                        {
+                            printf("Failed to write CoDUO key registry value\n");
+                        }
+                    }
+                }  
+            }
+
             if (config.game_key == "cod4x")
             {
                 const std::wstring subkey = L"SOFTWARE\\Activision\\Call of Duty 4";

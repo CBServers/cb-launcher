@@ -404,6 +404,18 @@
                 }
             },
             game: {
+                'cod1': {
+                    description: 'Call of Duty (2003) running on the original v1.1 game. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
+                    credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'coduo': {
+                    description: 'Call of Duty: United Offensive running on the v1.51 game. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
+                    credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'cod2x': {
+                    description: 'Call of Duty 2 enhanced with the CoD2x client on top of the v1.3 game. Modern fixes and quality-of-life improvements for classic COD2 multiplayer.',
+                    credits: 'CoD2x is developed by Yctn and eyza. Learn more at <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
+                },
                 'cod4x': {
                     description: 'COD4: Modern Warfare enhanced with COD4x multiplayer and IW3SP-Mod for singleplayer. Experience the classic MW1 campaign and online play with modern client maintenance.',
                     credits: 'Multiplayer is provided by the COD4x Client and developed by the <a href="https://cod4x.ovh/" target="_blank">CoD4x Project</a>.<br>Singleplayer is provided by the IW3SP-Mod Client and developed by <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
@@ -870,6 +882,18 @@
                 }
             },
             game: {
+                'cod1': {
+                    description: "Call of Duty (2003) tourne sur le jeu original en v1.1. Lancez-vous directement dans la campagne et le multijoueur classiques de la Seconde Guerre mondiale depuis une seule page.",
+                    credits: 'Les fichiers du jeu de base v1.1 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'coduo': {
+                    description: "Call of Duty: United Offensive tourne sur le jeu en v1.51. L'extension UO classique avec de nouvelles campagnes, des armes et du multijoueur en vehicule, prete a jouer.",
+                    credits: 'Les fichiers du jeu de base v1.51 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'cod2x': {
+                    description: 'Call of Duty 2 ameliore avec le client CoD2x sur le jeu en v1.3. Corrections modernes et ameliorations de confort pour le multijoueur classique de COD2.',
+                    credits: 'CoD2x est developpe par Yctn et eyza. En savoir plus sur <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
+                },
                 'cod4x': {
                     description: 'COD4: Modern Warfare ameliore avec le multijoueur COD4x et IW3SP-Mod pour le solo. Profitez de la campagne MW1 classique et du jeu en ligne avec une maintenance moderne.',
                     credits: 'Le multijoueur est fourni par le client COD4x et developpe par le <a href="https://cod4x.ovh/" target="_blank">Projet CoD4x</a>.<br>Le solo est fourni par le client IW3SP-Mod et developpe par <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
@@ -1336,6 +1360,18 @@
                 }
             },
             game: {
+                'cod1': {
+                    description: 'Call of Duty (2003) ejecutandose sobre el juego original en v1.1. Entra directamente a la campana y el multijugador clasicos de la Segunda Guerra Mundial desde una sola pagina.',
+                    credits: 'Los archivos del juego base v1.1 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'coduo': {
+                    description: 'Call of Duty: United Offensive ejecutandose sobre el juego en v1.51. La clasica expansion UO con nuevas campanas, armas y multijugador con vehiculos, lista para jugar.',
+                    credits: 'Los archivos del juego base v1.51 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                },
+                'cod2x': {
+                    description: 'Call of Duty 2 mejorado con el cliente CoD2x sobre el juego en v1.3. Correcciones modernas y mejoras de calidad de vida para el multijugador clasico de COD2.',
+                    credits: 'CoD2x esta desarrollado por Yctn y eyza. Mas informacion en <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
+                },
                 'cod4x': {
                     description: 'COD4: Modern Warfare mejorado con el multijugador de COD4x y IW3SP-Mod para un jugador. Disfruta de la clasica campana de MW1 y del juego en linea con mantenimiento de cliente moderno.',
                     credits: 'El multijugador lo proporciona el cliente COD4x, desarrollado por el <a href="https://cod4x.ovh/" target="_blank">Proyecto CoD4x</a>.<br>El modo un jugador lo proporciona el cliente IW3SP-Mod, desarrollado por <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'

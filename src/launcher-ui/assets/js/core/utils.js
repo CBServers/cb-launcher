@@ -28,6 +28,9 @@ const PROPERTY_KEYS = {
 class GameUtils {
     // Single source of truth for game ID mappings (UI ID -> backend ID)
     static UI_TO_BACKEND_MAP = {
+        'cod1': 'cod1',
+        'coduo': 'coduo',
+        'cod2x': 'cod2x',
         'cod4x': 'cod4x',
         't4': 't4',
         't5': 't5',
@@ -49,7 +52,7 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['cod1', 'codu', 'cod2', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
+    static GAME_ORDER = ['cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
 
     // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
     // Covers common CoD names that don't already match a UI ID or backend key.
@@ -391,72 +394,69 @@ class GameUtils {
             shortName: 'CoD',
             defaultInstallPath: 'cod1_game_files',
             uiId: 'cod1',
-            client: 'TBD',
-            provider: '',
+            client: 'CoD1 v1.1',
+            provider: 'COD.PM',
             clientKey: 'others',
-            hasMultipleModes: false,
-            supportedModes: [],
-            supportsName: false,
+            hasMultipleModes: true,
+            supportedModes: ['sp', 'mp'],
+            supportsName: true,
             specialSettings: [],
-            codeName: 'Call of Duty (2003)',
-            version: 'IDtech3',
-            description: 'Call of Duty is coming soon.',
-            credits: '',
-            accent: '#8B7355',
+            codeName: 'CoD1 v1.1',
+            version: '1.1',
+            description: 'Call of Duty (2003) running on the original v1.1 game. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
+            credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
+            accent: '#93a8bc',
             assetBase: './assets/img/games/cod1',
             iconPath: './assets/img/games/cod1/capsule.jpg',
             capsulePath: './assets/img/games/cod1/capsule.jpg',
             heroImagePath: './assets/img/games/cod1/hero.jpg',
-            logoPath: './assets/img/games/cod1/logo.png',
-            comingSoon: true
+            logoPath: './assets/img/games/cod1/logo.png'
         },
-        'codu': {
+        'coduo': {
             displayName: 'United Offensive',
             shortName: 'UO',
-            defaultInstallPath: 'codu_game_files',
-            uiId: 'codu',
-            client: 'TBD',
-            provider: '',
+            defaultInstallPath: 'coduo_game_files',
+            uiId: 'coduo',
+            client: 'CoDUO v1.51',
+            provider: 'COD.PM',
             clientKey: 'others',
-            hasMultipleModes: false,
-            supportedModes: [],
-            supportsName: false,
+            hasMultipleModes: true,
+            supportedModes: ['sp', 'mp'],
+            supportsName: true,
             specialSettings: [],
-            codeName: 'United Offensive (2004)',
-            version: 'IDtech3',
-            description: 'Call of Duty: United Offensive is coming soon.',
-            credits: '',
-            accent: '#6B7A3F',
-            assetBase: './assets/img/games/codu',
-            iconPath: './assets/img/games/codu/capsule.png',
-            capsulePath: './assets/img/games/codu/capsule.png',
-            heroImagePath: './assets/img/games/codu/hero.jpg',
-            logoPath: './assets/img/games/codu/logo.png',
-            comingSoon: true
+            codeName: 'CoDUO v1.51',
+            version: '1.51',
+            description: 'Call of Duty: United Offensive running on the v1.51 game. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
+            credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
+            accent: '#ededec',
+            assetBase: './assets/img/games/coduo',
+            iconPath: './assets/img/games/coduo/capsule.png',
+            capsulePath: './assets/img/games/coduo/capsule.png',
+            heroImagePath: './assets/img/games/coduo/hero.jpg',
+            logoPath: './assets/img/games/coduo/logo.png'
         },
-        'cod2': {
+        'cod2x': {
             displayName: 'Call of Duty 2',
             shortName: 'CoD2',
             defaultInstallPath: 'cod2_game_files',
-            uiId: 'cod2',
-            client: 'TBD',
-            provider: '',
+            uiId: 'cod2x',
+            client: 'CoD2x',
+            provider: 'CoD2x',
             clientKey: 'others',
-            hasMultipleModes: false,
-            supportedModes: [],
-            supportsName: false,
+            hasMultipleModes: true,
+            supportedModes: ['sp', 'mp'],
+            supportsName: true,
             specialSettings: [],
-            codeName: 'Call of Duty 2 (2005)',
-            version: 'IW2',
-            description: 'Call of Duty 2 is coming soon.',
-            credits: '',
-            accent: '#A04B2A',
-            assetBase: './assets/img/games/cod2',
-            iconPath: './assets/img/games/cod2/capsule.jpg',
-            capsulePath: './assets/img/games/cod2/capsule.jpg',
-            heroImagePath: './assets/img/games/cod2/hero.jpg',
-            logoPath: './assets/img/games/cod2/logo.png',
-            comingSoon: true
+            codeName: 'CoD2x',
+            version: '1.3',
+            description: 'Call of Duty 2 enhanced with the CoD2x client on top of the v1.3 game. Modern fixes and quality-of-life improvements for classic COD2 multiplayer.',
+            credits: 'CoD2x is developed by Yctn and eyza. Learn more at <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.',
+            accent: '#fadb9f',
+            assetBase: './assets/img/games/cod2x',
+            iconPath: './assets/img/games/cod2x/capsule.jpg',
+            capsulePath: './assets/img/games/cod2x/capsule.jpg',
+            heroImagePath: './assets/img/games/cod2x/hero.jpg',
+            logoPath: './assets/img/games/cod2x/logo.png'
         }
     };
 
