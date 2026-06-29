@@ -31,6 +31,37 @@ namespace utils::registry
         return size > sizeof(wchar_t);
     }
 
+    std::optional<std::wstring> get_hkcu_string(const std::wstring& subkey, const std::wstring& value_name)
+    {
+        HKEY key{};
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey.data(), 0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS)
+        {
+            return std::nullopt;
+        }
+
+        DWORD type = 0;
+        DWORD size = 0;
+        auto status = RegQueryValueExW(key, value_name.data(), nullptr, &type, nullptr, &size);
+        if (status != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || size == 0)
+        {
+            RegCloseKey(key);
+            return std::nullopt;
+        }
+
+        std::wstring buffer(size / sizeof(wchar_t), L'\0');
+        status = RegQueryValueExW(key, value_name.data(), nullptr, nullptr,
+                                  reinterpret_cast<BYTE*>(buffer.data()), &size);
+        RegCloseKey(key);
+
+        if (status != ERROR_SUCCESS)
+        {
+            return std::nullopt;
+        }
+
+        buffer.resize(wcslen(buffer.c_str()));
+        return buffer;
+    }
+
     bool set_hkcu_string(const std::wstring& subkey, const std::wstring& value_name, const std::wstring& value)
     {
         HKEY key{};

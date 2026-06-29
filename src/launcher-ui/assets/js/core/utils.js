@@ -21,7 +21,10 @@ const PROPERTY_KEYS = {
         DISABLE_CB_EXTENSION: 'disable-cb-extension',
         DETECTED_COMPONENTS: 'detected-components',
         SELECTED_COMPONENTS: 'selected-components',
-        PLAYER_NAME_OVERRIDE: 'player-name-override'
+        PLAYER_NAME_OVERRIDE: 'player-name-override',
+        CUSTOM_RESOLUTION_ENABLED: 'custom-resolution-enabled',
+        CUSTOM_RESOLUTION_WIDTH: 'custom-resolution-width',
+        CUSTOM_RESOLUTION_HEIGHT: 'custom-resolution-height'
     }
 };
 

@@ -12,6 +12,9 @@
 #include <utils/string.hpp>
 #include <game_config.hpp>
 
+#include <charconv>
+#include <cmath>
+
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
 
@@ -192,8 +195,50 @@ namespace commands::game_commands
             }).detach();
         }
 
+        // Fixes broken DPI scaling on very old CoDs.
+        void apply_highdpi_override(const std::filesystem::path& exe_path)
+        {
+            static const std::wstring layers = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Layers";
+            const auto value_name = exe_path.wstring();
+
+            std::vector<std::wstring> tokens;
+            if (const auto existing = utils::registry::get_hkcu_string(layers, value_name))
+            {
+                std::wistringstream stream(*existing);
+                std::wstring token;
+                while (stream >> token)
+                {
+                    if (token == L"~") continue;
+                    if (token == L"HIGHDPIAWARE") return; // already applied
+                    if (token == L"DPIUNAWARE" || token == L"GDIDPISCALING") continue; // conflicting DPI flags
+                    tokens.push_back(token); // preserve unrelated flags (e.g. RUNASADMIN)
+                }
+            }
+
+            std::wstring value = L"~";
+            for (const auto& token : tokens) value += L" " + token;
+            value += L" HIGHDPIAWARE";
+
+            if (!utils::registry::set_hkcu_string(layers, value_name, value))
+            {
+                printf("Failed to write high-DPI override registry value\n");
+            }
+        }
+
         void apply_post_client_update(const game_config::game_config_t& config)
         {
+            if (config.game_key == "cod1" || config.game_key == "coduo" || config.game_key == "cod2x")
+            {
+                const auto install = config.get_install_path();
+                if (install && install.has_value())
+                {
+                    for (const auto& exe : config.valid_game_files)
+                    {
+                        apply_highdpi_override(*install / exe);
+                    }
+                }
+            }
+
             if (config.game_key == "cod2x")
             {
                 // CoD2 reads the virtualized HKLM path; unelevated writes land in the per-user VirtualStore, so target it directly.
@@ -298,17 +343,41 @@ namespace commands::game_commands
             return std::format("{} \"{}\"", prefix, name);
         }
 
+        // Builds the +set r_* args for the custom-resolution setting (CoD1/CoDUO only); empty when disabled or invalid.
+        std::string build_custom_resolution_args(const game_config::game_config_t& config)
+        {
+            if (config.game_key != "cod1" && config.game_key != "coduo") return "";
+
+            const auto enabled = config.get(property_keys::CUSTOM_RESOLUTION_ENABLED);
+            if (!enabled || *enabled != "true") return "";
+
+            const auto width_str = config.get(property_keys::CUSTOM_RESOLUTION_WIDTH).value_or("");
+            const auto height_str = config.get(property_keys::CUSTOM_RESOLUTION_HEIGHT).value_or("");
+
+            int width = 0, height = 0;
+            const auto [wp, wec] = std::from_chars(width_str.data(), width_str.data() + width_str.size(), width);
+            const auto [hp, hec] = std::from_chars(height_str.data(), height_str.data() + height_str.size(), height);
+            if (wec != std::errc{} || hec != std::errc{} || width <= 0 || height <= 0) return "";
+
+            // Aspect truncated to 1 decimal to match the game's expected values (16:9 -> 1.7, 4:3 -> 1.3).
+            const double aspect = std::floor(static_cast<double>(width) / height * 10.0) / 10.0;
+
+            return std::format("+set r_mode -1 +set r_customheight \"{}\" +set r_customwidth \"{}\" +set r_customaspect {:.1f}",
+                height, width, aspect);
+        }
+
         std::string build_launch_args(const std::string& base_args, const std::string& mode,
             const game_config::game_config_t& config, const std::string& player_name)
         {
             const auto user_options = config.get_launch_options().value_or("");
             const auto name_arg = format_name_arg(config.name_argument, player_name);
+            const auto res_args = build_custom_resolution_args(config);
 
             // Wrapper-launcher modes (e.g. AlterWare) forward pass-args + user options as one --pass token.
             const auto pass_it = config.mode_pass_arguments.find(mode);
             if (pass_it != config.mode_pass_arguments.end())
             {
-                const auto inner = trim_ws(std::format("{} {} {}", pass_it->second, user_options, name_arg));
+                const auto inner = trim_ws(std::format("{} {} {} {}", pass_it->second, user_options, name_arg, res_args));
                 if (inner.empty())
                 {
                     return base_args;
@@ -316,7 +385,7 @@ namespace commands::game_commands
                 return std::format("{} --pass \"{}\"", base_args, inner);
             }
 
-            const auto extras = trim_ws(std::format("{} {}", user_options, name_arg));
+            const auto extras = trim_ws(std::format("{} {} {}", user_options, name_arg, res_args));
             if (extras.empty()) return base_args;
             return std::format("{} {}", base_args, extras);
         }

@@ -59,6 +59,32 @@ class GameSettingsPopup {
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
                     </div>
+                    <div class="setting-item inline-setting" id="custom-resolution-row" style="display: none;">
+                        <label>Custom Resolution</label>
+                        <div class="toggle-group small" id="custom-resolution-toggle">
+                            <button class="toggle-btn" data-value="false">OFF</button>
+                            <button class="toggle-btn" data-value="true">ON</button>
+                        </div>
+                    </div>
+                    <div class="setting-item inline-setting" id="custom-resolution-detail-row" style="display: none;">
+                        <label for="custom-resolution-preset">Resolution</label>
+                        <select id="custom-resolution-preset" class="behavior-dropdown">
+                            <option value="1280x720">720p (1280×720)</option>
+                            <option value="1920x1080">1080p (1920×1080)</option>
+                            <option value="2560x1440">1440p (2560×1440)</option>
+                            <option value="3840x2160">4K (3840×2160)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="setting-item inline-setting" id="custom-resolution-custom-row" style="display: none;">
+                        <label for="custom-resolution-width">Width × Height</label>
+                        <div class="resolution-inputs">
+                            <input type="number" id="custom-resolution-width" class="setting-text-input resolution-input" min="1" max="15360" step="1" autocomplete="off" />
+                            <span class="resolution-sep">×</span>
+                            <input type="number" id="custom-resolution-height" class="setting-text-input resolution-input" min="1" max="8640" step="1" autocomplete="off" />
+                        </div>
+                    </div>
+                    <span class="setting-error" id="custom-resolution-error"></span>
                 </div>
 
                 <div class="settings-section" id="player-section" style="display: none;">
@@ -132,8 +158,31 @@ class GameSettingsPopup {
 
                 // Add active class to clicked button
                 e.target.classList.add('active');
+
+                if (toggleGroup.id === 'custom-resolution-toggle') {
+                    this.updateCustomResolutionVisibility();
+                }
             }
         });
+
+        this.popup.querySelector('#custom-resolution-preset').addEventListener('change', () => {
+            this.updateCustomResolutionVisibility();
+        });
+    }
+
+    supportsCustomResolution() {
+        return this.currentGame === 'cod1' || this.currentGame === 'coduo';
+    }
+
+    updateCustomResolutionVisibility() {
+        const activeToggle = this.popup.querySelector('#custom-resolution-toggle .toggle-btn.active');
+        const enabled = activeToggle && activeToggle.dataset.value === 'true';
+        const showDetail = this.supportsCustomResolution() && enabled;
+        const preset = this.popup.querySelector('#custom-resolution-preset').value;
+
+        this.popup.querySelector('#custom-resolution-detail-row').style.display = showDetail ? 'flex' : 'none';
+        this.popup.querySelector('#custom-resolution-custom-row').style.display =
+            (showDetail && preset === 'custom') ? 'flex' : 'none';
     }
 
     t(key, variables) {
@@ -153,6 +202,10 @@ class GameSettingsPopup {
         this.popup.querySelector('#player-name-override-row label').textContent = this.t('popup.gameSettings.playerNameOverride');
         this.popup.querySelector('#player-name-override-help').textContent = this.t('popup.gameSettings.playerNameOverrideHelp');
         this.popup.querySelector('#player-name-override-input').placeholder = this.t('popup.gameSettings.playerNameOverridePlaceholder');
+        this.popup.querySelector('#custom-resolution-row label').textContent = this.t('popup.gameSettings.customResolution');
+        this.popup.querySelector('label[for="custom-resolution-preset"]').textContent = this.t('popup.gameSettings.customResolutionPreset');
+        this.popup.querySelector('label[for="custom-resolution-width"]').textContent = this.t('popup.gameSettings.customResolutionDimensions');
+        this.popup.querySelector('#custom-resolution-preset option[value="custom"]').textContent = this.t('popup.gameSettings.customResolutionCustomOption');
         this.popup.querySelector('#launch-options-section h4').textContent = this.t('popup.gameSettings.advanced');
         this.popup.querySelector('label[for="launch-options-input"]').textContent = this.t('popup.gameSettings.launchOptions');
         this.popup.querySelector('.btn-reset').textContent = this.t('common.resetSettings');
@@ -195,7 +248,10 @@ class GameSettingsPopup {
         skipIntroRow.style.display = game === 'bo3' ? 'flex' : 'none';
         disableExtRow.style.display = game === 'hmw' ? 'flex' : 'none';
 
-        const gameOptionsVisible = game === 'bo3' || game === 'hmw';
+        this.popup.querySelector('#custom-resolution-row').style.display = this.supportsCustomResolution() ? 'flex' : 'none';
+        this.popup.querySelector('#custom-resolution-error').classList.remove('visible');
+
+        const gameOptionsVisible = game === 'bo3' || game === 'hmw' || this.supportsCustomResolution();
         gameOptionsSection.style.display = gameOptionsVisible ? 'block' : 'none';
         playerSection.style.display = supportsName ? 'block' : 'none';
         nameOverrideError.classList.remove('visible');
@@ -314,6 +370,44 @@ class GameSettingsPopup {
                     });
                     this.popup.querySelector('#player-name-override-input').value = overrideName || '';
                 }
+
+                // Load custom resolution (CoD1 / CoDUO only)
+                if (this.supportsCustomResolution()) {
+                    const [enabled, widthStr, heightStr] = await Promise.all([
+                        window.executeCommand('get-game-property', { game: this.currentGame, suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_ENABLED }),
+                        window.executeCommand('get-game-property', { game: this.currentGame, suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_WIDTH }),
+                        window.executeCommand('get-game-property', { game: this.currentGame, suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_HEIGHT })
+                    ]);
+
+                    const toggleGroup = this.popup.querySelector('#custom-resolution-toggle');
+                    toggleGroup.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+                    const targetValue = enabled === 'true' ? 'true' : 'false';
+                    toggleGroup.querySelector(`[data-value="${targetValue}"]`).classList.add('active');
+
+                    const presetSelect = this.popup.querySelector('#custom-resolution-preset');
+                    const widthInput = this.popup.querySelector('#custom-resolution-width');
+                    const heightInput = this.popup.querySelector('#custom-resolution-height');
+                    const w = parseInt(widthStr, 10);
+                    const h = parseInt(heightStr, 10);
+                    const key = (w > 0 && h > 0) ? `${w}x${h}` : '';
+                    const matchingPreset = key && presetSelect.querySelector(`option[value="${key}"]`);
+
+                    if (matchingPreset) {
+                        presetSelect.value = key;
+                        widthInput.value = '';
+                        heightInput.value = '';
+                    } else if (w > 0 && h > 0) {
+                        presetSelect.value = 'custom';
+                        widthInput.value = w;
+                        heightInput.value = h;
+                    } else {
+                        presetSelect.value = '1920x1080';
+                        widthInput.value = '';
+                        heightInput.value = '';
+                    }
+
+                    this.updateCustomResolutionVisibility();
+                }
             } catch (error) {
                 console.error('Failed to load current settings:', error);
             }
@@ -427,6 +521,53 @@ class GameSettingsPopup {
                         suffix: PROPERTY_KEYS.GAME.PLAYER_NAME_OVERRIDE,
                         value: overrideValue
                     });
+                }
+
+                // Save custom resolution (CoD1 / CoDUO only)
+                if (this.supportsCustomResolution()) {
+                    const toggleGroup = this.popup.querySelector('#custom-resolution-toggle');
+                    const activeButton = toggleGroup.querySelector('.toggle-btn.active');
+                    const enabled = activeButton ? activeButton.dataset.value === 'true' : false;
+                    const presetSelect = this.popup.querySelector('#custom-resolution-preset');
+                    const errorEl = this.popup.querySelector('#custom-resolution-error');
+
+                    let width = 0;
+                    let height = 0;
+                    if (enabled) {
+                        if (presetSelect.value === 'custom') {
+                            const widthInput = this.popup.querySelector('#custom-resolution-width');
+                            const heightInput = this.popup.querySelector('#custom-resolution-height');
+                            width = parseInt(widthInput.value, 10);
+                            height = parseInt(heightInput.value, 10);
+                            if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+                                errorEl.textContent = this.t('popup.gameSettings.customResolutionError');
+                                errorEl.classList.add('visible');
+                                widthInput.focus();
+                                return;
+                            }
+                        } else {
+                            [width, height] = presetSelect.value.split('x').map(Number);
+                        }
+                    }
+
+                    errorEl.classList.remove('visible');
+                    await window.executeCommand('set-game-property', {
+                        game: this.currentGame,
+                        suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_ENABLED,
+                        value: enabled ? 'true' : 'false'
+                    });
+                    if (enabled) {
+                        await window.executeCommand('set-game-property', {
+                            game: this.currentGame,
+                            suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_WIDTH,
+                            value: String(width)
+                        });
+                        await window.executeCommand('set-game-property', {
+                            game: this.currentGame,
+                            suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_HEIGHT,
+                            value: String(height)
+                        });
+                    }
                 }
 
                 this.hide();

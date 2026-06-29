@@ -35,7 +35,7 @@
                 statusPausedAt: 'Paused — {{percent}}%',
                 pause: 'Pause',
                 resume: 'Resume',
-                etaLeft: '{{time}} left'
+                etaLeft: '{{time}}'
             },
             friends: {
                 title: 'Friends',
@@ -290,6 +290,11 @@
                     playerNameOverrideHelp: 'Overrides the global in-game name for this game.',
                     playerNameOverridePlaceholder: 'Leave empty to use global',
                     playerNameOverrideError: 'Name must be 3-16 characters or empty.',
+                    customResolution: 'Custom Resolution',
+                    customResolutionPreset: 'Resolution',
+                    customResolutionDimensions: 'Width × Height',
+                    customResolutionCustomOption: 'Custom',
+                    customResolutionError: 'Width and height must be positive numbers.',
                     advanced: 'Advanced',
                     launchOptions: 'Launch Options:',
                     invalidGamePathTitle: 'Invalid Game Path',
@@ -520,7 +525,7 @@
                 statusPausedAt: 'En pause - {{percent}}%',
                 pause: 'Mettre en pause',
                 resume: 'Reprendre',
-                etaLeft: '{{time}} restant'
+                etaLeft: '{{time}}'
             },
             friends: {
                 title: 'Amis',
@@ -775,6 +780,11 @@
                     playerNameOverrideHelp: 'Remplace le nom global pour ce jeu.',
                     playerNameOverridePlaceholder: 'Laissez vide pour le nom global',
                     playerNameOverrideError: 'Le nom doit contenir entre 3 et 16 caracteres, ou etre vide.',
+                    customResolution: 'Resolution personnalisee',
+                    customResolutionPreset: 'Resolution',
+                    customResolutionDimensions: 'Largeur × Hauteur',
+                    customResolutionCustomOption: 'Personnalisee',
+                    customResolutionError: 'La largeur et la hauteur doivent etre des nombres positifs.',
                     advanced: 'Avance',
                     launchOptions: 'Options de lancement :',
                     invalidGamePathTitle: 'Chemin de jeu invalide',
@@ -1005,7 +1015,7 @@
                 statusPausedAt: 'En pausa - {{percent}}%',
                 pause: 'Pausar',
                 resume: 'Reanudar',
-                etaLeft: '{{time}} restante'
+                etaLeft: '{{time}}'
             },
             friends: {
                 title: 'Amigos',
@@ -1260,6 +1270,11 @@
                     playerNameOverrideHelp: 'Sobrescribe el nombre global para este juego.',
                     playerNameOverridePlaceholder: 'Dejar vacio para usar el global',
                     playerNameOverrideError: 'El nombre debe tener entre 3 y 16 caracteres, o estar vacio.',
+                    customResolution: 'Resolucion personalizada',
+                    customResolutionPreset: 'Resolucion',
+                    customResolutionDimensions: 'Ancho × Alto',
+                    customResolutionCustomOption: 'Personalizada',
+                    customResolutionError: 'El ancho y el alto deben ser numeros positivos.',
                     advanced: 'Avanzado',
                     launchOptions: 'Opciones de inicio:',
                     invalidGamePathTitle: 'Ruta de juego invalida',
