@@ -50,13 +50,39 @@ jobs:
         run: msbuild /m /v:minimal /p:Configuration=${{matrix.configuration}} /p:Platform=x64 build/cb-launcher.sln
 
       - name: Upload ${{matrix.configuration}} binary
+        id: upload-unsigned-binary
         if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Binary
           path: |
             build/bin/x64/${{matrix.configuration}}/cb-launcher.exe
-      
+
+      # Test-sign the dev channel with the SignPath self-signed test cert. Best-effort:
+      # if signing fails the unsigned binary above is kept so the dev release still ships.
+      - name: Sign cb-launcher.exe (SignPath test cert, develop only)
+        id: sign
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        continue-on-error: true
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cb-launcher
+          signing-policy-slug: test-signing
+          artifact-configuration-slug: initial
+          github-artifact-id: ${{ steps.upload-unsigned-binary.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Replace binary artifact with signed exe (develop only)
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && github.ref == 'refs/heads/develop' && steps.sign.outcome == 'success'
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} Binary
+          path: signed/cb-launcher.exe
+          overwrite: true
+
       - name: Upload ${{matrix.configuration}} CEF artifacts
         if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
