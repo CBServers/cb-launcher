@@ -10,6 +10,7 @@
 
 #include "updater/updater.hpp"
 #include "updater/progress_tracker.hpp"
+#include "deep_link.hpp"
 
 namespace commands::info_commands
 {
@@ -91,6 +92,7 @@ namespace commands::info_commands
 
             const auto game = utils::flags::get_flag_value("launch");
             const auto mode = utils::flags::get_flag_value("mode");
+            const auto install = utils::flags::get_flag_value("install");
 
             rapidjson::Value game_value;
             if (game.has_value())
@@ -105,6 +107,28 @@ namespace commands::info_commands
                 mode_value.SetString(mode->data(), static_cast<rapidjson::SizeType>(mode->length()), allocator);
             }
             response.AddMember("mode", mode_value, allocator);
+
+            rapidjson::Value install_value;
+            if (install.has_value())
+            {
+                install_value.SetString(install->data(), static_cast<rapidjson::SizeType>(install->length()), allocator);
+            }
+            response.AddMember("install", install_value, allocator);
+        });
+
+        cef_ui.add_command("get-startup-deeplink", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto url = deep_link::get_arg();
+
+            rapidjson::Value url_value;
+            if (url.has_value())
+            {
+                url_value.SetString(url->data(), static_cast<rapidjson::SizeType>(url->length()), allocator);
+            }
+            response.AddMember("url", url_value, allocator);
         });
 
         cef_ui.add_command("get-offline-mode", [](const rapidjson::Value&, rapidjson::Document& response)

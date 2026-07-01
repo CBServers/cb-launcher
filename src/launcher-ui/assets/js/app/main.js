@@ -292,6 +292,7 @@ async function initialize() {
             }
 
             handleStartupLaunchArg();
+            handleStartupDeepLink();
         });
 
     document.querySelector("#minimize-button").onclick = () => {
@@ -1482,6 +1483,43 @@ async function createGameButtons(gameId) {
     applyDownloadQueueButtonState();
 }
 
+// Resolve a friendly slug (the -launch CLI arg or a cbservers:// link) to a UI ID, or null if unknown.
+function resolveGameSlug(requested) {
+    requested = String(requested || '').toLowerCase().trim();
+    if (!requested) return null;
+
+    if (Object.prototype.hasOwnProperty.call(GameUtils.UI_TO_BACKEND_MAP, requested)) {
+        return requested;
+    }
+    if (Object.prototype.hasOwnProperty.call(GameUtils.BACKEND_TO_UI_MAP, requested)) {
+        return GameUtils.BACKEND_TO_UI_MAP[requested];
+    }
+    if (GameUtils.LAUNCH_ARG_ALIASES && Object.prototype.hasOwnProperty.call(GameUtils.LAUNCH_ARG_ALIASES, requested)) {
+        return GameUtils.LAUNCH_ARG_ALIASES[requested];
+    }
+    return null;
+}
+
+async function navigateToGamePage(uiId) {
+    const sidebarItem = document.querySelector(`.game-item[data-game="${uiId}"]`);
+    if (sidebarItem) {
+        removeActiveNavigation();
+        sidebarItem.classList.add('active', `${uiId}-active`);
+    }
+    await loadNavigationPage(uiId);
+}
+
+// Open a game's setup flow (not installed) or manage-install popup (already installed).
+// Shared by the -install CLI arg and the cbservers://install/<game> deep link.
+async function openInstallFlow(uiId) {
+    const install = await checkGameInstallation(uiId);
+    if (install.status === 'installed') {
+        showManageInstall(uiId);
+    } else {
+        showSetupFlow(uiId);
+    }
+}
+
 async function handleStartupLaunchArg() {
     let args;
     try {
@@ -1490,31 +1528,36 @@ async function handleStartupLaunchArg() {
         return;
     }
 
-    if (!args || !args.game) return;
+    if (!args) return;
 
-    const requested = String(args.game).toLowerCase().trim();
+    // -install <game>: open the game's page and its setup/manage flow.
+    if (args.install) {
+        const installUiId = resolveGameSlug(args.install);
+        if (!installUiId) {
+            console.warn(`-install: unknown game id "${args.install}"`);
+            return;
+        }
+        try {
+            await navigateToGamePage(installUiId);
+            await openInstallFlow(installUiId);
+        } catch (e) {
+            console.error(`-install: failed for ${installUiId}:`, e);
+        }
+        return;
+    }
+
+    if (!args.game) return;
+
     const mode = args.mode ? String(args.mode).toLowerCase().trim() : null;
 
-    let uiId = null;
-    if (Object.prototype.hasOwnProperty.call(GameUtils.UI_TO_BACKEND_MAP, requested)) {
-        uiId = requested;
-    } else if (Object.prototype.hasOwnProperty.call(GameUtils.BACKEND_TO_UI_MAP, requested)) {
-        uiId = GameUtils.BACKEND_TO_UI_MAP[requested];
-    } else if (GameUtils.LAUNCH_ARG_ALIASES && Object.prototype.hasOwnProperty.call(GameUtils.LAUNCH_ARG_ALIASES, requested)) {
-        uiId = GameUtils.LAUNCH_ARG_ALIASES[requested];
-    } else {
+    const uiId = resolveGameSlug(args.game);
+    if (!uiId) {
         console.warn(`-launch: unknown game id "${args.game}"`);
         return;
     }
 
-    const sidebarItem = document.querySelector(`.game-item[data-game="${uiId}"]`);
-    if (sidebarItem) {
-        removeActiveNavigation();
-        sidebarItem.classList.add('active', `${uiId}-active`);
-    }
-
     try {
-        await loadNavigationPage(uiId);
+        await navigateToGamePage(uiId);
     } catch (e) {
         console.error(`-launch: failed to navigate to ${uiId}:`, e);
         return;
@@ -1542,6 +1585,107 @@ async function handleStartupLaunchArg() {
         console.error(`-launch: launchGame failed:`, e);
     }
 }
+
+async function handleStartupDeepLink() {
+    let res;
+    try {
+        res = await window.executeCommand('get-startup-deeplink');
+    } catch (_) {
+        return;
+    }
+    if (res && res.url) {
+        handleDeepLink(res.url);
+    }
+}
+
+// Routes a cbservers:// URL of the form cbservers://<verb>/<game>[/<mode>].
+async function handleDeepLink(url) {
+    if (!url || typeof url !== 'string') return;
+
+    // Bring the launcher to the foreground; it may be minimized or in the tray.
+    try { window.executeCommand('show'); } catch (_) {}
+
+    const SCHEME = 'cbservers://';
+    if (!url.toLowerCase().startsWith(SCHEME)) return;
+
+    const rest = url.slice(SCHEME.length).split(/[?#]/)[0].replace(/\/+$/, '');
+    const segments = rest.split('/').filter(s => s.length).map(s => {
+        try { return decodeURIComponent(s); } catch (_) { return s; }
+    });
+    if (!segments.length) return;
+
+    const verb = segments[0].toLowerCase();
+    const gameSlug = segments[1];
+    const modeArg = segments[2];
+
+    if (!gameSlug) {
+        console.warn(`deep link: missing game in "${url}"`);
+        return;
+    }
+
+    const uiId = resolveGameSlug(gameSlug);
+    if (!uiId) {
+        console.warn(`deep link: unknown game "${gameSlug}"`);
+        if (typeof window.showToast === 'function') {
+            window.showToast(t('deepLink.unknownGame', { game: gameSlug }), 'error');
+        }
+        return;
+    }
+
+    try {
+        await navigateToGamePage(uiId);
+    } catch (e) {
+        console.error(`deep link: failed to navigate to ${uiId}:`, e);
+        return;
+    }
+
+    const backendId = GameUtils.getGameMapping(uiId);
+    const gameConfig = GameUtils.getGameConfig(backendId);
+    if (!gameConfig) return;
+
+    switch (verb) {
+        case 'game':
+            // Navigate only.
+            return;
+
+        case 'install':
+            await openInstallFlow(uiId);
+            return;
+
+        case 'play': {
+            const install = await checkGameInstallation(uiId);
+            if (install.status !== 'installed') {
+                showSetupFlow(uiId);
+                return;
+            }
+
+            let mode = modeArg ? String(modeArg).toLowerCase().trim() : null;
+            if (mode && !(Array.isArray(gameConfig.supportedModes) && gameConfig.supportedModes.includes(mode))) {
+                console.warn(`deep link: "${mode}" is not a valid mode for ${uiId}; ignoring`);
+                mode = null;
+            }
+
+            try {
+                if (mode) {
+                    await GameUtils.launchGameWithMode(backendId, uiId, mode);
+                } else {
+                    launchGame(uiId);
+                }
+            } catch (e) {
+                console.error(`deep link: launch failed for ${uiId}:`, e);
+            }
+            return;
+        }
+
+        default:
+            console.warn(`deep link: unknown action "${verb}"`);
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('deepLink.unknownAction', { action: verb }), 'error');
+            }
+    }
+}
+
+window.handleDeepLink = handleDeepLink;
 
 function launchGame(gameId) {
     console.log(`Play button clicked for ${gameId}`);

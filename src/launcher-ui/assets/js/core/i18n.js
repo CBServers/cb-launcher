@@ -83,6 +83,10 @@
                 blockBody: 'The launcher is running in offline mode, so downloads, updates and file verification are disabled. Relaunch online to continue?',
                 relaunchOnline: 'Relaunch Online'
             },
+            deepLink: {
+                unknownGame: 'Unknown game in link: {{game}}',
+                unknownAction: 'Unknown link action: {{action}}'
+            },
             common: {
                 ok: 'OK',
                 cancel: 'Cancel',
@@ -573,6 +577,10 @@
                 blockBody: 'Le lanceur est en mode hors ligne ; les telechargements, mises a jour et la verification des fichiers sont desactives. Relancer en ligne pour continuer ?',
                 relaunchOnline: 'Relancer en ligne'
             },
+            deepLink: {
+                unknownGame: 'Jeu inconnu dans le lien : {{game}}',
+                unknownAction: 'Action de lien inconnue : {{action}}'
+            },
             common: {
                 ok: 'OK',
                 cancel: 'Annuler',
@@ -1062,6 +1070,10 @@
                 blockTitle: 'Modo sin conexion',
                 blockBody: 'El lanzador esta en modo sin conexion, por lo que las descargas, actualizaciones y la verificacion de archivos estan desactivadas. Relanzar en linea para continuar?',
                 relaunchOnline: 'Relanzar en linea'
+            },
+            deepLink: {
+                unknownGame: 'Juego desconocido en el enlace: {{game}}',
+                unknownAction: 'Accion de enlace desconocida: {{action}}'
             },
             common: {
                 ok: 'OK',

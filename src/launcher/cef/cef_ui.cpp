@@ -323,6 +323,41 @@ namespace cef
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_show_toast, this->browser_, message, type, duration_ms));
     }
 
+    void cef_ui::invoke_dispatch_deep_link(CefRefPtr<CefBrowser> browser, std::string url)
+    {
+        if (!browser) return;
+        auto frame = browser->GetMainFrame();
+        if (!frame) return;
+
+        auto escape_js_string = [](const std::string& str) -> std::string
+        {
+            std::string escaped;
+            escaped.reserve(str.size());
+            for (char c : str)
+            {
+                if (c == '\'') escaped += "\\'";
+                else if (c == '\\') escaped += "\\\\";
+                else if (c == '\n') escaped += "\\n";
+                else if (c == '\r') escaped += "\\r";
+                else escaped += c;
+            }
+            return escaped;
+        };
+
+        const auto escaped_url = escape_js_string(url);
+        const auto js_code = utils::string::va(
+            "if (typeof window.handleDeepLink === 'function') { window.handleDeepLink('%s'); }",
+            escaped_url.data());
+
+        frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
+    }
+
+    void cef_ui::dispatch_deep_link(const std::string& url) const
+    {
+        if (!this->browser_) return;
+        CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_deep_link, this->browser_, url));
+    }
+
     cef_ui::cef_ui(utils::nt::library process, std::filesystem::path path)
         : process_(std::move(process)), path_(std::move(path))
     {

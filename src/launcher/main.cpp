@@ -1,9 +1,11 @@
 #include "std_include.hpp"
 #include "cef/cef_ui.hpp"
 #include "commands/commands.hpp"
+#include "deep_link.hpp"
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "updater/updater.hpp"
+#include "uri_scheme.hpp"
 
 #include <utils/flags.hpp>
 #include <utils/named_mutex.hpp>
@@ -59,13 +61,10 @@ namespace
         SetProcessDPIAware();
     }
 
-    void run_as_singleton()
+    bool try_become_singleton()
     {
         static utils::named_mutex mutex{"cb-launcher"};
-        if (!mutex.try_lock(3s))
-        {
-            throw std::runtime_error{"CB Servers Launcher is already running"};
-        }
+        return mutex.try_lock(3s);
     }
 
     bool is_subprocess()
@@ -111,7 +110,13 @@ namespace
             });
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
+
+        // Receive cbservers:// URLs forwarded from second instances and route them to the UI.
+        deep_link::server deep_link_server{};
+        deep_link_server.start([&cef_ui](const std::string& url) { cef_ui.dispatch_deep_link(url); });
+
         cef::cef_ui::work();
+        deep_link_server.stop();
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
     }
@@ -186,8 +191,19 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
         enable_dpi_awareness();
 
+        // A cbservers:// URL may have been passed on the command line (protocol launch).
+        const auto deep_link_url = deep_link::get_arg();
+
 #if !defined(DEBUG)
-        run_as_singleton();
+        if (!try_become_singleton())
+        {
+            // Another instance owns the launcher: hand it the URL instead of erroring out.
+            if (deep_link_url.has_value() && deep_link::forward(deep_link_url.value()))
+            {
+                return 0;
+            }
+            throw std::runtime_error{"CB Servers Launcher is already running"};
+        }
 #else
         AllocConsole();
         FILE* fp;
@@ -226,6 +242,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         if (!utils::nt::is_wine_environment())
         {
             create_shortcut();
+            uri_scheme::ensure_registered();
         }
         else
         {

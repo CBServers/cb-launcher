@@ -25,6 +25,19 @@ The launcher accepts the following optional command line arguments.
 | `-portable` | — | Runs the launcher in portable mode. Launcher data (user settings, CEF cache, UI files) is stored in a `cbservers` folder next to the executable instead of `%LOCALAPPDATA%/cbservers`. |
 | `-launch` | game id | Auto-launches the given game once the launcher finishes loading. Accepts one of: `cod1`, `coduo`, `cod2`, `cod4`, `waw`, `mw2`, `bo1`, `bo2`, `mw3`, `ghosts`, `aw`, `bo3`, `iw`, `mwr`, `bo4`, `mw2r`, `hmw`. |
 | `-mode` | `sp` / `mp` / `zm` / `sv` | Used together with `-launch` to choose which mode to start: singleplayer, multiplayer, zombies, or survival. |
+| `-install` | game id | Opens the given game's page and its setup/install flow once the launcher finishes loading. Accepts the same game ids as `-launch`. |
+
+## URL scheme (`cbservers://`)
+
+The launcher registers a `cbservers://` URL protocol on startup (per-user, no admin required), so links from a browser or another app can drive it. If the launcher is already running, the link is handed to the existing instance instead of opening a second one.
+
+| Link | Action |
+|------|--------|
+| `cbservers://play/<game>[/<mode>]` | Launches the game (optionally in a specific mode). If it isn't installed yet, the setup flow opens instead. |
+| `cbservers://game/<game>` | Opens the game's page without launching. |
+| `cbservers://install/<game>` | Opens the game's page and starts its setup/install flow. |
+
+`<game>` accepts the same ids as `-launch` (e.g. `bo2`, `waw`, `mw3`, `cod4`). `<mode>` accepts the same values as `-mode`, validated against what the game supports.
 
 ## Compile from source code
 
