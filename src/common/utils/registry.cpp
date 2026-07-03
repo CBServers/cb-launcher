@@ -31,6 +31,33 @@ namespace utils::registry
         return size > sizeof(wchar_t);
     }
 
+    // Queries the 32-bit registry view (WOW6432Node), matching what 32-bit games see.
+    bool hklm_wow32_string_value_exists(const std::wstring& subkey, const std::wstring& value_name)
+    {
+        HKEY key{};
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.data(), 0, KEY_QUERY_VALUE | KEY_WOW64_32KEY, &key) != ERROR_SUCCESS)
+        {
+            return false;
+        }
+
+        DWORD type = 0;
+        DWORD size = 0;
+        const auto status = RegQueryValueExW(key, value_name.data(), nullptr, &type, nullptr, &size);
+        RegCloseKey(key);
+
+        if (status != ERROR_SUCCESS)
+        {
+            return false;
+        }
+
+        if (type != REG_SZ && type != REG_EXPAND_SZ)
+        {
+            return false;
+        }
+
+        return size > sizeof(wchar_t);
+    }
+
     std::optional<std::wstring> get_hkcu_string(const std::wstring& subkey, const std::wstring& value_name)
     {
         HKEY key{};
