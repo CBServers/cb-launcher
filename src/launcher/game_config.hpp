@@ -29,6 +29,9 @@ namespace game_config
         void set_steam_install(bool is_steam) const;
         std::optional<std::string> get_launch_options() const;
 
+        // Effective "launch as admin" value: user property if set, else requires_elevation default.
+        bool launch_elevated() const;
+
         // Reset all properties for this game
         void reset() const;
 

@@ -207,6 +207,16 @@ namespace game_config
         return this->get(property_keys::LAUNCH_OPTIONS);
     }
 
+    bool game_config_t::launch_elevated() const
+    {
+        const auto value = this->get(property_keys::LAUNCH_ADMIN);
+        if (value && !value->empty())
+        {
+            return *value == "true";
+        }
+        return this->requires_elevation;
+    }
+
     void game_config_t::reset() const
     {
         // Clear all properties for this game
@@ -218,6 +228,7 @@ namespace game_config
         this->set(property_keys::LAUNCH_OPTIONS, "");
         this->set(property_keys::GAME_MODE, "");
         this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
+        this->set(property_keys::LAUNCH_ADMIN, "");
 
         // Game-specific settings — only clear on the games that own them
         if (this->game_key == "bo3")

@@ -26,6 +26,7 @@ namespace property_keys
     constexpr const char* PLAYER_NAME_OVERRIDE = "player-name-override";
     constexpr const char* GAME_MODE = "game-mode";
     constexpr const char* SKIP_INTRO_CINEMATIC = "skip-intro-cinematic";
+    constexpr const char* LAUNCH_ADMIN = "launch-admin";
 
     // Game component settings (used with game config get/set)
     constexpr const char* DETECTED_COMPONENTS = "detected-components";

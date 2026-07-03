@@ -114,7 +114,7 @@ namespace commands::game_commands
                 return t.active && t.game_id == config.id && t.elevated;
             });
 
-            if ((config.requires_elevation || launched_elevated) && !utils::nt::is_elevated())
+            if ((config.launch_elevated() || launched_elevated) && !utils::nt::is_elevated())
             {
                 std::string args = "/F";
                 for (const auto& exe : exes)
@@ -489,7 +489,7 @@ namespace commands::game_commands
                          "For now, use the launcher for downloading and verifying game files on Linux.");
                 }*/
 
-                auto elevate = config.requires_elevation && !utils::nt::is_elevated();
+                auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
                 auto pid = elevate
                     ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
                     : utils::nt::launch_process(game_exe, launch_args, game_directory);
