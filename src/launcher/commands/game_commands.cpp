@@ -70,6 +70,7 @@ namespace commands::game_commands
             std::string game_id{};
             bool active{false};
             uint64_t generation{0};
+            bool elevated{false};
         };
 
         utils::concurrency::container<tracked_launch>& get_tracked_launch()
@@ -78,7 +79,7 @@ namespace commands::game_commands
             return tracked;
         }
 
-        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation)
+        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation, const bool elevated)
         {
             get_tracked_launch().access([&](tracked_launch& t)
             {
@@ -86,6 +87,7 @@ namespace commands::game_commands
                 t.game_id = game_id;
                 t.active = true;
                 t.generation = generation;
+                t.elevated = elevated;
             });
         }
 
@@ -95,6 +97,46 @@ namespace commands::game_commands
             {
                 t = {};
             });
+        }
+
+        // TerminateProcess can't reach an elevated game from a non-elevated launcher, so stop those via elevated taskkill.
+        bool stop_game_processes(const game_config::game_config_t& config)
+        {
+            std::vector<std::string> exes{ config.exe_name };
+            for (const auto& exe : config.check_running_exes)
+            {
+                exes.push_back(exe);
+            }
+
+            // Covers configured elevation and the runtime 740 fallback (exe manifest demanded elevation).
+            const auto launched_elevated = get_tracked_launch().access<bool>([&](const tracked_launch& t)
+            {
+                return t.active && t.game_id == config.id && t.elevated;
+            });
+
+            if ((config.requires_elevation || launched_elevated) && !utils::nt::is_elevated())
+            {
+                std::string args = "/F";
+                for (const auto& exe : exes)
+                {
+                    if (!exe.empty()) args += " /IM \"" + exe + "\"";
+                }
+
+                wchar_t system32[MAX_PATH];
+                GetSystemDirectoryW(system32, MAX_PATH);
+                const auto taskkill = std::filesystem::path(system32) / "taskkill.exe";
+                return utils::nt::launch_process_elevated(taskkill, args, {}) != 0;
+            }
+
+            bool stopped = false;
+            for (const auto& exe : exes)
+            {
+                if (!exe.empty() && utils::nt::stop_process(exe))
+                {
+                    stopped = true;
+                }
+            }
+            return stopped;
         }
 
         // Stops the game holding the barrier and waits for it to fully exit (single-instance; barrier stays held).
@@ -121,13 +163,7 @@ namespace commands::game_commands
                 exes.push_back(exe);
             }
 
-            for (const auto& exe : exes)
-            {
-                if (!exe.empty())
-                {
-                    utils::nt::stop_process(exe);
-                }
-            }
+            stop_game_processes(*config);
 
             // Poll for up to ~10s for every tracked exe to disappear.
             for (int i = 0; i < 100; ++i)
@@ -447,18 +483,40 @@ namespace commands::game_commands
                          "For now, use the launcher for downloading and verifying game files on Linux.");
                 }*/
 
-                const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
+                auto elevate = config.requires_elevation && !utils::nt::is_elevated();
+                auto pid = elevate
+                    ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
+                    : utils::nt::launch_process(game_exe, launch_args, game_directory);
+
+                // 740 = exe demands elevation (e.g. requireAdministrator manifest); retry with a UAC prompt.
+                if (pid == 0 && !elevate && GetLastError() == ERROR_ELEVATION_REQUIRED)
+                {
+                    printf("Launch requires elevation, retrying with UAC prompt: %s\n", exe_name.data());
+                    elevate = true;
+                    pid = utils::nt::launch_process_elevated(game_exe, launch_args, game_directory);
+                }
 
                 if (pid == 0)
                 {
-                    const auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, GetLastError());
+                    const auto error = GetLastError();
+                    if (elevate && error == ERROR_CANCELLED)
+                    {
+                        cef_ui.show_message_box("Game Launch Cancelled", config.display_name + " requires administrator permission to launch.");
+                        return false;
+                    }
+
+                    auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, error);
+                    if (error == ERROR_ACCESS_DENIED)
+                    {
+                        error_msg += "\n\nIf this keeps happening, try running the launcher as administrator or check that your antivirus isn't blocking the game.";
+                    }
                     printf("Launch failed: %s\n", error_msg.data());
                     cef_ui.show_message_box("Game Launch Error", error_msg);
                     return false;
                 }
 
                 discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
-                set_tracked_launch(pid, config.id, generation);
+                set_tracked_launch(pid, config.id, generation, elevate);
 
                 // Check if launcher should close after game starts
                 const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
@@ -752,17 +810,7 @@ namespace commands::game_commands
             }
 
             // Attempt to stop any of the game's executables
-            bool stopped = utils::nt::stop_process(config->exe_name);
-            if (!config->check_running_exes.empty())
-            {
-                for (const auto& exe : config->check_running_exes)
-                {
-                    if (utils::nt::stop_process(exe))
-                    {
-                        stopped = true;
-                    }
-                }
-            }
+            const bool stopped = stop_game_processes(*config);
             response.SetBool(stopped);
 
             // If we successfully stopped the game, unlock the launch barrier

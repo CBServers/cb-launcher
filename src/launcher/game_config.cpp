@@ -331,7 +331,8 @@ namespace game_config
                 .base_folder = "cod2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
-                .required_redists = {"vcr2005", "dx_jun2010"}
+                .required_redists = {"vcr2005", "dx_jun2010"},
+                .requires_elevation = true
             },
         },
         {

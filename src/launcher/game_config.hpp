@@ -73,6 +73,9 @@ namespace game_config
         // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
         std::vector<std::string> required_redists;
 
+        // Launch via UAC prompt (e.g. CoD2x needs HKLM access for its HWID key).
+        bool requires_elevation = false;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };

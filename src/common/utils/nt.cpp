@@ -1,5 +1,6 @@
 #include "nt.hpp"
 #include <TlHelp32.h>
+#include <shellapi.h>
 #include <delayimp.h>
 #pragma comment(lib, "delayimp.lib")
 
@@ -308,8 +309,10 @@ namespace utils::nt
 
         if (!success)
         {
+            const auto error = GetLastError();
             printf("CreateProcessW failed (error %lu): %s (working dir: %s)\n",
-                GetLastError(), process.string().data(), working_directory.string().data());
+                error, process.string().data(), working_directory.string().data());
+            SetLastError(error);
         }
 
         const auto pid = process_info.dwProcessId;
@@ -318,6 +321,50 @@ namespace utils::nt
         if (process_info.hProcess && process_info.hProcess != INVALID_HANDLE_VALUE) CloseHandle(process_info.hProcess);
 
         return pid;
+    }
+
+    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory)
+    {
+        const auto file = process.wstring();
+        const auto params = string::convert(command_line);
+        const auto dir = working_directory.wstring();
+
+        SHELLEXECUTEINFOW info{};
+        info.cbSize = sizeof(info);
+        info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+        info.lpVerb = L"runas";
+        info.lpFile = file.data();
+        info.lpParameters = params.empty() ? nullptr : params.data();
+        info.lpDirectory = dir.empty() ? nullptr : dir.data();
+        info.nShow = SW_SHOWNORMAL;
+
+        if (!ShellExecuteExW(&info) || !info.hProcess)
+        {
+            const auto error = GetLastError();
+            printf("ShellExecuteExW failed (error %lu): %s\n", error, process.string().data());
+            SetLastError(error);
+            return 0;
+        }
+
+        const auto pid = GetProcessId(info.hProcess);
+        CloseHandle(info.hProcess);
+        return pid;
+    }
+
+    bool is_elevated()
+    {
+        HANDLE token{};
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+        {
+            return false;
+        }
+
+        TOKEN_ELEVATION elevation{};
+        DWORD size = sizeof(elevation);
+        const auto success = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size);
+        CloseHandle(token);
+
+        return success && elevation.TokenIsElevated;
     }
 
     bool is_process_running(const std::string& processName)
