@@ -2,7 +2,6 @@
 
 namespace uri_scheme
 {
-    // Registers the cbservers:// URL protocol under HKCU for the current exe.
-    // Self-healing: rewrites the keys only on first run or when the exe path changed.
+    // Registers/repairs the cbservers:// URL protocol under HKCU for the current exe.
     void ensure_registered();
 }

@@ -5,6 +5,7 @@
 #include "discord/discord_service.hpp"
 #include "game_config.hpp"
 #include "join_secret.hpp"
+#include "pipe_listener.hpp"
 
 #include <utils/concurrency.hpp>
 #include <utils/logger.hpp>
@@ -14,7 +15,6 @@
 #include <cstdio>
 #include <deque>
 #include <optional>
-#include <thread>
 #include <utility>
 
 namespace ipc
@@ -93,9 +93,7 @@ namespace ipc
 
     struct ipc_server::impl
     {
-        std::thread thread{};
-        std::atomic<bool> running{false};
-        HANDLE stop_event{nullptr};
+        pipe::listener listener{};
 
         // Outbound launcher->client messages (presence-owner, connect), drained on the serve thread.
         HANDLE outbound_event{nullptr};
@@ -208,70 +206,6 @@ namespace ipc
             }
         }
 
-        void run()
-        {
-            while (this->running)
-            {
-                const auto pipe = CreateNamedPipeW(
-                    PIPE_NAME,
-                    PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
-                    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-                    1, 64 * 1024, 64 * 1024, 0, nullptr);
-
-                if (pipe == INVALID_HANDLE_VALUE)
-                {
-                    utils::logger::write("[ipc] CreateNamedPipe failed: {}", GetLastError());
-                    if (WaitForSingleObject(this->stop_event, 1000) == WAIT_OBJECT_0)
-                    {
-                        break;
-                    }
-                    continue;
-                }
-
-                if (this->wait_for_connection(pipe) && this->running)
-                {
-                    this->serve_connection(pipe);
-                    this->on_disconnect();
-                }
-
-                DisconnectNamedPipe(pipe);
-                CloseHandle(pipe);
-            }
-        }
-
-        // Overlapped ConnectNamedPipe that also unblocks on the stop event.
-        bool wait_for_connection(const HANDLE pipe)
-        {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
-            bool ready = false;
-            const auto connect_ok = ConnectNamedPipe(pipe, &ov);
-            const auto err = GetLastError();
-
-            if (!connect_ok && err == ERROR_IO_PENDING)
-            {
-                HANDLE handles[2] = {ov.hEvent, this->stop_event};
-                if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-                {
-                    DWORD dummy = 0;
-                    ready = GetOverlappedResult(pipe, &ov, &dummy, FALSE) != 0;
-                }
-                else
-                {
-                    CancelIoEx(pipe, &ov);
-                }
-            }
-            else if (!connect_ok && err == ERROR_PIPE_CONNECTED)
-            {
-                // Client connected between CreateNamedPipe and ConnectNamedPipe.
-                ready = true;
-            }
-
-            CloseHandle(ov.hEvent);
-            return ready;
-        }
-
         // Tracked launcher launch: drop to baseline (the exit watchdog owns the full clear); else clear fully.
         void on_disconnect()
         {
@@ -304,10 +238,13 @@ namespace ipc
             std::string buffer{};
             char chunk[4096];
 
-            while (this->running)
+            while (this->listener.running())
             {
+                // The outbound event is serviced while the read stays pending.
                 DWORD read = 0;
-                if (!this->read_overlapped(pipe, chunk, sizeof(chunk), read) || read == 0)
+                const bool ok = this->listener.read(pipe, chunk, sizeof(chunk), read,
+                                                    this->outbound_event, [this, pipe] { this->flush_outbound(pipe); });
+                if (!ok || read == 0)
                 {
                     return;
                 }
@@ -331,71 +268,10 @@ namespace ipc
             }
         }
 
-        bool read_overlapped(const HANDLE pipe, char* buffer, const DWORD size, DWORD& read)
-        {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
-            bool ok = ReadFile(pipe, buffer, size, &read, &ov) != 0;
-            if (!ok && GetLastError() == ERROR_IO_PENDING)
-            {
-                ok = this->wait_read(pipe, ov, read);
-            }
-
-            CloseHandle(ov.hEvent);
-            return ok;
-        }
-
-        // Waits for a pending read while also servicing outbound sends and the stop event.
-        bool wait_read(const HANDLE pipe, OVERLAPPED& ov, DWORD& bytes)
-        {
-            HANDLE handles[3] = {ov.hEvent, this->stop_event, this->outbound_event};
-            while (true)
-            {
-                const auto wait = WaitForMultipleObjects(3, handles, FALSE, INFINITE);
-                if (wait == WAIT_OBJECT_0)
-                {
-                    return GetOverlappedResult(pipe, &ov, &bytes, FALSE) != 0;
-                }
-                if (wait == WAIT_OBJECT_0 + 2)
-                {
-                    // Ownership changed: send presence-owner, keep the read pending.
-                    this->flush_outbound(pipe);
-                    continue;
-                }
-
-                // Stop event (or wait failure): cancel the pending read.
-                CancelIoEx(pipe, &ov);
-                return false;
-            }
-        }
-
-        bool wait_overlapped(const HANDLE pipe, OVERLAPPED& ov, DWORD& bytes)
-        {
-            HANDLE handles[2] = {ov.hEvent, this->stop_event};
-            if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-            {
-                return GetOverlappedResult(pipe, &ov, &bytes, FALSE) != 0;
-            }
-
-            CancelIoEx(pipe, &ov);
-            return false;
-        }
-
         bool write_line(const HANDLE pipe, const std::string& data)
         {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
             DWORD written = 0;
-            bool ok = WriteFile(pipe, data.data(), static_cast<DWORD>(data.size()), &written, &ov) != 0;
-            if (!ok && GetLastError() == ERROR_IO_PENDING)
-            {
-                ok = this->wait_overlapped(pipe, ov, written);
-            }
-
-            CloseHandle(ov.hEvent);
-            return ok;
+            return this->listener.write(pipe, data.data(), static_cast<DWORD>(data.size()), written);
         }
 
         // Returns false to close the connection (failed handshake), true to keep serving.
@@ -645,16 +521,27 @@ namespace ipc
 
     void ipc_server::start()
     {
-        if (this->impl_->running.exchange(true))
+        if (this->impl_->listener.running())
         {
             return;
         }
 
-        this->impl_->stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         this->impl_->outbound_event = CreateEventW(nullptr, FALSE, FALSE, nullptr); // auto-reset
-        this->impl_->thread = std::thread([this]()
+
+        pipe::listener::options opts{};
+        opts.name = PIPE_NAME;
+        opts.access = PIPE_ACCESS_DUPLEX;
+        opts.out_buffer = 64 * 1024;
+        opts.in_buffer = 64 * 1024;
+        opts.on_create_error = [](const unsigned long error)
         {
-            this->impl_->run();
+            utils::logger::write("[ipc] CreateNamedPipe failed: {}", error);
+        };
+
+        this->impl_->listener.start(std::move(opts), [impl = this->impl_.get()](void* pipe)
+        {
+            impl->serve_connection(pipe);
+            impl->on_disconnect();
         });
     }
 
@@ -675,26 +562,12 @@ namespace ipc
 
     void ipc_server::stop()
     {
-        if (!this->impl_->running.exchange(false))
+        if (!this->impl_->listener.running())
         {
             return;
         }
 
-        if (this->impl_->stop_event)
-        {
-            SetEvent(this->impl_->stop_event);
-        }
-
-        if (this->impl_->thread.joinable())
-        {
-            this->impl_->thread.join();
-        }
-
-        if (this->impl_->stop_event)
-        {
-            CloseHandle(this->impl_->stop_event);
-            this->impl_->stop_event = nullptr;
-        }
+        this->impl_->listener.stop();
 
         if (this->impl_->outbound_event)
         {

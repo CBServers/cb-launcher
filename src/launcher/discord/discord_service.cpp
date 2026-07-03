@@ -99,8 +99,9 @@ namespace discord
             return display_name + " - " + context;
         }
 
-        // Server name on a public server; "Private Match" in-game otherwise; "In Menu" in menus.
-        std::string build_rich_state(const std::string& map_display, const std::string& server_name)
+        // Server name on a public server; "Campaign" in SP; "Private Match" in-game otherwise; "In Menu" in menus.
+        std::string build_rich_state(const std::string& mode, const std::string& map_display,
+                                     const std::string& server_name)
         {
             if (map_display.empty())
             {
@@ -110,7 +111,7 @@ namespace discord
             {
                 return server_name;
             }
-            return "Private Match";
+            return mode == "sp" ? "Campaign" : "Private Match";
         }
     }
 
@@ -252,7 +253,7 @@ namespace discord
             if (a.rich)
             {
                 activity.SetDetails(clamp_field(build_rich_details(a.display_name, a.gametype, a.map_display)));
-                activity.SetState(clamp_field(build_rich_state(a.map_display, a.server_name)));
+                activity.SetState(clamp_field(build_rich_state(a.mode, a.map_display, a.server_name)));
 
                 const bool joinable = !a.join_secret.empty();
                 if (a.max_players > 0 || joinable)

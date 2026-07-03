@@ -91,6 +91,24 @@ namespace
         return cef_ui.run_process();
     }
 
+    // Deep links can arrive before the UI exists (the listener starts pre-update); buffer until it does.
+    std::mutex deep_link_sink_mutex;
+    std::vector<std::string> pending_deep_links;
+    std::function<void(const std::string&)> deep_link_sink;
+
+    void on_deep_link(const std::string& url)
+    {
+        std::lock_guard lock(deep_link_sink_mutex);
+        if (deep_link_sink)
+        {
+            deep_link_sink(url);
+        }
+        else
+        {
+            pending_deep_links.push_back(url);
+        }
+    }
+
     void show_window(const utils::nt::library& process, const std::filesystem::path& path)
     {
         cef::cef_ui cef_ui{process, path};
@@ -111,12 +129,20 @@ namespace
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
 
-        // Receive cbservers:// URLs forwarded from second instances and route them to the UI.
-        deep_link::server deep_link_server{};
-        deep_link_server.start([&cef_ui](const std::string& url) { cef_ui.dispatch_deep_link(url); });
+        // Route forwarded deep links to the UI, delivering anything buffered pre-create.
+        {
+            std::lock_guard lock(deep_link_sink_mutex);
+            deep_link_sink = [&cef_ui](const std::string& url) { cef_ui.dispatch_deep_link(url); };
+            for (const auto& url : pending_deep_links) cef_ui.dispatch_deep_link(url);
+            pending_deep_links.clear();
+        }
 
         cef::cef_ui::work();
-        deep_link_server.stop();
+
+        {
+            std::lock_guard lock(deep_link_sink_mutex);
+            deep_link_sink = nullptr;
+        }
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
     }
@@ -211,6 +237,10 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         freopen_s(&fp, "CONOUT$", "w", stderr);
         printf("Debug console enabled\n");
 #endif
+
+        // Listen for forwarded deep links immediately so a link clicked mid-update isn't lost.
+        deep_link::server deep_link_server{};
+        deep_link_server.start(&on_deep_link);
 
         if (!utils::flags::has_flag("noupdate") && !utils::flags::has_flag("offline"))
         {

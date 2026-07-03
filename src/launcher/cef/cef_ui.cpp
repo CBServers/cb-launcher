@@ -226,14 +226,10 @@ namespace cef
         browser->GetHost()->CloseBrowser(true);
     }
 
-    void cef_ui::invoke_show_message_box(CefRefPtr<CefBrowser> browser, const std::string& title, const std::string& msg)
+    namespace
     {
-        if (!browser) return;
-        auto frame = browser->GetMainFrame();
-        if (!frame) return;
-
-        // Escape single quotes in title and message for JavaScript
-        auto escape_js_string = [](const std::string& str) -> std::string
+        // Escape a string for embedding in a single-quoted JS literal.
+        std::string escape_js_string(const std::string& str)
         {
             std::string escaped;
             escaped.reserve(str.size());
@@ -246,7 +242,14 @@ namespace cef
                 else escaped += c;
             }
             return escaped;
-        };
+        }
+    }
+
+    void cef_ui::invoke_show_message_box(CefRefPtr<CefBrowser> browser, const std::string& title, const std::string& msg)
+    {
+        if (!browser) return;
+        auto frame = browser->GetMainFrame();
+        if (!frame) return;
 
         const auto escaped_title = escape_js_string(title);
         const auto escaped_msg = escape_js_string(msg);
@@ -293,21 +296,6 @@ namespace cef
         auto frame = browser->GetMainFrame();
         if (!frame) return;
 
-        auto escape_js_string = [](const std::string& str) -> std::string
-        {
-            std::string escaped;
-            escaped.reserve(str.size());
-            for (char c : str)
-            {
-                if (c == '\'') escaped += "\\'";
-                else if (c == '\\') escaped += "\\\\";
-                else if (c == '\n') escaped += "\\n";
-                else if (c == '\r') escaped += "\\r";
-                else escaped += c;
-            }
-            return escaped;
-        };
-
         const auto escaped_msg = escape_js_string(message);
         const auto escaped_type = escape_js_string(type);
         const auto js_code = utils::string::va(
@@ -329,21 +317,6 @@ namespace cef
         auto frame = browser->GetMainFrame();
         if (!frame) return;
 
-        auto escape_js_string = [](const std::string& str) -> std::string
-        {
-            std::string escaped;
-            escaped.reserve(str.size());
-            for (char c : str)
-            {
-                if (c == '\'') escaped += "\\'";
-                else if (c == '\\') escaped += "\\\\";
-                else if (c == '\n') escaped += "\\n";
-                else if (c == '\r') escaped += "\\r";
-                else escaped += c;
-            }
-            return escaped;
-        };
-
         const auto escaped_url = escape_js_string(url);
         const auto js_code = utils::string::va(
             "if (typeof window.handleDeepLink === 'function') { window.handleDeepLink('%s'); }",
@@ -352,10 +325,36 @@ namespace cef
         frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
     }
 
-    void cef_ui::dispatch_deep_link(const std::string& url) const
+    void cef_ui::dispatch_deep_link(const std::string& url)
     {
+        {
+            std::lock_guard lock(this->deep_link_mutex_);
+            if (!this->frontend_ready_)
+            {
+                this->pending_deep_links_.push_back(url);
+                return;
+            }
+        }
+
         if (!this->browser_) return;
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_deep_link, this->browser_, url));
+    }
+
+    void cef_ui::notify_frontend_ready()
+    {
+        std::vector<std::string> pending;
+        {
+            std::lock_guard lock(this->deep_link_mutex_);
+            if (this->frontend_ready_) return;
+            this->frontend_ready_ = true;
+            pending.swap(this->pending_deep_links_);
+        }
+
+        for (const auto& url : pending)
+        {
+            if (!this->browser_) return;
+            CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_deep_link, this->browser_, url));
+        }
     }
 
     cef_ui::cef_ui(utils::nt::library process, std::filesystem::path path)

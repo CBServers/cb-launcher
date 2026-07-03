@@ -7,7 +7,6 @@ namespace property_keys
     constexpr const char* SKIP_HASH_VERIFICATION = "launcher-skip-hash-verification";
     constexpr const char* SKIP_CLIENT_UPDATE = "launcher-skip-client-update";
     constexpr const char* SHORTCUT_CREATED = "launcher-shortcut-created";
-    constexpr const char* URI_SCHEME_PATH = "launcher-uri-scheme-path";
     constexpr const char* CDN_PREFERENCE = "launcher-cdn-preference";
     constexpr const char* CDN_CUSTOM_URL = "launcher-cdn-custom-url";
     constexpr const char* GLOBAL_PLAYER_NAME = "launcher-global-player-name";

@@ -125,20 +125,33 @@ namespace utils::com
         return progress_dialog;
     }
 
+    namespace
+    {
+        std::filesystem::path get_known_folder_path(const KNOWNFOLDERID& folder_id)
+        {
+            PWSTR path = nullptr;
+            if (FAILED(SHGetKnownFolderPath(folder_id, 0, nullptr, &path)))
+            {
+                return {};
+            }
+
+            const auto _ = finally([&path]
+            {
+                CoTaskMemFree(path);
+            });
+
+            return std::filesystem::path(path);
+        }
+    }
+
     std::filesystem::path get_desktop_path()
     {
-        PWSTR path = nullptr;
-        if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &path)))
-        {
-            return {};
-        }
+        return get_known_folder_path(FOLDERID_Desktop);
+    }
 
-        const auto _ = finally([&path]
-        {
-            CoTaskMemFree(path);
-        });
-
-        return std::filesystem::path(path);
+    std::filesystem::path get_start_menu_programs_path()
+    {
+        return get_known_folder_path(FOLDERID_Programs);
     }
 
     std::filesystem::path read_shortcut_target(const std::filesystem::path& shortcut_path)

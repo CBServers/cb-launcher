@@ -112,6 +112,7 @@ namespace cef
                 {"hqx", "application/mac-binhex40"},
                 {"htm", "text/html"},
                 {"html", "text/html"},
+                {"ico", "image/x-icon"},
                 {"ics", "text/calendar"},
                 {"ief", "image/ief"},
                 {"ifb", "text/calendar"},
@@ -427,7 +428,11 @@ namespace cef
             return new CefStreamResourceHandler(mime_type, stream);
         }
 
-        throw std::runtime_error("Could not read file at " + file.string());
+        // A missing asset must 404, not throw: an exception here escapes CEF's IO thread and kills the process.
+        printf("ui:// 404: %s\n", utils::string::path_to_utf8(file).data());
+        static std::string not_found_body = "Not Found";
+        const auto stream = CefStreamReader::CreateForData(not_found_body.data(), not_found_body.size());
+        return new CefStreamResourceHandler(404, "Not Found", "text/plain", CefResponse::HeaderMap{}, stream);
     }
 
     CefResourceHandler* cef_ui_scheme_handler_factory::handle_command(const CefRefPtr<CefRequest>& request,
