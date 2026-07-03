@@ -343,10 +343,10 @@ namespace commands::game_commands
             return std::format("{} \"{}\"", prefix, name);
         }
 
-        // Builds the +set r_* args for the custom-resolution setting (CoD1/CoDUO only); empty when disabled or invalid.
+        // Builds the +set r_* args for the custom-resolution setting (CoD1/CoDUO/CoD2 only); empty when disabled or invalid.
         std::string build_custom_resolution_args(const game_config::game_config_t& config)
         {
-            if (config.game_key != "cod1" && config.game_key != "coduo") return "";
+            if (config.game_key != "cod1" && config.game_key != "coduo" && config.game_key != "cod2x") return "";
 
             const auto enabled = config.get(property_keys::CUSTOM_RESOLUTION_ENABLED);
             if (!enabled || *enabled != "true") return "";

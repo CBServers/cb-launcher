@@ -32,7 +32,7 @@ namespace property_keys
     constexpr const char* SELECTED_COMPONENTS = "selected-components";
     constexpr const char* DISABLE_CB_EXTENSION = "disable-cb-extension";
 
-    // Custom resolution (CoD1 / CoDUO only)
+    // Custom resolution (CoD1 / CoDUO / CoD2 only)
     constexpr const char* CUSTOM_RESOLUTION_ENABLED = "custom-resolution-enabled";
     constexpr const char* CUSTOM_RESOLUTION_WIDTH = "custom-resolution-width";
     constexpr const char* CUSTOM_RESOLUTION_HEIGHT = "custom-resolution-height";

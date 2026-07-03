@@ -228,7 +228,7 @@ namespace game_config
         {
             this->set(property_keys::DISABLE_CB_EXTENSION, "");
         }
-        if (this->game_key == "cod1" || this->game_key == "coduo")
+        if (this->game_key == "cod1" || this->game_key == "coduo" || this->game_key == "cod2x")
         {
             this->set(property_keys::CUSTOM_RESOLUTION_ENABLED, "");
             this->set(property_keys::CUSTOM_RESOLUTION_WIDTH, "");

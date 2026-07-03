@@ -171,7 +171,7 @@ class GameSettingsPopup {
     }
 
     supportsCustomResolution() {
-        return this.currentGame === 'cod1' || this.currentGame === 'coduo';
+        return this.currentGame === 'cod1' || this.currentGame === 'coduo' || this.currentGame === 'cod2x';
     }
 
     updateCustomResolutionVisibility() {
@@ -371,7 +371,7 @@ class GameSettingsPopup {
                     this.popup.querySelector('#player-name-override-input').value = overrideName || '';
                 }
 
-                // Load custom resolution (CoD1 / CoDUO only)
+                // Load custom resolution (CoD1 / CoDUO / CoD2 only)
                 if (this.supportsCustomResolution()) {
                     const [enabled, widthStr, heightStr] = await Promise.all([
                         window.executeCommand('get-game-property', { game: this.currentGame, suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_ENABLED }),
@@ -523,7 +523,7 @@ class GameSettingsPopup {
                     });
                 }
 
-                // Save custom resolution (CoD1 / CoDUO only)
+                // Save custom resolution (CoD1 / CoDUO / CoD2 only)
                 if (this.supportsCustomResolution()) {
                     const toggleGroup = this.popup.querySelector('#custom-resolution-toggle');
                     const activeButton = toggleGroup.querySelector('.toggle-btn.active');
