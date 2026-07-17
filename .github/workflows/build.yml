@@ -57,6 +57,7 @@ jobs:
           name: ${{matrix.configuration}} Binary
           path: |
             build/bin/x64/${{matrix.configuration}}/cb-launcher.exe
+          overwrite: true
 
       # Test-sign the dev channel with the SignPath self-signed test cert. Best-effort:
       # if signing fails the unsigned binary above is kept so the dev release still ships.
@@ -77,6 +78,30 @@ jobs:
 
       - name: Replace binary artifact with signed exe (develop only)
         if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && github.ref == 'refs/heads/develop' && steps.sign.outcome == 'success'
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} Binary
+          path: signed/cb-launcher.exe
+          overwrite: true
+
+      # Release-sign main with the SignPath production cert. Fail-closed: requires manual
+      # approval in the SignPath UI; if signing fails or times out, nothing is deployed.
+      - name: Sign cb-launcher.exe (SignPath production cert, main only)
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cb-launcher
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: initial
+          github-artifact-id: ${{ steps.upload-unsigned-binary.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Replace binary artifact with signed exe (main only)
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Binary
