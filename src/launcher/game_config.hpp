@@ -79,6 +79,9 @@ namespace game_config
         // Launch via UAC prompt (e.g. CoD2x needs HKLM access for its HWID key).
         bool requires_elevation = false;
 
+        // Game can be installed from a Steam copy (lacks zone/ and raw/video/ folders), so those manifest prefixes are remapped.
+        bool supports_steam_install = false;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };

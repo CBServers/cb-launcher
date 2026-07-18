@@ -178,7 +178,7 @@ namespace game_updater
             this->install_path = *install_path_prop;
         }
 
-        this->is_steam_install = config.is_steam_install();
+        this->is_steam_install = config.supports_steam_install && config.is_steam_install();
         this->base_url = game_config::get_resolved_base_url(config);
 
         const auto manifest_json = game_config::read_manifest(config);

@@ -566,7 +566,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -593,7 +594,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -620,7 +622,8 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
                 .client_install_path_files = {"h1-mod.exe"},
                 .client_data_folders = {"cdata"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -644,7 +647,8 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
                 .client_install_path_files = {"iw7-mod.exe"},
                 .client_data_folders = {"cdata"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -721,7 +725,8 @@ namespace game_config
                     {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },
                 .client_data_folders = {},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         }
     };
