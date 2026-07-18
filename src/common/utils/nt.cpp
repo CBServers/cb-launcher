@@ -367,6 +367,56 @@ namespace utils::nt
         return success && elevation.TokenIsElevated;
     }
 
+    bool is_process_elevated(const unsigned long pid)
+    {
+        auto* const process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!process)
+        {
+            return false;
+        }
+
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(process);
+        });
+
+        HANDLE token{};
+        if (!OpenProcessToken(process, TOKEN_QUERY, &token))
+        {
+            return false;
+        }
+
+        TOKEN_ELEVATION elevation{};
+        DWORD size = sizeof(elevation);
+        const auto success = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size);
+        CloseHandle(token);
+
+        return success && elevation.TokenIsElevated;
+    }
+
+    std::filesystem::path get_process_path(const unsigned long pid)
+    {
+        auto* const process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!process)
+        {
+            return {};
+        }
+
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(process);
+        });
+
+        wchar_t buffer[MAX_PATH]{};
+        DWORD size = MAX_PATH;
+        if (!QueryFullProcessImageNameW(process, 0, buffer, &size))
+        {
+            return {};
+        }
+
+        return std::filesystem::path(std::wstring(buffer, size));
+    }
+
     bool is_process_running(const std::string& processName)
     {
         HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -386,7 +436,7 @@ namespace utils::nt
 
         do
         {
-            if (std::string(pe32.szExeFile) == processName)
+            if (_stricmp(pe32.szExeFile, processName.data()) == 0)
             {
                 CloseHandle(hProcessSnap);
                 return true;
@@ -417,7 +467,7 @@ namespace utils::nt
         bool terminated = false;
         do
         {
-            if (std::string(pe32.szExeFile) == processName)
+            if (_stricmp(pe32.szExeFile, processName.data()) == 0)
             {
                 HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe32.th32ProcessID);
                 if (hProcess != nullptr)

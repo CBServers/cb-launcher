@@ -102,6 +102,7 @@ namespace ipc
         // Per-connection state. The launch barrier guarantees one game (one client) at a time.
         unsigned long connection_pid{0};
         std::string connection_game_id{};
+        unsigned long last_rejected_pid{0}; // throttles logging for a fork that redials every 2s after a rejected hello
 
         // Connected fork's id + fixed launch mode, captured at hello (cross-thread); empty mode => always connect in place.
         struct connected_state
@@ -116,6 +117,7 @@ namespace ipc
         {
             std::string game_id;
             join_secret::transport t;
+            std::string mode; // invite's play mode; checked against the hello mode of fixed-mode forks
             std::chrono::steady_clock::time_point deadline;
         };
         utils::concurrency::container<std::optional<pending_join_entry>> pending_join{};
@@ -186,9 +188,7 @@ namespace ipc
                 w.EndObject();
             });
 
-            utils::logger::write("[ipc] sending connect {} ({})", id, t.is_nat ? "nat" : "direct");
-            printf("[cbl-join] -> connect %s (%s): %s\n", id.data(), t.is_nat ? "nat" : "direct", line.data());
-            fflush(stdout);
+            utils::logger::write("[cbl-join] -> connect {} ({})", id, t.is_nat ? "nat" : "direct");
             this->push_outbound(line + "\n");
         }
 
@@ -297,9 +297,7 @@ namespace ipc
             {
                 const auto id = json_string(doc, "id");
                 const auto accepted = doc.HasMember("accepted") && doc["accepted"].IsBool() && doc["accepted"].GetBool();
-                utils::logger::write("[ipc] connect-ack {} accepted={}", id, accepted);
-                printf("[cbl-join] <- connect-ack %s accepted=%d\n", id.data(), accepted ? 1 : 0);
-                fflush(stdout);
+                utils::logger::write("[cbl-join] <- connect-ack {} accepted={}", id, accepted);
             }
             return true; // unknown types ignored (forward-compat)
         }
@@ -311,17 +309,31 @@ namespace ipc
 
             if (protocol <= 0 || protocol > PROTOCOL_VERSION || game.empty())
             {
-                utils::logger::write("[ipc] rejecting hello (protocol {}, game '{}')", protocol, game);
+                utils::logger::write("[cbl-ipc] rejecting hello (protocol {}, game '{}')", protocol, game);
                 return false;
             }
 
-            if (!commands::game_commands::is_tracked_game_pid(this->connection_pid, game))
+            // Not a launcher-launched PID: try to adopt it (launcher restart / manual start) before rejecting.
+            if (!commands::game_commands::is_tracked_game_pid(this->connection_pid, game)
+                && !commands::game_commands::try_adopt_running_game(this->connection_pid, game))
             {
-                utils::logger::write("[ipc] hello PID/game mismatch (pid {}, game '{}')", this->connection_pid, game);
+                const bool repeat = this->last_rejected_pid == this->connection_pid;
+                this->last_rejected_pid = this->connection_pid;
+                if (!repeat)
+                {
+#ifndef _DEBUG
+                    utils::logger::write("[cbl-ipc] rejecting hello: pid {} not tracked or adoptable for '{}'",
+                                         this->connection_pid, game);
+#else
+                    utils::logger::write("[cbl-ipc] pid {} not tracked or adoptable for '{}'; accepting anyway (debug)",
+                                         this->connection_pid, game);
+#endif
+                }
 #ifndef _DEBUG
                 return false;
 #endif
             }
+            this->last_rejected_pid = 0;
 
             // Fixed launch mode from hello drives the relaunch decision; omitted by runtime-switchable forks.
             const auto hello_mode = json_string(doc, "mode");
@@ -329,8 +341,7 @@ namespace ipc
             this->connected.access([&](connected_state& c) { c.game = game; c.launch_mode = hello_mode; });
 
             const auto* owner = discord::discord_service::instance().owns_presence() ? "launcher" : "client";
-            printf("[cbl-join] hello from '%s' (pid %lu); presenceOwner=%s\n", game.data(), this->connection_pid, owner);
-            fflush(stdout);
+            utils::logger::write("[cbl-join] hello from '{}' (pid {}); presenceOwner={}", game, this->connection_pid, owner);
             const auto ack = build_json_object([&](auto& w)
             {
                 w.Key("type");            w.String("hello-ack");
@@ -342,14 +353,14 @@ namespace ipc
                 return false;
             }
 
-            this->fire_pending_join(game);
+            this->fire_pending_join(game, hello_mode);
             return true;
         }
 
-        // If an accept cold-launched this game, send the queued connect now that it has dialed in.
-        void fire_pending_join(const std::string& game)
+        // If an accept queued a join for this game, send the connect now that it has dialed in.
+        void fire_pending_join(const std::string& game, const std::string& hello_mode)
         {
-            std::optional<join_secret::transport> transport;
+            std::optional<pending_join_entry> entry;
             this->pending_join.access([&](std::optional<pending_join_entry>& pj)
             {
                 if (!pj)
@@ -363,15 +374,42 @@ namespace ipc
                 }
                 if (pj->game_id == game)
                 {
-                    transport = pj->t;
+                    entry = *pj;
                     pj.reset();
                 }
             });
 
-            if (transport)
+            if (!entry)
             {
-                this->send_connect(*transport);
+                return;
             }
+
+            utils::logger::write("[cbl-join] firing pending join for '{}' (invite mode '{}', hello mode '{}')",
+                                 game, entry->mode, hello_mode);
+
+            // A fixed-mode fork that came up in the wrong mode can't take this connect; relaunch into the invite's mode.
+            const auto config = game_config::get_game_config_by_id(game);
+            const bool target_is_real_mode = config && !entry->mode.empty()
+                && config->mode_arguments.contains(entry->mode);
+            if (target_is_real_mode && !hello_mode.empty() && entry->mode != hello_mode)
+            {
+                utils::logger::write("[cbl-join] hello from '{}' in mode '{}' but queued join is '{}'; relaunching",
+                                     game, hello_mode, entry->mode);
+                const auto mode = entry->mode;
+                entry->mode.clear(); // one mode-correcting relaunch max; the next hello connects regardless
+                entry->deadline = std::chrono::steady_clock::now() + std::chrono::minutes(10);
+                this->pending_join.access([&](std::optional<pending_join_entry>& pj)
+                {
+                    if (!pj) // a join accepted in the meantime wins over the re-stash
+                    {
+                        pj = *entry;
+                    }
+                });
+                commands::game_commands::relaunch_for_join(game, mode);
+                return;
+            }
+
+            this->send_connect(entry->t);
         }
 
         void handle_presence(const rapidjson::Document& doc)
@@ -401,9 +439,6 @@ namespace ipc
             {
                 info.join_secret = join_secret::build(this->connection_game_id, transport, mode);
                 info.direct_join = !transport.is_nat; // direct => public/dedicated server, joinable without approval
-                printf("[cbl-join] presence from '%s' is joinable (%s); secret='%s'\n",
-                       this->connection_game_id.data(), transport.is_nat ? "nat" : "direct", info.join_secret.data());
-                fflush(stdout);
             }
 
             discord::discord_service::instance().set_rich_game_activity(
@@ -413,9 +448,6 @@ namespace ipc
         // Accept flow: route a join secret to a running fork, or cold-launch then connect.
         void handle_join_secret(const std::string& secret)
         {
-            printf("[cbl-join] handle_join_secret: '%s'\n", secret.data());
-            fflush(stdout);
-
             // Ignore a repeat of the same secret within a short window so we launch/connect exactly once.
             constexpr auto dedup_window = std::chrono::seconds(5);
             const bool duplicate = this->recent_join.access<bool>([&](recent_join_state& rj)
@@ -431,17 +463,14 @@ namespace ipc
             });
             if (duplicate)
             {
-                printf("[cbl-join] ignoring duplicate join secret\n");
-                fflush(stdout);
+                utils::logger::write("[cbl-join] ignoring duplicate join secret");
                 return;
             }
 
             const auto parsed = join_secret::parse(secret);
             if (!parsed)
             {
-                utils::logger::write("[ipc] ignoring malformed join secret");
-                printf("[cbl-join] secret rejected (malformed)\n");
-                fflush(stdout);
+                utils::logger::write("[cbl-join] ignoring malformed join secret");
                 return;
             }
 
@@ -450,7 +479,7 @@ namespace ipc
             {
                 this->pending_join.access([&](std::optional<pending_join_entry>& pj)
                 {
-                    pj = pending_join_entry{ parsed->game_id, parsed->t,
+                    pj = pending_join_entry{ parsed->game_id, parsed->t, parsed->mode,
                         std::chrono::steady_clock::now() + std::chrono::minutes(10) };
                 });
             };
@@ -470,34 +499,48 @@ namespace ipc
 
                 if (target_is_real_mode && mode_known && parsed->mode != ipc.launch_mode)
                 {
-                    printf("[cbl-join] game '%s' running in mode '%s' but invite is '%s'; relaunching\n",
-                           parsed->game_id.data(), ipc.launch_mode.data(), parsed->mode.data());
-                    fflush(stdout);
+                    utils::logger::write("[cbl-join] game '{}' running in mode '{}' but invite is '{}'; relaunching",
+                                         parsed->game_id, ipc.launch_mode, parsed->mode);
                     stash_pending_join();
                     commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
                     return;
                 }
 
-                printf("[cbl-join] game '%s' already running; sending connect over pipe\n", parsed->game_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-join] game '{}' already running; sending connect over pipe", parsed->game_id);
                 this->send_connect(parsed->t);
+                return;
+            }
+
+            // A2: the invited game holds the barrier but isn't on IPC yet (booting or mid-update); queue and let its hello complete the join.
+            if (running_id == parsed->game_id)
+            {
+                utils::logger::write("[cbl-join] game '{}' launching/running but not on IPC yet; queueing connect",
+                                     parsed->game_id);
+                stash_pending_join();
                 return;
             }
 
             // B: a different game holds the barrier (other fork, or a non-fork game). Stop it and launch the invited game.
             if (!running_id.empty())
             {
-                printf("[cbl-join] game '%s' running but invite is for '%s'; switching games\n",
-                       running_id.data(), parsed->game_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-join] game '{}' running but invite is for '{}'; switching games",
+                                     running_id, parsed->game_id);
                 stash_pending_join();
                 commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
                 return;
             }
 
+            // A3: an untracked instance of the invited game is running (launcher restart / manual start); queue — its reconnect hello gets adopted and fires the connect.
+            if (game_config::is_game_process_running(parsed->game_id))
+            {
+                utils::logger::write("[cbl-join] game '{}' running unmanaged; queueing connect for its hello",
+                                     parsed->game_id);
+                stash_pending_join();
+                return;
+            }
+
             // C: nothing running: stash the transport and cold-launch; hello fires the connect.
-            printf("[cbl-join] game '%s' not running; cold-launching then connecting\n", parsed->game_id.data());
-            fflush(stdout);
+            utils::logger::write("[cbl-join] game '{}' not running; cold-launching then connecting", parsed->game_id);
             stash_pending_join();
             commands::game_commands::launch_for_join(parsed->game_id, parsed->mode);
         }

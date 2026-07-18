@@ -19,9 +19,13 @@ namespace utils::logger
             return log_file_stream;
         }
 
-        void write_to_log(const std::string& line)
+        void write_to_log(const std::string& line, const std::string& console_line)
         {
             std::unique_lock _(logger_mutex);
+
+            std::fputs(console_line.data(), stdout);
+            std::fputc('\n', stdout);
+            std::fflush(stdout);
 
             try
             {
@@ -46,13 +50,14 @@ namespace utils::logger
     void log_format(const std::string_view& fmt, std::format_args&& args)
 #endif
     {
+        const auto message = std::vformat(fmt, args);
+
 #ifdef _DEBUG
-        const auto loc_info = std::format("Debug: {}::{}\n    ", location.file_name(), location.function_name());
-        const auto line = loc_info + std::vformat(fmt, args);
+        const auto line = std::format("Debug: {}::{}\n    {}", location.file_name(), location.function_name(), message);
 #else
-        const auto line = std::vformat(fmt, args);
+        const auto& line = message;
 #endif
 
-        write_to_log(line);
+        write_to_log(line, message);
     }
 }

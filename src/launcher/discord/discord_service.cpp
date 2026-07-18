@@ -387,9 +387,7 @@ namespace discord
                 // The only mutable field is validity; drop invites that expired or whose sender stopped playing.
                 if (!invite.IsValid())
                 {
-                    printf("[cbl-invite] invite from %llu invalidated; dropping\n",
-                           static_cast<unsigned long long>(invite.SenderId()));
-                    fflush(stdout);
+                    utils::logger::write("[cbl-invite] invite from {} invalidated; dropping", invite.SenderId());
                     this->remove_invite(std::to_string(invite.SenderId()));
                 }
             });
@@ -397,8 +395,7 @@ namespace discord
             // Fired when the user accepts via the Discord client (DM "Join"); routes the same cbl: secret as the in-launcher accept path.
             this->client->SetActivityJoinCallback([this](const std::string& secret)
             {
-                printf("[cbl-invite] SetActivityJoinCallback (Discord DM accept) secret='%s'\n", secret.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] Discord DM accept; routing join secret");
                 if (this->join_secret_cb && !secret.empty())
                 {
                     this->join_secret_cb(secret);
@@ -429,9 +426,8 @@ namespace discord
             this->client->AcceptActivityInvite(invite,
                 [i = this](const discordpp::ClientResult& result, const std::string& secret)
                 {
-                    printf("[cbl-invite] AcceptActivityInvite: %s, secret='%s'\n",
-                           result.Successful() ? "ok" : result.ToString().data(), secret.data());
-                    fflush(stdout);
+                    utils::logger::write("[cbl-invite] AcceptActivityInvite: {}",
+                                         result.Successful() ? "ok" : result.ToString());
                     if (result.Successful() && i->join_secret_cb && !secret.empty())
                     {
                         i->join_secret_cb(secret);
@@ -445,11 +441,6 @@ namespace discord
             const bool is_request = invite.Type() == discordpp::ActivityActionTypes::JoinRequest;
             const auto own = this->own_user_id();
 
-            printf("[cbl-invite] on_invite sender=%llu own=%llu type=%s valid=%d\n",
-                   static_cast<unsigned long long>(sender), static_cast<unsigned long long>(own),
-                   is_request ? "join-request" : "invite", invite.IsValid() ? 1 : 0);
-            fflush(stdout);
-
             if (!invite.IsValid())
             {
                 return;
@@ -458,8 +449,6 @@ namespace discord
             // The created callback also fires on the sender's own client; only surface invites addressed to us.
             if (own != 0 && sender == own)
             {
-                printf("[cbl-invite] ignoring our own outgoing invite\n");
-                fflush(stdout);
                 return;
             }
 
@@ -478,16 +467,8 @@ namespace discord
             // Public/dedicated server: approve join requests immediately (private host matches still queue for approval below).
             if (is_request && this->hosting_public_match())
             {
-                printf("[cbl-invite] auto-approving join-request from %llu (public match)\n",
-                       static_cast<unsigned long long>(sender));
-                fflush(stdout);
-                this->client->SendActivityJoinRequestReply(invite, [sender](const discordpp::ClientResult& result)
-                {
-                    printf("[cbl-invite] auto join-request reply to %llu: %s\n",
-                           static_cast<unsigned long long>(sender),
-                           result.Successful() ? "ok" : result.ToString().data());
-                    fflush(stdout);
-                });
+                utils::logger::write("[cbl-invite] auto-approving join-request from {} (public match)", sender);
+                this->client->SendActivityJoinRequestReply(invite, [](const discordpp::ClientResult&) {});
                 return;
             }
 
@@ -517,9 +498,8 @@ namespace discord
                 s.invites.push_back(std::move(entry));
             });
 
-            printf("[cbl-invite] queued incoming %s from %s for the in-launcher prompt\n",
-                   is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id.data());
-            fflush(stdout);
+            utils::logger::write("[cbl-invite] queued incoming {} from {} for the in-launcher prompt",
+                                 is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id);
         }
 
         void remove_invite(const std::string& id)
@@ -689,8 +669,7 @@ namespace discord
             {
                 const bool ok = this->client->RegisterLaunchCommand(APPLICATION_ID, "");
                 this->launch_command_registered = ok;
-                printf("[cbl-invite] RegisterLaunchCommand: %s\n", ok ? "ok" : "failed");
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] RegisterLaunchCommand: {}", ok ? "ok" : "failed");
             }
 
             std::string access_token{};
@@ -1150,21 +1129,15 @@ namespace discord
             const auto uid = std::strtoull(user_id.data(), nullptr, 10);
             if (uid == 0)
             {
-                printf("[cbl-invite] send_invite: bad user id '%s'\n", user_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] send_invite: bad user id '{}'", user_id);
                 return;
             }
-
-            printf("[cbl-invite] send_invite -> %llu\n", static_cast<unsigned long long>(uid));
-            fflush(stdout);
 
             i->client->SendActivityInvite(uid, "Join my game on CB Servers",
                                           [uid](const discordpp::ClientResult& result)
             {
-                printf("[cbl-invite] SendActivityInvite to %llu: %s\n",
-                       static_cast<unsigned long long>(uid),
-                       result.Successful() ? "ok" : result.ToString().data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] send_invite -> {}: {}",
+                                     uid, result.Successful() ? "ok" : result.ToString());
             });
         });
     }
@@ -1181,23 +1154,17 @@ namespace discord
             const auto uid = std::strtoull(user_id.data(), nullptr, 10);
             if (uid == 0)
             {
-                printf("[cbl-invite] request_join: bad user id '%s'\n", user_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] request_join: bad user id '{}'", user_id);
                 return;
             }
-
-            printf("[cbl-invite] request_join -> %llu\n", static_cast<unsigned long long>(uid));
-            fflush(stdout);
 
             // Remember we asked so the host's approval (an incoming Join invite) prompts as an approval, not an unsolicited invite.
             i->pending_join_requests[uid] = std::chrono::steady_clock::now();
 
             i->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
             {
-                printf("[cbl-invite] SendActivityJoinRequest to %llu: %s\n",
-                       static_cast<unsigned long long>(uid),
-                       result.Successful() ? "ok" : result.ToString().data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] request_join -> {}: {}",
+                                     uid, result.Successful() ? "ok" : result.ToString());
             });
         });
     }
@@ -1217,8 +1184,7 @@ namespace discord
             const auto it = i->invite_objs.find(id);
             if (it == i->invite_objs.end() || !i->client)
             {
-                printf("[cbl-invite] accept_invite: no pending invite for id '%s'\n", id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] accept_invite: no pending invite for id '{}'", id);
                 return;
             }
 
@@ -1227,19 +1193,12 @@ namespace discord
             // Their request to join us => approve it; their invite to us => accept and route the secret.
             if (invite.Type() == discordpp::ActivityActionTypes::JoinRequest)
             {
-                printf("[cbl-invite] accept_invite: approving join-request from %s\n", id.data());
-                fflush(stdout);
-                i->client->SendActivityJoinRequestReply(invite, [id](const discordpp::ClientResult& result)
-                {
-                    printf("[cbl-invite] join-request reply to %s: %s\n", id.data(),
-                           result.Successful() ? "ok" : result.ToString().data());
-                    fflush(stdout);
-                });
+                utils::logger::write("[cbl-invite] accept_invite: approving join-request from {}", id);
+                i->client->SendActivityJoinRequestReply(invite, [](const discordpp::ClientResult&) {});
             }
             else
             {
-                printf("[cbl-invite] accept_invite: accepting invite from %s\n", id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] accept_invite: accepting invite from {}", id);
                 i->accept_join_invite(invite);
             }
 

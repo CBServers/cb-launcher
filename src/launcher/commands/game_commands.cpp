@@ -6,6 +6,7 @@
 #include <utils/concurrency.hpp>
 #include <utils/flags.hpp>
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/registry.hpp>
@@ -140,7 +141,8 @@ namespace commands::game_commands
         }
 
         // Stops the game holding the barrier and waits for it to fully exit (single-instance; barrier stays held).
-        void stop_tracked_game_and_wait()
+        // False => the game survived the stop (e.g. declined UAC taskkill); the caller must not launch on top of it.
+        bool stop_tracked_game_and_wait()
         {
             const auto running_id = get_tracked_launch().access<std::string>([](const tracked_launch& t)
             {
@@ -148,13 +150,13 @@ namespace commands::game_commands
             });
             if (running_id.empty())
             {
-                return;
+                return true;
             }
 
             const auto config = game_config::get_game_config_by_id(running_id);
             if (!config)
             {
-                return;
+                return true;
             }
 
             std::vector<std::string> exes{ config->exe_name };
@@ -166,9 +168,10 @@ namespace commands::game_commands
             stop_game_processes(*config);
 
             // Poll for up to ~10s for every tracked exe to disappear.
-            for (int i = 0; i < 100; ++i)
+            bool any_running = true;
+            for (int i = 0; i < 100 && any_running; ++i)
             {
-                bool any_running = false;
+                any_running = false;
                 for (const auto& exe : exes)
                 {
                     if (!exe.empty() && utils::nt::is_process_running(exe))
@@ -177,12 +180,12 @@ namespace commands::game_commands
                         break;
                     }
                 }
-                if (!any_running)
+                if (any_running)
                 {
-                    break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
+            return !any_running;
         }
 
         // Some clients (e.g. Plutonium) exit the launched PID and continue under a child with a different PID, so poll the full exe list.
@@ -672,6 +675,7 @@ namespace commands::game_commands
 
         if (!is_game_launchable(*config, launch_mode))
         {
+            utils::logger::write("[cbl-join] launch_for_join('{}', '{}'): not launchable", game_id, launch_mode);
             g_cef_ui->show_message_box("Join Failed",
                 config->display_name + " isn't installed. Install it from the library to join.");
             return;
@@ -680,6 +684,7 @@ namespace commands::game_commands
         // Already launching/running => the running-game accept path (send_connect/relaunch) handles it.
         if (!try_lock_launch_barrier())
         {
+            utils::logger::write("[cbl-join] launch_for_join('{}', '{}'): barrier held, not launching", game_id, launch_mode);
             g_cef_ui->show_message_box("Join Failed",
                 "Another game is already launching or running. Close it before joining.");
             return;
@@ -723,9 +728,22 @@ namespace commands::game_commands
         std::thread([cfg = *config, game = config->game_key, mode = launch_mode,
             cef = g_cef_ui, ctx = g_ctx, generation, already_running]()
         {
-            if (already_running)
+            if (already_running && !stop_tracked_game_and_wait())
             {
-                stop_tracked_game_and_wait();
+                // The old game survived; re-arm its watchdog under the new generation and drop the join instead of launching a second instance.
+                get_tracked_launch().access([&](const tracked_launch& t)
+                {
+                    if (t.active)
+                    {
+                        if (const auto old_config = game_config::get_game_config_by_id(t.game_id))
+                        {
+                            spawn_exit_watchdog(t.pid, *old_config, generation);
+                        }
+                    }
+                });
+                ipc::ipc_server::instance().clear_pending_join();
+                cef->show_message_box("Join Failed", "Couldn't close the running game. Close it manually and accept the invite again.");
+                return;
             }
             run_launch_worker(cfg, game, mode, *cef, *ctx, generation);
         }).detach();
@@ -745,6 +763,73 @@ namespace commands::game_commands
         {
             return t.active ? t.game_id : std::string{};
         });
+    }
+
+    bool try_adopt_running_game(const unsigned long pid, const std::string& game_id)
+    {
+        if (is_tracked_game_pid(pid, game_id))
+        {
+            return true;
+        }
+
+        const auto config = game_config::get_game_config_by_id(game_id);
+        if (!config)
+        {
+            return false;
+        }
+
+        const auto install = config->get_install_path();
+        if (!install)
+        {
+            return false;
+        }
+
+        const auto process_path = utils::nt::get_process_path(pid);
+        if (process_path.empty())
+        {
+            return false;
+        }
+
+        // The PID must be one of this game's exes inside its configured install.
+        bool matches = false;
+        for (const auto& exe : config->collect_exes())
+        {
+            std::error_code ec{};
+            if (!exe.empty() && std::filesystem::equivalent(process_path, *install / utils::string::utf8_to_path(exe), ec))
+            {
+                matches = true;
+                break;
+            }
+        }
+        if (!matches)
+        {
+            utils::logger::write("[cbl-adopt] reject pid {}: '{}' not in '{}' install exe list",
+                                 pid, utils::string::path_to_utf8(process_path), game_id);
+            return false;
+        }
+
+        // Same game already tracked under another PID (e.g. wrapper parent): accept without re-tracking.
+        const auto tracked_same_game = get_tracked_launch().access<bool>([&](const tracked_launch& t)
+        {
+            return t.active && t.game_id == game_id;
+        });
+        if (tracked_same_game)
+        {
+            return true;
+        }
+
+        // Untracked instance (launcher restarted or game started manually): take the barrier and track it.
+        if (!try_lock_launch_barrier())
+        {
+            return false;
+        }
+
+        const auto generation = reserve_launch_generation();
+        set_tracked_launch(pid, config->id, generation, utils::nt::is_process_elevated(pid));
+        spawn_exit_watchdog(pid, *config, generation);
+
+        utils::logger::write("[cbl-adopt] adopted running game '{}' (pid {})", game_id, pid);
+        return true;
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
@@ -771,6 +856,9 @@ namespace commands::game_commands
                 return;
             }
 
+            // A user-initiated launch supersedes any invite join still queued for this game's hello.
+            ipc::ipc_server::instance().clear_pending_join();
+
             // Run update and launch in a separate thread with progress tracking
             const auto generation = reserve_launch_generation();
             std::thread([config = *config, mode, game, &cef_ui, &ctx, generation]()
@@ -789,20 +877,7 @@ namespace commands::game_commands
                 return;
             }
 
-            // Check if any of the game's executables are running
-            bool is_running = utils::nt::is_process_running(config->exe_name);
-            if (!is_running && !config->check_running_exes.empty())
-            {
-                for (const auto& exe : config->check_running_exes)
-                {
-                    if (utils::nt::is_process_running(exe))
-                    {
-                        is_running = true;
-                        break;
-                    }
-                }
-            }
-            response.SetBool(is_running);
+            response.SetBool(game_config::is_game_process_running(config->id));
         });
 
         cef_ui.add_command("stop-game", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -822,6 +897,7 @@ namespace commands::game_commands
             // If we successfully stopped the game, unlock the launch barrier
             if (stopped)
             {
+                ipc::ipc_server::instance().clear_pending_join();
                 clear_tracked_launch();
                 unlock_launch_barrier();
             }

@@ -3,6 +3,7 @@
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
+#include <utils/nt.hpp>
 #include <utils/cdn.hpp>
 #include <utils/string.hpp>
 #include <unordered_set>
@@ -215,6 +216,20 @@ namespace game_config
             return *value == "true";
         }
         return this->requires_elevation;
+    }
+
+    std::vector<std::string> game_config_t::collect_exes() const
+    {
+        std::vector<std::string> exes{ this->exe_name };
+        for (const auto& [mode, exe] : this->mode_executables)
+        {
+            exes.push_back(exe);
+        }
+        for (const auto& exe : this->check_running_exes)
+        {
+            exes.push_back(exe);
+        }
+        return exes;
     }
 
     void game_config_t::reset() const
@@ -879,6 +894,24 @@ namespace game_config
             }
         }
 
+        return false;
+    }
+
+    bool is_game_process_running(const std::string& game)
+    {
+        const auto config = get_game_config_by_id(game);
+        if (!config)
+        {
+            return false;
+        }
+
+        for (const auto& exe : config->collect_exes())
+        {
+            if (!exe.empty() && utils::nt::is_process_running(exe))
+            {
+                return true;
+            }
+        }
         return false;
     }
 

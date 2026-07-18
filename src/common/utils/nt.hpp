@@ -115,6 +115,8 @@ namespace utils::nt
     unsigned long launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
     unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
     bool is_elevated();
+    bool is_process_elevated(unsigned long pid);
+    std::filesystem::path get_process_path(unsigned long pid);
     bool is_process_running(const std::string& processName);
     bool stop_process(const std::string& processName);
     void relaunch_self(std::string command_line = GetCommandLineA());
