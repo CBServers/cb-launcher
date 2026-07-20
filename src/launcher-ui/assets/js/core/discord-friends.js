@@ -100,11 +100,23 @@
         }
     }
 
-    async function requestJoin(userId) {
+    async function requestJoin(userId, gameId, isKnock) {
         if (!userId) return;
         try {
+            // Joining launches the game if it isn't running; confirm so a stray click can't
+            // start a game out of nowhere (or yank the user out of a different one).
+            const targetGame = gameId || 'boiii';
+            let running = false;
+            if (window.GameStateManager) {
+                running = await window.GameStateManager.checkGameRunning(targetGame);
+            }
+            if (!running) {
+                const idx = await window.showMessageBox(t('friends.joinLaunchTitle'), t('friends.joinLaunchBody'),
+                    [t('friends.join'), { label: t('common.cancel'), danger: true }]);
+                if (idx !== 0) return;
+            }
             await window.executeCommand('discord-request-join', { userId });
-            if (window.showToast) window.showToast(t('toasts.joinRequestSent'), 'success');
+            if (window.showToast) window.showToast(t(isKnock ? 'toasts.joinRequestSent' : 'toasts.joining'), 'success');
         } catch (error) {
             console.warn('Failed to request join:', error);
         }
@@ -122,7 +134,7 @@
             acceptLabel = t('friends.accept');
         } else if (isRequest) {
             title = t('friends.joinRequestTitle');
-            bodyKey = 'friends.joinRequestBody';
+            bodyKey = invite.needsOpen ? 'friends.joinRequestOpenBody' : 'friends.joinRequestBody';
             acceptLabel = t('friends.approve');
         } else {
             title = t('friends.inviteTitle');
@@ -221,7 +233,10 @@
                     const inviteBtn = event.target.closest('[data-invite-user]');
                     if (inviteBtn) { sendInvite(inviteBtn.getAttribute('data-invite-user')); return; }
                     const joinBtn = event.target.closest('[data-join-user]');
-                    if (joinBtn) requestJoin(joinBtn.getAttribute('data-join-user'));
+                    if (joinBtn) {
+                        requestJoin(joinBtn.getAttribute('data-join-user'), joinBtn.getAttribute('data-game-id'),
+                            joinBtn.getAttribute('data-knock') === '1');
+                    }
                 });
             }
 

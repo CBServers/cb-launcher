@@ -108,6 +108,14 @@ namespace
             {
                 ipc::ipc_server::instance().handle_join_secret(secret);
             });
+            discord::discord_service::instance().set_friends_changed_callback([]
+            {
+                ipc::ipc_server::instance().notify_friends_changed();
+            });
+            discord::discord_service::instance().set_open_match_callback([]
+            {
+                ipc::ipc_server::instance().request_open_match();
+            });
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
 

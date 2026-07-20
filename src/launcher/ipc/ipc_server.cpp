@@ -42,6 +42,11 @@ namespace ipc
             return 0;
         }
 
+        bool json_bool(const rapidjson::Value& value, const char* key)
+        {
+            return value.HasMember(key) && value[key].IsBool() && value[key].GetBool();
+        }
+
         // Serializes one JSON object via rapidjson (auto-escapes string values); caller adds the newline.
         template <typename F>
         std::string build_json_object(F&& fill)
@@ -130,6 +135,82 @@ namespace ipc
             std::chrono::steady_clock::time_point when{};
         };
         utils::concurrency::container<recent_join_state> recent_join{};
+
+        // Last friends snapshot sent this connection; skips redundant pushes (touched cross-thread).
+        utils::concurrency::container<std::string> last_friends_line{};
+
+        // The launcher-linked friends snapshot for the connected fork (see ipc-protocol.md "friends").
+        static std::string build_friends_line()
+        {
+            auto& service = discord::discord_service::instance();
+            const bool linked = service.get_status() == discord::link_status::linked;
+            const auto registry_ok = service.registry_ok();
+
+            return build_json_object([&](auto& w)
+            {
+                w.Key("type"); w.String("friends");
+                w.Key("friends");
+                w.StartArray();
+
+                if (linked)
+                {
+                    for (const auto& entry : service.get_friends())
+                    {
+                        // Same visibility rule as the launcher UI: linked friends, falling back to
+                        // provably-in-launcher friends while the registry hasn't answered yet.
+                        const auto show = registry_ok ? entry.linked : entry.in_launcher;
+                        if (!show)
+                        {
+                            continue;
+                        }
+
+                        w.StartObject();
+                        w.Key("id");         w.String(entry.id.data());
+                        w.Key("name");       w.String(entry.display_name.data());
+                        w.Key("status");     w.String(entry.status.data());
+                        w.Key("inLauncher"); w.Bool(entry.in_launcher);
+
+                        if (!entry.game_id.empty())
+                        {
+                            w.Key("game");
+                            w.StartObject();
+                            w.Key("id");         w.String(entry.game_id.data());
+                            w.Key("mode");       w.String(entry.game_mode.data());
+                            w.Key("map");        w.String(entry.game_map.data());
+                            w.Key("gametype");   w.String(entry.game_gametype.data());
+                            w.Key("joinable");   w.Bool(entry.joinable);
+                            w.Key("directJoin"); w.Bool(entry.direct_join);
+                            w.Key("openable");   w.Bool(entry.openable);
+                            w.EndObject();
+                        }
+
+                        w.EndObject();
+                    }
+                }
+
+                w.EndArray();
+            });
+        }
+
+        // Push the current snapshot if it changed since the last push on this connection.
+        void push_friends_update()
+        {
+            const auto line = build_friends_line();
+            const bool changed = this->last_friends_line.access<bool>([&line](std::string& last)
+            {
+                if (last == line)
+                {
+                    return false;
+                }
+                last = line;
+                return true;
+            });
+
+            if (changed)
+            {
+                this->push_outbound(line + "\n");
+            }
+        }
 
         void push_outbound(std::string line)
         {
@@ -425,6 +506,34 @@ namespace ipc
                 printf("[cbl-join] <- connect-ack %s accepted=%d\n", id.data(), accepted ? 1 : 0);
                 fflush(stdout);
             }
+            else if (type == "open-match-ack")
+            {
+                const auto opened = json_bool(doc, "opened");
+                printf("[cbl-join] <- open-match-ack opened=%d\n", opened ? 1 : 0);
+                fflush(stdout);
+            }
+            else if (type == "join-friend")
+            {
+                // In-game JOIN: ask the friend's host to let us in; the approval auto-accepts while
+                // fresh and routes back to this fork as a connect message.
+                const auto friend_id = json_string(doc, "friendId");
+                printf("[cbl-join] <- join-friend %s\n", friend_id.data());
+                fflush(stdout);
+                if (!friend_id.empty())
+                {
+                    discord::discord_service::instance().request_join(friend_id);
+                }
+            }
+            else if (type == "invite")
+            {
+                const auto friend_id = json_string(doc, "friendId");
+                printf("[cbl-invite] <- invite %s\n", friend_id.data());
+                fflush(stdout);
+                if (!friend_id.empty())
+                {
+                    discord::discord_service::instance().send_invite(friend_id);
+                }
+            }
             return true; // unknown types ignored (forward-compat)
         }
 
@@ -465,6 +574,10 @@ namespace ipc
             {
                 return false;
             }
+
+            // Fresh connection gets the current friends snapshot regardless of what was sent before.
+            this->last_friends_line.access([](std::string& last) { last.clear(); });
+            this->push_friends_update();
 
             this->fire_pending_join(game);
             return true;
@@ -517,6 +630,9 @@ namespace ipc
             info.server_name = json_string(doc, "serverName");
             info.players = json_int(doc, "players");
             info.max_players = json_int(doc, "maxPlayers");
+            info.map_raw = json_string(doc, "map");
+            info.gametype_raw = json_string(doc, "gametypeRaw");
+            info.openable = json_bool(doc, "openable");
 
             // Live presence mode feeds only the Discord card and join secret, never the relaunch decision.
             const auto mode = json_string(doc, "mode");
@@ -661,6 +777,19 @@ namespace ipc
     void ipc_server::notify_presence_owner(const bool launcher_owns)
     {
         this->impl_->push_presence_owner(launcher_owns);
+    }
+
+    void ipc_server::notify_friends_changed()
+    {
+        this->impl_->push_friends_update();
+    }
+
+    void ipc_server::request_open_match()
+    {
+        this->impl_->push_outbound(build_json_object([](auto& w)
+        {
+            w.Key("type"); w.String("open-match");
+        }) + "\n");
     }
 
     void ipc_server::handle_join_secret(const std::string& secret)

@@ -30,8 +30,15 @@ namespace discord
         bool linked{false};
         bool joinable{false};         // their game has a joinable party => we can join/ask to join
         bool direct_join{false};      // joinable on a public/dedicated server => "Join" (no host approval)
+        bool openable{false};         // closed private match we could knock on (host opens on approve)
         std::string activity_details; // game name from their launcher presence, empty if none
         std::string activity_state;   // mode/line 3 from their launcher presence, empty if none
+
+        // Structured in-match state parsed from the party-id presence flags (empty => not in a fork match).
+        std::string game_id;       // fork id, e.g. "boiii"
+        std::string game_mode;     // "mp" / "zm" / ...
+        std::string game_map;      // raw map key, e.g. "mp_nuketown_x"
+        std::string game_gametype; // raw gametype key, e.g. "tdm"
     };
 
     struct own_profile
@@ -50,6 +57,7 @@ namespace discord
         std::string sender_avatar;
         bool is_request{false};  // true => friend asked to join us; false => friend invited us
         bool is_approval{false}; // true => a host accepted a join request WE sent (prompt with approval text)
+        bool needs_open{false};  // approving this join-request requires opening our match first
     };
 
     class discord_service
@@ -78,6 +86,9 @@ namespace discord
             int max_players{0};
             std::string join_secret; // unified cbl: secret; empty => not joinable
             bool direct_join{false}; // transport is direct (public/dedicated server) vs nat (private host)
+            bool openable{false};    // hosting a private match not yet open to friends
+            std::string map_raw;      // raw map key for the party-id presence flags
+            std::string gametype_raw; // raw gametype key for the party-id presence flags
         };
 
         // Enrich the card with live fork state; self-contained so it works without a prior set_game_activity.
@@ -94,12 +105,16 @@ namespace discord
         // Invites. The local game must publish a joinable presence (is_joinable) to send invites.
         bool is_joinable() const;
         void send_invite(const std::string& user_id);
-        void request_join(const std::string& user_id); // ask a joinable friend to let us join (hop 1)
+        // Ask a joinable friend to let us join (hop 1). Approvals arriving within AUTO_ACCEPT_WINDOW
+        // of the request connect silently; later ones prompt in the launcher.
+        void request_join(const std::string& user_id);
         std::vector<invite_entry> get_invites() const;
         void accept_invite(const std::string& id); // Join => accept+route; JoinRequest => approve
         void decline_invite(const std::string& id);
         // Invoked (on the discord thread) with a join secret when the user accepts an invite.
         void set_join_secret_callback(std::function<void(std::string)> callback);
+        // Invoked (on the discord thread) when approving a knock/invite requires the game to open its match.
+        void set_open_match_callback(std::function<void()> callback);
 
         link_status get_status() const;
         std::optional<own_profile> get_profile() const;
@@ -110,6 +125,10 @@ namespace discord
         // response only needs to re-flag entries.
         std::vector<friend_entry> get_friends() const;
         bool registry_ok() const;
+
+        // Invoked (from the discord thread or a registry worker) whenever the friends list or their
+        // presence changes; also fired once on set. Used to push friends snapshots over IPC.
+        void set_friends_changed_callback(std::function<void()> callback);
 
     private:
         discord_service();

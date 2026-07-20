@@ -125,6 +125,8 @@ namespace commands::discord_commands
                     friend_obj.AddMember("inLauncher", entry.in_launcher, allocator);
                     friend_obj.AddMember("joinable", entry.joinable, allocator);
                     friend_obj.AddMember("directJoin", entry.direct_join, allocator);
+                    friend_obj.AddMember("openable", entry.openable, allocator);
+                    add_string(friend_obj, "gameId", entry.game_id, allocator);
                     add_string(friend_obj, "activityDetails", entry.activity_details, allocator);
                     add_string(friend_obj, "activityState", entry.activity_state, allocator);
                     friends_array.PushBack(friend_obj, allocator);
@@ -181,6 +183,7 @@ namespace commands::discord_commands
                 add_string(obj, "senderAvatar", invite.sender_avatar, allocator);
                 obj.AddMember("isRequest", invite.is_request, allocator);
                 obj.AddMember("isApproval", invite.is_approval, allocator);
+                obj.AddMember("needsOpen", invite.needs_open, allocator);
                 invites_array.PushBack(obj, allocator);
             }
             response.AddMember("invites", invites_array, allocator);
