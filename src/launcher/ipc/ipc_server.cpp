@@ -5,6 +5,7 @@
 #include "discord/discord_service.hpp"
 #include "game_config.hpp"
 #include "join_secret.hpp"
+#include "pipe_listener.hpp"
 
 #include <utils/concurrency.hpp>
 #include <utils/logger.hpp>
@@ -14,7 +15,6 @@
 #include <cstdio>
 #include <deque>
 #include <optional>
-#include <thread>
 #include <utility>
 
 namespace ipc
@@ -98,9 +98,7 @@ namespace ipc
 
     struct ipc_server::impl
     {
-        std::thread thread{};
-        std::atomic<bool> running{false};
-        HANDLE stop_event{nullptr};
+        pipe::listener listener{};
 
         // Outbound launcher->client messages (presence-owner, connect), drained on the serve thread.
         HANDLE outbound_event{nullptr};
@@ -109,6 +107,7 @@ namespace ipc
         // Per-connection state. The launch barrier guarantees one game (one client) at a time.
         unsigned long connection_pid{0};
         std::string connection_game_id{};
+        unsigned long last_rejected_pid{0}; // throttles logging for a fork that redials every 2s after a rejected hello
 
         // Connected fork's id + fixed launch mode, captured at hello (cross-thread); empty mode => always connect in place.
         struct connected_state
@@ -123,6 +122,7 @@ namespace ipc
         {
             std::string game_id;
             join_secret::transport t;
+            std::string mode; // invite's play mode; checked against the hello mode of fixed-mode forks
             std::chrono::steady_clock::time_point deadline;
         };
         utils::concurrency::container<std::optional<pending_join_entry>> pending_join{};
@@ -269,9 +269,7 @@ namespace ipc
                 w.EndObject();
             });
 
-            utils::logger::write("[ipc] sending connect {} ({})", id, t.is_nat ? "nat" : "direct");
-            printf("[cbl-join] -> connect %s (%s): %s\n", id.data(), t.is_nat ? "nat" : "direct", line.data());
-            fflush(stdout);
+            utils::logger::write("[cbl-join] -> connect {} ({})", id, t.is_nat ? "nat" : "direct");
             this->push_outbound(line + "\n");
         }
 
@@ -287,70 +285,6 @@ namespace ipc
             {
                 this->write_line(pipe, line);
             }
-        }
-
-        void run()
-        {
-            while (this->running)
-            {
-                const auto pipe = CreateNamedPipeW(
-                    PIPE_NAME,
-                    PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
-                    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-                    1, 64 * 1024, 64 * 1024, 0, nullptr);
-
-                if (pipe == INVALID_HANDLE_VALUE)
-                {
-                    utils::logger::write("[ipc] CreateNamedPipe failed: {}", GetLastError());
-                    if (WaitForSingleObject(this->stop_event, 1000) == WAIT_OBJECT_0)
-                    {
-                        break;
-                    }
-                    continue;
-                }
-
-                if (this->wait_for_connection(pipe) && this->running)
-                {
-                    this->serve_connection(pipe);
-                    this->on_disconnect();
-                }
-
-                DisconnectNamedPipe(pipe);
-                CloseHandle(pipe);
-            }
-        }
-
-        // Overlapped ConnectNamedPipe that also unblocks on the stop event.
-        bool wait_for_connection(const HANDLE pipe)
-        {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
-            bool ready = false;
-            const auto connect_ok = ConnectNamedPipe(pipe, &ov);
-            const auto err = GetLastError();
-
-            if (!connect_ok && err == ERROR_IO_PENDING)
-            {
-                HANDLE handles[2] = {ov.hEvent, this->stop_event};
-                if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-                {
-                    DWORD dummy = 0;
-                    ready = GetOverlappedResult(pipe, &ov, &dummy, FALSE) != 0;
-                }
-                else
-                {
-                    CancelIoEx(pipe, &ov);
-                }
-            }
-            else if (!connect_ok && err == ERROR_PIPE_CONNECTED)
-            {
-                // Client connected between CreateNamedPipe and ConnectNamedPipe.
-                ready = true;
-            }
-
-            CloseHandle(ov.hEvent);
-            return ready;
         }
 
         // Tracked launcher launch: drop to baseline (the exit watchdog owns the full clear); else clear fully.
@@ -385,10 +319,13 @@ namespace ipc
             std::string buffer{};
             char chunk[4096];
 
-            while (this->running)
+            while (this->listener.running())
             {
+                // The outbound event is serviced while the read stays pending.
                 DWORD read = 0;
-                if (!this->read_overlapped(pipe, chunk, sizeof(chunk), read) || read == 0)
+                const bool ok = this->listener.read(pipe, chunk, sizeof(chunk), read,
+                                                    this->outbound_event, [this, pipe] { this->flush_outbound(pipe); });
+                if (!ok || read == 0)
                 {
                     return;
                 }
@@ -412,71 +349,10 @@ namespace ipc
             }
         }
 
-        bool read_overlapped(const HANDLE pipe, char* buffer, const DWORD size, DWORD& read)
-        {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
-            bool ok = ReadFile(pipe, buffer, size, &read, &ov) != 0;
-            if (!ok && GetLastError() == ERROR_IO_PENDING)
-            {
-                ok = this->wait_read(pipe, ov, read);
-            }
-
-            CloseHandle(ov.hEvent);
-            return ok;
-        }
-
-        // Waits for a pending read while also servicing outbound sends and the stop event.
-        bool wait_read(const HANDLE pipe, OVERLAPPED& ov, DWORD& bytes)
-        {
-            HANDLE handles[3] = {ov.hEvent, this->stop_event, this->outbound_event};
-            while (true)
-            {
-                const auto wait = WaitForMultipleObjects(3, handles, FALSE, INFINITE);
-                if (wait == WAIT_OBJECT_0)
-                {
-                    return GetOverlappedResult(pipe, &ov, &bytes, FALSE) != 0;
-                }
-                if (wait == WAIT_OBJECT_0 + 2)
-                {
-                    // Ownership changed: send presence-owner, keep the read pending.
-                    this->flush_outbound(pipe);
-                    continue;
-                }
-
-                // Stop event (or wait failure): cancel the pending read.
-                CancelIoEx(pipe, &ov);
-                return false;
-            }
-        }
-
-        bool wait_overlapped(const HANDLE pipe, OVERLAPPED& ov, DWORD& bytes)
-        {
-            HANDLE handles[2] = {ov.hEvent, this->stop_event};
-            if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-            {
-                return GetOverlappedResult(pipe, &ov, &bytes, FALSE) != 0;
-            }
-
-            CancelIoEx(pipe, &ov);
-            return false;
-        }
-
         bool write_line(const HANDLE pipe, const std::string& data)
         {
-            OVERLAPPED ov{};
-            ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
             DWORD written = 0;
-            bool ok = WriteFile(pipe, data.data(), static_cast<DWORD>(data.size()), &written, &ov) != 0;
-            if (!ok && GetLastError() == ERROR_IO_PENDING)
-            {
-                ok = this->wait_overlapped(pipe, ov, written);
-            }
-
-            CloseHandle(ov.hEvent);
-            return ok;
+            return this->listener.write(pipe, data.data(), static_cast<DWORD>(data.size()), written);
         }
 
         // Returns false to close the connection (failed handshake), true to keep serving.
@@ -502,23 +378,19 @@ namespace ipc
             {
                 const auto id = json_string(doc, "id");
                 const auto accepted = doc.HasMember("accepted") && doc["accepted"].IsBool() && doc["accepted"].GetBool();
-                utils::logger::write("[ipc] connect-ack {} accepted={}", id, accepted);
-                printf("[cbl-join] <- connect-ack %s accepted=%d\n", id.data(), accepted ? 1 : 0);
-                fflush(stdout);
+                utils::logger::write("[cbl-join] <- connect-ack {} accepted={}", id, accepted);
             }
             else if (type == "open-match-ack")
             {
                 const auto opened = json_bool(doc, "opened");
-                printf("[cbl-join] <- open-match-ack opened=%d\n", opened ? 1 : 0);
-                fflush(stdout);
+                utils::logger::write("[cbl-join] <- open-match-ack opened={}", opened);
             }
             else if (type == "join-friend")
             {
                 // In-game JOIN: ask the friend's host to let us in; the approval auto-accepts while
                 // fresh and routes back to this fork as a connect message.
                 const auto friend_id = json_string(doc, "friendId");
-                printf("[cbl-join] <- join-friend %s\n", friend_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-join] <- join-friend {}", friend_id);
                 if (!friend_id.empty())
                 {
                     discord::discord_service::instance().request_join(friend_id);
@@ -527,8 +399,7 @@ namespace ipc
             else if (type == "invite")
             {
                 const auto friend_id = json_string(doc, "friendId");
-                printf("[cbl-invite] <- invite %s\n", friend_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-invite] <- invite {}", friend_id);
                 if (!friend_id.empty())
                 {
                     discord::discord_service::instance().send_invite(friend_id);
@@ -544,17 +415,31 @@ namespace ipc
 
             if (protocol <= 0 || protocol > PROTOCOL_VERSION || game.empty())
             {
-                utils::logger::write("[ipc] rejecting hello (protocol {}, game '{}')", protocol, game);
+                utils::logger::write("[cbl-ipc] rejecting hello (protocol {}, game '{}')", protocol, game);
                 return false;
             }
 
-            if (!commands::game_commands::is_tracked_game_pid(this->connection_pid, game))
+            // Not a launcher-launched PID: try to adopt it (launcher restart / manual start) before rejecting.
+            if (!commands::game_commands::is_tracked_game_pid(this->connection_pid, game)
+                && !commands::game_commands::try_adopt_running_game(this->connection_pid, game))
             {
-                utils::logger::write("[ipc] hello PID/game mismatch (pid {}, game '{}')", this->connection_pid, game);
+                const bool repeat = this->last_rejected_pid == this->connection_pid;
+                this->last_rejected_pid = this->connection_pid;
+                if (!repeat)
+                {
+#ifndef _DEBUG
+                    utils::logger::write("[cbl-ipc] rejecting hello: pid {} not tracked or adoptable for '{}'",
+                                         this->connection_pid, game);
+#else
+                    utils::logger::write("[cbl-ipc] pid {} not tracked or adoptable for '{}'; accepting anyway (debug)",
+                                         this->connection_pid, game);
+#endif
+                }
 #ifndef _DEBUG
                 return false;
 #endif
             }
+            this->last_rejected_pid = 0;
 
             // Fixed launch mode from hello drives the relaunch decision; omitted by runtime-switchable forks.
             const auto hello_mode = json_string(doc, "mode");
@@ -562,8 +447,7 @@ namespace ipc
             this->connected.access([&](connected_state& c) { c.game = game; c.launch_mode = hello_mode; });
 
             const auto* owner = discord::discord_service::instance().owns_presence() ? "launcher" : "client";
-            printf("[cbl-join] hello from '%s' (pid %lu); presenceOwner=%s\n", game.data(), this->connection_pid, owner);
-            fflush(stdout);
+            utils::logger::write("[cbl-join] hello from '{}' (pid {}); presenceOwner={}", game, this->connection_pid, owner);
             const auto ack = build_json_object([&](auto& w)
             {
                 w.Key("type");            w.String("hello-ack");
@@ -579,14 +463,14 @@ namespace ipc
             this->last_friends_line.access([](std::string& last) { last.clear(); });
             this->push_friends_update();
 
-            this->fire_pending_join(game);
+            this->fire_pending_join(game, hello_mode);
             return true;
         }
 
-        // If an accept cold-launched this game, send the queued connect now that it has dialed in.
-        void fire_pending_join(const std::string& game)
+        // If an accept queued a join for this game, send the connect now that it has dialed in.
+        void fire_pending_join(const std::string& game, const std::string& hello_mode)
         {
-            std::optional<join_secret::transport> transport;
+            std::optional<pending_join_entry> entry;
             this->pending_join.access([&](std::optional<pending_join_entry>& pj)
             {
                 if (!pj)
@@ -600,15 +484,42 @@ namespace ipc
                 }
                 if (pj->game_id == game)
                 {
-                    transport = pj->t;
+                    entry = *pj;
                     pj.reset();
                 }
             });
 
-            if (transport)
+            if (!entry)
             {
-                this->send_connect(*transport);
+                return;
             }
+
+            utils::logger::write("[cbl-join] firing pending join for '{}' (invite mode '{}', hello mode '{}')",
+                                 game, entry->mode, hello_mode);
+
+            // A fixed-mode fork that came up in the wrong mode can't take this connect; relaunch into the invite's mode.
+            const auto config = game_config::get_game_config_by_id(game);
+            const bool target_is_real_mode = config && !entry->mode.empty()
+                && config->mode_arguments.contains(entry->mode);
+            if (target_is_real_mode && !hello_mode.empty() && entry->mode != hello_mode)
+            {
+                utils::logger::write("[cbl-join] hello from '{}' in mode '{}' but queued join is '{}'; relaunching",
+                                     game, hello_mode, entry->mode);
+                const auto mode = entry->mode;
+                entry->mode.clear(); // one mode-correcting relaunch max; the next hello connects regardless
+                entry->deadline = std::chrono::steady_clock::now() + std::chrono::minutes(10);
+                this->pending_join.access([&](std::optional<pending_join_entry>& pj)
+                {
+                    if (!pj) // a join accepted in the meantime wins over the re-stash
+                    {
+                        pj = *entry;
+                    }
+                });
+                commands::game_commands::relaunch_for_join(game, mode);
+                return;
+            }
+
+            this->send_connect(entry->t);
         }
 
         void handle_presence(const rapidjson::Document& doc)
@@ -641,9 +552,6 @@ namespace ipc
             {
                 info.join_secret = join_secret::build(this->connection_game_id, transport, mode);
                 info.direct_join = !transport.is_nat; // direct => public/dedicated server, joinable without approval
-                printf("[cbl-join] presence from '%s' is joinable (%s); secret='%s'\n",
-                       this->connection_game_id.data(), transport.is_nat ? "nat" : "direct", info.join_secret.data());
-                fflush(stdout);
             }
 
             discord::discord_service::instance().set_rich_game_activity(
@@ -653,9 +561,6 @@ namespace ipc
         // Accept flow: route a join secret to a running fork, or cold-launch then connect.
         void handle_join_secret(const std::string& secret)
         {
-            printf("[cbl-join] handle_join_secret: '%s'\n", secret.data());
-            fflush(stdout);
-
             // Ignore a repeat of the same secret within a short window so we launch/connect exactly once.
             constexpr auto dedup_window = std::chrono::seconds(5);
             const bool duplicate = this->recent_join.access<bool>([&](recent_join_state& rj)
@@ -671,17 +576,14 @@ namespace ipc
             });
             if (duplicate)
             {
-                printf("[cbl-join] ignoring duplicate join secret\n");
-                fflush(stdout);
+                utils::logger::write("[cbl-join] ignoring duplicate join secret");
                 return;
             }
 
             const auto parsed = join_secret::parse(secret);
             if (!parsed)
             {
-                utils::logger::write("[ipc] ignoring malformed join secret");
-                printf("[cbl-join] secret rejected (malformed)\n");
-                fflush(stdout);
+                utils::logger::write("[cbl-join] ignoring malformed join secret");
                 return;
             }
 
@@ -690,7 +592,7 @@ namespace ipc
             {
                 this->pending_join.access([&](std::optional<pending_join_entry>& pj)
                 {
-                    pj = pending_join_entry{ parsed->game_id, parsed->t,
+                    pj = pending_join_entry{ parsed->game_id, parsed->t, parsed->mode,
                         std::chrono::steady_clock::now() + std::chrono::minutes(10) };
                 });
             };
@@ -710,34 +612,48 @@ namespace ipc
 
                 if (target_is_real_mode && mode_known && parsed->mode != ipc.launch_mode)
                 {
-                    printf("[cbl-join] game '%s' running in mode '%s' but invite is '%s'; relaunching\n",
-                           parsed->game_id.data(), ipc.launch_mode.data(), parsed->mode.data());
-                    fflush(stdout);
+                    utils::logger::write("[cbl-join] game '{}' running in mode '{}' but invite is '{}'; relaunching",
+                                         parsed->game_id, ipc.launch_mode, parsed->mode);
                     stash_pending_join();
                     commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
                     return;
                 }
 
-                printf("[cbl-join] game '%s' already running; sending connect over pipe\n", parsed->game_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-join] game '{}' already running; sending connect over pipe", parsed->game_id);
                 this->send_connect(parsed->t);
+                return;
+            }
+
+            // A2: the invited game holds the barrier but isn't on IPC yet (booting or mid-update); queue and let its hello complete the join.
+            if (running_id == parsed->game_id)
+            {
+                utils::logger::write("[cbl-join] game '{}' launching/running but not on IPC yet; queueing connect",
+                                     parsed->game_id);
+                stash_pending_join();
                 return;
             }
 
             // B: a different game holds the barrier (other fork, or a non-fork game). Stop it and launch the invited game.
             if (!running_id.empty())
             {
-                printf("[cbl-join] game '%s' running but invite is for '%s'; switching games\n",
-                       running_id.data(), parsed->game_id.data());
-                fflush(stdout);
+                utils::logger::write("[cbl-join] game '{}' running but invite is for '{}'; switching games",
+                                     running_id, parsed->game_id);
                 stash_pending_join();
                 commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
                 return;
             }
 
+            // A3: an untracked instance of the invited game is running (launcher restart / manual start); queue — its reconnect hello gets adopted and fires the connect.
+            if (game_config::is_game_process_running(parsed->game_id))
+            {
+                utils::logger::write("[cbl-join] game '{}' running unmanaged; queueing connect for its hello",
+                                     parsed->game_id);
+                stash_pending_join();
+                return;
+            }
+
             // C: nothing running: stash the transport and cold-launch; hello fires the connect.
-            printf("[cbl-join] game '%s' not running; cold-launching then connecting\n", parsed->game_id.data());
-            fflush(stdout);
+            utils::logger::write("[cbl-join] game '{}' not running; cold-launching then connecting", parsed->game_id);
             stash_pending_join();
             commands::game_commands::launch_for_join(parsed->game_id, parsed->mode);
         }
@@ -761,16 +677,27 @@ namespace ipc
 
     void ipc_server::start()
     {
-        if (this->impl_->running.exchange(true))
+        if (this->impl_->listener.running())
         {
             return;
         }
 
-        this->impl_->stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         this->impl_->outbound_event = CreateEventW(nullptr, FALSE, FALSE, nullptr); // auto-reset
-        this->impl_->thread = std::thread([this]()
+
+        pipe::listener::options opts{};
+        opts.name = PIPE_NAME;
+        opts.access = PIPE_ACCESS_DUPLEX;
+        opts.out_buffer = 64 * 1024;
+        opts.in_buffer = 64 * 1024;
+        opts.on_create_error = [](const unsigned long error)
         {
-            this->impl_->run();
+            utils::logger::write("[ipc] CreateNamedPipe failed: {}", error);
+        };
+
+        this->impl_->listener.start(std::move(opts), [impl = this->impl_.get()](void* pipe)
+        {
+            impl->serve_connection(pipe);
+            impl->on_disconnect();
         });
     }
 
@@ -804,26 +731,12 @@ namespace ipc
 
     void ipc_server::stop()
     {
-        if (!this->impl_->running.exchange(false))
+        if (!this->impl_->listener.running())
         {
             return;
         }
 
-        if (this->impl_->stop_event)
-        {
-            SetEvent(this->impl_->stop_event);
-        }
-
-        if (this->impl_->thread.joinable())
-        {
-            this->impl_->thread.join();
-        }
-
-        if (this->impl_->stop_event)
-        {
-            CloseHandle(this->impl_->stop_event);
-            this->impl_->stop_event = nullptr;
-        }
+        this->impl_->listener.stop();
 
         if (this->impl_->outbound_event)
         {

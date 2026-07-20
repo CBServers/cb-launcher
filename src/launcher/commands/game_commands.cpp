@@ -6,6 +6,7 @@
 #include <utils/concurrency.hpp>
 #include <utils/flags.hpp>
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/registry.hpp>
@@ -70,6 +71,7 @@ namespace commands::game_commands
             std::string game_id{};
             bool active{false};
             uint64_t generation{0};
+            bool elevated{false};
         };
 
         utils::concurrency::container<tracked_launch>& get_tracked_launch()
@@ -78,7 +80,7 @@ namespace commands::game_commands
             return tracked;
         }
 
-        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation)
+        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation, const bool elevated)
         {
             get_tracked_launch().access([&](tracked_launch& t)
             {
@@ -86,6 +88,7 @@ namespace commands::game_commands
                 t.game_id = game_id;
                 t.active = true;
                 t.generation = generation;
+                t.elevated = elevated;
             });
         }
 
@@ -97,8 +100,49 @@ namespace commands::game_commands
             });
         }
 
+        // TerminateProcess can't reach an elevated game from a non-elevated launcher, so stop those via elevated taskkill.
+        bool stop_game_processes(const game_config::game_config_t& config)
+        {
+            std::vector<std::string> exes{ config.exe_name };
+            for (const auto& exe : config.check_running_exes)
+            {
+                exes.push_back(exe);
+            }
+
+            // Covers configured elevation and the runtime 740 fallback (exe manifest demanded elevation).
+            const auto launched_elevated = get_tracked_launch().access<bool>([&](const tracked_launch& t)
+            {
+                return t.active && t.game_id == config.id && t.elevated;
+            });
+
+            if ((config.launch_elevated() || launched_elevated) && !utils::nt::is_elevated())
+            {
+                std::string args = "/F";
+                for (const auto& exe : exes)
+                {
+                    if (!exe.empty()) args += " /IM \"" + exe + "\"";
+                }
+
+                wchar_t system32[MAX_PATH];
+                GetSystemDirectoryW(system32, MAX_PATH);
+                const auto taskkill = std::filesystem::path(system32) / "taskkill.exe";
+                return utils::nt::launch_process_elevated(taskkill, args, {}) != 0;
+            }
+
+            bool stopped = false;
+            for (const auto& exe : exes)
+            {
+                if (!exe.empty() && utils::nt::stop_process(exe))
+                {
+                    stopped = true;
+                }
+            }
+            return stopped;
+        }
+
         // Stops the game holding the barrier and waits for it to fully exit (single-instance; barrier stays held).
-        void stop_tracked_game_and_wait()
+        // False => the game survived the stop (e.g. declined UAC taskkill); the caller must not launch on top of it.
+        bool stop_tracked_game_and_wait()
         {
             const auto running_id = get_tracked_launch().access<std::string>([](const tracked_launch& t)
             {
@@ -106,13 +150,13 @@ namespace commands::game_commands
             });
             if (running_id.empty())
             {
-                return;
+                return true;
             }
 
             const auto config = game_config::get_game_config_by_id(running_id);
             if (!config)
             {
-                return;
+                return true;
             }
 
             std::vector<std::string> exes{ config->exe_name };
@@ -121,18 +165,13 @@ namespace commands::game_commands
                 exes.push_back(exe);
             }
 
-            for (const auto& exe : exes)
-            {
-                if (!exe.empty())
-                {
-                    utils::nt::stop_process(exe);
-                }
-            }
+            stop_game_processes(*config);
 
             // Poll for up to ~10s for every tracked exe to disappear.
-            for (int i = 0; i < 100; ++i)
+            bool any_running = true;
+            for (int i = 0; i < 100 && any_running; ++i)
             {
-                bool any_running = false;
+                any_running = false;
                 for (const auto& exe : exes)
                 {
                     if (!exe.empty() && utils::nt::is_process_running(exe))
@@ -141,12 +180,12 @@ namespace commands::game_commands
                         break;
                     }
                 }
-                if (!any_running)
+                if (any_running)
                 {
-                    break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
+            return !any_running;
         }
 
         // Some clients (e.g. Plutonium) exit the launched PID and continue under a child with a different PID, so poll the full exe list.
@@ -242,9 +281,12 @@ namespace commands::game_commands
             if (config.game_key == "cod2x")
             {
                 // CoD2 reads the virtualized HKLM path; unelevated writes land in the per-user VirtualStore, so target it directly.
+                // Also check real HKLM: elevated CoD2x migrates VirtualStore there (and deletes the store copy), and a retail key must not be shadowed.
                 const std::wstring subkey = L"SOFTWARE\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\Activision\\Call of Duty 2";
+                const std::wstring real_subkey = L"SOFTWARE\\Activision\\Call of Duty 2";
                 const std::wstring value_name = L"codkey";
-                if (!utils::registry::hkcu_string_value_exists(subkey, value_name))
+                if (!utils::registry::hkcu_string_value_exists(subkey, value_name) &&
+                    !utils::registry::hklm_wow32_string_value_exists(real_subkey, value_name))
                 {
                     if (!utils::registry::set_hkcu_string(subkey, value_name, L"65JHZ75PW67WLJGJF0FF"))
                     {
@@ -256,18 +298,21 @@ namespace commands::game_commands
             if (config.game_key == "coduo")
             {
                 // CoDUO reads the virtualized HKLM path; unelevated writes land in the per-user VirtualStore, so target it directly.
+                // Skip when real HKLM already has the value (e.g. retail install) so the store copy doesn't shadow it.
                 const std::wstring subkey = L"SOFTWARE\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\Activision\\Call of Duty United Offensive";
+                const std::wstring real_subkey = L"SOFTWARE\\Activision\\Call of Duty United Offensive";
                 const std::vector<std::wstring> value_names = {L"key", L"codkey"};
                 for (const auto& name : value_names)
                 {
-                    if (!utils::registry::hkcu_string_value_exists(subkey, name))
+                    if (!utils::registry::hkcu_string_value_exists(subkey, name) &&
+                        !utils::registry::hklm_wow32_string_value_exists(real_subkey, name))
                     {
                         if (!utils::registry::set_hkcu_string(subkey, name, L"KW7RWZ77JJJDRUZ4EBEC"))
                         {
                             printf("Failed to write CoDUO key registry value\n");
                         }
                     }
-                }  
+                }
             }
 
             if (config.game_key == "cod4x")
@@ -343,10 +388,10 @@ namespace commands::game_commands
             return std::format("{} \"{}\"", prefix, name);
         }
 
-        // Builds the +set r_* args for the custom-resolution setting (CoD1/CoDUO only); empty when disabled or invalid.
+        // Builds the +set r_* args for the custom-resolution setting (CoD1/CoDUO/CoD2 only); empty when disabled or invalid.
         std::string build_custom_resolution_args(const game_config::game_config_t& config)
         {
-            if (config.game_key != "cod1" && config.game_key != "coduo") return "";
+            if (config.game_key != "cod1" && config.game_key != "coduo" && config.game_key != "cod2x") return "";
 
             const auto enabled = config.get(property_keys::CUSTOM_RESOLUTION_ENABLED);
             if (!enabled || *enabled != "true") return "";
@@ -447,18 +492,40 @@ namespace commands::game_commands
                          "For now, use the launcher for downloading and verifying game files on Linux.");
                 }*/
 
-                const auto pid = utils::nt::launch_process(game_exe, launch_args, game_directory);
+                auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
+                auto pid = elevate
+                    ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
+                    : utils::nt::launch_process(game_exe, launch_args, game_directory);
+
+                // 740 = exe demands elevation (e.g. requireAdministrator manifest); retry with a UAC prompt.
+                if (pid == 0 && !elevate && GetLastError() == ERROR_ELEVATION_REQUIRED)
+                {
+                    printf("Launch requires elevation, retrying with UAC prompt: %s\n", exe_name.data());
+                    elevate = true;
+                    pid = utils::nt::launch_process_elevated(game_exe, launch_args, game_directory);
+                }
 
                 if (pid == 0)
                 {
-                    const auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, GetLastError());
+                    const auto error = GetLastError();
+                    if (elevate && error == ERROR_CANCELLED)
+                    {
+                        cef_ui.show_message_box("Game Launch Cancelled", config.display_name + " requires administrator permission to launch.");
+                        return false;
+                    }
+
+                    auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, error);
+                    if (error == ERROR_ACCESS_DENIED)
+                    {
+                        error_msg += "\n\nIf this keeps happening, try running the launcher as administrator or check that your antivirus isn't blocking the game.";
+                    }
                     printf("Launch failed: %s\n", error_msg.data());
                     cef_ui.show_message_box("Game Launch Error", error_msg);
                     return false;
                 }
 
                 discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
-                set_tracked_launch(pid, config.id, generation);
+                set_tracked_launch(pid, config.id, generation, elevate);
 
                 // Check if launcher should close after game starts
                 const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
@@ -608,6 +675,7 @@ namespace commands::game_commands
 
         if (!is_game_launchable(*config, launch_mode))
         {
+            utils::logger::write("[cbl-join] launch_for_join('{}', '{}'): not launchable", game_id, launch_mode);
             g_cef_ui->show_message_box("Join Failed",
                 config->display_name + " isn't installed. Install it from the library to join.");
             return;
@@ -616,6 +684,7 @@ namespace commands::game_commands
         // Already launching/running => the running-game accept path (send_connect/relaunch) handles it.
         if (!try_lock_launch_barrier())
         {
+            utils::logger::write("[cbl-join] launch_for_join('{}', '{}'): barrier held, not launching", game_id, launch_mode);
             g_cef_ui->show_message_box("Join Failed",
                 "Another game is already launching or running. Close it before joining.");
             return;
@@ -659,9 +728,22 @@ namespace commands::game_commands
         std::thread([cfg = *config, game = config->game_key, mode = launch_mode,
             cef = g_cef_ui, ctx = g_ctx, generation, already_running]()
         {
-            if (already_running)
+            if (already_running && !stop_tracked_game_and_wait())
             {
-                stop_tracked_game_and_wait();
+                // The old game survived; re-arm its watchdog under the new generation and drop the join instead of launching a second instance.
+                get_tracked_launch().access([&](const tracked_launch& t)
+                {
+                    if (t.active)
+                    {
+                        if (const auto old_config = game_config::get_game_config_by_id(t.game_id))
+                        {
+                            spawn_exit_watchdog(t.pid, *old_config, generation);
+                        }
+                    }
+                });
+                ipc::ipc_server::instance().clear_pending_join();
+                cef->show_message_box("Join Failed", "Couldn't close the running game. Close it manually and accept the invite again.");
+                return;
             }
             run_launch_worker(cfg, game, mode, *cef, *ctx, generation);
         }).detach();
@@ -681,6 +763,73 @@ namespace commands::game_commands
         {
             return t.active ? t.game_id : std::string{};
         });
+    }
+
+    bool try_adopt_running_game(const unsigned long pid, const std::string& game_id)
+    {
+        if (is_tracked_game_pid(pid, game_id))
+        {
+            return true;
+        }
+
+        const auto config = game_config::get_game_config_by_id(game_id);
+        if (!config)
+        {
+            return false;
+        }
+
+        const auto install = config->get_install_path();
+        if (!install)
+        {
+            return false;
+        }
+
+        const auto process_path = utils::nt::get_process_path(pid);
+        if (process_path.empty())
+        {
+            return false;
+        }
+
+        // The PID must be one of this game's exes inside its configured install.
+        bool matches = false;
+        for (const auto& exe : config->collect_exes())
+        {
+            std::error_code ec{};
+            if (!exe.empty() && std::filesystem::equivalent(process_path, *install / utils::string::utf8_to_path(exe), ec))
+            {
+                matches = true;
+                break;
+            }
+        }
+        if (!matches)
+        {
+            utils::logger::write("[cbl-adopt] reject pid {}: '{}' not in '{}' install exe list",
+                                 pid, utils::string::path_to_utf8(process_path), game_id);
+            return false;
+        }
+
+        // Same game already tracked under another PID (e.g. wrapper parent): accept without re-tracking.
+        const auto tracked_same_game = get_tracked_launch().access<bool>([&](const tracked_launch& t)
+        {
+            return t.active && t.game_id == game_id;
+        });
+        if (tracked_same_game)
+        {
+            return true;
+        }
+
+        // Untracked instance (launcher restarted or game started manually): take the barrier and track it.
+        if (!try_lock_launch_barrier())
+        {
+            return false;
+        }
+
+        const auto generation = reserve_launch_generation();
+        set_tracked_launch(pid, config->id, generation, utils::nt::is_process_elevated(pid));
+        spawn_exit_watchdog(pid, *config, generation);
+
+        utils::logger::write("[cbl-adopt] adopted running game '{}' (pid {})", game_id, pid);
+        return true;
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
@@ -707,6 +856,9 @@ namespace commands::game_commands
                 return;
             }
 
+            // A user-initiated launch supersedes any invite join still queued for this game's hello.
+            ipc::ipc_server::instance().clear_pending_join();
+
             // Run update and launch in a separate thread with progress tracking
             const auto generation = reserve_launch_generation();
             std::thread([config = *config, mode, game, &cef_ui, &ctx, generation]()
@@ -725,20 +877,7 @@ namespace commands::game_commands
                 return;
             }
 
-            // Check if any of the game's executables are running
-            bool is_running = utils::nt::is_process_running(config->exe_name);
-            if (!is_running && !config->check_running_exes.empty())
-            {
-                for (const auto& exe : config->check_running_exes)
-                {
-                    if (utils::nt::is_process_running(exe))
-                    {
-                        is_running = true;
-                        break;
-                    }
-                }
-            }
-            response.SetBool(is_running);
+            response.SetBool(game_config::is_game_process_running(config->id));
         });
 
         cef_ui.add_command("stop-game", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -752,22 +891,13 @@ namespace commands::game_commands
             }
 
             // Attempt to stop any of the game's executables
-            bool stopped = utils::nt::stop_process(config->exe_name);
-            if (!config->check_running_exes.empty())
-            {
-                for (const auto& exe : config->check_running_exes)
-                {
-                    if (utils::nt::stop_process(exe))
-                    {
-                        stopped = true;
-                    }
-                }
-            }
+            const bool stopped = stop_game_processes(*config);
             response.SetBool(stopped);
 
             // If we successfully stopped the game, unlock the launch barrier
             if (stopped)
             {
+                ipc::ipc_server::instance().clear_pending_join();
                 clear_tracked_launch();
                 unlock_launch_barrier();
             }

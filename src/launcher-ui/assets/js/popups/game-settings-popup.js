@@ -59,6 +59,13 @@ class GameSettingsPopup {
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
                     </div>
+                    <div class="setting-item inline-setting" id="launch-admin-row">
+                        <label>Launch as Administrator</label>
+                        <div class="toggle-group small" id="launch-admin-toggle">
+                            <button class="toggle-btn" data-value="false">OFF</button>
+                            <button class="toggle-btn" data-value="true">ON</button>
+                        </div>
+                    </div>
                     <div class="setting-item inline-setting" id="custom-resolution-row" style="display: none;">
                         <label>Custom Resolution</label>
                         <div class="toggle-group small" id="custom-resolution-toggle">
@@ -171,7 +178,7 @@ class GameSettingsPopup {
     }
 
     supportsCustomResolution() {
-        return this.currentGame === 'cod1' || this.currentGame === 'coduo';
+        return this.currentGame === 'cod1' || this.currentGame === 'coduo' || this.currentGame === 'cod2x';
     }
 
     updateCustomResolutionVisibility() {
@@ -198,6 +205,7 @@ class GameSettingsPopup {
         this.popup.querySelector('#game-options-section h4').textContent = this.t('popup.gameSettings.gameOptions');
         this.popup.querySelector('#skip-intro-cinematic-row label').textContent = this.t('popup.gameSettings.skipIntroCinematic');
         this.popup.querySelector('#disable-cb-extension-row label').textContent = this.t('popup.gameSettings.disableCbExtension');
+        this.popup.querySelector('#launch-admin-row label').textContent = this.t('popup.gameSettings.launchAdmin');
         this.popup.querySelector('#player-section h4').textContent = this.t('popup.gameSettings.player');
         this.popup.querySelector('#player-name-override-row label').textContent = this.t('popup.gameSettings.playerNameOverride');
         this.popup.querySelector('#player-name-override-help').textContent = this.t('popup.gameSettings.playerNameOverrideHelp');
@@ -251,8 +259,8 @@ class GameSettingsPopup {
         this.popup.querySelector('#custom-resolution-row').style.display = this.supportsCustomResolution() ? 'flex' : 'none';
         this.popup.querySelector('#custom-resolution-error').classList.remove('visible');
 
-        const gameOptionsVisible = game === 'bo3' || game === 'hmw' || this.supportsCustomResolution();
-        gameOptionsSection.style.display = gameOptionsVisible ? 'block' : 'none';
+        // Game options always visible: launch-admin applies to every game
+        gameOptionsSection.style.display = 'block';
         playerSection.style.display = supportsName ? 'block' : 'none';
         nameOverrideError.classList.remove('visible');
 
@@ -362,6 +370,19 @@ class GameSettingsPopup {
                     }
                 }
 
+                // Load launch-as-admin setting (all games); unset means the game's default
+                const launchAdmin = await window.executeCommand('get-game-property', {
+                    game: this.currentGame,
+                    suffix: PROPERTY_KEYS.GAME.LAUNCH_ADMIN
+                });
+                const adminDefault = this.gameConfig.requiresElevation === true;
+                const adminEnabled = (launchAdmin === 'true' || launchAdmin === 'false')
+                    ? launchAdmin === 'true'
+                    : adminDefault;
+                const adminToggle = this.popup.querySelector('#launch-admin-toggle');
+                adminToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+                adminToggle.querySelector(`[data-value="${adminEnabled ? 'true' : 'false'}"]`).classList.add('active');
+
                 // Load player-name override (hidden for games whose backend has no name argument)
                 if (this.gameConfig.supportsName === true) {
                     const overrideName = await window.executeCommand('get-game-property', {
@@ -371,7 +392,7 @@ class GameSettingsPopup {
                     this.popup.querySelector('#player-name-override-input').value = overrideName || '';
                 }
 
-                // Load custom resolution (CoD1 / CoDUO only)
+                // Load custom resolution (CoD1 / CoDUO / CoD2 only)
                 if (this.supportsCustomResolution()) {
                     const [enabled, widthStr, heightStr] = await Promise.all([
                         window.executeCommand('get-game-property', { game: this.currentGame, suffix: PROPERTY_KEYS.GAME.CUSTOM_RESOLUTION_ENABLED }),
@@ -494,6 +515,17 @@ class GameSettingsPopup {
                     }
                 }
 
+                // Save launch-as-admin (all games); store only when it differs from the game's default
+                const adminToggle = this.popup.querySelector('#launch-admin-toggle');
+                const adminActive = adminToggle.querySelector('.toggle-btn.active');
+                const adminEnabled = adminActive ? adminActive.dataset.value === 'true' : false;
+                const adminDefault = this.gameConfig.requiresElevation === true;
+                await window.executeCommand('set-game-property', {
+                    game: this.currentGame,
+                    suffix: PROPERTY_KEYS.GAME.LAUNCH_ADMIN,
+                    value: adminEnabled === adminDefault ? '' : (adminEnabled ? 'true' : 'false')
+                });
+
                 // Save launch options (available for all games)
                 const launchOptions = this.popup.querySelector('#launch-options-input').value.trim();
                 await window.executeCommand('set-game-property', {
@@ -523,7 +555,7 @@ class GameSettingsPopup {
                     });
                 }
 
-                // Save custom resolution (CoD1 / CoDUO only)
+                // Save custom resolution (CoD1 / CoDUO / CoD2 only)
                 if (this.supportsCustomResolution()) {
                     const toggleGroup = this.popup.querySelector('#custom-resolution-toggle');
                     const activeButton = toggleGroup.querySelector('.toggle-btn.active');

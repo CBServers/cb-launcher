@@ -11,6 +11,12 @@
 #include "redist/redist_packages.hpp"
 
 #include "game_config.hpp"
+#include "deep_link.hpp"
+
+#include <utils/io.hpp>
+
+#include <cctype>
+#include <cwchar>
 
 namespace commands::ui_commands
 {
@@ -112,6 +118,9 @@ namespace commands::ui_commands
             SetForegroundWindow(window);
 
             PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
+
+            // The frontend calls "show" once init completes; flush any queued deep links.
+            cef_ui.notify_frontend_ready();
         });
 
         cef_ui.add_command("flash-taskbar", [&cef_ui](const auto&, auto&)
@@ -132,6 +141,128 @@ namespace commands::ui_commands
             {
                 const auto url = value["url"].GetString();
                 ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
+            }
+        });
+
+        cef_ui.add_command("create-game-shortcut", [](const rapidjson::Value& request, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("success", false, allocator);
+
+            const auto set_error = [&](const char* msg)
+            {
+                response.AddMember("error", rapidjson::Value(msg, allocator), allocator);
+            };
+
+            // Wine can't consume a Windows .lnk, so don't pretend it worked.
+            if (utils::nt::is_wine_environment())
+            {
+                set_error("unsupported-on-wine");
+                return;
+            }
+
+            if (!request.IsObject() || !request.HasMember("game") || !request["game"].IsString())
+            {
+                set_error("missing-game");
+                return;
+            }
+
+            // Slug is both the deep-link target and the icon folder name; keep it strict [a-z0-9-].
+            std::string slug;
+            for (const char c : std::string(request["game"].GetString()))
+            {
+                const auto lc = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if ((lc >= 'a' && lc <= 'z') || (lc >= '0' && lc <= '9') || lc == '-') slug.push_back(lc);
+            }
+            if (slug.empty())
+            {
+                set_error("invalid-game");
+                return;
+            }
+
+            // Only known games get shortcuts; the slug doubles as the deep-link target.
+            const auto mapping = game_config::ui_to_backend_mapping_.find(slug);
+            const auto& backend_key = mapping != game_config::ui_to_backend_mapping_.end() ? mapping->second : slug;
+            if (!game_config::get_game_config(backend_key).has_value())
+            {
+                set_error("invalid-game");
+                return;
+            }
+
+            // Display name -> safe .lnk filename (UTF-8 aware; strip filesystem-illegal chars).
+            const std::string name = (request.HasMember("name") && request["name"].IsString())
+                ? request["name"].GetString() : slug;
+            std::wstring safe_name;
+            for (const wchar_t wc : utils::string::convert(name))
+            {
+                if (wc < 0x20 || std::wcschr(L"<>:\"/\\|?*", wc)) continue;
+                safe_name.push_back(wc);
+            }
+            while (!safe_name.empty() && safe_name.front() == L' ') safe_name.erase(safe_name.begin());
+            while (!safe_name.empty() && (safe_name.back() == L' ' || safe_name.back() == L'.')) safe_name.pop_back();
+            if (safe_name.empty()) safe_name = utils::string::convert(slug);
+
+            const auto url = std::string(deep_link::SCHEME) + "://play/" + slug;
+
+            // Per-game .ico from the launcher-ui assets, else the launcher's own embedded icon.
+            std::filesystem::path icon = utils::nt::library{}.get_path();
+            if (request.HasMember("icon") && request["icon"].IsString())
+            {
+                const std::string rel = request["icon"].GetString();
+                if (!rel.empty() && rel.rfind("assets/", 0) == 0 && rel.find("..") == std::string::npos)
+                {
+                    const auto appdata = utils::properties::get_appdata_path();
+                    const auto candidate = appdata / "data" / "launcher-ui" / utils::string::utf8_to_path(rel);
+                    std::error_code ec;
+                    if (std::filesystem::exists(candidate, ec)) icon = candidate;
+                }
+            }
+
+            // Steam-style .url; UTF-16LE+BOM so the shell's ANSI INI parser can't mangle non-ASCII paths.
+            const auto write_url = [&](const std::filesystem::path& file) -> bool
+            {
+                const std::wstring content = L"[InternetShortcut]\r\nURL=" + utils::string::convert(url) +
+                    L"\r\nIconIndex=0\r\nIconFile=" + icon.wstring() + L"\r\n";
+
+                std::string bytes = "\xFF\xFE";
+                bytes.append(reinterpret_cast<const char*>(content.data()), content.size() * sizeof(wchar_t));
+                return utils::io::write_file(file, bytes);
+            };
+
+            bool any = false;
+            rapidjson::Value paths(rapidjson::kArrayType);
+            const auto record = [&](const std::filesystem::path& file)
+            {
+                if (write_url(file))
+                {
+                    any = true;
+                    paths.PushBack(rapidjson::Value(utils::string::path_to_utf8(file), allocator), allocator);
+                }
+            };
+
+            // Desktop copy.
+            const auto desktop = utils::com::get_desktop_path();
+            if (!desktop.empty()) record(desktop / (safe_name + L".url"));
+
+            // Start Menu copy (makes the game searchable from the Windows Start menu).
+            const auto programs = utils::com::get_start_menu_programs_path();
+            if (!programs.empty())
+            {
+                const auto sm_dir = programs / L"CB Servers";
+                std::error_code ec;
+                std::filesystem::create_directories(sm_dir, ec);
+                record(sm_dir / (safe_name + L".url"));
+            }
+
+            if (any)
+            {
+                response["success"].SetBool(true);
+                response.AddMember("paths", paths, allocator);
+            }
+            else
+            {
+                set_error("create-failed");
             }
         });
 

@@ -487,9 +487,11 @@
 
             item.style.setProperty('--game-accent', config.accent || '#8AA4FF');
             item.classList.toggle('is-coming-soon', !!config.comingSoon);
+            const thumbFallback = config.capsulePath || config.logoPath || '';
             item.innerHTML = `
                 <div class="game-item-thumb">
-                    <img src="${escapeHtml(config.iconPath || config.capsulePath || config.logoPath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
+                    <img src="${escapeHtml(config.iconPath || thumbFallback)}" alt="${escapeHtml(config.displayName)}"
+                         onerror="this.onerror = null; this.src = '${escapeHtml(thumbFallback)}';">
                 </div>
                 <div class="game-item-copy">
                     <span class="game-item-title">${escapeHtml(config.displayName)}</span>
@@ -559,6 +561,28 @@
         }
     }
 
+    async function createGameShortcut(gameId) {
+        if (typeof window.executeCommand !== 'function') return;
+        if (GameUtils.isComingSoon(gameId)) return;
+        const config = GameUtils.getGameConfig(GameUtils.getGameMapping(gameId));
+        let name = (config && config.displayName) ? config.displayName : gameId;
+        // "/" is illegal in filenames; U+2215 division slash looks the same
+        if (config && config.client) name += ` (${config.client.replace(/\//g, '∕')})`;
+        const icon = (config && config.assetBase) ? `${config.assetBase.replace(/^\.\//, '')}/icon.ico` : '';
+        try {
+            const res = await window.executeCommand('create-game-shortcut', { game: gameId, name, icon });
+            const ok = res && res.success;
+            if (typeof window.showToast === 'function') {
+                window.showToast(t(ok ? 'toasts.shortcutCreated' : 'toasts.shortcutFailed', { game: name }), ok ? 'success' : 'error');
+            }
+        } catch (error) {
+            console.error('Create shortcut failed:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast(t('toasts.shortcutFailed', { game: name }), 'error');
+            }
+        }
+    }
+
     function buildCardMenuItems(card) {
         const gameId = card.dataset.game;
         if (GameUtils.isComingSoon(gameId)) {
@@ -593,6 +617,8 @@
             }
             items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId), hidden: isBusy });
             items.push({ label: t('nav.settings'), action: () => callGlobal('showGameSettings', gameId), hidden: isBusy });
+            items.push({ separator: true });
+            items.push({ label: t('common.createShortcut'), action: () => createGameShortcut(gameId) });
             items.push({ separator: true });
             items.push({ label: t('common.uninstall'), action: () => callGlobal('uninstallGameDirect', gameId), danger: true, disabled: isBusy });
         }

@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - "*"
+    tags:
+      - "v*"
   pull_request:
     branches:
       - "*"
@@ -40,6 +42,12 @@ jobs:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      # Tag checkouts are detached HEAD; premake's branch-decoration fallback could
+      # resolve GIT_BRANCH to "develop" and put the release exe on the dev channel.
+      - name: Pin branch name for tag builds
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: git switch --force-create main
+
       - name: Generate project files
         run: tools/premake5 vs2022
 
@@ -51,12 +59,13 @@ jobs:
 
       - name: Upload ${{matrix.configuration}} binary
         id: upload-unsigned-binary
-        if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Binary
           path: |
             build/bin/x64/${{matrix.configuration}}/cb-launcher.exe
+          overwrite: true
 
       # Test-sign the dev channel with the SignPath self-signed test cert. Best-effort:
       # if signing fails the unsigned binary above is kept so the dev release still ships.
@@ -83,8 +92,32 @@ jobs:
           path: signed/cb-launcher.exe
           overwrite: true
 
+      # Release-sign version tags with the SignPath production cert. Fail-closed: requires
+      # manual approval in the SignPath UI; if signing fails or times out, nothing is deployed.
+      - name: Sign cb-launcher.exe (SignPath production cert, release tags only)
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cb-launcher
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: initial
+          github-artifact-id: ${{ steps.upload-unsigned-binary.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Replace binary artifact with signed exe (release tags only)
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: ${{matrix.configuration}} Binary
+          path: signed/cb-launcher.exe
+          overwrite: true
+
       - name: Upload ${{matrix.configuration}} CEF artifacts
-        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} CEF artifacts
@@ -92,7 +125,7 @@ jobs:
             build/runtime/x64/${{matrix.configuration}}/cef/*
 
       - name: Upload ${{matrix.configuration}} UI artifacts
-        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} UI artifacts
@@ -100,7 +133,7 @@ jobs:
             src/launcher-ui/*
 
       - name: Upload ${{matrix.configuration}} Discord artifacts
-        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop')
         uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Discord artifacts
@@ -111,7 +144,7 @@ jobs:
     name: Deploy artifacts
     needs: build
     runs-on: windows-2022
-    if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop')
     steps:
       - name: Set Git to use LF line endings
         run: |
@@ -192,3 +225,46 @@ jobs:
           git lfs status
           git commit -m "Update artifacts"
           git push origin main
+
+  release:
+    name: Create GitHub release
+    needs: deploy
+    runs-on: windows-2022
+    if: github.repository_owner == 'CBServers' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Check out files
+        uses: actions/checkout@v4.2.0
+        with:
+          fetch-depth: 0
+
+      - name: Download signed binary
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: Release Binary
+
+      - name: Generate checksums
+        run: |
+          $hash = (Get-FileHash cb-launcher.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  cb-launcher.exe" | Out-File checksums.txt -Encoding ascii
+
+      - name: Generate release notes
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+          if ($LASTEXITCODE -eq 0 -and $prev) {
+            $header = "## Changes since $prev"
+            $commits = git log "$prev..$tag" --no-merges --pretty="format:- %s (%h)"
+          } else {
+            $header = "## Changes"
+            $commits = git log $tag --no-merges --pretty="format:- %s (%h)"
+          }
+          $notes = @($header, "") + $commits
+          $notes | Out-File release-notes.md -Encoding utf8
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" cb-launcher.exe checksums.txt --verify-tag --title "${{ github.ref_name }}" --notes-file release-notes.md

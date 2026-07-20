@@ -16,6 +16,9 @@ namespace commands::game_commands
     // game_config.id of the game holding the launch barrier (authoritative "what's running"), or empty.
     std::string tracked_game_id();
 
+    // Adopt a running fork this launcher didn't launch (launcher restart / manual start): verify the PID's exe lives in the game's install, then take the barrier and track it.
+    bool try_adopt_running_game(unsigned long pid, const std::string& game_id);
+
     // Cold-launch a fork to accept a Discord invite; mode picks the play mode for non-switchable forks. No-op if a game holds the barrier.
     void launch_for_join(const std::string& game_id, const std::string& mode = {});
 

@@ -76,130 +76,32 @@ namespace deep_link
         return false;
     }
 
-    server::~server()
-    {
-        this->stop();
-    }
-
     void server::start(std::function<void(const std::string&)> callback)
     {
-        if (this->running_.exchange(true))
+        if (this->listener_.running())
         {
             return;
         }
 
         this->callback_ = std::move(callback);
-        this->stop_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        this->thread_ = std::thread([this] { this->run(); });
+
+        pipe::listener::options opts{};
+        opts.name = PIPE_NAME;
+        opts.access = PIPE_ACCESS_INBOUND;
+        opts.in_buffer = 8192;
+        this->listener_.start(std::move(opts), [this](void* pipe) { this->read_and_dispatch(pipe); });
     }
 
     void server::stop()
     {
-        if (!this->running_.exchange(false))
-        {
-            return;
-        }
-
-        if (this->stop_event_)
-        {
-            SetEvent(this->stop_event_);
-        }
-
-        if (this->thread_.joinable())
-        {
-            this->thread_.join();
-        }
-
-        if (this->stop_event_)
-        {
-            CloseHandle(this->stop_event_);
-            this->stop_event_ = nullptr;
-        }
-    }
-
-    void server::run()
-    {
-        while (this->running_)
-        {
-            const auto pipe = CreateNamedPipeW(
-                PIPE_NAME,
-                PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-                PIPE_UNLIMITED_INSTANCES, 0, 8192, 0, nullptr);
-
-            if (pipe == INVALID_HANDLE_VALUE)
-            {
-                if (WaitForSingleObject(this->stop_event_, 1000) == WAIT_OBJECT_0)
-                {
-                    break;
-                }
-                continue;
-            }
-
-            if (this->wait_for_connection(pipe) && this->running_)
-            {
-                this->read_and_dispatch(pipe);
-            }
-
-            DisconnectNamedPipe(pipe);
-            CloseHandle(pipe);
-        }
-    }
-
-    // Overlapped ConnectNamedPipe that also unblocks on the stop event.
-    bool server::wait_for_connection(void* pipe) const
-    {
-        OVERLAPPED ov{};
-        ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        const auto _ = utils::finally([&ov] { CloseHandle(ov.hEvent); });
-
-        bool ready = false;
-        const auto connect_ok = ConnectNamedPipe(pipe, &ov);
-        const auto err = GetLastError();
-
-        if (!connect_ok && err == ERROR_IO_PENDING)
-        {
-            HANDLE handles[2] = {ov.hEvent, this->stop_event_};
-            if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-            {
-                DWORD dummy = 0;
-                ready = GetOverlappedResult(pipe, &ov, &dummy, FALSE) != 0;
-            }
-            else
-            {
-                CancelIoEx(pipe, &ov);
-            }
-        }
-        else if (!connect_ok && err == ERROR_PIPE_CONNECTED)
-        {
-            ready = true; // client connected before ConnectNamedPipe
-        }
-
-        return ready;
+        this->listener_.stop();
     }
 
     void server::read_and_dispatch(void* pipe) const
     {
         char buffer[8192];
-        OVERLAPPED ov{};
-        ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        const auto _ = utils::finally([&ov] { CloseHandle(ov.hEvent); });
-
         DWORD read = 0;
-        bool ok = ReadFile(pipe, buffer, sizeof(buffer) - 1, &read, &ov) != 0;
-        if (!ok && GetLastError() == ERROR_IO_PENDING)
-        {
-            HANDLE handles[2] = {ov.hEvent, this->stop_event_};
-            if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
-            {
-                ok = GetOverlappedResult(pipe, &ov, &read, FALSE) != 0;
-            }
-            else
-            {
-                CancelIoEx(pipe, &ov);
-                ok = false;
-            }
-        }
+        const bool ok = this->listener_.read(pipe, buffer, sizeof(buffer) - 1, read);
 
         if (!ok || read == 0)
         {
@@ -215,7 +117,7 @@ namespace deep_link
         }
 
         // Only ever dispatch a well-formed cbservers:// URL within the size cap.
-        if (this->running_ && this->callback_ && line.size() <= MAX_URL_LENGTH && is_deep_link(line))
+        if (this->listener_.running() && this->callback_ && line.size() <= MAX_URL_LENGTH && is_deep_link(line))
         {
             this->callback_(line);
         }

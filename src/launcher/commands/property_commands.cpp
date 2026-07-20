@@ -129,11 +129,11 @@ namespace commands::property_commands
                     return; // Invalid - no valid game exe found
                 }
 
-                const auto has_zone_folder = utils::io::directory_exists(path / "zone");
-                const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
-                if (!has_zone_folder && !has_video_folder) //if this is the case, we assume its a steam install (which doesnt have these folders)
+                if (config->supports_steam_install)
                 {
-                    config->set_steam_install(true);
+                    const auto has_zone_folder = utils::io::directory_exists(path / "zone");
+                    const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
+                    config->set_steam_install(!has_zone_folder && !has_video_folder); //if this is the case, we assume its a steam install (which doesnt have these folders)
                 }
                 else
                 {

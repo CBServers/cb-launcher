@@ -90,30 +90,19 @@ namespace commands::info_commands
             response.SetObject();
             auto& allocator = response.GetAllocator();
 
-            const auto game = utils::flags::get_flag_value("launch");
-            const auto mode = utils::flags::get_flag_value("mode");
-            const auto install = utils::flags::get_flag_value("install");
-
-            rapidjson::Value game_value;
-            if (game.has_value())
+            const auto add_opt = [&](const char* name, const std::optional<std::string>& value)
             {
-                game_value.SetString(game->data(), static_cast<rapidjson::SizeType>(game->length()), allocator);
-            }
-            response.AddMember("game", game_value, allocator);
+                rapidjson::Value json_value;
+                if (value.has_value())
+                {
+                    json_value.SetString(value->data(), static_cast<rapidjson::SizeType>(value->length()), allocator);
+                }
+                response.AddMember(rapidjson::StringRef(name), json_value, allocator);
+            };
 
-            rapidjson::Value mode_value;
-            if (mode.has_value())
-            {
-                mode_value.SetString(mode->data(), static_cast<rapidjson::SizeType>(mode->length()), allocator);
-            }
-            response.AddMember("mode", mode_value, allocator);
-
-            rapidjson::Value install_value;
-            if (install.has_value())
-            {
-                install_value.SetString(install->data(), static_cast<rapidjson::SizeType>(install->length()), allocator);
-            }
-            response.AddMember("install", install_value, allocator);
+            add_opt("game", utils::flags::get_flag_value("launch"));
+            add_opt("mode", utils::flags::get_flag_value("mode"));
+            add_opt("install", utils::flags::get_flag_value("install"));
         });
 
         cef_ui.add_command("get-startup-deeplink", [](const rapidjson::Value&, rapidjson::Document& response)
@@ -121,7 +110,13 @@ namespace commands::info_commands
             response.SetObject();
             auto& allocator = response.GetAllocator();
 
-            const auto url = deep_link::get_arg();
+            // Consume-once so a UI reload doesn't replay the startup deep link.
+            static std::atomic_bool consumed{false};
+            std::optional<std::string> url;
+            if (!consumed.exchange(true))
+            {
+                url = deep_link::get_arg();
+            }
 
             rapidjson::Value url_value;
             if (url.has_value())

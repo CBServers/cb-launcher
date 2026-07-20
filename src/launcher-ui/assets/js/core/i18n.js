@@ -79,7 +79,9 @@
                 cancelledVerify: '{{game}} verification/update cancelled',
                 cancelledInstall: '{{game}} download cancelled',
                 cancelledUninstall: '{{game}} uninstall cancelled',
-                cancelled: '{{game}} cancelled'
+                cancelled: '{{game}} cancelled',
+                shortcutCreated: 'Shortcut created for {{game}}',
+                shortcutFailed: 'Could not create shortcut for {{game}}'
             },
             offline: {
                 titleSuffix: '(OFFLINE)',
@@ -124,6 +126,7 @@
                 pinToHome: 'Pin to home',
                 unpinFromHome: 'Unpin from home',
                 gameDetails: 'Game details',
+                createShortcut: 'Create shortcut',
                 comingSoon: 'Coming soon'
             },
             home: {
@@ -293,6 +296,7 @@
                     gameOptions: 'Game Options',
                     skipIntroCinematic: 'Skip intro cinematic',
                     disableCbExtension: 'Disable CB extension',
+                    launchAdmin: 'Launch as administrator',
                     player: 'Player',
                     playerNameOverride: 'In-game name override',
                     playerNameOverrideHelp: 'Overrides the global in-game name for this game.',
@@ -577,7 +581,9 @@
                 cancelledVerify: 'Verification/mise a jour de {{game}} annulee',
                 cancelledInstall: 'Telechargement de {{game}} annule',
                 cancelledUninstall: 'Desinstallation de {{game}} annulee',
-                cancelled: '{{game}} annule'
+                cancelled: '{{game}} annule',
+                shortcutCreated: 'Raccourci cree pour {{game}}',
+                shortcutFailed: 'Impossible de creer le raccourci pour {{game}}'
             },
             offline: {
                 titleSuffix: '(HORS LIGNE)',
@@ -622,6 +628,7 @@
                 pinToHome: "Epingler a l'accueil",
                 unpinFromHome: "Detacher de l'accueil",
                 gameDetails: 'Details du jeu',
+                createShortcut: 'Creer un raccourci',
                 comingSoon: 'Bientot disponible'
             },
             home: {
@@ -791,6 +798,7 @@
                     gameOptions: 'Options du jeu',
                     skipIntroCinematic: "Passer l'intro cinematique",
                     disableCbExtension: "Desactiver l'extension CB",
+                    launchAdmin: "Lancer en tant qu'administrateur",
                     player: 'Joueur',
                     playerNameOverride: 'Nom personnalise pour ce jeu',
                     playerNameOverrideHelp: 'Remplace le nom global pour ce jeu.',
@@ -1075,7 +1083,9 @@
                 cancelledVerify: 'Verificacion/actualizacion de {{game}} cancelada',
                 cancelledInstall: 'Descarga de {{game}} cancelada',
                 cancelledUninstall: 'Desinstalacion de {{game}} cancelada',
-                cancelled: '{{game}} cancelado'
+                cancelled: '{{game}} cancelado',
+                shortcutCreated: 'Acceso directo creado para {{game}}',
+                shortcutFailed: 'No se pudo crear el acceso directo para {{game}}'
             },
             offline: {
                 titleSuffix: '(SIN CONEXION)',
@@ -1120,6 +1130,7 @@
                 pinToHome: 'Anclar al inicio',
                 unpinFromHome: 'Desanclar del inicio',
                 gameDetails: 'Detalles del juego',
+                createShortcut: 'Crear acceso directo',
                 comingSoon: 'Proximamente'
             },
             home: {
@@ -1289,6 +1300,7 @@
                     gameOptions: 'Opciones del juego',
                     skipIntroCinematic: 'Omitir cinematica de introduccion',
                     disableCbExtension: 'Desactivar extension CB',
+                    launchAdmin: 'Ejecutar como administrador',
                     player: 'Jugador',
                     playerNameOverride: 'Nombre personalizado en el juego',
                     playerNameOverrideHelp: 'Sobrescribe el nombre global para este juego.',

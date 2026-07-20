@@ -45,6 +45,22 @@ The launcher registers a `cbservers://` URL protocol on startup (per-user, no ad
 - Run the `generate.bat` script to generate the project solution.
 - Build the project via the generated solution file in `build\cb-launcher.sln`.
 
+## Code signing policy
+
+Free code signing on Windows provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Committers and reviewers: [Contributors](https://github.com/CBServers/cb-launcher/graphs/contributors)
+- Approvers: [Owner](https://github.com/bradstv)
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, with the following exceptions:
+
+- On startup, the launcher checks for launcher and game client updates (hosted on GitHub in our public [updater repository](https://github.com/CBServers/updater)) and downloads game files from our CDN.
+- If the user explicitly links their Discord account, the launcher communicates with Discord for rich presence and social features. This is optional and disabled until linked.
+
+See our [Privacy Policy](https://cbservers.xyz/privacy/) and [Terms of Service](https://cbservers.xyz/terms/) for full details.
+
 ## Credits
 
 This launcher's foundation is based on the XLabs Launcher, originally developed by [momo5502](https://github.com/momo5502) and the [XLabs Project](https://github.com/XLabsProject). While the original XLabs Launcher repository is no longer available, we're grateful for the foundation their work provided.

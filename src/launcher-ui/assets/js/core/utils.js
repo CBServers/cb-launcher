@@ -18,6 +18,7 @@ const PROPERTY_KEYS = {
         LAUNCH_OPTIONS: 'launch-options',
         GAME_MODE: 'game-mode',
         SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
+        LAUNCH_ADMIN: 'launch-admin',
         DISABLE_CB_EXTENSION: 'disable-cb-extension',
         DETECTED_COMPONENTS: 'detected-components',
         SELECTED_COMPONENTS: 'selected-components',
@@ -88,7 +89,7 @@ class GameUtils {
             credits: 'Multiplayer is provided by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
             accent: '#46D744',
             assetBase: './assets/img/games/cod4x',
-            iconPath: './assets/img/games/cod4x/capsule.jpg',
+            iconPath: './assets/img/games/cod4x/icon.ico',
             capsulePath: './assets/img/games/cod4x/capsule.jpg',
             heroImagePath: './assets/img/games/cod4x/hero.jpg',
             logoPath: './assets/img/games/cod4x/logo.png'
@@ -111,7 +112,7 @@ class GameUtils {
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T4 client and developed by Plutonium.',
             accent: '#B94E14',
             assetBase: './assets/img/games/t4',
-            iconPath: './assets/img/games/t4/capsule.jpg',
+            iconPath: './assets/img/games/t4/icon.ico',
             capsulePath: './assets/img/games/t4/capsule.jpg',
             heroImagePath: './assets/img/games/t4/hero.jpg',
             logoPath: './assets/img/games/t4/logo.png'
@@ -134,7 +135,7 @@ class GameUtils {
             credits: 'Campaign, Multiplayer, and Zombies are provided by the T5 client and developed by Plutonium.',
             accent: '#186AC6',
             assetBase: './assets/img/games/t5',
-            iconPath: './assets/img/games/t5/capsule.jpg',
+            iconPath: './assets/img/games/t5/icon.ico',
             capsulePath: './assets/img/games/t5/capsule.jpg',
             heroImagePath: './assets/img/games/t5/hero.jpg',
             logoPath: './assets/img/games/t5/logo.png'
@@ -157,7 +158,7 @@ class GameUtils {
             credits: 'Multiplayer is provided by IW4x. Singleplayer is provided by IW4-SP and developed by AlterWare.',
             accent: '#FBC751',
             assetBase: './assets/img/games/iw4x',
-            iconPath: './assets/img/games/iw4x/capsule.jpg',
+            iconPath: './assets/img/games/iw4x/icon.ico',
             capsulePath: './assets/img/games/iw4x/capsule.jpg',
             heroImagePath: './assets/img/games/iw4x/hero.jpg',
             logoPath: './assets/img/games/iw4x/logo.png'
@@ -180,7 +181,7 @@ class GameUtils {
             credits: 'Multiplayer is provided by Plutonium. Singleplayer is provided by IW5-Mod and developed by AlterWare.',
             accent: '#09FF00',
             assetBase: './assets/img/games/iw5',
-            iconPath: './assets/img/games/iw5/capsule.jpg',
+            iconPath: './assets/img/games/iw5/icon.ico',
             capsulePath: './assets/img/games/iw5/capsule.jpg',
             heroImagePath: './assets/img/games/iw5/hero.jpg',
             logoPath: './assets/img/games/iw5/logo.png'
@@ -204,7 +205,7 @@ class GameUtils {
             credits: 'Multiplayer and Zombies are provided by the T6 client and developed by Plutonium. Singleplayer is provided by T6SP-Mod and developed by Rattpak.',
             accent: '#FE890A',
             assetBase: './assets/img/games/t6',
-            iconPath: './assets/img/games/t6/capsule.jpg',
+            iconPath: './assets/img/games/t6/icon.ico',
             capsulePath: './assets/img/games/t6/capsule.jpg',
             heroImagePath: './assets/img/games/t6/hero.jpg',
             logoPath: './assets/img/games/t6/logo.png'
@@ -227,7 +228,7 @@ class GameUtils {
             credits: 'BOIII is a CB Servers fork of the original BOIII/T7x client developed by momo5502 and AlterWare.',
             accent: '#F3751B',
             assetBase: './assets/img/games/boiii',
-            iconPath: './assets/img/games/boiii/capsule.jpg',
+            iconPath: './assets/img/games/boiii/icon.ico',
             capsulePath: './assets/img/games/boiii/capsule.jpg',
             heroImagePath: './assets/img/games/boiii/hero.jpg',
             logoPath: './assets/img/games/boiii/logo.png'
@@ -250,7 +251,7 @@ class GameUtils {
             credits: 'IW6x is a CB Servers fork of the original IW6x/iw6-mod client developed by AlterWare.',
             accent: '#3B718C',
             assetBase: './assets/img/games/iw6x',
-            iconPath: './assets/img/games/iw6x/capsule.jpg',
+            iconPath: './assets/img/games/iw6x/icon.ico',
             capsulePath: './assets/img/games/iw6x/capsule.jpg',
             heroImagePath: './assets/img/games/iw6x/hero.jpg',
             logoPath: './assets/img/games/iw6x/logo.png'
@@ -273,7 +274,7 @@ class GameUtils {
             credits: 'S1x is a CB Servers fork of the original S1x/s1-mod client developed by AlterWare.',
             accent: '#F9D406',
             assetBase: './assets/img/games/s1x',
-            iconPath: './assets/img/games/s1x/capsule.jpg',
+            iconPath: './assets/img/games/s1x/icon.ico',
             capsulePath: './assets/img/games/s1x/capsule.jpg',
             heroImagePath: './assets/img/games/s1x/hero.jpg',
             logoPath: './assets/img/games/s1x/logo.png'
@@ -296,7 +297,7 @@ class GameUtils {
             credits: 'H1-Mod is a CB Servers fork of the original H1-Mod client developed by Aurora.',
             accent: '#46D744',
             assetBase: './assets/img/games/h1-mod',
-            iconPath: './assets/img/games/h1-mod/capsule.jpg',
+            iconPath: './assets/img/games/h1-mod/icon.ico',
             capsulePath: './assets/img/games/h1-mod/capsule.jpg',
             heroImagePath: './assets/img/games/h1-mod/hero.jpg',
             logoPath: './assets/img/games/h1-mod/logo.png'
@@ -319,7 +320,7 @@ class GameUtils {
             credits: 'IW7-Mod is a CB Servers fork of the original IW7-Mod client developed by Aurora.',
             accent: '#FFFFFF',
             assetBase: './assets/img/games/iw7-mod',
-            iconPath: './assets/img/games/iw7-mod/capsule.jpg',
+            iconPath: './assets/img/games/iw7-mod/icon.ico',
             capsulePath: './assets/img/games/iw7-mod/capsule.jpg',
             heroImagePath: './assets/img/games/iw7-mod/hero.jpg',
             logoPath: './assets/img/games/iw7-mod/logo.png'
@@ -342,7 +343,7 @@ class GameUtils {
             credits: 'Online and offline play are provided by Project BO4 Launcher, maintained by NotNierPea.',
             accent: '#FE890A',
             assetBase: './assets/img/games/bo4',
-            iconPath: './assets/img/games/bo4/capsule.jpg',
+            iconPath: './assets/img/games/bo4/icon.ico',
             capsulePath: './assets/img/games/bo4/capsule.jpg',
             heroImagePath: './assets/img/games/bo4/hero.jpg',
             logoPath: './assets/img/games/bo4/logo.png'
@@ -365,7 +366,7 @@ class GameUtils {
             credits: 'MW2 Campaign Remastered support is provided by H2-Mod, developed by Alice.',
             accent: '#FBC751',
             assetBase: './assets/img/games/h2-mod',
-            iconPath: './assets/img/games/h2-mod/capsule.jpg',
+            iconPath: './assets/img/games/h2-mod/icon.ico',
             capsulePath: './assets/img/games/h2-mod/capsule.jpg',
             heroImagePath: './assets/img/games/h2-mod/hero.jpg',
             logoPath: './assets/img/games/h2-mod/logo.png'
@@ -388,7 +389,7 @@ class GameUtils {
             credits: 'HMW-Mod is a CB Servers fork of the original HorizonMW client.',
             accent: '#97838A',
             assetBase: './assets/img/games/hmw-mod',
-            iconPath: './assets/img/games/hmw-mod/capsule.jpg',
+            iconPath: './assets/img/games/hmw-mod/icon.ico',
             capsulePath: './assets/img/games/hmw-mod/capsule.jpg',
             heroImagePath: './assets/img/games/hmw-mod/hero.jpg',
             logoPath: './assets/img/games/hmw-mod/logo.png'
@@ -411,7 +412,7 @@ class GameUtils {
             credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
             accent: '#93a8bc',
             assetBase: './assets/img/games/cod1',
-            iconPath: './assets/img/games/cod1/capsule.jpg',
+            iconPath: './assets/img/games/cod1/icon.ico',
             capsulePath: './assets/img/games/cod1/capsule.jpg',
             heroImagePath: './assets/img/games/cod1/hero.jpg',
             logoPath: './assets/img/games/cod1/logo.png'
@@ -434,7 +435,7 @@ class GameUtils {
             credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
             accent: '#ededec',
             assetBase: './assets/img/games/coduo',
-            iconPath: './assets/img/games/coduo/capsule.png',
+            iconPath: './assets/img/games/coduo/icon.ico',
             capsulePath: './assets/img/games/coduo/capsule.png',
             heroImagePath: './assets/img/games/coduo/hero.jpg',
             logoPath: './assets/img/games/coduo/logo.png'
@@ -450,6 +451,7 @@ class GameUtils {
             hasMultipleModes: true,
             supportedModes: ['sp', 'mp'],
             supportsName: true,
+            requiresElevation: true,
             specialSettings: [],
             codeName: 'CoD2x',
             version: '1.3',
@@ -457,7 +459,7 @@ class GameUtils {
             credits: 'CoD2x is developed by Yctn and eyza. Learn more at <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.',
             accent: '#fadb9f',
             assetBase: './assets/img/games/cod2x',
-            iconPath: './assets/img/games/cod2x/capsule.jpg',
+            iconPath: './assets/img/games/cod2x/icon.ico',
             capsulePath: './assets/img/games/cod2x/capsule.jpg',
             heroImagePath: './assets/img/games/cod2x/hero.jpg',
             logoPath: './assets/img/games/cod2x/logo.png'
@@ -566,9 +568,9 @@ class GameUtils {
     static getAllGameImages() {
         const images = {};
 
+        // iconPath (.ico) is deliberately excluded: the sidebar <img> tags load those on their own.
         this.getAllGameConfigs().forEach(config => {
             images[config.uiId] = [
-                config.iconPath,
                 config.capsulePath,
                 config.heroImagePath,
                 config.logoPath

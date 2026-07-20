@@ -142,13 +142,22 @@ function makeSleep(milliseconds) {
     return () => sleep(milliseconds);
 }
 
-function waitForAllImages() {
+function waitForAllImages(timeoutMs = 5000) {
     return new Promise(resolve => {
+        const deadline = Date.now() + timeoutMs;
+
         function waitForAllImagesInternal() {
+            // Never hold the window hostage: deferred lazy images don't load while hidden.
+            if (Date.now() > deadline) {
+                console.warn('waitForAllImages: timed out; showing anyway');
+                resolve();
+                return;
+            }
+
             const images = document.querySelectorAll('img');
 
             for (var i = 0; i < images.length; ++i) {
-                if (!images[i].complete) {
+                if (!images[i].complete && images[i].loading !== 'lazy') {
                     window.requestAnimationFrame(waitForAllImagesInternal);
                     return;
                 }
@@ -258,8 +267,6 @@ async function initialize() {
     // Preload all game images first
     preloadGameImages().then(() => {
         console.log('All game images preloaded');
-        // Load sidebar icons safely
-        loadSidebarIcons();
     });
 
     initializeNavigation()
@@ -659,33 +666,6 @@ function preloadGameImages() {
     );
 }
 
-function loadSidebarIcons() {
-    const gameIds = GameUtils.getAllGameIds();
-
-    gameIds.forEach(gameId => {
-        const thumbnail = document.querySelector(`.${gameId}-thumb`);
-        if (!thumbnail) return;
-
-        const imagePath = GameUtils.getIconPath(gameId);
-        if (preloadedImages[imagePath]) {
-            // Image is already preloaded, apply immediately
-            thumbnail.style.backgroundImage = `url('${imagePath}')`;
-            console.log(`Sidebar icon loaded for ${gameId} (from cache)`);
-        } else {
-            // Fallback to loading on demand
-            const img = new Image();
-            img.onload = function() {
-                thumbnail.style.backgroundImage = `url('${imagePath}')`;
-                console.log(`Sidebar icon loaded for ${gameId}`);
-            };
-            img.onerror = function() {
-                console.log(`Sidebar icon failed to load for ${gameId}, using gradient fallback`);
-            };
-            img.src = imagePath;
-        }
-    });
-}
-
 // Game Installation Manager
 window.GameInstallationManager = {
     getGameMapping(gameId) {
@@ -863,7 +843,7 @@ window.ProgressManager = {
         if (gameId) {
             progressGameIcon.classList.add(gameId);
             const imagePath = GameUtils.getIconPath(gameId);
-            if (imagePath && preloadedImages[imagePath]) {
+            if (imagePath) {
                 progressGameIcon.style.backgroundImage = `url('${imagePath}')`;
             }
         }
@@ -1509,8 +1489,7 @@ async function navigateToGamePage(uiId) {
     await loadNavigationPage(uiId);
 }
 
-// Open a game's setup flow (not installed) or manage-install popup (already installed).
-// Shared by the -install CLI arg and the cbservers://install/<game> deep link.
+// Opens the setup flow or manage-install popup; shared by -install and install deep links.
 async function openInstallFlow(uiId) {
     const install = await checkGameInstallation(uiId);
     if (install.status === 'installed') {
@@ -1618,6 +1597,14 @@ async function handleDeepLink(url) {
     const gameSlug = segments[1];
     const modeArg = segments[2];
 
+    if (!['play', 'game', 'install'].includes(verb)) {
+        console.warn(`deep link: unknown action "${verb}"`);
+        if (typeof window.showToast === 'function') {
+            window.showToast(t('deepLink.unknownAction', { action: verb }), 'error');
+        }
+        return;
+    }
+
     if (!gameSlug) {
         console.warn(`deep link: missing game in "${url}"`);
         return;
@@ -1639,10 +1626,6 @@ async function handleDeepLink(url) {
         return;
     }
 
-    const backendId = GameUtils.getGameMapping(uiId);
-    const gameConfig = GameUtils.getGameConfig(backendId);
-    if (!gameConfig) return;
-
     switch (verb) {
         case 'game':
             // Navigate only.
@@ -1653,6 +1636,13 @@ async function handleDeepLink(url) {
             return;
 
         case 'play': {
+            const backendId = GameUtils.getGameMapping(uiId);
+            const gameConfig = GameUtils.getGameConfig(backendId);
+            if (!gameConfig) {
+                console.warn(`deep link: no config for ${uiId}`);
+                return;
+            }
+
             const install = await checkGameInstallation(uiId);
             if (install.status !== 'installed') {
                 showSetupFlow(uiId);
@@ -1676,12 +1666,6 @@ async function handleDeepLink(url) {
             }
             return;
         }
-
-        default:
-            console.warn(`deep link: unknown action "${verb}"`);
-            if (typeof window.showToast === 'function') {
-                window.showToast(t('deepLink.unknownAction', { action: verb }), 'error');
-            }
     }
 }
 

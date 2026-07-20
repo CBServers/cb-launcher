@@ -91,6 +91,24 @@ namespace
         return cef_ui.run_process();
     }
 
+    // Deep links can arrive before the UI exists (the listener starts pre-update); buffer until it does.
+    std::mutex deep_link_sink_mutex;
+    std::vector<std::string> pending_deep_links;
+    std::function<void(const std::string&)> deep_link_sink;
+
+    void on_deep_link(const std::string& url)
+    {
+        std::lock_guard lock(deep_link_sink_mutex);
+        if (deep_link_sink)
+        {
+            deep_link_sink(url);
+        }
+        else
+        {
+            pending_deep_links.push_back(url);
+        }
+    }
+
     void show_window(const utils::nt::library& process, const std::filesystem::path& path)
     {
         cef::cef_ui cef_ui{process, path};
@@ -119,12 +137,20 @@ namespace
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
 
-        // Receive cbservers:// URLs forwarded from second instances and route them to the UI.
-        deep_link::server deep_link_server{};
-        deep_link_server.start([&cef_ui](const std::string& url) { cef_ui.dispatch_deep_link(url); });
+        // Route forwarded deep links to the UI, delivering anything buffered pre-create.
+        {
+            std::lock_guard lock(deep_link_sink_mutex);
+            deep_link_sink = [&cef_ui](const std::string& url) { cef_ui.dispatch_deep_link(url); };
+            for (const auto& url : pending_deep_links) cef_ui.dispatch_deep_link(url);
+            pending_deep_links.clear();
+        }
 
         cef::cef_ui::work();
-        deep_link_server.stop();
+
+        {
+            std::lock_guard lock(deep_link_sink_mutex);
+            deep_link_sink = nullptr;
+        }
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
     }
@@ -134,46 +160,64 @@ namespace
         return _wcsicmp(a.lexically_normal().c_str(), b.lexically_normal().c_str()) == 0;
     }
 
-    void create_shortcut()
+    void create_launcher_shortcut(const std::filesystem::path& launcher_path,
+                                  const std::filesystem::path& shortcut_path, const char* created_key)
     {
-        try
-        {
-            const auto launcher_path = utils::nt::library{}.get_path();
-            const auto desktop_path = utils::com::get_desktop_path();
+        const auto already_created = utils::properties::load(created_key) == "true";
 
-            if (desktop_path.empty())
+        if (already_created)
+        {
+            // User deleted it on purpose — respect that, don't resurrect it.
+            if (!std::filesystem::exists(shortcut_path))
             {
                 return;
             }
 
-            const auto shortcut_path = desktop_path / "CB Servers Launcher.lnk";
-            const auto already_created = utils::properties::load(property_keys::SHORTCUT_CREATED) == "true";
-
-            if (already_created)
+            // Still points at the current exe? Nothing to do.
+            const auto current_target = utils::com::read_shortcut_target(shortcut_path);
+            if (!current_target.empty() && same_path(current_target, launcher_path))
             {
-                // User deleted it on purpose — respect that, don't resurrect it.
-                if (!std::filesystem::exists(shortcut_path))
-                {
-                    return;
-                }
+                return;
+            }
+        }
 
-                // Still points at the current exe? Nothing to do.
-                const auto current_target = utils::com::read_shortcut_target(shortcut_path);
-                if (!current_target.empty() && same_path(current_target, launcher_path))
-                {
-                    return;
-                }
+        // First run, or exe moved/renamed — (re)write the same .lnk in place.
+        if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
+        {
+            utils::properties::store(created_key, "true");
+        }
+    }
+
+    void create_shortcuts()
+    {
+        try
+        {
+            const auto launcher_path = utils::nt::library{}.get_path();
+
+            const auto desktop_path = utils::com::get_desktop_path();
+            if (!desktop_path.empty())
+            {
+                create_launcher_shortcut(launcher_path, desktop_path / "CB Servers Launcher.lnk",
+                                         property_keys::SHORTCUT_CREATED);
             }
 
-            // First run, or exe moved/renamed — (re)write the same .lnk in place.
-            if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
+            // Same "CB Servers" Programs folder the game shortcuts use.
+            const auto programs = utils::com::get_start_menu_programs_path();
+            if (!programs.empty())
             {
-                utils::properties::store(property_keys::SHORTCUT_CREATED, "true");
+                const auto sm_dir = programs / L"CB Servers";
+                std::error_code ec;
+                std::filesystem::create_directories(sm_dir, ec);
+                if (!ec)
+                {
+                    create_launcher_shortcut(launcher_path, sm_dir / "CB Servers Launcher.lnk",
+                                             property_keys::START_MENU_SHORTCUT_CREATED);
+                }
             }
         }
         catch (...)
         {
-            printf("Error creating shortcut\n");
+            printf("Error creating shortcuts\n");
         }
     }
 }
@@ -220,6 +264,10 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         printf("Debug console enabled\n");
 #endif
 
+        // Listen for forwarded deep links immediately so a link clicked mid-update isn't lost.
+        deep_link::server deep_link_server{};
+        deep_link_server.start(&on_deep_link);
+
         if (!utils::flags::has_flag("noupdate") && !utils::flags::has_flag("offline"))
         {
             try
@@ -249,7 +297,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
         if (!utils::nt::is_wine_environment())
         {
-            create_shortcut();
+            create_shortcuts();
             uri_scheme::ensure_registered();
         }
         else

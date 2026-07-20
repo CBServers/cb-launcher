@@ -10,6 +10,7 @@ namespace utils::com
     CComPtr<IProgressDialog> create_progress_dialog();
 
     std::filesystem::path get_desktop_path();
+    std::filesystem::path get_start_menu_programs_path();
     std::filesystem::path read_shortcut_target(const std::filesystem::path& shortcut_path);
     bool create_shortcut(
         const std::filesystem::path& target_path,

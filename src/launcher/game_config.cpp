@@ -3,6 +3,7 @@
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
+#include <utils/nt.hpp>
 #include <utils/cdn.hpp>
 #include <utils/string.hpp>
 #include <unordered_set>
@@ -207,6 +208,30 @@ namespace game_config
         return this->get(property_keys::LAUNCH_OPTIONS);
     }
 
+    bool game_config_t::launch_elevated() const
+    {
+        const auto value = this->get(property_keys::LAUNCH_ADMIN);
+        if (value && !value->empty())
+        {
+            return *value == "true";
+        }
+        return this->requires_elevation;
+    }
+
+    std::vector<std::string> game_config_t::collect_exes() const
+    {
+        std::vector<std::string> exes{ this->exe_name };
+        for (const auto& [mode, exe] : this->mode_executables)
+        {
+            exes.push_back(exe);
+        }
+        for (const auto& exe : this->check_running_exes)
+        {
+            exes.push_back(exe);
+        }
+        return exes;
+    }
+
     void game_config_t::reset() const
     {
         // Clear all properties for this game
@@ -218,6 +243,7 @@ namespace game_config
         this->set(property_keys::LAUNCH_OPTIONS, "");
         this->set(property_keys::GAME_MODE, "");
         this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
+        this->set(property_keys::LAUNCH_ADMIN, "");
 
         // Game-specific settings — only clear on the games that own them
         if (this->game_key == "bo3")
@@ -228,7 +254,7 @@ namespace game_config
         {
             this->set(property_keys::DISABLE_CB_EXTENSION, "");
         }
-        if (this->game_key == "cod1" || this->game_key == "coduo")
+        if (this->game_key == "cod1" || this->game_key == "coduo" || this->game_key == "cod2x")
         {
             this->set(property_keys::CUSTOM_RESOLUTION_ENABLED, "");
             this->set(property_keys::CUSTOM_RESOLUTION_WIDTH, "");
@@ -331,7 +357,8 @@ namespace game_config
                 .base_folder = "cod2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
-                .required_redists = {"vcr2005", "dx_jun2010"}
+                .required_redists = {"vcr2005", "dx_jun2010"},
+                .requires_elevation = true
             },
         },
         {
@@ -554,7 +581,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -581,7 +609,8 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -608,7 +637,8 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
                 .client_install_path_files = {"h1-mod.exe"},
                 .client_data_folders = {"cdata"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -632,7 +662,8 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
                 .client_install_path_files = {"iw7-mod.exe"},
                 .client_data_folders = {"cdata"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         },
         {
@@ -709,7 +740,8 @@ namespace game_config
                     {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },
                 .client_data_folders = {},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                .supports_steam_install = true
             }
         }
     };
@@ -862,6 +894,24 @@ namespace game_config
             }
         }
 
+        return false;
+    }
+
+    bool is_game_process_running(const std::string& game)
+    {
+        const auto config = get_game_config_by_id(game);
+        if (!config)
+        {
+            return false;
+        }
+
+        for (const auto& exe : config->collect_exes())
+        {
+            if (!exe.empty() && utils::nt::is_process_running(exe))
+            {
+                return true;
+            }
+        }
         return false;
     }
 

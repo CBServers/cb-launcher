@@ -29,6 +29,12 @@ namespace game_config
         void set_steam_install(bool is_steam) const;
         std::optional<std::string> get_launch_options() const;
 
+        // Effective "launch as admin" value: user property if set, else requires_elevation default.
+        bool launch_elevated() const;
+
+        // Every exe this game can run as: launch exe, per-mode exes, and known child/companion exes.
+        std::vector<std::string> collect_exes() const;
+
         // Reset all properties for this game
         void reset() const;
 
@@ -73,6 +79,12 @@ namespace game_config
         // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
         std::vector<std::string> required_redists;
 
+        // Launch via UAC prompt (e.g. CoD2x needs HKLM access for its HWID key).
+        bool requires_elevation = false;
+
+        // Game can be installed from a Steam copy (lacks zone/ and raw/video/ folders), so those manifest prefixes are remapped.
+        bool supports_steam_install = false;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };
@@ -90,6 +102,8 @@ namespace game_config
     std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
     std::string get_exe_for_mode(const std::string& game, const std::string& mode);
     bool validate_game_path(const std::string& game, const std::filesystem::path& path);
+    // OS-level check: any of the game's executables is running. `game` is the wire id (game_config.id).
+    bool is_game_process_running(const std::string& game);
     void reset_all_games();
 
     // Get the resolved base URL for a game config using the active CDN
