@@ -10,11 +10,8 @@
 //   /v1/unlink            -> deregisters the caller, 204
 //   /v1/friends/intersect -> { ids: ["...", ...] } (max 40) -> { linked: ["..."] }
 //
-// KV cost model: per-user "linked:" keys are the source of truth, but requests
-// never read them individually. A cron trigger rebuilds a single "index" key
-// (JSON array of all linked IDs) every minute, and intersect reads that one
-// key through a short in-memory cache. Token resolution and rate limiting are
-// also memory-first, so a warm isolate serves requests with zero KV operations.
+// KV cost model: see README. Requests are served memory-first; per-user
+// "linked:" keys are only ever read by the cron rebuild of the "index" key.
 
 const DISCORD_API = 'https://discord.com/api/v10';
 const MAX_INTERSECT_IDS = 40;
@@ -24,8 +21,7 @@ const RATE_LIMIT_PER_MINUTE = 30;
 const INDEX_KEY = 'index';
 const INDEX_CACHE_TTL_MS = 60_000;
 
-// Per-isolate caches. Isolates are recycled at Cloudflare's whim, so these are
-// best-effort; KV (tokens, index) or Discord backs every miss.
+// Per-isolate, best-effort caches; KV or Discord backs every miss.
 const tokenCache = new Map(); // token hash -> { id, expiresAt }
 const rateBuckets = new Map(); // `${userId}:${minute}` -> count
 let indexCache = null; // { ids: Set, fetchedAt }
@@ -40,6 +36,10 @@ function json(status, body) {
 async function sha256Hex(value) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
     return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function rememberToken(hash, id) {
+    tokenCache.set(hash, { id, expiresAt: Date.now() + TOKEN_CACHE_TTL * 1000 });
 }
 
 // Resolves the caller's Discord user ID from their access token. Results are
@@ -57,11 +57,10 @@ async function resolveCaller(request, env) {
     }
 
     const hash = await sha256Hex(token);
-    const now = Date.now();
 
     const memory = tokenCache.get(hash);
     if (memory) {
-        if (memory.expiresAt > now) {
+        if (memory.expiresAt > Date.now()) {
             return memory.id;
         }
         tokenCache.delete(hash);
@@ -70,7 +69,7 @@ async function resolveCaller(request, env) {
     const cacheKey = `tok:${hash}`;
     const cached = await env.LINKS.get(cacheKey);
     if (cached) {
-        tokenCache.set(hash, { id: cached, expiresAt: now + TOKEN_CACHE_TTL * 1000 });
+        rememberToken(hash, cached);
         return cached;
     }
 
@@ -87,14 +86,13 @@ async function resolveCaller(request, env) {
     }
 
     const id = String(user.id);
-    tokenCache.set(hash, { id, expiresAt: now + TOKEN_CACHE_TTL * 1000 });
+    rememberToken(hash, id);
     await env.LINKS.put(cacheKey, id, { expirationTtl: TOKEN_CACHE_TTL });
     return id;
 }
 
-// Per-isolate rate limiting: each isolate counts separately, so the effective
-// global limit is a multiple of RATE_LIMIT_PER_MINUTE. Good enough to stop a
-// single client hammering the API, and costs no KV operations.
+// Each isolate counts separately, so the effective global limit is a multiple
+// of RATE_LIMIT_PER_MINUTE.
 function checkRateLimit(userId) {
     const bucket = Math.floor(Date.now() / 60000);
     const key = `${userId}:${bucket}`;
@@ -122,9 +120,8 @@ async function handleUnlink(userId, env) {
     return new Response(null, { status: 204 });
 }
 
-// Returns the set of all linked IDs, from the isolate cache when fresh, else
-// from the "index" key. Returns null if the index has never been built (i.e.
-// the cron trigger has not run yet).
+// Returns the set of all linked IDs, or null if the index has never been
+// built (the cron trigger has not run yet).
 async function loadIndex(env) {
     const now = Date.now();
     if (indexCache && now - indexCache.fetchedAt < INDEX_CACHE_TTL_MS) {
