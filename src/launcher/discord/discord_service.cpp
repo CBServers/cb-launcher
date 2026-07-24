@@ -45,7 +45,13 @@ namespace discord
         constexpr auto AUTO_ACCEPT_WINDOW = 60s;
 
         // Placeholder secret published for closed-but-openable matches so Ask to Join lights up; never a real secret.
+        // Published as "cbl-knock:<host-uid>" so a receiver can convert a Discord-side accept into a launcher knock.
         constexpr auto KNOCK_SECRET = "cbl-knock";
+
+        bool is_knock_secret(const std::string& secret)
+        {
+            return secret.rfind(KNOCK_SECRET, 0) == 0;
+        }
 
         std::string map_status(const discordpp::StatusType status)
         {
@@ -287,6 +293,7 @@ namespace discord
         std::vector<deferred_action> deferred_joinable_actions{};
         std::map<std::string, discordpp::ActivityInvite> invite_objs{};
         std::map<uint64_t, std::chrono::steady_clock::time_point> pending_join_requests{}; // hosts we asked to join
+        std::map<uint64_t, std::chrono::steady_clock::time_point> recent_knock_converts{}; // anti ping-pong for knock re-asks
         bool launch_command_registered{false}; // Discord cold-launch handler (registered once on ready)
 
         std::chrono::steady_clock::duration connect_backoff{CONNECT_RETRY_INITIAL};
@@ -403,7 +410,9 @@ namespace discord
                 if (joinable || knockable)
                 {
                     discordpp::ActivitySecrets secrets{};
-                    secrets.SetJoin(joinable ? a.join_secret : KNOCK_SECRET);
+                    secrets.SetJoin(joinable
+                                        ? a.join_secret
+                                        : KNOCK_SECRET + (":" + std::to_string(this->own_user_id())));
                     activity.SetSecrets(std::move(secrets));
                 }
             }
@@ -509,14 +518,15 @@ namespace discord
             this->client->SetActivityJoinCallback([this](const std::string& secret)
             {
                 utils::logger::write("[cbl-invite] Discord DM accept; routing join secret");
-                if (secret == KNOCK_SECRET)
+                if (is_knock_secret(secret))
                 {
-                    utils::logger::write("[cbl-invite] ignoring knock placeholder secret (host had not opened yet)");
+                    this->convert_knock(secret);
                     return;
                 }
                 if (this->join_secret_cb && !secret.empty())
                 {
                     this->join_secret_cb(secret);
+                    this->remove_sole_pending_invite();
                 }
             });
         }
@@ -579,6 +589,45 @@ namespace discord
             });
         }
 
+        // A knock secret here means the host consented in Discord's own UI while the match was still
+        // closed (the launcher was bypassed, so it never opened); re-ask through the launcher so the
+        // host gets the open-match prompt and the flow converges on the working knock path.
+        void convert_knock(const std::string& secret)
+        {
+            uint64_t uid = 0;
+            if (const auto colon = secret.find(':'); colon != std::string::npos)
+            {
+                uid = std::strtoull(secret.data() + colon + 1, nullptr, 10);
+            }
+
+            if (uid == 0)
+            {
+                utils::logger::write("[cbl-invite] knock placeholder without host id (old host launcher?); dropping");
+                return;
+            }
+
+            // The user consumed this invite in Discord; drop its stale in-launcher prompt.
+            this->remove_invite(std::to_string(uid));
+
+            const auto now = std::chrono::steady_clock::now();
+            if (const auto it = this->recent_knock_converts.find(uid);
+                it != this->recent_knock_converts.end() && now - it->second < 60s)
+            {
+                utils::logger::write("[cbl-invite] knock from {} already converted recently; dropping", uid);
+                return;
+            }
+            this->recent_knock_converts[uid] = now;
+
+            utils::logger::write(
+                "[cbl-invite] {} accepted in Discord but their match is still closed; re-asking via launcher knock", uid);
+            this->pending_join_requests[uid] = now;
+            this->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
+            {
+                utils::logger::write("[cbl-invite] knock-convert ask-to-join -> {}: {}",
+                                     uid, result.Successful() ? "ok" : result.ToString());
+            });
+        }
+
         // Accept an invite addressed to us and route the resulting join secret into the game.
         void accept_join_invite(const discordpp::ActivityInvite& invite)
         {
@@ -587,9 +636,9 @@ namespace discord
                 {
                     utils::logger::write("[cbl-invite] AcceptActivityInvite: {}",
                                          result.Successful() ? "ok" : result.ToString());
-                    if (secret == KNOCK_SECRET)
+                    if (result.Successful() && is_knock_secret(secret))
                     {
-                        utils::logger::write("[cbl-invite] ignoring knock placeholder secret (host had not opened yet)");
+                        i->convert_knock(secret);
                         return;
                     }
                     if (result.Successful() && i->join_secret_cb && !secret.empty())
@@ -694,6 +743,35 @@ namespace discord
             {
                 std::erase_if(s.invites, [&id](const invite_entry& e) { return e.id == id; });
             });
+        }
+
+        // A Discord-side accept of a real secret carries no sender id; clear the stale in-launcher
+        // prompt only when a single pending invite makes the match unambiguous.
+        void remove_sole_pending_invite()
+        {
+            std::string sole{};
+            bool ambiguous = false;
+            this->state->access([&](const shared_state& s)
+            {
+                for (const auto& e : s.invites)
+                {
+                    if (e.is_request)
+                    {
+                        continue;
+                    }
+                    if (!sole.empty())
+                    {
+                        ambiguous = true;
+                        return;
+                    }
+                    sole = e.id;
+                }
+            });
+
+            if (!sole.empty() && !ambiguous)
+            {
+                this->remove_invite(sole);
+            }
         }
 
         void on_connection_status(const discordpp::Client::Status status)
