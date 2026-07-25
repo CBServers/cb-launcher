@@ -12,6 +12,7 @@ namespace utils::http
         CURLcode code{};
         unsigned int response_code{};
         std::string buffer{};
+        bool range_ignored{}; // Server answered a resume request with the whole entity; caller must restart at 0
     };
 
     using headers = std::unordered_map<std::string, std::string>;
@@ -22,7 +23,7 @@ namespace utils::http
     std::optional<result> get_data_stream(const std::string& url, const headers& headers = {},
         const std::string& fields = {}, const std::function<bool(size_t, size_t, size_t)>& progress_callback_ = {},
         const std::function<bool(const char*, size_t)>& stream_callback = {}, const std::function<bool()>& on_abort = {},
-        int timeout = 0, uint32_t retries = 5);
+        int timeout = 0, uint32_t retries = 5, uint64_t initial_offset = 0);
 
     std::future<std::optional<result>> get_data_async(const std::string& url, const std::string& fields = {},
         const headers& headers = {}, const std::function<int(size_t, size_t)>& callback = {}, uint32_t retries = 5);

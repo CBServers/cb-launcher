@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
 
 #include <xxhash.h>
 #include <utils/cryptography.hpp>
@@ -80,5 +81,38 @@ namespace utils::hash
     std::string get_buffer_hash(std::string& buffer)
     {
             return get_generic_buffer_hash(buffer);
+    }
+
+    stream_hasher::stream_hasher()
+        : state_(XXH3_createState())
+    {
+        if (!this->state_)
+        {
+            throw std::runtime_error("Failed to allocate hash state");
+        }
+
+        XXH3_64bits_reset(this->state_);
+    }
+
+    stream_hasher::~stream_hasher()
+    {
+        if (this->state_)
+        {
+            XXH3_freeState(this->state_);
+        }
+    }
+
+    void stream_hasher::update(const void* data, const std::size_t size)
+    {
+        XXH3_64bits_update(this->state_, data, size);
+    }
+
+    std::string stream_hasher::digest() const
+    {
+        const auto hash_value = XXH3_64bits_digest(this->state_);
+
+        std::string hash;
+        hash.append(reinterpret_cast<const char*>(&hash_value), sizeof(hash_value));
+        return utils::string::dump_hex(hash, "");
     }
 }

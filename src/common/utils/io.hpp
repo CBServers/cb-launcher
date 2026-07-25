@@ -15,6 +15,8 @@ namespace utils::io
 
     bool remove_file(const std::filesystem::path& file);
     bool move_file(const std::filesystem::path& src, const std::filesystem::path& target);
+    // Unlike move_file, overwrites an existing target. Same-volume moves are a directory-entry swap.
+    bool move_file_replace(const std::filesystem::path& src, const std::filesystem::path& target);
     bool file_exists(const std::filesystem::path& file);
     bool write_file(const std::filesystem::path& file, const std::string& data, bool append = false);
     bool read_file(const std::filesystem::path& file, std::string* data);

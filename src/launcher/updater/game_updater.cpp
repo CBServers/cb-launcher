@@ -286,7 +286,7 @@ namespace game_updater
 
         check_cancelled();
 
-        this->update_and_verify_with_retry(outdated_files);
+        this->download_with_retry(outdated_files);
 
         check_cancelled();
 
@@ -329,22 +329,65 @@ namespace game_updater
         check_cancelled();
 
         const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
-        const auto out_file = this->get_drive_filename(file);
+        const auto target = this->get_drive_filename(file);
+        const auto part = this->get_part_filename(file);
 
-        std::string empty{};
-        if (!utils::io::write_file(out_file, empty))
+        if (target.has_parent_path())
         {
-            throw std::runtime_error("Failed to write file: " + out_file.string());
+            utils::io::create_directory(target.parent_path());
         }
 
-        std::ofstream ofs(out_file, std::ios::binary);
+        // The .part's size on disk is the resume offset, so it survives a launcher restart with no extra state
+        std::size_t offset = utils::io::file_size(part);
+        if (offset > file.size)
+        {
+            utils::io::remove_file(part);
+            offset = 0;
+        }
+
+        // Credit carried-over bytes so the bar reflects the work actually left to do
+        if (offset > 0 && this->progress_listener_)
+        {
+            this->progress_listener_->file_progress(file, offset);
+        }
+
+        std::optional<std::string> streamed_hash{};
+        if (offset < file.size)
+        {
+            streamed_hash = this->download_to_part(file, url, part, offset);
+        }
+
+        this->publish_part(file, part, target, streamed_hash);
+    }
+
+    std::optional<std::string> game_updater::download_to_part(const updater::file_info& file, const std::string& url,
+        const std::filesystem::path& part, const std::size_t offset) const
+    {
+        // Truncate rather than append when starting over, so a part we failed to measure can't be appended onto
+        const auto mode = std::ios::binary | (offset > 0 ? std::ios::app : std::ios::trunc);
+
+        std::ofstream ofs(part, mode);
         if (!ofs)
         {
-            throw std::runtime_error("Failed to open file: " + out_file.string());
+            throw std::runtime_error("Failed to open file: " + utils::string::path_to_utf8(part));
         }
 
+        // Only a download starting at byte 0 can be hashed as it streams; a resumed one is hashed from disk after
+        std::optional<utils::hash::stream_hasher> hasher{};
+        if (offset == 0)
+        {
+            hasher.emplace();
+        }
+
+        bool write_failed = false;
+
         const auto keep_going = [this]()  -> bool { return !is_update_cancelled() && !is_update_paused(); };
-        const auto on_abort = [this]() -> bool { wait_if_paused_or_cancelled(); return true; };
+        const auto on_abort = [&]() -> bool
+        {
+            if (write_failed) return false;
+            wait_if_paused_or_cancelled();
+            return true;
+        };
 
         int currentPercent = 0;
         const auto data = utils::http::get_data_stream(url, {}, {}, [&](size_t progress, size_t total_size, [[maybe_unused]] size_t speed) -> bool
@@ -371,7 +414,17 @@ namespace game_updater
 
             if (chunk && size > 0)
             {
-                ofs.write(chunk, size);
+                ofs.write(chunk, static_cast<std::streamsize>(size));
+                if (!ofs)
+                {
+                    write_failed = true;
+                    return false;
+                }
+
+                if (hasher)
+                {
+                    hasher->update(chunk, size);
+                }
             }
 
             if (this->progress_listener_)
@@ -381,9 +434,18 @@ namespace game_updater
 
             return true;
         },
-        on_abort, 0, 5);
+        on_abort, 0, 5, offset);
 
+        ofs.flush();
+        const auto flush_failed = !ofs;
         ofs.close();
+
+        if (write_failed || flush_failed)
+        {
+            utils::io::remove_file(part);
+            throw std::runtime_error("Failed to write " + utils::string::path_to_utf8(part) +
+                " - the disk may be full or write-protected");
+        }
 
         check_cancelled();
 
@@ -394,10 +456,18 @@ namespace game_updater
 
         const auto& result = data.value();
 
+        if (result.range_ignored)
+        {
+            // Body restarted at byte 0, so what we hold can't be extended; drop it and refetch whole
+            utils::io::remove_file(part);
+            throw std::runtime_error(utils::string::va(
+                "Range request ignored for %s - partial deleted, will retry from byte 0", url.data()));
+        }
+
         if (result.response_code == 416)
         {
             // Our resume offset is past the remote's view of the file; drop the partial so retry refetches from byte 0
-            utils::io::remove_file(out_file);
+            utils::io::remove_file(part);
             throw std::runtime_error(utils::string::va(
                 "HTTP 416 for %s - partial deleted, will retry from byte 0", url.data()));
         }
@@ -406,6 +476,127 @@ namespace game_updater
         {
             throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
                 url.data(), result.code, curl_easy_strerror(result.code)));
+        }
+
+        if (!hasher)
+        {
+            return std::nullopt;
+        }
+
+        return hasher->digest();
+    }
+
+    void game_updater::publish_part(const updater::file_info& file, const std::filesystem::path& part,
+        const std::filesystem::path& target, const std::optional<std::string>& streamed_hash) const
+    {
+        const auto size = utils::io::file_size(part);
+        if (size != file.size)
+        {
+            utils::io::remove_file(part);
+            throw std::runtime_error(utils::string::va("Size mismatch for %s - %zu != %zu",
+                file.name.data(), size, file.size));
+        }
+
+        const auto hash = streamed_hash.has_value()
+            ? *streamed_hash
+            : utils::hash::get_file_hash(part, [this]() { wait_if_paused_or_cancelled(); });
+
+        if (hash != file.hash)
+        {
+            // No way to tell which byte range is bad, so the partial is useless for a resume
+            utils::io::remove_file(part);
+            throw std::runtime_error(utils::string::va("Hash mismatch for %s - %s != %s",
+                file.name.data(), hash.data(), file.hash.data()));
+        }
+
+        // Only now does the real file change, and it goes from one complete version straight to the next
+        if (!utils::io::move_file_replace(part, target))
+        {
+            throw std::runtime_error(utils::string::va("Failed to move %s into place: %s",
+                file.name.data(), std::system_category().message(static_cast<int>(::GetLastError())).data()));
+        }
+    }
+
+    std::filesystem::path game_updater::get_part_filename(const updater::file_info& file) const
+    {
+        auto part = this->get_drive_filename(file);
+        part += ("." + file.hash + ".part");
+        return part;
+    }
+
+    void game_updater::remove_stale_parts(const std::vector<updater::file_info>& files) const
+    {
+        this->remove_parts(files, true);
+    }
+
+    void game_updater::remove_all_parts(const std::vector<updater::file_info>& files) const
+    {
+        this->remove_parts(files, false);
+    }
+
+    void game_updater::remove_parts(const std::vector<updater::file_info>& files, const bool keep_current) const
+    {
+        // Grouped by directory so each one is scanned once, not once per file
+        std::unordered_map<std::filesystem::path, std::unordered_map<std::wstring, std::wstring>> by_directory;
+
+        for (const auto& file : files)
+        {
+            const auto target = this->get_drive_filename(file);
+            by_directory[target.parent_path()].emplace(
+                target.filename().native(), this->get_part_filename(file).filename().native());
+        }
+
+        constexpr std::wstring_view extension = L".part";
+
+        for (const auto& [directory, expected] : by_directory)
+        {
+            std::error_code ec{};
+            if (!std::filesystem::is_directory(directory, ec))
+            {
+                continue;
+            }
+
+            // Collected first: deleting mid-walk can make the enumeration skip entries
+            std::vector<std::filesystem::path> doomed;
+
+            for (const auto& entry : std::filesystem::directory_iterator(directory, ec))
+            {
+                auto name = entry.path().filename().native();
+                if (!name.ends_with(extension))
+                {
+                    continue;
+                }
+
+                // "base.xpak.2F294020B5A65E4B.part" -> "base.xpak"
+                name.resize(name.size() - extension.size());
+                const auto separator = name.rfind(L'.');
+                if (separator == std::wstring::npos)
+                {
+                    continue;
+                }
+
+                const auto stem = name.substr(0, separator);
+
+                // Anything we can't tie back to a manifest file is left alone
+                const auto it = expected.find(stem);
+                if (it == expected.end())
+                {
+                    continue;
+                }
+
+                // Matching on the stem alone means parts from older manifest versions are caught too
+                if (keep_current && it->second == entry.path().filename().native())
+                {
+                    continue;
+                }
+
+                doomed.push_back(entry.path());
+            }
+
+            for (const auto& path : doomed)
+            {
+                utils::io::remove_file(path);
+            }
         }
     }
 
@@ -470,12 +661,15 @@ namespace game_updater
         return spaceInfo.available;
     }
 
-    void game_updater::update_and_verify_with_retry(const std::vector<updater::file_info>& files_to_download) const
+    void game_updater::download_with_retry(const std::vector<updater::file_info>& files_to_download) const
     {
         const int MAX_RETRIES = 5;
         std::vector<updater::file_info> pending_files = files_to_download;
         int attempt = 0;
 
+        this->remove_stale_parts(files_to_download);
+
+        // Every published file was hashed on the way in, so there's no separate verification pass
         while (!pending_files.empty() && attempt < MAX_RETRIES)
         {
             wait_if_paused_or_cancelled();
@@ -491,19 +685,9 @@ namespace game_updater
                 this->progress_listener_->update_files(pending_files, updater::progress_mode::downloading);
             }
 
-            // Phase 1: Download all pending files (no per-file verification)
-            this->update_files_no_verify(pending_files);
+            pending_files = this->download_files(pending_files);
 
             check_cancelled();
-
-            // Phase 2: Verify downloaded files
-            printf("Verifying downloaded files...\n");
-            if (this->progress_listener_)
-            {
-                this->progress_listener_->update_files(pending_files, updater::progress_mode::verifying);
-            }
-
-            pending_files = this->get_outdated_files(pending_files);
             ++attempt;
         }
 
@@ -514,9 +698,15 @@ namespace game_updater
         }
     }
 
-    void game_updater::update_files_no_verify(const std::vector<updater::file_info>& files) const
+    std::vector<updater::file_info> game_updater::download_files(const std::vector<updater::file_info>& files) const
     {
         printf("Downloading %zu files...\n", files.size());
+
+        utils::concurrency::container<std::vector<updater::file_info>> failed{};
+        const auto record_failure = [&failed](const updater::file_info& file)
+        {
+            failed.access([&file](std::vector<updater::file_info>& list) { list.push_back(file); });
+        };
 
 #ifdef MULTITHREAD_DOWNLOAD
         // Thread pool version - catches exceptions per-file instead of storing and rethrowing
@@ -558,7 +748,7 @@ namespace game_updater
                     {
                         printf("Warning: Download failed for %s: %s (will retry)\n",
                             file.name.data(), e.what());
-                        // Don't rethrow - file will be caught in verification phase
+                        record_failure(file);
                     }
                 }
             });
@@ -593,7 +783,7 @@ namespace game_updater
             {
                 printf("Warning: Download failed for %s: %s (will retry)\n",
                     file.name.data(), e.what());
-                // Don't throw - file will be caught in verification phase
+                record_failure(file);
             }
 
             if (this->progress_listener_)
@@ -602,6 +792,9 @@ namespace game_updater
 #endif
 
         printf("Finished downloading files\n");
+
+        return failed.access<std::vector<updater::file_info>>(
+            [](std::vector<updater::file_info>& list) { return std::move(list); });
     }
 
     bool game_updater::is_outdated_file(const updater::file_info& file) const
@@ -992,6 +1185,9 @@ namespace game_updater
                 files_to_delete.push_back(file);
             }
         }
+
+        // Banked download progress is meaningless once the game is gone, whatever manifest version left it
+        this->remove_all_parts(this->manifest_.files);
 
         if (!files_to_delete.empty())
         {

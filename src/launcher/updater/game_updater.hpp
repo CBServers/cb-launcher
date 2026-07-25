@@ -43,9 +43,23 @@ namespace game_updater
 
         void update_file(const updater::file_info& file) const;
 
+        // Downloads into the file's .part, returning the streamed hash when the whole file was covered
+        [[nodiscard]] std::optional<std::string> download_to_part(const updater::file_info& file, const std::string& url,
+            const std::filesystem::path& part, std::size_t offset) const;
+        // Verifies the .part and swaps it over the real file; throws and drops the .part on mismatch
+        void publish_part(const updater::file_info& file, const std::filesystem::path& part,
+            const std::filesystem::path& target, const std::optional<std::string>& streamed_hash) const;
+        [[nodiscard]] std::filesystem::path get_part_filename(const updater::file_info& file) const;
+        // Drops .part files left by a manifest version we're no longer downloading
+        void remove_stale_parts(const std::vector<updater::file_info>& files) const;
+        // Drops every .part belonging to these files, current manifest version included
+        void remove_all_parts(const std::vector<updater::file_info>& files) const;
+        void remove_parts(const std::vector<updater::file_info>& files, bool keep_current) const;
+
         // Download with retry support
-        void update_and_verify_with_retry(const std::vector<updater::file_info>& files) const;
-        void update_files_no_verify(const std::vector<updater::file_info>& files) const;
+        void download_with_retry(const std::vector<updater::file_info>& files) const;
+        // Returns the files that failed, for the caller to retry
+        [[nodiscard]] std::vector<updater::file_info> download_files(const std::vector<updater::file_info>& files) const;
 
         std::size_t get_update_size(const std::vector<updater::file_info>& files) const;
         std::size_t get_available_drive_space() const;

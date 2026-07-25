@@ -23,6 +23,10 @@ namespace utils::http
             std::exception_ptr exception{};
             curl_off_t bytes_written{};  // Track total bytes written across retries for resume support
             bool aborted_by_callback{};  // Distinct from a real write failure so the caller can skip retry
+            CURL* curl{};                // Needed to read the response code from inside the write callback
+            bool resume_requested{};     // Whether this attempt asked the server to resume
+            bool response_checked{};     // One-shot guard, reset per attempt
+            bool range_ignored{};        // Resume asked for, but the server restarted the body at byte 0
         };
 
         int progress_callback(void* clientp, const curl_off_t dltotal, const curl_off_t dlnow, const curl_off_t /*ultotal*/, const curl_off_t /*ulnow*/)
@@ -67,6 +71,24 @@ namespace utils::http
         {
             const auto total_size = size * nmemb;
             auto* write_helper = static_cast<stream_helper*>(userp);
+
+            // A server that ignores Range answers 200 with the whole entity; appending that to an
+            // existing partial would silently corrupt it, so bail before a single byte reaches the caller.
+            if (!write_helper->response_checked)
+            {
+                write_helper->response_checked = true;
+
+                if (write_helper->resume_requested && write_helper->curl)
+                {
+                    long response_code = 0;
+                    curl_easy_getinfo(write_helper->curl, CURLINFO_RESPONSE_CODE, &response_code);
+                    if (response_code == 200)
+                    {
+                        write_helper->range_ignored = true;
+                        return 0;
+                    }
+                }
+            }
 
             try
             {
@@ -212,7 +234,7 @@ namespace utils::http
     std::optional<result> get_data_stream(const std::string& url, const headers& headers,
         const std::string& fields, const std::function<bool(size_t, size_t, size_t)>& progress_callback_,
         const std::function<bool(const char*, size_t)>& stream_callback, const std::function<bool()>& on_abort,
-        int timeout, uint32_t retries)
+        int timeout, uint32_t retries, uint64_t initial_offset)
     {
         curl_slist* header_list = nullptr;
         auto* curl = curl_easy_init();
@@ -258,6 +280,9 @@ namespace utils::http
         // Keep stream_helper outside retry loop so bytes_written accumulates across retries
         stream_helper write_helper{};
         write_helper.callback = &stream_callback;
+        write_helper.curl = curl;
+        // Seeded by the caller from bytes already on disk, so resume survives a launcher restart
+        write_helper.bytes_written = static_cast<curl_off_t>(initial_offset);
 
         // Manual counter so callback aborts (pause) don't burn retry slots
         uint32_t attempt = 0;
@@ -267,8 +292,11 @@ namespace utils::http
             helper.callback = &progress_callback_;
             helper.start = std::chrono::high_resolution_clock::now();
 
-            // Resume from bytes already written in this session (for internal retries)
-            if (write_helper.bytes_written > 0)
+            write_helper.response_checked = false;
+            write_helper.resume_requested = write_helper.bytes_written > 0;
+
+            // Resume from bytes already on disk, plus anything written by an earlier internal retry
+            if (write_helper.resume_requested)
             {
                 curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, write_helper.bytes_written);
             }
@@ -294,6 +322,21 @@ namespace utils::http
             if (write_helper.exception)
             {
                 std::rethrow_exception(write_helper.exception);
+            }
+
+            // libcurl rejects a resume answered without Content-Range before our write callback ever runs;
+            // the callback guard covers the rest (a bogus Content-Range that still restarts at byte 0).
+            const auto range_refused = write_helper.range_ignored ||
+                (write_helper.resume_requested && code == CURLE_RANGE_ERROR);
+
+            // Not retryable here: the partial on disk is unusable, so only the caller can recover
+            if (range_refused)
+            {
+                result result;
+                result.code = code;
+                result.response_code = response_code;
+                result.range_ignored = true;
+                return result;
             }
 
             // Stream-callback abort surfaces as CURLE_WRITE_ERROR, progress-callback abort as CURLE_ABORTED_BY_CALLBACK

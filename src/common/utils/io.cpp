@@ -15,6 +15,12 @@ namespace utils::io
         return MoveFileW(src.wstring().data(), target.wstring().data()) == TRUE;
     }
 
+    bool move_file_replace(const std::filesystem::path& src, const std::filesystem::path& target)
+    {
+        return MoveFileExW(src.wstring().data(), target.wstring().data(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == TRUE;
+    }
+
     bool file_exists(const std::filesystem::path& file)
     {
         return std::ifstream(file).good();
