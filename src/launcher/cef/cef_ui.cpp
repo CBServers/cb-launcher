@@ -340,6 +340,44 @@ namespace cef
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_deep_link, this->browser_, url));
     }
 
+    void cef_ui::invoke_bring_to_front(HWND window)
+    {
+        if (!window) return;
+
+        // Preserve the window's current state, same as the "show" command.
+        if (IsIconic(window))
+        {
+            ShowWindow(window, SW_RESTORE);
+        }
+        else if (IsZoomed(window))
+        {
+            ShowWindow(window, SW_SHOWMAXIMIZED);
+        }
+        else
+        {
+            ShowWindow(window, SW_SHOWNORMAL);
+        }
+
+        // Windows only hands out foreground rights to whoever it considers active, so fall back
+        // to flashing rather than silently doing nothing when it refuses.
+        if (!SetForegroundWindow(window))
+        {
+            FLASHWINFO fi{};
+            fi.cbSize = sizeof(fi);
+            fi.hwnd = window;
+            fi.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
+            FlashWindowEx(&fi);
+        }
+    }
+
+    void cef_ui::bring_to_front() const
+    {
+        auto* const window = this->get_window();
+        if (!window) return;
+
+        CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_bring_to_front, window));
+    }
+
     void cef_ui::notify_frontend_ready()
     {
         std::vector<std::string> pending;

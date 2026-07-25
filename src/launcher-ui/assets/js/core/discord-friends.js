@@ -122,8 +122,17 @@
         }
     }
 
-    async function promptInvite(invite) {
-        const name = escapeHtml(invite.senderName || 'A friend');
+    // The invite carries a fork id (boiii, iw6x, ...), which is the UI id, not the backend key.
+    function gameDisplayName(gameId) {
+        if (!gameId || !window.GameUtils) return '';
+        const config = window.GameUtils.getGameConfigByUIId(gameId);
+        return (config && config.displayName) || '';
+    }
+
+    // escapeName is for the in-app modal, which renders as HTML; the Windows toast takes plain text.
+    function inviteStrings(invite, escapeName) {
+        const name = escapeName ? escapeHtml(invite.senderName || 'A friend') : (invite.senderName || 'A friend');
+        const game = gameDisplayName(invite.gameId);
         const isRequest = !!invite.isRequest;
         const isApproval = !!invite.isApproval;
         let title, bodyKey, acceptLabel;
@@ -141,7 +150,28 @@
             bodyKey = 'friends.inviteBody';
             acceptLabel = t('friends.accept');
         }
-        const body = t(bodyKey).replace('{name}', name);
+
+        // Naming the game needs its own phrasing per language, so fall back to the game-less
+        // wording rather than interpolating an empty name when the fork can't be resolved.
+        const body = t(game ? bodyKey + 'Game' : bodyKey)
+            .replace('{name}', name)
+            .replace('{game}', escapeName ? escapeHtml(game) : game);
+        return { title, body, acceptLabel };
+    }
+
+    function notifyInvite(invite) {
+        // Approvals normally connect on their own, so a desktop toast for them is just noise.
+        if (invite.isApproval) return;
+        const { title, body } = inviteStrings(invite, false);
+        window.executeCommand('show-invite-notification', { id: invite.id, title, body }).catch(() => {});
+    }
+
+    function dismissInviteNotification(id) {
+        window.executeCommand('dismiss-invite-notification', { id }).catch(() => {});
+    }
+
+    async function promptInvite(invite) {
+        const { title, body, acceptLabel } = inviteStrings(invite, true);
 
         let accepted = false;
         try {
@@ -151,6 +181,9 @@
         } catch (error) {
             console.warn('Invite prompt failed:', error);
             return;
+        } finally {
+            // Answered in the launcher — don't leave a toast around still offering the choice.
+            dismissInviteNotification(invite.id);
         }
 
         try {
@@ -177,13 +210,17 @@
         const invites = (res && res.invites) || [];
         const ids = new Set(invites.map(i => i.id));
         for (const id of [...shownInvites]) {
-            if (!ids.has(id)) shownInvites.delete(id);
+            if (!ids.has(id)) {
+                shownInvites.delete(id);
+                dismissInviteNotification(id);
+            }
         }
 
         for (const invite of invites) {
             if (shownInvites.has(invite.id)) continue;
             shownInvites.add(invite.id);
             window.executeCommand('flash-taskbar').catch(() => {});
+            notifyInvite(invite);
             promptInvite(invite);
         }
     }

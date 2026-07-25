@@ -2,6 +2,7 @@
 #include "cef/cef_ui.hpp"
 #include "commands/commands.hpp"
 #include "deep_link.hpp"
+#include "discord/avatar_cache.hpp"
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "updater/updater.hpp"
@@ -14,6 +15,15 @@
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/com.hpp>
+#include <utils/notification.hpp>
+
+#include <propkey.h>
+
+// WinToast references PKEY_AppUserModel_ID, and cef_sandbox.lib both defines it and sits first in
+// the link order — resolving it there drags in Chromium sandbox objects that need WinRT/ntdll
+// imports the launcher doesn't link. Defining it here keeps the linker out of that library.
+extern "C" const PROPERTYKEY PKEY_AppUserModel_ID =
+    {{0x9F4C2855, 0x9F79, 0x4B39, {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}}, 5};
 
 namespace
 {
@@ -117,6 +127,7 @@ namespace
         ipc::ipc_server::instance().start();
         if (!offline)
         {
+            discord::avatar_cache::prune();
             discord::discord_service::instance().start();
             discord::discord_service::instance().set_presence_owner_callback([](const bool owns)
             {
@@ -160,29 +171,35 @@ namespace
         return _wcsicmp(a.lexically_normal().c_str(), b.lexically_normal().c_str()) == 0;
     }
 
-    void create_launcher_shortcut(const std::filesystem::path& launcher_path,
-                                  const std::filesystem::path& shortcut_path, const char* created_key)
+    enum class deletion_policy
     {
-        const auto already_created = utils::properties::load(created_key) == "true";
+        honor,   // cosmetic — plenty of people keep a clean desktop
+        restore, // load-bearing — Windows resolves our AUMID through it
+    };
 
-        if (already_created)
+    void create_launcher_shortcut(const std::filesystem::path& launcher_path,
+                                  const std::filesystem::path& shortcut_path, const char* created_key,
+                                  const deletion_policy policy)
+    {
+        // Gone on purpose. Only the Start Menu copy earns a second chance: without it Windows
+        // can't map our AUMID back to the launcher and every toast is silently dropped.
+        if (policy == deletion_policy::honor && utils::properties::load(created_key) == "true" &&
+            !std::filesystem::exists(shortcut_path))
         {
-            // User deleted it on purpose — respect that, don't resurrect it.
-            if (!std::filesystem::exists(shortcut_path))
-            {
-                return;
-            }
-
-            // Still points at the current exe? Nothing to do.
-            const auto current_target = utils::com::read_shortcut_target(shortcut_path);
-            if (!current_target.empty() && same_path(current_target, launcher_path))
-            {
-                return;
-            }
+            return;
         }
 
-        // First run, or exe moved/renamed — (re)write the same .lnk in place.
-        if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher"))
+        // Points at the current exe and already carries the AUMID? Nothing to do.
+        if (std::filesystem::exists(shortcut_path) &&
+            same_path(utils::com::read_shortcut_target(shortcut_path), launcher_path) &&
+            utils::com::read_shortcut_app_user_model_id(shortcut_path) == utils::notification::APP_USER_MODEL_ID)
+        {
+            return;
+        }
+
+        // First run, exe moved/renamed, or a link missing the AUMID — (re)write it in place.
+        if (utils::com::create_shortcut(launcher_path, shortcut_path, "Launch the CB Servers Launcher", {},
+                                        utils::notification::APP_USER_MODEL_ID))
         {
             utils::properties::store(created_key, "true");
         }
@@ -198,10 +215,11 @@ namespace
             if (!desktop_path.empty())
             {
                 create_launcher_shortcut(launcher_path, desktop_path / "CB Servers Launcher.lnk",
-                                         property_keys::SHORTCUT_CREATED);
+                                         property_keys::SHORTCUT_CREATED, deletion_policy::honor);
             }
 
-            // Same "CB Servers" Programs folder the game shortcuts use.
+            // Same "CB Servers" Programs folder the game shortcuts use. Windows indexes this tree to
+            // map the AUMID back to the launcher, which is what lets its toasts appear at all.
             const auto programs = utils::com::get_start_menu_programs_path();
             if (!programs.empty())
             {
@@ -211,7 +229,7 @@ namespace
                 if (!ec)
                 {
                     create_launcher_shortcut(launcher_path, sm_dir / "CB Servers Launcher.lnk",
-                                             property_keys::START_MENU_SHORTCUT_CREATED);
+                                             property_keys::START_MENU_SHORTCUT_CREATED, deletion_policy::restore);
                 }
             }
         }
@@ -227,6 +245,9 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
     // Harden DLL search before anything else runs: System32 + AddDllDirectory entries only.
     // Prevents planting via stray DLLs in the launcher's own directory.
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+
+    // Must match the AUMID stamped on our shortcuts, or Windows won't attribute our toasts to us.
+    SetCurrentProcessExplicitAppUserModelID(utils::notification::APP_USER_MODEL_ID);
 
     try
     {

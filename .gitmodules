@@ -13,3 +13,6 @@
 [submodule "deps/xxhash"]
 	path = deps/xxhash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "deps/WinToast"]
+	path = deps/WinToast
+	url = https://github.com/mohabouje/WinToast.git

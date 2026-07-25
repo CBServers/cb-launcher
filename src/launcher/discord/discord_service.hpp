@@ -55,6 +55,7 @@ namespace discord
         std::string sender_id;
         std::string sender_name; // resolved from the friends cache
         std::string sender_avatar;
+        std::string game_id;     // fork id the invite concerns; ours for a knock, theirs otherwise
         bool is_request{false};  // true => friend asked to join us; false => friend invited us
         bool is_approval{false}; // true => a host accepted a join request WE sent (prompt with approval text)
         bool needs_open{false};  // approving this join-request requires opening our match first

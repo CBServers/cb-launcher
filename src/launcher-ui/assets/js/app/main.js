@@ -1924,6 +1924,22 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Desktop Notifications" setting
+        const desktopNotifications = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS);
+        const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
+
+        if (desktopNotificationsToggle) {
+            const buttons = desktopNotificationsToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Default to "true" if not set
+            const targetValue = (desktopNotifications === 'false') ? 'false' : 'true';
+            const targetButton = desktopNotificationsToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
         // Load CDN settings
         await initCdnSettings();
 
@@ -2304,6 +2320,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: clickedValue
                         });
                         console.log(`Skip client update set to: ${clickedValue}`);
+                    } else if (settingId === 'desktop-notifications-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS]: clickedValue
+                        });
+                        console.log(`Desktop notifications set to: ${clickedValue}`);
                     }
                 } catch (error) {
                     console.error('Failed to save launcher setting:', error);

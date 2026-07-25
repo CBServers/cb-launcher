@@ -8,6 +8,7 @@ namespace property_keys
     constexpr const char* SKIP_CLIENT_UPDATE = "launcher-skip-client-update";
     constexpr const char* SHORTCUT_CREATED = "launcher-shortcut-created";
     constexpr const char* START_MENU_SHORTCUT_CREATED = "launcher-start-menu-shortcut-created";
+    constexpr const char* DESKTOP_NOTIFICATIONS = "launcher-desktop-notifications";
     constexpr const char* CDN_PREFERENCE = "launcher-cdn-preference";
     constexpr const char* CDN_CUSTOM_URL = "launcher-cdn-custom-url";
     constexpr const char* GLOBAL_PLAYER_NAME = "launcher-global-player-name";

@@ -5,6 +5,9 @@
 #include <stdexcept>
 
 #include <ShlObj.h>
+#include <propvarutil.h>
+#pragma comment(lib, "shlwapi.lib")
+
 #include "finally.hpp"
 
 
@@ -127,6 +130,12 @@ namespace utils::com
 
     namespace
     {
+        // Spelled out rather than pulled from <propkey.h>: cef_sandbox.lib also defines
+        // PKEY_AppUserModel_ID and wins the link order, dragging in Chromium sandbox objects
+        // that reference WinRT/ntdll imports the launcher doesn't link.
+        constexpr PROPERTYKEY app_user_model_id_key{
+            {0x9F4C2855, 0x9F79, 0x4B39, {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}}, 5};
+
         std::filesystem::path get_known_folder_path(const KNOWNFOLDERID& folder_id)
         {
             PWSTR path = nullptr;
@@ -183,11 +192,51 @@ namespace utils::com
         return std::filesystem::path(target);
     }
 
+    std::wstring read_shortcut_app_user_model_id(const std::filesystem::path& shortcut_path)
+    {
+        CComPtr<IShellLinkW> shell_link{};
+        if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shell_link))))
+        {
+            return {};
+        }
+
+        CComPtr<IPersistFile> persist_file{};
+        if (FAILED(shell_link->QueryInterface(IID_PPV_ARGS(&persist_file))))
+        {
+            return {};
+        }
+
+        if (FAILED(persist_file->Load(shortcut_path.c_str(), STGM_READ)))
+        {
+            return {};
+        }
+
+        CComPtr<IPropertyStore> property_store{};
+        if (FAILED(shell_link->QueryInterface(IID_PPV_ARGS(&property_store))))
+        {
+            return {};
+        }
+
+        PROPVARIANT value{};
+        if (FAILED(property_store->GetValue(app_user_model_id_key, &value)))
+        {
+            return {};
+        }
+
+        const auto _ = finally([&value]
+        {
+            PropVariantClear(&value);
+        });
+
+        return value.vt == VT_LPWSTR && value.pwszVal ? std::wstring{value.pwszVal} : std::wstring{};
+    }
+
     bool create_shortcut(
         const std::filesystem::path& target_path,
         const std::filesystem::path& shortcut_path,
         const std::string& description,
-        const std::filesystem::path& working_directory)
+        const std::filesystem::path& working_directory,
+        const std::wstring& app_user_model_id)
     {
         CComPtr<IShellLinkW> shell_link{};
         if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shell_link))))
@@ -205,6 +254,22 @@ namespace utils::com
         else
         {
             shell_link->SetWorkingDirectory(target_path.parent_path().c_str());
+        }
+
+        // Must be stamped before the link is saved, or the property never lands on disk.
+        if (!app_user_model_id.empty())
+        {
+            CComPtr<IPropertyStore> property_store{};
+            if (SUCCEEDED(shell_link->QueryInterface(IID_PPV_ARGS(&property_store))))
+            {
+                PROPVARIANT value{};
+                if (SUCCEEDED(InitPropVariantFromString(app_user_model_id.data(), &value)))
+                {
+                    property_store->SetValue(app_user_model_id_key, value);
+                    property_store->Commit();
+                    PropVariantClear(&value);
+                }
+            }
         }
 
         CComPtr<IPersistFile> persist_file{};

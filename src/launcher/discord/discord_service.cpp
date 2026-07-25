@@ -724,8 +724,15 @@ namespace discord
                     {
                         entry.sender_name = f.display_name;
                         entry.sender_avatar = f.avatar_url;
+                        entry.game_id = f.game_id;
                         break;
                     }
+                }
+
+                // A knock is about our match, not theirs, so the sender's game is the wrong art.
+                if (is_request && this->current_activity)
+                {
+                    entry.game_id = this->current_activity->game_id;
                 }
 
                 std::erase_if(s.invites, [&](const invite_entry& e) { return e.id == sender_id; });

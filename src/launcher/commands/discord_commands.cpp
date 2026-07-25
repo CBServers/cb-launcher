@@ -1,18 +1,93 @@
 #include "std_include.hpp"
 #include "discord_commands.hpp"
 #include "cef/cef_ui.hpp"
+#include "discord/avatar_cache.hpp"
 #include "discord/discord_service.hpp"
+
+#include <utils/notification.hpp>
+#include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
+#include <utils/string.hpp>
 
 namespace commands::discord_commands
 {
     namespace
     {
+        std::mutex active_toasts_mutex;
+        std::unordered_map<std::string, int64_t> active_toasts; // invite id -> live toast id
+
         void add_string(rapidjson::Value& target, const char* key, const std::string& value,
                         rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value str_value;
             str_value.SetString(value.data(), static_cast<rapidjson::SizeType>(value.size()), allocator);
             target.AddMember(rapidjson::StringRef(key), str_value, allocator);
+        }
+
+        std::string read_string(const rapidjson::Value& value, const char* key)
+        {
+            if (!value.IsObject() || !value.HasMember(key) || !value[key].IsString())
+            {
+                return {};
+            }
+
+            return value[key].GetString();
+        }
+
+        std::optional<discord::invite_entry> find_invite(const std::string& id)
+        {
+            for (const auto& invite : discord::discord_service::instance().get_invites())
+            {
+                if (invite.id == id)
+                {
+                    return invite;
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        // The game art already ships with the UI, so the toast costs the updater nothing.
+        std::filesystem::path hero_image_for(const std::string& game_id)
+        {
+            // The id doubles as the asset folder name; keep it strict so it can't walk the tree.
+            std::string slug;
+            for (const char c : game_id)
+            {
+                const auto lc = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if ((lc >= 'a' && lc <= 'z') || (lc >= '0' && lc <= '9') || lc == '-') slug.push_back(lc);
+            }
+
+            if (slug.empty() || slug != game_id)
+            {
+                return {};
+            }
+
+            const auto path = utils::properties::get_appdata_path() / "data" / "launcher-ui" / "assets" /
+                "img" / "games" / utils::string::utf8_to_path(slug) / "hero.jpg";
+
+            std::error_code ec;
+            return std::filesystem::is_regular_file(path, ec) ? path : std::filesystem::path{};
+        }
+
+        void show_invite_toast(cef::cef_ui* cef_ui, std::string id, std::string title, std::string body,
+                               std::filesystem::path logo, std::filesystem::path hero)
+        {
+            utils::notification::options options{};
+            options.title = std::move(title);
+            options.body = std::move(body);
+            options.logo = std::move(logo);
+            options.hero = std::move(hero);
+            options.on_activated = [cef_ui] { cef_ui->bring_to_front(); };
+
+            const auto toast_id = utils::notification::show(options);
+            if (toast_id == utils::notification::invalid_id)
+            {
+                return;
+            }
+
+            std::lock_guard lock(active_toasts_mutex);
+            active_toasts[std::move(id)] = toast_id;
         }
     }
 
@@ -181,6 +256,7 @@ namespace commands::discord_commands
                 add_string(obj, "senderId", invite.sender_id, allocator);
                 add_string(obj, "senderName", invite.sender_name, allocator);
                 add_string(obj, "senderAvatar", invite.sender_avatar, allocator);
+                add_string(obj, "gameId", invite.game_id, allocator);
                 obj.AddMember("isRequest", invite.is_request, allocator);
                 obj.AddMember("isApproval", invite.is_approval, allocator);
                 obj.AddMember("needsOpen", invite.needs_open, allocator);
@@ -219,6 +295,74 @@ namespace commands::discord_commands
                 discord::discord_service::instance().decline_invite(id);
             }
             response.AddMember("ok", ok, allocator);
+        });
+
+        // Fired by the frontend alongside the in-app prompt. Only the invite id and the localized
+        // strings cross over; the art is resolved here from our own state so the UI never hands
+        // the notification layer a path or a URL.
+        cef_ui.add_command("show-invite-notification", [&cef_ui](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+
+            if (utils::properties::load(property_keys::DESKTOP_NOTIFICATIONS) == "false")
+            {
+                return;
+            }
+
+            // Nothing to announce if the user is already looking at the launcher.
+            auto* const window = cef_ui.get_window();
+            if (window && GetForegroundWindow() == window)
+            {
+                return;
+            }
+
+            const auto id = read_string(value, "id");
+            const auto title = read_string(value, "title");
+            const auto body = read_string(value, "body");
+            if (id.empty() || title.empty())
+            {
+                return;
+            }
+
+            const auto invite = find_invite(id);
+            if (!invite)
+            {
+                return;
+            }
+
+            std::thread([&cef_ui, id, title, body, avatar = invite->sender_avatar,
+                         game_id = invite->game_id]
+            {
+                // Downloading here keeps the UI thread free; the toast fires once the art lands.
+                const auto logo = avatar.empty() ? std::filesystem::path{} : discord::avatar_cache::fetch(avatar);
+
+                CefPostTask(TID_UI, base::BindOnce(&show_invite_toast, &cef_ui, id, title, body, logo,
+                                                   hero_image_for(game_id)));
+            }).detach();
+        });
+
+        cef_ui.add_command("dismiss-invite-notification", [](const rapidjson::Value& value, rapidjson::Document&)
+        {
+            const auto id = read_string(value, "id");
+            if (id.empty())
+            {
+                return;
+            }
+
+            int64_t toast_id = utils::notification::invalid_id;
+            {
+                std::lock_guard lock(active_toasts_mutex);
+                const auto entry = active_toasts.find(id);
+                if (entry == active_toasts.end())
+                {
+                    return;
+                }
+
+                toast_id = entry->second;
+                active_toasts.erase(entry);
+            }
+
+            utils::notification::dismiss(toast_id);
         });
     }
 }
