@@ -16,3 +16,23 @@ are stored, never tokens.
 | `POST /v1/link` | - | 204 |
 | `POST /v1/unlink` | - | 204 |
 | `POST /v1/friends/intersect` | `{ "ids": ["...", ...] }` (max 40) | `{ "linked": ["..."] }` |
+
+## KV usage
+
+Per-user `linked:<id>` keys are the source of truth, but intersect never reads
+them per-friend. A cron trigger (every minute) rebuilds a single `index` key
+holding a JSON array of all linked IDs, and intersect checks against that key
+through a 60s in-memory cache — so a warm isolate serves requests with zero KV
+operations. Token resolution (`tok:` keys, 1h TTL) and rate limiting are also
+memory-first.
+
+Consequence: a newly linked user becomes visible to their friends within ~2
+minutes (1 min cron + 60s cache) rather than instantly. Rate limiting is
+per-isolate, i.e. best-effort.
+
+Deploying requires setting the cron trigger alongside the script upload:
+
+```
+PUT /client/v4/accounts/{account}/workers/scripts/auth/schedules
+[{ "cron": "* * * * *" }]
+```
