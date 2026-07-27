@@ -201,6 +201,7 @@ namespace commands::discord_commands
                     friend_obj.AddMember("joinable", entry.joinable, allocator);
                     friend_obj.AddMember("directJoin", entry.direct_join, allocator);
                     friend_obj.AddMember("openable", entry.openable, allocator);
+                    friend_obj.AddMember("sameMatch", entry.same_match, allocator);
                     add_string(friend_obj, "gameId", entry.game_id, allocator);
                     add_string(friend_obj, "activityDetails", entry.activity_details, allocator);
                     add_string(friend_obj, "activityState", entry.activity_state, allocator);

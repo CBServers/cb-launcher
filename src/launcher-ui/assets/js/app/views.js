@@ -1415,6 +1415,10 @@
         // A friend can be both joinable (we ask to join them) and invitable (we're hosting too) —
         // show both buttons side by side rather than letting one override the other.
         const actionBtns = f => {
+            // Already in our match: joining would just reconnect and inviting is a no-op.
+            if (f.sameMatch) {
+                return `<div class="friend-actions"><span class="friend-same-match">${escapeHtml(t('friends.inYourMatch'))}</span></div>`;
+            }
             const btns = [];
             if (f.joinable || f.openable) {
                 // Joinable (open match) auto-admits regardless of transport => "Join"; only a closed,

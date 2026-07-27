@@ -53,7 +53,8 @@ namespace ipc::join_secret
         }
     }
 
-    std::string build(const std::string& game_id, const transport& t, const std::string& mode)
+    std::string build(const std::string& game_id, const transport& t, const std::string& mode,
+                      const std::string& match_id)
     {
         if (game_id.empty())
         {
@@ -80,6 +81,12 @@ namespace ipc::join_secret
                 return {};
             }
             secret += "direct:" + t.ip + ":" + std::to_string(t.port);
+        }
+
+        // Lets the joiner's launcher spot "I'm already in this match" before reconnecting.
+        if (!match_id.empty() && is_safe_field(match_id))
+        {
+            secret += ":mid=" + match_id;
         }
 
         if (secret.size() > MAX_SECRET_LEN)
@@ -147,7 +154,19 @@ namespace ipc::join_secret
             return std::nullopt;
         }
 
-        // Any extra trailing parts are optional key=value flags (pw=, ...) and are ignored (forward-compat).
+        // Any extra trailing parts are optional key=value flags; unknown ones are ignored (forward-compat).
+        for (size_t i = (kind == "direct") ? 7 : 10; i < parts.size(); ++i)
+        {
+            if (parts[i].rfind("mid=", 0) == 0)
+            {
+                auto match_id = parts[i].substr(4);
+                if (is_safe_field(match_id))
+                {
+                    result.match_id = std::move(match_id);
+                }
+            }
+        }
+
         return result;
     }
 }

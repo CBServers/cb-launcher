@@ -181,6 +181,7 @@ namespace ipc
                             w.Key("joinable");   w.Bool(entry.joinable);
                             w.Key("directJoin"); w.Bool(entry.direct_join);
                             w.Key("openable");   w.Bool(entry.openable);
+                            w.Key("sameMatch");  w.Bool(entry.same_match);
                             w.EndObject();
                         }
 
@@ -544,13 +545,14 @@ namespace ipc
             info.map_raw = json_string(doc, "map");
             info.gametype_raw = json_string(doc, "gametypeRaw");
             info.openable = json_bool(doc, "openable");
+            info.match_id = json_string(doc, "matchId");
 
             // Live presence mode feeds only the Discord card and join secret, never the relaunch decision.
             const auto mode = json_string(doc, "mode");
 
             if (join_secret::transport transport{}; parse_transport(doc, transport))
             {
-                info.join_secret = join_secret::build(this->connection_game_id, transport, mode);
+                info.join_secret = join_secret::build(this->connection_game_id, transport, mode, info.match_id);
                 info.direct_join = !transport.is_nat; // direct => public/dedicated server, joinable without approval
             }
 
@@ -584,6 +586,14 @@ namespace ipc
             if (!parsed)
             {
                 utils::logger::write("[cbl-join] ignoring malformed join secret");
+                return;
+            }
+
+            // Accepting from Discord's own UI bypasses our button gating; joining the match we're
+            // already in would just drop and rebuild the connection.
+            if (discord::discord_service::instance().is_same_match(parsed->game_id, parsed->match_id))
+            {
+                utils::logger::write("[cbl-join] ignoring join for match '{}'; already in it", parsed->match_id);
                 return;
             }
 
@@ -716,6 +726,18 @@ namespace ipc
         this->impl_->push_outbound(build_json_object([](auto& w)
         {
             w.Key("type"); w.String("open-match");
+        }) + "\n");
+    }
+
+    // Queued like anything else: if no fork is connected the line is dropped on the next connect,
+    // so a game started later never replays stale invites.
+    void ipc_server::notify_invite(const std::string& from)
+    {
+        this->impl_->push_outbound(build_json_object([&](auto& w)
+        {
+            w.Key("type"); w.String("notify");
+            w.Key("kind"); w.String("invite");
+            w.Key("from"); w.String(from.data());
         }) + "\n");
     }
 

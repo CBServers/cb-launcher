@@ -4,6 +4,7 @@
 #include "game_config.hpp"
 #include "link_registry.hpp"
 #include "token_store.hpp"
+#include "ipc/ipc_server.hpp"
 
 #include <utils/concurrency.hpp>
 #include <utils/logger.hpp>
@@ -130,7 +131,7 @@ namespace discord
             return mode == "sp" ? "Campaign" : "Private Match";
         }
 
-        // Party id: "[joind-|joinr-]<uid>-<game-id>[|md=<mode>][|m=<map>][|g=<gametype>][|o=1]".
+        // Party id: "[joind-|joinr-]<match-id>-<game-id>[|md=<mode>][|m=<map>][|g=<gametype>][|o=1]".
         // Fills the structured game fields of a friend entry; ignores ids that don't match.
         void parse_party_presence(std::string id, friend_entry& entry)
         {
@@ -151,12 +152,14 @@ namespace discord
                 flags = id.substr(bar + 1);
             }
 
-            // "<uid>-<game-id>"; game ids may themselves contain '-' (h1-mod), so split on the first dash
+            // "<match-id>-<game-id>"; game ids may themselves contain '-' (h1-mod), so split on the first dash.
+            // Older launchers publish the host's uid in that slot; it simply never compares equal to a match id.
             const auto dash = base.find('-');
             if (dash == std::string::npos)
             {
                 return;
             }
+            entry.match_id = base.substr(0, dash);
             entry.game_id = base.substr(dash + 1);
 
             while (!flags.empty())
@@ -170,6 +173,21 @@ namespace discord
                 else if (flag.rfind("g=", 0) == 0) entry.game_gametype = flag.substr(2);
                 else if (flag.rfind("o=", 0) == 0) entry.openable = flag.substr(2) == "1";
             }
+        }
+
+        // A friend shares our match when both sides publish the same fork and the same match identity.
+        bool stamp_same_match(std::vector<friend_entry>& friends, const std::string& own_game_id,
+                              const std::string& own_match_id)
+        {
+            bool changed = false;
+            for (auto& entry : friends)
+            {
+                const bool same = !own_match_id.empty() && entry.match_id == own_match_id
+                    && entry.game_id == own_game_id;
+                changed = changed || same != entry.same_match;
+                entry.same_match = same;
+            }
+            return changed;
         }
 
         // Menus publish no party id, so the fork can't be parsed from it; the activity title
@@ -223,6 +241,8 @@ namespace discord
         std::string access_token{};
         std::vector<invite_entry> invites{}; // pending invites/join-requests
         bool joinable{false};                // local game is publishing a joinable presence
+        std::string own_game_id{};           // fork we're in, mirrored for the same-match comparison
+        std::string own_match_id{};          // our current match identity (empty => unknown/in menu)
     };
 
     using state_container = utils::concurrency::container<shared_state>;
@@ -259,6 +279,7 @@ namespace discord
             bool openable{false};    // hosting a private match not yet open to friends
             std::string map_raw;      // raw keys carried in the party-id presence flags
             std::string gametype_raw;
+            std::string match_id;     // fork-derived match identity; doubles as the party id base
         };
 
         std::optional<game_activity> current_activity{};
@@ -327,17 +348,29 @@ namespace discord
             });
         }
 
-        // Mirrors "can we invite right now" into shared state for the frontend.
+        // Mirrors "can we invite right now" and our current match identity into shared state.
         void update_joinable()
         {
-            const bool joinable = this->current_activity && this->current_activity->rich
-                && !this->current_activity->join_secret.empty()
+            const bool rich = this->current_activity && this->current_activity->rich;
+            const bool joinable = rich && !this->current_activity->join_secret.empty()
                 && this->current_status() == link_status::linked;
 
-            this->state->access([joinable](shared_state& s)
+            const auto own_game_id = rich ? this->current_activity->game_id : std::string{};
+            const auto own_match_id = rich ? this->current_activity->match_id : std::string{};
+
+            const bool friends_changed = this->state->access<bool>([&](shared_state& s)
             {
                 s.joinable = joinable;
+                s.own_game_id = own_game_id;
+                s.own_match_id = own_match_id;
+                return stamp_same_match(s.friends, own_game_id, own_match_id);
             });
+
+            // Our own match changing flips friends between joinable and "in your match".
+            if (friends_changed)
+            {
+                this->notify_friends_changed();
+            }
         }
 
         // Republishes the current game activity (on set and on reconnect) so presence survives SDK reconnects.
@@ -372,9 +405,15 @@ namespace discord
                         max = size + 1; // a joinable party must have room for the invitee
                     }
 
-                    // Id is unique per host; when joinable its prefix encodes direct (public => "Join") vs nat (private => "Ask to Join").
+                    // Id base is the match identity, so everyone in a match publishes the same party id
+                    // (Discord groups them; friends' launchers use it to spot "already in this match").
+                    // Falls back to our uid when the fork reports none, which only costs that detection.
+                    // When joinable the prefix encodes direct (public => "Join") vs nat (private => "Ask to Join").
                     const auto uid = this->own_user_id();
-                    auto party_base = (uid != 0 ? std::to_string(uid) : std::string("cbl")) + "-" + a.game_id;
+                    const auto id_base = !a.match_id.empty()
+                                             ? a.match_id
+                                             : (uid != 0 ? std::to_string(uid) : std::string("cbl"));
+                    auto party_base = id_base + "-" + a.game_id;
 
                     // Machine-readable presence flags: friends' launchers parse these to feed the
                     // in-game friends UI with structured map/mode/gametype (see ipc-protocol.md).
@@ -538,6 +577,22 @@ namespace discord
                 return self->Id();
             }
             return 0;
+        }
+
+        // Joining a friend already in our match is a reconnect, and inviting them is a no-op.
+        bool friend_shares_our_match(const std::string& user_id) const
+        {
+            return this->state->access<bool>([&user_id](const shared_state& s)
+            {
+                for (const auto& entry : s.friends)
+                {
+                    if (entry.id == user_id)
+                    {
+                        return entry.same_match;
+                    }
+                }
+                return false;
+            });
         }
 
         bool has_real_secret() const
@@ -708,6 +763,8 @@ namespace discord
             const auto sender_id = std::to_string(sender);
             this->invite_objs[sender_id] = invite;
 
+            std::string sender_name{};
+
             this->state->access([&](shared_state& s)
             {
                 invite_entry entry{};
@@ -735,9 +792,17 @@ namespace discord
                     entry.game_id = this->current_activity->game_id;
                 }
 
+                sender_name = entry.sender_name;
+
                 std::erase_if(s.invites, [&](const invite_entry& e) { return e.id == sender_id; });
                 s.invites.push_back(std::move(entry));
             });
+
+            // A running fork toasts it in-game; the Windows toast can't draw over exclusive fullscreen.
+            if (!is_request)
+            {
+                ipc::ipc_server::instance().notify_invite(sender_name);
+            }
 
             utils::logger::write("[cbl-invite] queued incoming {} from {} for the in-launcher prompt",
                                  is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id);
@@ -1042,6 +1107,7 @@ namespace discord
                     entry.linked = s.linked_ids.contains(entry.id);
                 }
 
+                stamp_same_match(friends, s.own_game_id, s.own_match_id);
                 s.friends = std::move(friends);
             });
 
@@ -1337,6 +1403,7 @@ namespace discord
         activity.openable = info.openable;
         activity.map_raw = info.map_raw;
         activity.gametype_raw = info.gametype_raw;
+        activity.match_id = info.match_id;
 
         this->impl_->post([i = this->impl_.get(), activity = std::move(activity)]() mutable
         {
@@ -1375,6 +1442,10 @@ namespace discord
             a.max_players = 0;
             a.join_secret.clear();
             a.openable = false;
+            a.direct_join = false;
+            a.map_raw.clear();
+            a.gametype_raw.clear();
+            a.match_id.clear();
 
             i->publish_activity();
         });
@@ -1411,6 +1482,19 @@ namespace discord
         });
     }
 
+    bool discord_service::is_same_match(const std::string& game_id, const std::string& match_id) const
+    {
+        if (game_id.empty() || match_id.empty())
+        {
+            return false;
+        }
+
+        return this->impl_->state->access<bool>([&](const shared_state& s)
+        {
+            return s.own_game_id == game_id && s.own_match_id == match_id;
+        });
+    }
+
     void discord_service::set_friends_changed_callback(std::function<void()> callback)
     {
         this->impl_->friends_changed_cb.access([&callback](std::function<void()>& stored)
@@ -1435,6 +1519,12 @@ namespace discord
             if (uid == 0)
             {
                 utils::logger::write("[cbl-invite] send_invite: bad user id '{}'", user_id);
+                return;
+            }
+
+            if (i->friend_shares_our_match(user_id))
+            {
+                utils::logger::write("[cbl-invite] dropping invite to {} (already in our match)", uid);
                 return;
             }
 
@@ -1478,6 +1568,12 @@ namespace discord
             if (uid == 0)
             {
                 utils::logger::write("[cbl-invite] request_join: bad user id '{}'", user_id);
+                return;
+            }
+
+            if (i->friend_shares_our_match(user_id))
+            {
+                utils::logger::write("[cbl-invite] dropping join request to {} (already in their match)", uid);
                 return;
             }
 

@@ -4,7 +4,7 @@
 #include <string>
 
 // Launcher-defined join secret grammar (trailing key=value flags optional; unknown flags ignored):
-//   cbl:1:<game-id>:<mode>:<transport>[:pw=1]   mode = mp/zm/sv/... or "-"
+//   cbl:1:<game-id>:<mode>:<transport>[:pw=1][:mid=<match-id>]   mode = mp/zm/sv/... or "-"
 //   transport = direct:<ip>:<port> | nat:<token>:<rhost>:<rport>:<fip>:<fport>
 namespace ipc::join_secret
 {
@@ -26,10 +26,12 @@ namespace ipc::join_secret
     {
         std::string game_id;
         transport t;
-        std::string mode; // host's play mode (e.g. mp/zm/sv); empty if not carried
+        std::string mode;     // host's play mode (e.g. mp/zm/sv); empty if not carried
+        std::string match_id; // fork-supplied match identity; empty if not carried
     };
 
     // Builds the secret (empty on invalid/oversized transport); mode is positional ("-" when empty) for non-switchable forks.
-    std::string build(const std::string& game_id, const transport& t, const std::string& mode = {});
+    std::string build(const std::string& game_id, const transport& t, const std::string& mode = {},
+                      const std::string& match_id = {});
     std::optional<parsed> parse(const std::string& secret);
 }

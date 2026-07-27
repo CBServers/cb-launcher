@@ -23,6 +23,9 @@ namespace ipc
         // Ask the connected game to open its private match to friends.
         void request_open_match();
 
+        // Passive in-game toast for an incoming invite (a Windows toast can't draw over fullscreen).
+        void notify_invite(const std::string& from);
+
         // Route an accepted invite's join secret: connect a running fork, or cold-launch then connect.
         void handle_join_secret(const std::string& secret);
 

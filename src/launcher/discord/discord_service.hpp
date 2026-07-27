@@ -31,11 +31,13 @@ namespace discord
         bool joinable{false};         // their game has a joinable party => we can join/ask to join
         bool direct_join{false};      // joinable on a public/dedicated server => "Join" (no host approval)
         bool openable{false};         // closed private match we could knock on (host opens on approve)
+        bool same_match{false};       // already in the match we're in => joining/inviting is a no-op
         std::string activity_details; // game name from their launcher presence, empty if none
         std::string activity_state;   // mode/line 3 from their launcher presence, empty if none
 
         // Structured in-match state parsed from the party-id presence flags (empty => not in a fork match).
         std::string game_id;       // fork id, e.g. "boiii"
+        std::string match_id;      // opaque per-match identity from the party id base; equal => same match
         std::string game_mode;     // "mp" / "zm" / ...
         std::string game_map;      // raw map key, e.g. "mp_nuketown_x"
         std::string game_gametype; // raw gametype key, e.g. "tdm"
@@ -90,6 +92,7 @@ namespace discord
             bool openable{false};    // hosting a private match not yet open to friends
             std::string map_raw;      // raw map key for the party-id presence flags
             std::string gametype_raw; // raw gametype key for the party-id presence flags
+            std::string match_id;     // fork-derived match identity; identical for everyone in the match
         };
 
         // Enrich the card with live fork state; self-contained so it works without a prior set_game_activity.
@@ -105,6 +108,8 @@ namespace discord
 
         // Invites. The local game must publish a joinable presence (is_joinable) to send invites.
         bool is_joinable() const;
+        // True when the local game is in exactly the match the secret/party describes (both ids known).
+        bool is_same_match(const std::string& game_id, const std::string& match_id) const;
         void send_invite(const std::string& user_id);
         // Ask a joinable friend to let us join (hop 1). Approvals arriving within AUTO_ACCEPT_WINDOW
         // of the request connect silently; later ones prompt in the launcher.
