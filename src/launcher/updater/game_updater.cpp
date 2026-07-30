@@ -356,6 +356,14 @@ namespace game_updater
         {
             streamed_hash = this->download_to_part(file, url, part, offset);
         }
+        else if (file.size == 0)
+        {
+            // Nothing to fetch for an empty entry, but publishing still needs a part to move into place
+            if (!utils::io::write_file(part, std::string{}))
+            {
+                throw std::runtime_error("Failed to create " + utils::string::path_to_utf8(part));
+            }
+        }
 
         this->publish_part(file, part, target, streamed_hash);
     }
@@ -500,6 +508,13 @@ namespace game_updater
         const auto hash = streamed_hash.has_value()
             ? *streamed_hash
             : utils::hash::get_file_hash(part, [this]() { wait_if_paused_or_cancelled(); });
+
+        // A digest is never empty, so this means the part could not be read at all
+        if (hash.empty())
+        {
+            utils::io::remove_file(part);
+            throw std::runtime_error("Failed to hash " + utils::string::path_to_utf8(part));
+        }
 
         if (hash != file.hash)
         {
