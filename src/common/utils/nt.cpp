@@ -447,6 +447,79 @@ namespace utils::nt
         return false;
     }
 
+    unsigned long find_process_id(const std::string& processName)
+    {
+        HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (hProcessSnap == INVALID_HANDLE_VALUE)
+        {
+            return 0;
+        }
+
+        PROCESSENTRY32 pe32;
+        pe32.dwSize = sizeof(PROCESSENTRY32);
+
+        if (!Process32First(hProcessSnap, &pe32))
+        {
+            CloseHandle(hProcessSnap);
+            return 0;
+        }
+
+        do
+        {
+            if (_stricmp(pe32.szExeFile, processName.data()) == 0)
+            {
+                const auto pid = pe32.th32ProcessID;
+                CloseHandle(hProcessSnap);
+                return pid;
+            }
+        } while (Process32Next(hProcessSnap, &pe32));
+
+        CloseHandle(hProcessSnap);
+        return 0;
+    }
+
+    bool terminate_process(const unsigned long pid)
+    {
+        if (!pid)
+        {
+            return false;
+        }
+
+        auto* const process_handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+        if (!process_handle)
+        {
+            return false;
+        }
+
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(process_handle);
+        });
+
+        return TerminateProcess(process_handle, 0) != FALSE;
+    }
+
+    bool is_process_alive(const unsigned long pid)
+    {
+        if (!pid)
+        {
+            return false;
+        }
+
+        auto* const process_handle = OpenProcess(SYNCHRONIZE, FALSE, pid);
+        if (!process_handle)
+        {
+            return false;
+        }
+
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(process_handle);
+        });
+
+        return WaitForSingleObject(process_handle, 0) == WAIT_TIMEOUT;
+    }
+
     bool stop_process(const std::string& processName)
     {
         HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);

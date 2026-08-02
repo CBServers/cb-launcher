@@ -57,6 +57,8 @@ namespace game_config
         std::unordered_map<std::string, std::string> mode_arguments;
         std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
         std::unordered_map<std::string, std::string> mode_pass_arguments; // Per-mode args forwarded inside --pass "..." (e.g. AlterWare launcher).
+        // Mode -> Plutonium URI name (e.g. "mp" -> "t6mp"); an entry launches via plutonium://, no entry uses the normal exe path.
+        std::unordered_map<std::string, std::string> plutonium_game_names;
         std::string default_args;  // Arguments always passed when launching, regardless of mode
         std::string name_argument; // Command-line prefix for setting in-game name (e.g. "+set name", "-name"). Empty = unsupported.
         std::string pluto_path_key;

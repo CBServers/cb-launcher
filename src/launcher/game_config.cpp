@@ -106,19 +106,28 @@ namespace game_config
         {
             utils::io::create_directory(pluto_folder);
         }
-        
-        // Read existing config (or start with empty object)
+
         rapidjson::Document doc;
         doc.SetObject();
 
-        std::string data;
-        if (utils::io::read_file(config_path, &data))
+        // Only build fresh when there's no config; defaulting after a failed read would blank the login token.
+        if (utils::io::file_exists(config_path))
         {
-            rapidjson::Document existing;
-            if (!existing.Parse(data).HasParseError() && existing.IsObject())
+            std::string data;
+            if (!utils::io::read_file(config_path, &data))
             {
-                doc = std::move(existing);
+                printf("Plutonium config.json exists but could not be read, leaving it alone\n");
+                return;
             }
+
+            rapidjson::Document existing;
+            if (existing.Parse(data).HasParseError() || !existing.IsObject())
+            {
+                printf("Plutonium config.json is malformed, leaving it alone\n");
+                return;
+            }
+
+            doc = std::move(existing);
         }
 
         auto& allocator = doc.GetAllocator();
@@ -149,13 +158,23 @@ namespace game_config
 
         doc.AddMember(json_key, json_value, allocator);
 
-        // Write back
+        // Write back via a temp file so Plutonium can never observe a half-written config.
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         doc.Accept(writer);
 
-        utils::io::write_file(config_path,
-            std::string(buffer.GetString(), buffer.GetLength()));
+        const auto temp_path = config_path.parent_path() / "config.json.tmp";
+        if (!utils::io::write_file(temp_path, std::string(buffer.GetString(), buffer.GetLength())))
+        {
+            printf("Failed to write Plutonium config.json\n");
+            return;
+        }
+
+        if (!utils::io::move_file_replace(temp_path, config_path))
+        {
+            printf("Failed to replace Plutonium config.json\n");
+            utils::io::remove_file(temp_path);
+        }
     }
 
     // Convenience methods
@@ -264,6 +283,11 @@ namespace game_config
 
     void game_config_t::ensure_plutonium_path() const
     {
+        if (this->pluto_path_key.empty())
+        {
+            return;
+        }
+
         const auto path = this->get(property_keys::INSTALL);
 
         if (path && path.value() != "")
@@ -405,7 +429,17 @@ namespace game_config
                 .required_updater_files = {"plutonium.exe"},
                 .valid_game_files = {"binkw32.dll", "CoDWaW.exe", "CoDWaWmp.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
-                .mode_arguments = {},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""},
+                    {"zm", ""}
+                },
+                // WaW zombies lives in the sp client, so sp and zm share a target.
+                .plutonium_game_names = {
+                    {"sp", "t4sp"},
+                    {"mp", "t4mp"},
+                    {"zm", "t4sp"}
+                },
                 .name_argument = "",
                 .pluto_path_key = "t4Path",
                 .base_folder = "waw_game_files",
@@ -428,7 +462,17 @@ namespace game_config
                 .required_updater_files = {"plutonium.exe"},
                 .valid_game_files = {"binkw32.dll", "BlackOps.exe", "BlackOpsMP.exe"},
                 .check_running_exes = {"plutonium-launcher-win32.exe", "plutonium-bootstrapper-win32.exe"},
-                .mode_arguments = {},
+                .mode_arguments = {
+                    {"sp", ""},
+                    {"mp", ""},
+                    {"zm", ""}
+                },
+                // BO1 zombies lives in the sp client, so sp and zm share a target.
+                .plutonium_game_names = {
+                    {"sp", "t5sp"},
+                    {"mp", "t5mp"},
+                    {"zm", "t5sp"}
+                },
                 .name_argument = "",
                 .pluto_path_key = "t5Path",
                 .base_folder = "bo1_game_files",
@@ -493,6 +537,11 @@ namespace game_config
                     {"mp", "plutonium.exe"},
                     {"zm", "plutonium.exe"}
                 },
+                // sp is omitted deliberately: it runs T6SP-Mod.exe, not Plutonium.
+                .plutonium_game_names = {
+                    {"mp", "t6mp"},
+                    {"zm", "t6zm"}
+                },
                 .name_argument = "",
                 .pluto_path_key = "t6Path",
                 .base_folder = "bo2_game_files",
@@ -525,6 +574,10 @@ namespace game_config
                 },
                 .mode_pass_arguments = {
                     {"sp", "-singleplayer"}
+                },
+                // sp is omitted deliberately: it runs through the AlterWare launcher. Plutonium has no iw5sp.
+                .plutonium_game_names = {
+                    {"mp", "iw5mp"}
                 },
                 .name_argument = "+set name",
                 .pluto_path_key = "iw5Path",

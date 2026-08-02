@@ -118,7 +118,11 @@ namespace utils::nt
     bool is_process_elevated(unsigned long pid);
     std::filesystem::path get_process_path(unsigned long pid);
     bool is_process_running(const std::string& processName);
+    // First matching pid, or 0 when the process isn't running.
+    unsigned long find_process_id(const std::string& processName);
     bool stop_process(const std::string& processName);
+    bool terminate_process(unsigned long pid);
+    bool is_process_alive(unsigned long pid);
     void relaunch_self(std::string command_line = GetCommandLineA());
     void update_dll_search_path(const std::filesystem::path& directory);
 

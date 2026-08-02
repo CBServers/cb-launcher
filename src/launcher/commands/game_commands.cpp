@@ -18,6 +18,7 @@
 
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
+#include "plutonium/plutonium.hpp"
 
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
@@ -504,6 +505,81 @@ namespace commands::game_commands
             return std::format("{} {}", base_args, extras);
         }
 
+        // Launches a Plutonium mode via plutonium://, or nullopt when this mode isn't a Plutonium target.
+        std::optional<bool> try_launch_plutonium(const game_config::game_config_t& config, const std::string& mode,
+            cef::cef_ui& cef_ui, const uint64_t generation)
+        {
+            const auto name_it = config.plutonium_game_names.find(mode);
+            if (name_it == config.plutonium_game_names.end())
+            {
+                return std::nullopt;
+            }
+
+            // Wine gate disabled for testing - restore this to fall back to plutonium.exe there.
+            // if (utils::nt::is_wine_environment())
+            // {
+            //     return std::nullopt;
+            // }
+
+            if (!plutonium::is_available())
+            {
+                return std::nullopt;
+            }
+
+            if (utils::nt::is_wine_environment())
+            {
+                utils::logger::write("[pluto] attempting direct launch under Wine (experimental)");
+            }
+
+            // Their launcher reads the game folder from config.json, so refresh it before handing off.
+            config.ensure_plutonium_path();
+
+            // Every failure recovers the same way: open their UI once so the user can repair whatever broke.
+            const auto recover = [&](const std::string& reason)
+            {
+                cef_ui.show_message_box("Plutonium Sign-In Needed",
+                    reason + "\n\nThe Plutonium launcher is opening now. Sign in and start " + config.display_name +
+                    " from there this once - after that, launching from CB Servers goes straight into the game.");
+                plutonium::open_login_ui();
+            };
+
+            // CB's barrier can't see a game the user started from Plutonium directly.
+            if (plutonium::is_game_running())
+            {
+                cef_ui.show_message_box("Game Launch Error",
+                    "A Plutonium game is already running. Close it before launching " + config.display_name + ".");
+                return false;
+            }
+
+            if (plutonium::get_token().empty())
+            {
+                recover("You're not signed in to Plutonium.");
+                return false;
+            }
+
+            const auto result = plutonium::launch_via_uri(name_it->second);
+            if (!result.success)
+            {
+                recover("Plutonium couldn't start " + config.display_name + ". Your session may have expired.");
+                return false;
+            }
+
+            discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
+            // Track the bootstrapper, not the launcher we spawned - that one exits after the handoff.
+            set_tracked_launch(result.bootstrapper_pid, config.id, generation, false);
+
+            const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
+            if (close_on_launch && *close_on_launch == "true")
+            {
+                printf("Close on launch enabled - closing launcher\n");
+                cef_ui.close_browser();
+                return true;
+            }
+
+            spawn_exit_watchdog(result.bootstrapper_pid, config, generation);
+            return true;
+        }
+
         // Assumes the caller already holds the launch barrier and reserved `generation`.
         bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui, const uint64_t generation)
         {
@@ -544,6 +620,11 @@ namespace commands::game_commands
                         utils::io::remove_file(dll_path);
                     }
                 }
+            }
+
+            if (const auto handled = try_launch_plutonium(config, mode, cef_ui, generation))
+            {
+                return *handled;
             }
 
             const auto exe_name = game_config::get_exe_for_mode(game, mode);
@@ -653,6 +734,15 @@ namespace commands::game_commands
                     const auto skip_files = ctx.get_skip_files(game, config);
                     client_updater::run(config, skip_files, &progress_listener);
                     apply_post_client_update(config);
+
+                    // Revision-gated, so this only runs when behind. Wine gate disabled for testing: && !utils::nt::is_wine_environment()
+                    if (!config.plutonium_game_names.empty())
+                    {
+                        if (const auto install = config.get_install_path())
+                        {
+                            plutonium::ensure_updated(*install / config.exe_name);
+                        }
+                    }
                 }
                 progress_listener.done_update();
 
