@@ -265,7 +265,8 @@ namespace commands::game_commands
             }
         }
 
-        void apply_post_client_update(const game_config::game_config_t& config)
+        // Guarded, idempotent preconditions (DPI flags, registry keys, Plutonium path) applied on every launch.
+        void ensure_launch_prerequisites(const game_config::game_config_t& config)
         {
             if (config.game_key == "cod1" || config.game_key == "coduo" || config.game_key == "cod2x")
             {
@@ -338,10 +339,7 @@ namespace commands::game_commands
                 }
             }
 
-            if (!config.pluto_path_key.empty())
-            {
-                config.ensure_plutonium_path();
-            }
+            config.ensure_plutonium_path();
         }
 
         // iw3sp_mod re-runs its one-time config migration whenever its marker files are absent, truncating
@@ -531,9 +529,6 @@ namespace commands::game_commands
                 utils::logger::write("[pluto] attempting direct launch under Wine (experimental)");
             }
 
-            // Their launcher reads the game folder from config.json, so refresh it before handing off.
-            config.ensure_plutonium_path();
-
             // Every failure recovers the same way: open their UI once so the user can repair whatever broke.
             const auto recover = [&](const std::string& reason)
             {
@@ -601,6 +596,9 @@ namespace commands::game_commands
             }
 
             const auto game_directory = *game_install;
+
+            // Here rather than after the client update, so a skipped or failed update can't leave these unset.
+            ensure_launch_prerequisites(config);
 
             protect_iw3sp_mod_profiles(config);
             // Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
@@ -733,7 +731,6 @@ namespace commands::game_commands
                 {
                     const auto skip_files = ctx.get_skip_files(game, config);
                     client_updater::run(config, skip_files, &progress_listener);
-                    apply_post_client_update(config);
 
                     // Revision-gated, so this only runs when behind. Wine gate disabled for testing: && !utils::nt::is_wine_environment()
                     if (!config.plutonium_game_names.empty())
@@ -1117,7 +1114,7 @@ namespace commands::game_commands
                     const auto skip_files = ctx.get_skip_files(game, config);
 
                     client_updater::run(config, skip_files, &progress_listener);
-                    apply_post_client_update(config);
+                    ensure_launch_prerequisites(config);
                     progress_listener.done_update();
 
                     cef_ui.show_toast(config.display_name + " verification/update complete!", "success");

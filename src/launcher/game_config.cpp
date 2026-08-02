@@ -130,10 +130,22 @@ namespace game_config
             doc = std::move(existing);
         }
 
+        const char* required_fields[] = {"iw5Path", "t4Path", "t5Path", "t6Path", "token"};
+
+        // Runs on every launch, so skip rewriting a file Plutonium may have open when nothing would change.
+        if (doc.HasMember(key) && doc[key].IsString() && path == doc[key].GetString())
+        {
+            const auto missing = std::any_of(std::begin(required_fields), std::end(required_fields),
+                [&doc](const char* field) { return !doc.HasMember(field); });
+            if (!missing)
+            {
+                return;
+            }
+        }
+
         auto& allocator = doc.GetAllocator();
 
         // Ensure all required fields exist for valid Plutonium config
-        const char* required_fields[] = {"iw5Path", "t4Path", "t5Path", "t6Path", "token"};
         for (const auto& field : required_fields)
         {
             if (!doc.HasMember(field))
