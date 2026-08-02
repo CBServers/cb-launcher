@@ -35,6 +35,7 @@ namespace client_updater
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path get_drive_filename(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path resolve_drive_path(const std::string& name) const;
+        [[nodiscard]] std::filesystem::path resolve_base_path(const std::string& name) const;
         [[nodiscard]] std::filesystem::path resolve_data_dir(const std::string& folder) const;
         void cleanup_data_directories() const;
         [[nodiscard]] bool is_update_cancelled() const;

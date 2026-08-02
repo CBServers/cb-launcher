@@ -343,6 +343,75 @@ namespace commands::game_commands
             }
         }
 
+        // iw3sp_mod re-runs its one-time config migration whenever its marker files are absent, truncating
+        // the profile's configs on the way. Seeding the markers on populated profiles keeps it dormant.
+        void protect_iw3sp_mod_profiles(const game_config::game_config_t& config)
+        {
+            if (config.game_key != "cod4x")
+            {
+                return;
+            }
+
+            const auto install = config.get_install_path();
+            if (!install || install->empty())
+            {
+                return;
+            }
+
+            const auto profiles_dir = *install / "players" / "profiles";
+            if (!utils::io::directory_exists(profiles_dir))
+            {
+                return;
+            }
+
+            // Only seed where the config already holds data; a fresh profile still needs the real migration.
+            // Both marker generations are covered so rolling the client between builds can't re-trigger it.
+            static constexpr struct { const char* cfg; const char* marker; } markers[] = {
+                {"iw3sp_mod_config.cfg", "iw3sp_mod_init_cfg/IW3SP_MOD_CONFIG_INIT_DONE"},
+                {"mods_config.cfg", "iw3sp_mod_init_cfg/IW3SP_MOD_CONFIG_MODS_INIT_DONE"},
+                {"mods_config.cfg", "DO_NOT_DELETE"},
+            };
+
+            try
+            {
+                for (const auto& profile : utils::io::list_files(profiles_dir))
+                {
+                    if (!utils::io::directory_exists(profile))
+                    {
+                        continue;
+                    }
+
+                    for (const auto& [cfg, marker] : markers)
+                    {
+                        if (utils::io::file_size(profile / cfg) == 0)
+                        {
+                            continue;
+                        }
+
+                        const auto marker_path = profile / marker;
+                        if (utils::io::file_exists(marker_path))
+                        {
+                            continue;
+                        }
+
+                        if (utils::io::write_file(marker_path, "// seeded by CB Servers Launcher"))
+                        {
+                            printf("Seeded iw3sp_mod config marker: %s\n", utils::string::path_to_utf8(marker_path).data());
+                        }
+                        else
+                        {
+                            printf("Failed to seed iw3sp_mod config marker: %s\n", marker);
+                        }
+                    }
+                }
+            }
+            catch (const std::exception& e)
+            {
+                // Never block a launch over this
+                printf("Failed to seed iw3sp_mod config markers: %s\n", e.what());
+            }
+        }
+
         std::string trim_ws(std::string s)
         {
             const auto first = s.find_first_not_of(" \t\r\n");
@@ -456,6 +525,8 @@ namespace commands::game_commands
             }
 
             const auto game_directory = *game_install;
+
+            protect_iw3sp_mod_profiles(config);
             // Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
             if (game == "hmw")
             {

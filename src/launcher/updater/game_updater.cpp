@@ -163,9 +163,15 @@ namespace game_updater
 
         bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
         {
-            const auto relative = std::filesystem::relative(file, folder);
+            std::error_code code{};
+            const auto relative = std::filesystem::relative(file, folder, code);
+            if (code)
+            {
+                return false;
+            }
+
             const auto start = relative.begin();
-            return start != relative.end() && start->string() != "..";
+            return start != relative.end() && start->native() != L"..";
         }
     }
 

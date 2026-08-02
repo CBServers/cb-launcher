@@ -111,9 +111,35 @@ namespace client_updater
 
         bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
         {
-            const auto relative = std::filesystem::relative(file, folder);
+            std::error_code code{};
+            const auto relative = std::filesystem::relative(file, folder, code);
+            if (code)
+            {
+                return false;
+            }
+
             const auto start = relative.begin();
-            return start != relative.end() && start->string() != "..";
+            return start != relative.end() && start->native() != L"..";
+        }
+
+        // Comparable key for a path: absolute, normalized separators, case-folded like the filesystem itself
+        std::wstring path_key(const std::filesystem::path& path)
+        {
+            std::error_code code{};
+            const auto resolved = std::filesystem::absolute(path, code);
+            auto text = (code ? path : resolved).lexically_normal().wstring();
+
+            while (!text.empty() && (text.back() == L'\\' || text.back() == L'/'))
+            {
+                text.pop_back();
+            }
+
+            if (!text.empty())
+            {
+                ::CharLowerBuffW(text.data(), static_cast<DWORD>(text.size()));
+            }
+
+            return text;
         }
     }
 
@@ -402,14 +428,19 @@ namespace client_updater
 
     std::filesystem::path client_updater::resolve_drive_path(const std::string& name) const
     {
+        return this->resolve_base_path(name) / name;
+    }
+
+    std::filesystem::path client_updater::resolve_base_path(const std::string& name) const
+    {
         if (this->client_install_path_files_.empty())
         {
-            return this->client_default_path_ / name;
+            return this->client_default_path_;
         }
 
         if (this->client_install_path_files_.contains(name))
         {
-            return this->install_path / name;
+            return this->install_path;
         }
 
         for (const auto& entry : this->client_install_path_files_)
@@ -419,11 +450,11 @@ namespace client_updater
             const auto prefix = entry.substr(0, star);
             if (utils::string::starts_with(name, prefix))
             {
-                return this->install_path / name;
+                return this->install_path;
             }
         }
 
-        return this->client_default_path_ / name;
+        return this->client_default_path_;
     }
 
     std::filesystem::path client_updater::resolve_data_dir(const std::string& folder) const
@@ -461,11 +492,24 @@ namespace client_updater
             return;
         }
 
-        std::vector<std::filesystem::path> legal_files{};
+        std::unordered_set<std::wstring> legal_files{};
+        std::unordered_set<std::wstring> legal_folders{};
         legal_files.reserve(this->manifest_files_.size());
+
         for (const auto& file : this->manifest_files_)
         {
-            legal_files.emplace_back(std::filesystem::absolute(this->get_drive_filename(file)));
+            const auto path = this->get_drive_filename(file);
+            legal_files.emplace(path_key(path));
+
+            // Every directory on the way to a manifest file has to survive too
+            for (auto parent = path.parent_path(); !parent.empty() && parent != parent.parent_path();
+                 parent = parent.parent_path())
+            {
+                if (!legal_folders.emplace(path_key(parent)).second)
+                {
+                    break;
+                }
+            }
         }
 
         for (const auto& folder : this->client_data_folders_)
@@ -484,19 +528,8 @@ namespace client_updater
 
                 if (is_file || is_folder)
                 {
-                    bool is_legal = false;
-
-                    for (const auto& legal_file : legal_files)
-                    {
-                        if ((is_folder && is_inside_folder(legal_file, entry)) ||
-                            (is_file && legal_file == entry))
-                        {
-                            is_legal = true;
-                            break;
-                        }
-                    }
-
-                    if (is_legal)
+                    const auto key = path_key(entry);
+                    if ((is_file && legal_files.contains(key)) || (is_folder && legal_folders.contains(key)))
                     {
                         continue;
                     }
@@ -563,8 +596,7 @@ namespace client_updater
         {
             const auto file_path = this->get_drive_filename(file);
             auto parent = file_path.parent_path();
-            const auto& base = (this->client_install_path_files_.contains(file.name))
-                ? this->install_path : this->client_default_path_;
+            const auto base = this->resolve_base_path(file.name);
 
             while (parent != base && is_inside_folder(parent, base))
             {
