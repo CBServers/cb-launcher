@@ -534,7 +534,7 @@ namespace commands::game_commands
             {
                 cef_ui.show_message_box("Plutonium Sign-In Needed",
                     reason + "\n\nThe Plutonium launcher is opening now. Sign in and start " + config.display_name +
-                    " from there this once - after that, launching from CB Servers goes straight into the game.");
+                    " from there this once, after that launching from CB Servers goes straight into the game.");
                 plutonium::open_login_ui();
             };
 
@@ -542,7 +542,8 @@ namespace commands::game_commands
             if (plutonium::is_game_running())
             {
                 cef_ui.show_message_box("Game Launch Error",
-                    "A Plutonium game is already running. Close it before launching " + config.display_name + ".");
+                    "A Plutonium game is already running. Only one game can run at a time, close it before launching "
+                    + config.display_name + ".");
                 return false;
             }
 
@@ -1010,7 +1011,26 @@ namespace commands::game_commands
 
             if (!try_lock_launch_barrier())
             {
-                cef_ui.show_message_box("Game Launch Error", "This game is already launching or running. Please wait for it to finish, or close it before launching again.");
+                const auto running_id = tracked_game_id();
+                const auto running_config = running_id.empty()
+                    ? std::nullopt
+                    : game_config::get_game_config_by_id(running_id);
+
+                std::string message;
+                if (running_id == config->id)
+                {
+                    message = "This game is already launching or running. Please wait for it to finish, or close it before launching again.";
+                }
+                else if (running_config)
+                {
+                    message = running_config->display_name + " is already launching or running. Only one game can run at a time, close it before launching another.";
+                }
+                else
+                {
+                    message = "Another game is already launching or running. Only one game can run at a time, please wait for it to finish or close it before launching another.";
+                }
+
+                cef_ui.show_message_box("Game Launch Error", message);
                 return;
             }
 
