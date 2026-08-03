@@ -3795,6 +3795,7 @@ html[data-theme="dark"] .secondary-action:hover {
     box-shadow: 0 0 6px rgba(59, 165, 93, 0.7);
 }
 .support-action.faq { background: linear-gradient(135deg, #6C63FF 0%, #4B45C7 100%); }
+.support-action.faq-games { background: linear-gradient(135deg, #2FA8A0 0%, #1E6E77 100%); }
 
 .support-action:hover,
 .support-link:hover {
