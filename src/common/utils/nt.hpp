@@ -113,7 +113,11 @@ namespace utils::nt
 
     void launch_process(const std::filesystem::path& process, const std::string& command_line);
     unsigned long launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
-    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
+    // `out_handle` takes ownership of the elevation broker's process handle, which carries rights a medium-IL OpenProcess can't obtain.
+    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle = nullptr);
+    // CreateProcess first, retrying through a UAC prompt on ERROR_ELEVATION_REQUIRED (740).
+    // `elevated` reports whether the prompt path was taken (set even when it then fails, so ERROR_CANCELLED is attributable).
+    unsigned long launch_process_maybe_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, bool* elevated = nullptr, HANDLE* out_handle = nullptr);
     bool is_elevated();
     bool is_process_elevated(unsigned long pid);
     std::filesystem::path get_process_path(unsigned long pid);
@@ -122,7 +126,13 @@ namespace utils::nt
     unsigned long find_process_id(const std::string& processName);
     bool stop_process(const std::string& processName);
     bool terminate_process(unsigned long pid);
+    // Terminates through a handle already owned (e.g. from an elevated launch), which needs no OpenProcess and so no UAC prompt.
+    bool terminate_process_handle(HANDLE process);
+    // Last resort for a high-IL process: taskkill /F /PID behind a UAC prompt.
+    bool terminate_process_elevated(unsigned long pid);
     bool is_process_alive(unsigned long pid);
+    // Same, through a handle already owned, so an elevated target can't fail the check on OpenProcess.
+    bool is_process_alive_handle(HANDLE process);
     void relaunch_self(std::string command_line = GetCommandLineA());
     void update_dll_search_path(const std::filesystem::path& directory);
 

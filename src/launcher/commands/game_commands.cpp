@@ -553,7 +553,17 @@ namespace commands::game_commands
                 return false;
             }
 
-            const auto result = plutonium::launch_via_uri(name_it->second);
+            const auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
+            const auto result = plutonium::launch_via_uri(name_it->second, elevate);
+
+            // Declining the prompt isn't a broken session, and re-opening their UI would only prompt again.
+            if (result.cancelled)
+            {
+                cef_ui.show_message_box("Game Launch Cancelled",
+                    "The Plutonium launcher requires administrator permission to start " + config.display_name + ".");
+                return false;
+            }
+
             if (!result.success)
             {
                 recover("Plutonium couldn't start " + config.display_name + ". Your session may have expired.");
@@ -562,7 +572,8 @@ namespace commands::game_commands
 
             discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
             // Track the bootstrapper, not the launcher we spawned - that one exits after the handoff.
-            set_tracked_launch(result.bootstrapper_pid, config.id, generation, false);
+            // An elevated launcher hands its integrity level down, so stopping the game needs the elevated path too.
+            set_tracked_launch(result.bootstrapper_pid, config.id, generation, result.elevated);
 
             const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
             if (close_on_launch && *close_on_launch == "true")
@@ -643,18 +654,11 @@ namespace commands::game_commands
                          "For now, use the launcher for downloading and verifying game files on Linux.");
                 }*/
 
+                // The non-elevated path still ends up at a UAC prompt when the exe itself demands elevation (740).
                 auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
-                auto pid = elevate
+                const auto pid = elevate
                     ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
-                    : utils::nt::launch_process(game_exe, launch_args, game_directory);
-
-                // 740 = exe demands elevation (e.g. requireAdministrator manifest); retry with a UAC prompt.
-                if (pid == 0 && !elevate && GetLastError() == ERROR_ELEVATION_REQUIRED)
-                {
-                    printf("Launch requires elevation, retrying with UAC prompt: %s\n", exe_name.data());
-                    elevate = true;
-                    pid = utils::nt::launch_process_elevated(game_exe, launch_args, game_directory);
-                }
+                    : utils::nt::launch_process_maybe_elevated(game_exe, launch_args, game_directory, &elevate);
 
                 if (pid == 0)
                 {

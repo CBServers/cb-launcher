@@ -29,8 +29,13 @@ namespace plutonium
     {
         bool success{false};
         unsigned long bootstrapper_pid{0};
+        // True when their launcher went through a UAC prompt, so the game it spawns is high-IL too.
+        bool elevated{false};
+        // True when that prompt was declined; distinct from a real launch failure.
+        bool cancelled{false};
     };
 
     // Launches via plutonium://play/<game>, killing their launcher on failure before it can spawn a tokenless bootstrapper.
-    launch_result launch_via_uri(const std::string& pluto_game);
+    // `elevate` forces the UAC path up front; a 740 from their exe elevates on its own regardless.
+    launch_result launch_via_uri(const std::string& pluto_game, bool elevate = false);
 }

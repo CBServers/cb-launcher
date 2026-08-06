@@ -323,8 +323,13 @@ namespace utils::nt
         return pid;
     }
 
-    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory)
+    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle)
     {
+        if (out_handle)
+        {
+            *out_handle = nullptr;
+        }
+
         const auto file = process.wstring();
         const auto params = string::convert(command_line);
         const auto dir = working_directory.wstring();
@@ -347,8 +352,41 @@ namespace utils::nt
         }
 
         const auto pid = GetProcessId(info.hProcess);
-        CloseHandle(info.hProcess);
+
+        if (out_handle)
+        {
+            *out_handle = info.hProcess;
+        }
+        else
+        {
+            CloseHandle(info.hProcess);
+        }
+
         return pid;
+    }
+
+    unsigned long launch_process_maybe_elevated(const std::filesystem::path& process, const std::string& command_line,
+        const std::filesystem::path& working_directory, bool* elevated, HANDLE* out_handle)
+    {
+        if (elevated) *elevated = false;
+        if (out_handle) *out_handle = nullptr;
+
+        const auto pid = launch_process(process, command_line, working_directory);
+        if (pid)
+        {
+            return pid;
+        }
+
+        // 740 = the exe demands elevation (requireAdministrator manifest or the RUNASADMIN compat flag).
+        if (GetLastError() != ERROR_ELEVATION_REQUIRED)
+        {
+            return 0;
+        }
+
+        printf("Launch requires elevation, retrying with UAC prompt: %s\n", process.string().data());
+        if (elevated) *elevated = true;
+
+        return launch_process_elevated(process, command_line, working_directory, out_handle);
     }
 
     bool is_elevated()
@@ -499,6 +537,30 @@ namespace utils::nt
         return TerminateProcess(process_handle, 0) != FALSE;
     }
 
+    bool terminate_process_handle(HANDLE process)
+    {
+        if (!process || process == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
+
+        return TerminateProcess(process, 0) != FALSE;
+    }
+
+    bool terminate_process_elevated(const unsigned long pid)
+    {
+        if (!pid)
+        {
+            return false;
+        }
+
+        wchar_t system32[MAX_PATH];
+        GetSystemDirectoryW(system32, MAX_PATH);
+        const auto taskkill = std::filesystem::path(system32) / "taskkill.exe";
+
+        return launch_process_elevated(taskkill, "/F /PID " + std::to_string(pid), {}) != 0;
+    }
+
     bool is_process_alive(const unsigned long pid)
     {
         if (!pid)
@@ -518,6 +580,16 @@ namespace utils::nt
         });
 
         return WaitForSingleObject(process_handle, 0) == WAIT_TIMEOUT;
+    }
+
+    bool is_process_alive_handle(HANDLE process)
+    {
+        if (!process || process == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
+
+        return WaitForSingleObject(process, 0) == WAIT_TIMEOUT;
     }
 
     bool stop_process(const std::string& processName)

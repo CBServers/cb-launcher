@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "plutonium.hpp"
 
+#include <utils/finally.hpp>
 #include <utils/http.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
@@ -132,7 +133,24 @@ namespace plutonium
             return search.found;
         }
 
-        // Diagnostics only - nothing branches on this text.
+        // A medium-IL TerminateProcess can't reach an elevated launcher, so try the broker's handle first and a UAC taskkill last.
+        void kill_process(const unsigned long pid, HANDLE handle)
+        {
+            if (utils::nt::terminate_process_handle(handle) || utils::nt::terminate_process(pid))
+            {
+                return;
+            }
+
+            utils::logger::write("[pluto] terminate denied for pid {}, falling back to elevated taskkill", pid);
+            utils::nt::terminate_process_elevated(pid);
+        }
+
+        bool is_alive(const unsigned long pid, HANDLE handle)
+        {
+            return handle ? utils::nt::is_process_alive_handle(handle) : utils::nt::is_process_alive(pid);
+        }
+
+        // Diagnostics only - nothing branches on this text. Comes back blank for an elevated launcher (UIPI blocks WM_GETTEXT).
         std::string describe_window(HWND window)
         {
             wchar_t title[256]{};
@@ -218,8 +236,9 @@ namespace plutonium
         }
 
         // Zero arguments is what gives their UI - any argument suppresses it.
-        const auto pid = utils::nt::launch_process(exe, "", get_root());
-        utils::logger::write("[pluto] opened login UI (pid {})", pid);
+        bool elevated = false;
+        const auto pid = utils::nt::launch_process_maybe_elevated(exe, "", get_root(), &elevated);
+        utils::logger::write("[pluto] opened login UI (pid {}{})", pid, elevated ? ", elevated" : "");
         return pid != 0;
     }
 
@@ -247,13 +266,19 @@ namespace plutonium
 
         utils::logger::write("[pluto] updating {} -> {}", local ? std::to_string(*local) : std::string{"unknown"}, *remote);
 
-        const auto pid = utils::nt::launch_process(updater_exe, "-update-only -no-self-update",
-            updater_exe.parent_path());
+        HANDLE handle = nullptr;
+        const auto pid = utils::nt::launch_process_maybe_elevated(updater_exe, "-update-only -no-self-update",
+            updater_exe.parent_path(), nullptr, &handle);
         if (!pid)
         {
-            utils::logger::write("[pluto] failed to start updater");
+            utils::logger::write("[pluto] failed to start updater (error {})", GetLastError());
             return;
         }
+
+        const auto close_handle = utils::finally([&]()
+        {
+            if (handle) CloseHandle(handle);
+        });
 
         // Their window stays up after finishing, so the revision landing is the completion signal.
         const auto deadline = std::chrono::steady_clock::now() + UPDATE_TIMEOUT;
@@ -265,11 +290,11 @@ namespace plutonium
             if (current && *current == *remote)
             {
                 utils::logger::write("[pluto] update complete at revision {}", *remote);
-                utils::nt::terminate_process(pid);
+                kill_process(pid, handle);
                 return;
             }
 
-            if (!utils::nt::is_process_alive(pid))
+            if (!is_alive(pid, handle))
             {
                 utils::logger::write("[pluto] updater exited on its own");
                 return;
@@ -277,10 +302,10 @@ namespace plutonium
         }
 
         utils::logger::write("[pluto] update timed out, closing updater and launching anyway");
-        utils::nt::terminate_process(pid);
+        kill_process(pid, handle);
     }
 
-    launch_result launch_via_uri(const std::string& pluto_game)
+    launch_result launch_via_uri(const std::string& pluto_game, const bool elevate)
     {
         const auto exe = get_launcher_exe();
         if (exe.empty() || !utils::io::file_exists(exe))
@@ -298,14 +323,26 @@ namespace plutonium
         }
 
         const auto uri = URI_PREFIX + pluto_game;
-        const auto pid = utils::nt::launch_process(exe, uri, get_root());
+
+        auto elevated = elevate;
+        HANDLE handle = nullptr;
+        const auto pid = elevate
+            ? utils::nt::launch_process_elevated(exe, uri, get_root(), &handle)
+            : utils::nt::launch_process_maybe_elevated(exe, uri, get_root(), &elevated, &handle);
+
+        const auto close_handle = utils::finally([&]()
+        {
+            if (handle) CloseHandle(handle);
+        });
+
         if (!pid)
         {
-            utils::logger::write("[pluto] failed to start launcher for '{}'", uri);
-            return {};
+            const auto error = GetLastError();
+            utils::logger::write("[pluto] failed to start launcher for '{}' (error {})", uri, error);
+            return {false, 0, elevated, elevated && error == ERROR_CANCELLED};
         }
 
-        utils::logger::write("[pluto] launched '{}' (pid {})", uri, pid);
+        utils::logger::write("[pluto] launched '{}' (pid {}{})", uri, pid, elevated ? ", elevated" : "");
 
         const auto deadline = std::chrono::steady_clock::now() + LAUNCH_TIMEOUT;
         std::optional<std::chrono::steady_clock::time_point> handoff_deadline;
@@ -317,7 +354,7 @@ namespace plutonium
             if (bootstrapper)
             {
                 utils::logger::write("[pluto] '{}' started (bootstrapper pid {})", pluto_game, bootstrapper);
-                return {true, bootstrapper};
+                return {true, bootstrapper, elevated, false};
             }
 
             if (auto* const window = find_visible_window(pid))
@@ -325,11 +362,11 @@ namespace plutonium
                 // Kill it while the modal blocks; otherwise it falls through and spawns a tokenless bootstrapper.
                 utils::logger::write("[pluto] launcher showed a window, treating as failure: {}",
                     describe_window(window));
-                utils::nt::terminate_process(pid);
-                return {};
+                kill_process(pid, handle);
+                return {false, 0, elevated, false};
             }
 
-            if (!utils::nt::is_process_alive(pid))
+            if (!is_alive(pid, handle))
             {
                 if (!handoff_deadline)
                 {
@@ -338,7 +375,7 @@ namespace plutonium
                 else if (std::chrono::steady_clock::now() >= *handoff_deadline)
                 {
                     utils::logger::write("[pluto] launcher exited without starting '{}'", pluto_game);
-                    return {};
+                    return {false, 0, elevated, false};
                 }
             }
 
@@ -346,7 +383,7 @@ namespace plutonium
         }
 
         utils::logger::write("[pluto] timed out waiting for '{}'", pluto_game);
-        utils::nt::terminate_process(pid);
-        return {};
+        kill_process(pid, handle);
+        return {false, 0, elevated, false};
     }
 }
