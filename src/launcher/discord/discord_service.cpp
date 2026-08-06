@@ -54,6 +54,46 @@ namespace discord
             return secret.rfind(KNOCK_SECRET, 0) == 0;
         }
 
+        action_result to_action_result(const discordpp::ClientResult& result)
+        {
+            if (result.Successful())
+            {
+                return {action_result::code::sent};
+            }
+
+            action_result out{action_result::code::failed};
+            out.error = result.Error();
+
+            if (result.Status() == discordpp::HttpStatusCode::TooManyRequests)
+            {
+                out.status = action_result::code::rate_limited;
+                out.retry_after = result.RetryAfter();
+            }
+
+            return out;
+        }
+
+        // ErrorCode is Discord's JSON error code and names the bucket a 429 came from; ToString omits it.
+        void log_send_result(const char* what, const uint64_t uid, const discordpp::ClientResult& result)
+        {
+            if (result.Successful())
+            {
+                utils::logger::write("[cbl-invite] {} -> {}: ok", what, uid);
+                return;
+            }
+
+            utils::logger::write("[cbl-invite] {} -> {}: {} (code {})", what, uid, result.ToString(),
+                                 result.ErrorCode());
+        }
+
+        void report(const action_callback& on_result, action_result result)
+        {
+            if (on_result)
+            {
+                on_result(std::move(result));
+            }
+        }
+
         std::string map_status(const discordpp::StatusType status)
         {
             switch (status)
@@ -678,8 +718,7 @@ namespace discord
             this->pending_join_requests[uid] = now;
             this->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
             {
-                utils::logger::write("[cbl-invite] knock-convert ask-to-join -> {}: {}",
-                                     uid, result.Successful() ? "ok" : result.ToString());
+                log_send_result("knock-convert ask-to-join", uid, result);
             });
         }
 
@@ -1506,12 +1545,13 @@ namespace discord
         this->impl_->notify_friends_changed();
     }
 
-    void discord_service::send_invite(const std::string& user_id)
+    void discord_service::send_invite(const std::string& user_id, action_callback on_result)
     {
-        this->impl_->post([i = this->impl_.get(), user_id]()
+        this->impl_->post([i = this->impl_.get(), user_id, on_result = std::move(on_result)]()
         {
             if (!i->client || i->current_status() != link_status::linked)
             {
+                report(on_result, {action_result::code::dropped});
                 return;
             }
 
@@ -1519,22 +1559,24 @@ namespace discord
             if (uid == 0)
             {
                 utils::logger::write("[cbl-invite] send_invite: bad user id '{}'", user_id);
+                report(on_result, {action_result::code::failed});
                 return;
             }
 
             if (i->friend_shares_our_match(user_id))
             {
                 utils::logger::write("[cbl-invite] dropping invite to {} (already in our match)", uid);
+                report(on_result, {action_result::code::dropped});
                 return;
             }
 
-            const auto do_send = [i, uid]
+            const auto do_send = [i, uid, on_result]
             {
                 i->client->SendActivityInvite(uid, "Join my game on CB Servers",
-                                              [uid](const discordpp::ClientResult& result)
+                                              [uid, on_result](const discordpp::ClientResult& result)
                 {
-                    utils::logger::write("[cbl-invite] send_invite -> {}: {}",
-                                         uid, result.Successful() ? "ok" : result.ToString());
+                    log_send_result("send_invite", uid, result);
+                    report(on_result, to_action_result(result));
                 });
             };
 
@@ -1547,20 +1589,23 @@ namespace discord
             else if (i->current_activity && i->current_activity->rich && i->current_activity->openable)
             {
                 i->defer_until_joinable("invite to " + std::to_string(uid), do_send);
+                report(on_result, {action_result::code::deferred});
             }
             else
             {
                 utils::logger::write("[cbl-invite] dropping invite to {} (not joinable, not openable)", uid);
+                report(on_result, {action_result::code::dropped});
             }
         });
     }
 
-    void discord_service::request_join(const std::string& user_id)
+    void discord_service::request_join(const std::string& user_id, action_callback on_result)
     {
-        this->impl_->post([i = this->impl_.get(), user_id]()
+        this->impl_->post([i = this->impl_.get(), user_id, on_result = std::move(on_result)]()
         {
             if (!i->client || i->current_status() != link_status::linked)
             {
+                report(on_result, {action_result::code::dropped});
                 return;
             }
 
@@ -1568,22 +1613,24 @@ namespace discord
             if (uid == 0)
             {
                 utils::logger::write("[cbl-invite] request_join: bad user id '{}'", user_id);
+                report(on_result, {action_result::code::failed});
                 return;
             }
 
             if (i->friend_shares_our_match(user_id))
             {
                 utils::logger::write("[cbl-invite] dropping join request to {} (already in their match)", uid);
+                report(on_result, {action_result::code::dropped});
                 return;
             }
 
             // Remember we asked so the host's approval (an incoming Join invite) prompts as an approval, not an unsolicited invite.
             i->pending_join_requests[uid] = std::chrono::steady_clock::now();
 
-            i->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
+            i->client->SendActivityJoinRequest(uid, [uid, on_result](const discordpp::ClientResult& result)
             {
-                utils::logger::write("[cbl-invite] request_join -> {}: {}",
-                                     uid, result.Successful() ? "ok" : result.ToString());
+                log_send_result("request_join", uid, result);
+                report(on_result, to_action_result(result));
             });
         });
     }

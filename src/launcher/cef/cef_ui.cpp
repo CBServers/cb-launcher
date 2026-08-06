@@ -340,6 +340,28 @@ namespace cef
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_deep_link, this->browser_, url));
     }
 
+    void cef_ui::invoke_dispatch_invite_result(CefRefPtr<CefBrowser> browser, invite_result result)
+    {
+        if (!browser) return;
+        auto frame = browser->GetMainFrame();
+        if (!frame) return;
+
+        const auto js_code = utils::string::va(
+            "if (typeof window.handleInviteResult === 'function') { window.handleInviteResult("
+            "{op:'%s',userId:'%s',status:'%s',retryAfter:%.1f,error:'%s'}); }",
+            escape_js_string(result.op).data(), escape_js_string(result.user_id).data(),
+            escape_js_string(result.status).data(), result.retry_after,
+            escape_js_string(result.error).data());
+
+        frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
+    }
+
+    void cef_ui::dispatch_invite_result(const invite_result& result) const
+    {
+        if (!this->browser_) return;
+        CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_invite_result, this->browser_, result));
+    }
+
     void cef_ui::invoke_bring_to_front(HWND window)
     {
         if (!window) return;

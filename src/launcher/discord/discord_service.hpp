@@ -63,6 +63,25 @@ namespace discord
         bool needs_open{false};  // approving this join-request requires opening our match first
     };
 
+    // Outcome of an outgoing invite / join request, reported on the discord thread.
+    struct action_result
+    {
+        enum class code
+        {
+            sent,
+            deferred,     // queued until the match publishes a join secret
+            rate_limited, // Discord 429; retry_after holds the wait in seconds
+            dropped,      // nothing to send (already together, or the match isn't joinable)
+            failed,
+        };
+
+        code status{code::failed};
+        float retry_after{};
+        std::string error{};
+    };
+
+    using action_callback = std::function<void(action_result)>;
+
     class discord_service
     {
     public:
@@ -110,10 +129,10 @@ namespace discord
         bool is_joinable() const;
         // True when the local game is in exactly the match the secret/party describes (both ids known).
         bool is_same_match(const std::string& game_id, const std::string& match_id) const;
-        void send_invite(const std::string& user_id);
+        void send_invite(const std::string& user_id, action_callback on_result = {});
         // Ask a joinable friend to let us join (hop 1). Approvals arriving within AUTO_ACCEPT_WINDOW
         // of the request connect silently; later ones prompt in the launcher.
-        void request_join(const std::string& user_id);
+        void request_join(const std::string& user_id, action_callback on_result = {});
         std::vector<invite_entry> get_invites() const;
         void accept_invite(const std::string& id); // Join => accept+route; JoinRequest => approve
         void decline_invite(const std::string& id);

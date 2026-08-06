@@ -34,6 +34,33 @@ namespace commands::discord_commands
             return value[key].GetString();
         }
 
+        const char* status_name(const discord::action_result::code status)
+        {
+            switch (status)
+            {
+            case discord::action_result::code::sent:
+                return "sent";
+            case discord::action_result::code::deferred:
+                return "deferred";
+            case discord::action_result::code::rate_limited:
+                return "rate_limited";
+            case discord::action_result::code::dropped:
+                return "dropped";
+            default:
+                return "failed";
+            }
+        }
+
+        // The service reports on its own thread; dispatch_invite_result hops to the CEF UI thread.
+        discord::action_callback ui_reporter(const cef::cef_ui& cef_ui, std::string op, std::string user_id)
+        {
+            return [&cef_ui, op = std::move(op), user_id = std::move(user_id)](discord::action_result result)
+            {
+                cef_ui.dispatch_invite_result({op, user_id, status_name(result.status), result.retry_after,
+                                               result.error});
+            };
+        }
+
         std::optional<discord::invite_entry> find_invite(const std::string& id)
         {
             for (const auto& invite : discord::discord_service::instance().get_invites())
@@ -212,7 +239,8 @@ namespace commands::discord_commands
             response.AddMember("friends", friends_array, allocator);
         });
 
-        cef_ui.add_command("discord-invite-friend", [](const rapidjson::Value& value, rapidjson::Document& response)
+        cef_ui.add_command("discord-invite-friend", [&cef_ui](const rapidjson::Value& value,
+                                                              rapidjson::Document& response)
         {
             response.SetObject();
             auto& allocator = response.GetAllocator();
@@ -223,12 +251,14 @@ namespace commands::discord_commands
             const bool ok = !user_id.empty();
             if (ok)
             {
-                discord::discord_service::instance().send_invite(user_id);
+                discord::discord_service::instance().send_invite(user_id,
+                                                                 ui_reporter(cef_ui, "invite", user_id));
             }
             response.AddMember("sent", ok, allocator);
         });
 
-        cef_ui.add_command("discord-request-join", [](const rapidjson::Value& value, rapidjson::Document& response)
+        cef_ui.add_command("discord-request-join", [&cef_ui](const rapidjson::Value& value,
+                                                             rapidjson::Document& response)
         {
             response.SetObject();
             auto& allocator = response.GetAllocator();
@@ -239,7 +269,8 @@ namespace commands::discord_commands
             const bool ok = !user_id.empty();
             if (ok)
             {
-                discord::discord_service::instance().request_join(user_id);
+                discord::discord_service::instance().request_join(user_id,
+                                                                  ui_reporter(cef_ui, "join", user_id));
             }
             response.AddMember("sent", ok, allocator);
         });

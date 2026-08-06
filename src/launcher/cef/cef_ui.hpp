@@ -8,6 +8,16 @@
 
 namespace cef
 {
+    // Outcome of an outgoing Discord invite / join request, pushed to the UI for localization.
+    struct invite_result
+    {
+        std::string op;      // "invite" | "join"
+        std::string user_id;
+        std::string status;  // "sent" | "deferred" | "rate_limited" | "dropped" | "failed"
+        float retry_after{}; // seconds, "rate_limited" only
+        std::string error;
+    };
+
     class cef_ui
     {
     public:
@@ -25,6 +35,8 @@ namespace cef
         void show_message_box(const std::string& title, const std::string& msg) const;
         void show_toast(const std::string& message, const std::string& type = "info", int duration_ms = 6000) const;
         void dispatch_deep_link(const std::string& url);
+        // Hands the outcome to window.handleInviteResult so the UI can localize it.
+        void dispatch_invite_result(const invite_result& result) const;
         void notify_frontend_ready();
         void bring_to_front() const;
 
@@ -53,6 +65,7 @@ namespace cef
         static void invoke_show_message_box(CefRefPtr<CefBrowser> browser, const std::string& title, const std::string& msg);
         static void invoke_show_toast(CefRefPtr<CefBrowser> browser, const std::string& message, const std::string& type, int duration_ms);
         static void invoke_dispatch_deep_link(CefRefPtr<CefBrowser> browser, std::string url);
+        static void invoke_dispatch_invite_result(CefRefPtr<CefBrowser> browser, invite_result result);
         static void invoke_bring_to_front(HWND window);
     };
 }

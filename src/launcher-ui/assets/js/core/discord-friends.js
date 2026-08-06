@@ -15,8 +15,8 @@
     let lastStatus = 'unknown';
     const shownInvites = new Set(); // invite ids currently being prompted, to avoid re-prompting
 
-    function t(key) {
-        return window.LauncherI18n ? window.LauncherI18n.t(key) : key;
+    function t(key, variables) {
+        return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;
     }
 
     function escapeHtml(value) {
@@ -90,12 +90,46 @@
         }, FAST_POLL_INTERVAL_MS);
     }
 
+    // Discord's reply lands well after the command returns, so the outcome is pushed back
+    // separately; toasting on the command alone would report success for a dropped request.
+    const pendingOps = new Map(); // userId -> 'invite' | 'join'
+
+    window.handleInviteResult = function (result) {
+        if (!result || !window.showToast) return;
+
+        const isKnock = pendingOps.get(result.userId) === 'knock';
+
+        // 'deferred' is provisional (the real outcome follows once the match opens), and 'dropped'
+        // is routine — already in the match, not joinable. Neither is worth interrupting the user for.
+        if (result.status === 'deferred') return;
+        pendingOps.delete(result.userId);
+
+        switch (result.status) {
+            case 'sent':
+                window.showToast(t(result.op === 'invite'
+                    ? 'toasts.inviteSent'
+                    : (isKnock ? 'toasts.joinRequestSent' : 'toasts.joining')), 'success');
+                break;
+            case 'rate_limited':
+                window.showToast(t('toasts.inviteRateLimited',
+                    { seconds: Math.max(1, Math.ceil(result.retryAfter || 0)) }), 'error');
+                break;
+            case 'dropped':
+                console.info('Discord invite/join dropped (nothing to send):', result);
+                break;
+            default:
+                window.showToast(t('toasts.inviteFailed') + (result.error ? ` (${result.error})` : ''), 'error');
+                break;
+        }
+    };
+
     async function sendInvite(userId) {
         if (!userId) return;
         try {
+            pendingOps.set(userId, 'invite');
             await window.executeCommand('discord-invite-friend', { userId });
-            if (window.showToast) window.showToast(t('toasts.inviteSent'), 'success');
         } catch (error) {
+            pendingOps.delete(userId);
             console.warn('Failed to send invite:', error);
         }
     }
@@ -115,9 +149,10 @@
                     [t('friends.join'), { label: t('common.cancel'), danger: true }]);
                 if (idx !== 0) return;
             }
+            pendingOps.set(userId, isKnock ? 'knock' : 'join');
             await window.executeCommand('discord-request-join', { userId });
-            if (window.showToast) window.showToast(t(isKnock ? 'toasts.joinRequestSent' : 'toasts.joining'), 'success');
         } catch (error) {
+            pendingOps.delete(userId);
             console.warn('Failed to request join:', error);
         }
     }
