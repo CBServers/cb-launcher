@@ -5,6 +5,7 @@
 #include "discord/avatar_cache.hpp"
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
+#include "redist/redist_worker.hpp"
 #include "updater/updater.hpp"
 #include "uri_scheme.hpp"
 
@@ -260,6 +261,12 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         {
             run_watchdog();
             return run_subprocess(lib, path);
+        }
+
+        // Elevated redist install worker: no singleton, no updater, no CEF.
+        if (const auto redist_ids = utils::flags::get_flag_value("redist-worker"))
+        {
+            return redist::run_worker(*redist_ids);
         }
 
         enable_dpi_awareness();

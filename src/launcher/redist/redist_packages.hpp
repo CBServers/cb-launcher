@@ -10,6 +10,7 @@ namespace redist
         registry_dword,
         registry_key_exists,
         file_exists,
+        directory_prefix_exists,
     };
 
     struct detect_rule
@@ -19,6 +20,9 @@ namespace redist
         std::wstring value_name;
         unsigned long expected = 1;
     };
+
+    // An alternative passes when all of its rules pass; paths within a rule are OR'd.
+    using detect_alternative = std::vector<detect_rule>;
 
     struct package_def
     {
@@ -30,7 +34,8 @@ namespace redist
         std::string filename;
         std::string install_args;
         bool is_directx = false;
-        std::vector<detect_rule> detect;
+        // Installed when any alternative passes (registry fast path first, then files on disk).
+        std::vector<detect_alternative> detect;
     };
 
     const std::vector<package_def>& all_packages();

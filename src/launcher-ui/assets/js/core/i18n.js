@@ -187,13 +187,14 @@
                 reinstallAll: 'Reinstall All',
                 redistStatusInstalled: 'Installed',
                 redistStatusPending: 'Pending',
+                redistStatusMissing: 'Missing',
                 redistStatusDownloading: 'Downloading',
                 redistStatusInstalling: 'Installing',
                 redistStatusFailed: 'Failed',
                 popup: {
                     title: 'Manage Redistributables',
                     reinstallAllTitle: 'Reinstall all redistributables?',
-                    reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. You must click <strong>Yes</strong> on every Windows User Account Control (UAC) prompt that appears. There is one for each package. Continue?'
+                    reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. Windows will show a single administrator permission (UAC) prompt. Continue?'
                 },
                 noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
@@ -202,6 +203,8 @@
                 missingRedistTitle: 'Required components missing',
                 missingRedistBody: '{{gameName}} needs the following components installed:',
                 installAndLaunch: 'Install and launch',
+                launchAnyway: 'Launch anyway',
+                dontCheckRedistAgain: 'Don\'t check for missing redistributables again',
                 installingComponents: 'Installing required components…',
                 installingNamed: 'Installing {{name}}…',
                 redistInstallFailed: 'Failed to install required components. Open the Support page and try the Manage redistributables option.'
@@ -229,6 +232,8 @@
                 closeLauncherAfterLaunchBody: 'When enabled, the launcher will automatically close after launching a game.',
                 skipClientUpdate: 'Skip client update on launch',
                 skipClientUpdateBody: 'When enabled, client updates will be skipped on launch. Useful when troubleshooting, but you may run an outdated client.',
+                skipRedistCheck: 'Skip redistributable check on launch',
+                skipRedistCheckBody: 'When enabled, the launcher will not check for missing redistributables before launching a game. Games may fail to start if required components are missing.',
                 player: 'Player',
                 globalPlayerName: 'Global in-game name',
                 globalPlayerNameBody: 'Used as your in-game name in any game that supports custom names. Can be overridden per-game.',
@@ -703,13 +708,14 @@
                 reinstallAll: 'Tout reinstaller',
                 redistStatusInstalled: 'Installe',
                 redistStatusPending: 'En attente',
+                redistStatusMissing: 'Manquant',
                 redistStatusDownloading: 'Telechargement',
                 redistStatusInstalling: 'Installation',
                 redistStatusFailed: 'Echec',
                 popup: {
                     title: 'Gerer les redistribuables',
                     reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
-                    reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Vous devez cliquer sur <strong>Oui</strong> a chaque invite de controle de compte utilisateur (UAC) qui apparait. Il y en a une pour chaque paquet. Continuer ?'
+                    reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Windows affichera une seule invite d\'autorisation administrateur (UAC). Continuer ?'
                 },
                 noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
@@ -718,6 +724,8 @@
                 missingRedistTitle: 'Composants requis manquants',
                 missingRedistBody: '{{gameName}} a besoin des composants suivants :',
                 installAndLaunch: 'Installer et lancer',
+                launchAnyway: 'Lancer quand meme',
+                dontCheckRedistAgain: 'Ne plus verifier les redistribuables manquants',
                 installingComponents: 'Installation des composants requis…',
                 installingNamed: 'Installation de {{name}}…',
                 redistInstallFailed: 'Echec de l’installation des composants requis. Ouvrez la page Support et utilisez Gerer les redistribuables.'
@@ -745,6 +753,8 @@
                 closeLauncherAfterLaunchBody: "Lorsqu'active, le launcher se fermera automatiquement apres le lancement d'un jeu.",
                 skipClientUpdate: 'Ignorer la mise a jour du client au lancement',
                 skipClientUpdateBody: "Lorsqu'active, les mises a jour du client seront ignorees au lancement. Utile pour le depannage, mais le client peut etre obsolete.",
+                skipRedistCheck: 'Ignorer la verification des redistribuables au lancement',
+                skipRedistCheckBody: "Lorsqu'active, le launcher ne verifiera pas les redistribuables manquants avant de lancer un jeu. Les jeux peuvent ne pas demarrer si des composants requis sont manquants.",
                 player: 'Joueur',
                 globalPlayerName: 'Nom de joueur global',
                 globalPlayerNameBody: 'Utilise comme votre nom dans tout jeu qui prend en charge les noms personnalises. Peut etre remplace par jeu.',
@@ -1219,13 +1229,14 @@
                 reinstallAll: 'Reinstalar todo',
                 redistStatusInstalled: 'Instalado',
                 redistStatusPending: 'Pendiente',
+                redistStatusMissing: 'Faltante',
                 redistStatusDownloading: 'Descargando',
                 redistStatusInstalling: 'Instalando',
                 redistStatusFailed: 'Fallo',
                 popup: {
                     title: 'Administrar redistribuibles',
                     reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
-                    reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Debes hacer clic en <strong>Si</strong> en cada ventana de Control de cuentas de usuario (UAC) que aparezca. Hay una por cada paquete. ¿Continuar?'
+                    reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Windows mostrara una sola ventana de permiso de administrador (UAC). ¿Continuar?'
                 },
                 noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
@@ -1234,6 +1245,8 @@
                 missingRedistTitle: 'Faltan componentes requeridos',
                 missingRedistBody: '{{gameName}} necesita instalar los siguientes componentes:',
                 installAndLaunch: 'Instalar y ejecutar',
+                launchAnyway: 'Ejecutar de todos modos',
+                dontCheckRedistAgain: 'No volver a comprobar los redistribuibles faltantes',
                 installingComponents: 'Instalando componentes requeridos…',
                 installingNamed: 'Instalando {{name}}…',
                 redistInstallFailed: 'Fallo al instalar los componentes requeridos. Abre la pagina de Soporte y usa Administrar redistribuibles.'
@@ -1261,6 +1274,8 @@
                 closeLauncherAfterLaunchBody: 'Cuando esta activado, el launcher se cerrara automaticamente despues de iniciar un juego.',
                 skipClientUpdate: 'Omitir actualizacion del cliente al iniciar',
                 skipClientUpdateBody: 'Cuando esta activado, las actualizaciones del cliente se omitiran al iniciar. Util para solucionar problemas, pero podrias estar usando un cliente desactualizado.',
+                skipRedistCheck: 'Omitir comprobacion de redistribuibles al iniciar',
+                skipRedistCheckBody: 'Cuando esta activado, el launcher no comprobara los redistribuibles faltantes antes de iniciar un juego. Los juegos pueden no iniciarse si faltan componentes requeridos.',
                 player: 'Jugador',
                 globalPlayerName: 'Nombre global en el juego',
                 globalPlayerNameBody: 'Se usa como tu nombre dentro de cualquier juego que admita nombres personalizados. Se puede sobrescribir por juego.',

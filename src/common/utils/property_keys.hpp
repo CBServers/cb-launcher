@@ -6,6 +6,7 @@ namespace property_keys
     constexpr const char* CLOSE_ON_LAUNCH = "launcher-close-on-launch";
     constexpr const char* SKIP_HASH_VERIFICATION = "launcher-skip-hash-verification";
     constexpr const char* SKIP_CLIENT_UPDATE = "launcher-skip-client-update";
+    constexpr const char* SKIP_REDIST_CHECK = "launcher-skip-redist-check";
     constexpr const char* SHORTCUT_CREATED = "launcher-shortcut-created";
     constexpr const char* START_MENU_SHORTCUT_CREATED = "launcher-start-menu-shortcut-created";
     constexpr const char* DESKTOP_NOTIFICATIONS = "launcher-desktop-notifications";

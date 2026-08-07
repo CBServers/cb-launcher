@@ -1924,6 +1924,22 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Skip Redistributable Check" setting
+        const skipRedistCheck = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK);
+        const skipRedistCheckToggle = document.getElementById('skip-redist-check-toggle');
+
+        if (skipRedistCheckToggle) {
+            const buttons = skipRedistCheckToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Default to "false" if not set
+            const targetValue = (skipRedistCheck === 'true') ? 'true' : 'false';
+            const targetButton = skipRedistCheckToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
         // Load "Desktop Notifications" setting
         const desktopNotifications = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS);
         const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
@@ -2320,6 +2336,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: clickedValue
                         });
                         console.log(`Skip client update set to: ${clickedValue}`);
+                    } else if (settingId === 'skip-redist-check-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: clickedValue
+                        });
+                        console.log(`Skip redist check set to: ${clickedValue}`);
                     } else if (settingId === 'desktop-notifications-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS]: clickedValue
@@ -2358,6 +2379,7 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.SKIP_HASH_VERIFICATION]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.LANGUAGE]: 'en',
                     [PROPERTY_KEYS.LAUNCHER.THEME]: 'dark',
                     [PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME]: '',

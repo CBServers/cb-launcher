@@ -6,6 +6,7 @@ const PROPERTY_KEYS = {
         SKIP_HASH_VERIFICATION: 'launcher-skip-hash-verification',
         CLOSE_ON_LAUNCH: 'launcher-close-on-launch',
         SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
+        SKIP_REDIST_CHECK: 'launcher-skip-redist-check',
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name',
@@ -973,24 +974,41 @@ class GameUtils {
             throw new Error('Installation path not configured');
         }
 
-        let missingResp = null;
-        try { missingResp = await window.executeCommand('get-missing-redists-for-game', { game: backendGame }); }
-        catch (e) { console.error('get-missing-redists-for-game failed', e); }
+        let skipRedistCheck = false;
+        try {
+            skipRedistCheck = (await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK)) === 'true';
+        } catch (e) { /* treat as false */ }
 
-        const missing = (missingResp && missingResp.missing) || [];
-        if (missing.length > 0) {
-            const proceed = window.LaunchRedistModal
-                ? await window.LaunchRedistModal.show(missing, gameConfig.displayName)
-                : false;
-            if (!proceed) return;
+        if (!skipRedistCheck) {
+            let missingResp = null;
+            try { missingResp = await window.executeCommand('get-missing-redists-for-game', { game: backendGame }); }
+            catch (e) { console.error('get-missing-redists-for-game failed', e); }
 
-            const ok = await GameUtils.installRedistsWithProgressBar(missing, uiGameId);
-            if (!ok) {
-                const i18n = window.LauncherI18n;
-                if (typeof window.showToast === 'function') {
-                    window.showToast(i18n ? i18n.t('installer.redistInstallFailed') : 'Failed to install required components.', 'error', 6000);
+            const missing = (missingResp && missingResp.missing) || [];
+            if (missing.length > 0) {
+                const result = window.LaunchRedistModal
+                    ? await window.LaunchRedistModal.show(missing, gameConfig.displayName)
+                    : { action: 'cancel' };
+                if (!result || result.action === 'cancel') return;
+
+                if (result.action === 'skip') {
+                    if (result.dontAskAgain) {
+                        try {
+                            await window.executeCommand('set-property', {
+                                [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'true'
+                            });
+                        } catch (e) { console.error('set-property skip-redist-check failed', e); }
+                    }
+                } else {
+                    const ok = await GameUtils.installRedistsWithProgressBar(missing, uiGameId);
+                    if (!ok) {
+                        const i18n = window.LauncherI18n;
+                        if (typeof window.showToast === 'function') {
+                            window.showToast(i18n ? i18n.t('installer.redistInstallFailed') : 'Failed to install required components.', 'error', 6000);
+                        }
+                        return;
+                    }
                 }
-                return;
             }
         }
 

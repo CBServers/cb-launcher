@@ -1,9 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <filesystem>
 #include <mutex>
 #include <string>
-#include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace redist
@@ -59,16 +60,15 @@ namespace redist
         redist_installer() = default;
 
         void worker_main(const std::vector<std::string>& target_ids);
-        void install_one(package_state& ps, const struct package_def& def);
         bool download_to(const std::string& url, const std::filesystem::path& dest, package_state& ps);
-        bool run_installer(const std::filesystem::path& exe, const std::string& args, package_state& ps);
-        bool install_directx(const std::filesystem::path& downloaded_exe, package_state& ps);
-        bool is_installed(const package_def& def) const;
+        void run_elevated_phase(const std::vector<size_t>& indices);
+        void apply_worker_line(const std::string& line, const std::unordered_set<std::string>& batch_ids);
+        void fail_unfinished(const std::vector<size_t>& indices, const std::string& msg);
+        bool is_installed(const struct package_def& def) const;
         bool fail(package_state& ps, std::string msg);
 
         mutable std::mutex mutex_;
         redist_state state_;
-        std::thread worker_;
         std::atomic<bool> worker_running_{ false };
     };
 }

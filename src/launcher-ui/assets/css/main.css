@@ -3893,11 +3893,12 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .redist-badge.installed,
 .redist-badge.completed { background: rgba(74, 222, 128, 0.15); color: #4ade80; border-color: rgba(74, 222, 128, 0.4); }
+.redist-badge.pending { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
 .redist-badge.downloading,
 .redist-badge.installing { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.4); }
 .redist-badge.failed { background: rgba(248, 113, 113, 0.15); color: #f87171; border-color: rgba(248, 113, 113, 0.4); }
 
-.redist-row-install {
+.redist-group-install {
     position: relative;
     flex-shrink: 0;
     padding: 5px 12px;
@@ -3913,23 +3914,23 @@ html[data-theme="dark"] .secondary-action:hover {
     transition: all 0.18s var(--ease);
 }
 
-.redist-row-install:hover:not(:disabled) {
+.redist-group-install:hover:not(:disabled) {
     background: var(--accent);
     border-color: var(--accent);
 }
 
-.redist-row-install:disabled {
+.redist-group-install:disabled {
     opacity: 0.45;
     cursor: default;
 }
 
-.redist-row-install.reinstall {
+.redist-group-install.reinstall {
     background: transparent;
     color: var(--text-muted);
     border-color: var(--border);
 }
 
-.redist-row-install.reinstall:hover:not(:disabled) {
+.redist-group-install.reinstall:hover:not(:disabled) {
     background: var(--surface-hi);
     border-color: var(--border-hi);
     color: #fff;
@@ -4298,6 +4299,21 @@ html[data-theme="dark"] .secondary-action:hover {
     color: #fff;
     font-size: 13px;
     font-weight: 500;
+}
+
+.launch-redist-skip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.launch-redist-skip-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
 }
 
 .launch-redist-popup .popup-actions {

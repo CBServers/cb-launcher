@@ -114,7 +114,10 @@ namespace utils::nt
     void launch_process(const std::filesystem::path& process, const std::string& command_line);
     unsigned long launch_process(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory);
     // `out_handle` takes ownership of the elevation broker's process handle, which carries rights a medium-IL OpenProcess can't obtain.
-    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle = nullptr);
+    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle = nullptr, int show = SW_SHOWNORMAL);
+    // Relaunches our own exe elevated with a hidden window. Returns the owned process handle,
+    // or nullptr on failure (GetLastError() == ERROR_CANCELLED means the user declined UAC).
+    HANDLE relaunch_self_elevated(const std::string& command_line);
     // CreateProcess first, retrying through a UAC prompt on ERROR_ELEVATION_REQUIRED (740).
     // `elevated` reports whether the prompt path was taken (set even when it then fails, so ERROR_CANCELLED is attributable).
     unsigned long launch_process_maybe_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, bool* elevated = nullptr, HANDLE* out_handle = nullptr);

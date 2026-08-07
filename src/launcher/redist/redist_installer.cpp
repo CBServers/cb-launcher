@@ -2,14 +2,18 @@
 
 #include "redist_installer.hpp"
 #include "redist_packages.hpp"
+#include "redist_worker.hpp"
+
+#include "pipe_listener.hpp"
 
 #include <utils/http.hpp>
 #include <utils/io.hpp>
-#include <utils/properties.hpp>
+#include <utils/nt.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <thread>
 
 namespace redist
 {
@@ -52,47 +56,66 @@ namespace redist
             return true;
         }
 
-        std::filesystem::path cache_dir()
+        bool directory_prefix_exists(const std::wstring& prefix)
         {
-            auto p = utils::properties::get_appdata_path() / "redist-cache";
-            std::error_code ec;
-            std::filesystem::create_directories(p, ec);
-            return p;
-        }
+            // Wildcard search so NTFS filters; WinSxS is far too large to iterate.
+            WIN32_FIND_DATAW data{};
+            const auto handle = FindFirstFileExW((prefix + L"*").data(), FindExInfoBasic, &data,
+                FindExSearchLimitToDirectories, nullptr, 0);
+            if (handle == INVALID_HANDLE_VALUE) return false;
 
-        bool shell_execute_wait(const std::wstring& verb, const std::wstring& file, const std::wstring& params,
-            const std::wstring& working_dir, DWORD& exit_code)
-        {
-            SHELLEXECUTEINFOW info{};
-            info.cbSize = sizeof(info);
-            info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
-            info.lpVerb = verb.data();
-            info.lpFile = file.data();
-            info.lpParameters = params.empty() ? nullptr : params.data();
-            info.lpDirectory = working_dir.empty() ? nullptr : working_dir.data();
-            info.nShow = SW_HIDE;
-
-            if (!ShellExecuteExW(&info) || !info.hProcess)
+            auto found = false;
+            do
             {
-                exit_code = GetLastError();
-                return false;
-            }
+                if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    found = true;
+                    break;
+                }
+            } while (FindNextFileW(handle, &data));
 
-            WaitForSingleObject(info.hProcess, INFINITE);
-            DWORD ec = 0;
-            GetExitCodeProcess(info.hProcess, &ec);
-            CloseHandle(info.hProcess);
-            exit_code = ec;
-            return true;
+            FindClose(handle);
+            return found;
         }
 
-        std::wstring widen(const std::string& s)
+        bool rule_satisfied(const detect_rule& rule)
         {
-            if (s.empty()) return {};
-            const auto n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
-            std::wstring w(n, L'\0');
-            MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), n);
-            return w;
+            for (const auto& path : rule.paths)
+            {
+                switch (rule.kind)
+                {
+                case detect_kind::registry_dword:
+                    if (registry_dword_equals(path, rule.value_name, rule.expected)) return true;
+                    break;
+                case detect_kind::registry_key_exists:
+                    if (registry_key_exists(path)) return true;
+                    break;
+                case detect_kind::file_exists:
+                    if (utils::io::file_exists(expand_env(path))) return true;
+                    break;
+                case detect_kind::directory_prefix_exists:
+                    if (directory_prefix_exists(expand_env(path))) return true;
+                    break;
+                }
+            }
+            return false;
+        }
+
+        std::string json_string(const rapidjson::Value& value, const char* key)
+        {
+            if (value.HasMember(key) && value[key].IsString())
+            {
+                return value[key].GetString();
+            }
+            return {};
+        }
+
+        std::string friendly_worker_error(const std::string& error)
+        {
+            if (error == "cache-missing") return "Installer file missing from cache";
+            if (error == "signature") return "Installer failed signature verification";
+            if (error == "not-elevated") return "The installer did not receive administrator rights";
+            return error;
         }
     }
 
@@ -111,30 +134,15 @@ namespace redist
 
     bool redist_installer::is_installed(const package_def& def) const
     {
-        for (const auto& rule : def.detect)
+        for (const auto& alternative : def.detect)
         {
-            bool any = false;
-            for (const auto& path : rule.paths)
+            if (!alternative.empty() &&
+                std::all_of(alternative.begin(), alternative.end(), rule_satisfied))
             {
-                switch (rule.kind)
-                {
-                case detect_kind::registry_dword:
-                    if (registry_dword_equals(path, rule.value_name, rule.expected)) any = true;
-                    break;
-                case detect_kind::registry_key_exists:
-                    if (registry_key_exists(path)) any = true;
-                    break;
-                case detect_kind::file_exists:
-                {
-                    if (utils::io::file_exists(expand_env(path))) any = true;
-                    break;
-                }
-                }
-                if (any) break;
+                return true;
             }
-            if (!any) return false;
         }
-        return true;
+        return false;
     }
 
     void redist_installer::refresh_detection()
@@ -183,10 +191,8 @@ namespace redist
 
     bool redist_installer::start_install(const std::vector<std::string>& target_ids)
     {
-        {
-            std::lock_guard lock(this->mutex_);
-            if (this->state_.running) return false;
-        }
+        auto expected = false;
+        if (!this->worker_running_.compare_exchange_strong(expected, true)) return false;
 
         this->refresh_detection();
 
@@ -197,9 +203,11 @@ namespace redist
             this->state_.overall_message = "Starting installation...";
         }
 
-        if (this->worker_.joinable()) this->worker_.detach();
-        this->worker_ = std::thread([this, target_ids] { this->worker_main(target_ids); });
-        this->worker_.detach();
+        std::thread([this, ids = target_ids]
+        {
+            this->worker_main(ids);
+            this->worker_running_ = false;
+        }).detach();
         return true;
     }
 
@@ -224,27 +232,54 @@ namespace redist
             }
         }
 
-        size_t done = 0, failed = 0;
+        std::vector<size_t> downloaded;
         for (auto i : work_indices)
         {
             const auto& def = defs[i];
 
             {
                 std::lock_guard lock(this->mutex_);
-                this->state_.overall_message = "Installing " + this->state_.packages[i].name + "...";
+                this->state_.packages[i].status = package_status::downloading;
+                this->state_.packages[i].progress_percent = 0;
+                this->state_.overall_message = "Downloading " + this->state_.packages[i].name + "...";
             }
 
-            this->install_one(this->state_.packages[i], def);
-
+            if (this->download_to(def.url, cache_dir() / def.filename, this->state_.packages[i]))
+            {
+                downloaded.push_back(i);
+            }
+            else
             {
                 std::lock_guard lock(this->mutex_);
-                if (this->state_.packages[i].status == package_status::completed) ++done;
-                else if (this->state_.packages[i].status == package_status::failed) ++failed;
+                this->state_.packages[i].status = package_status::failed;
+                if (this->state_.packages[i].error.empty()) this->state_.packages[i].error = "Download failed";
             }
+        }
+
+        if (!downloaded.empty())
+        {
+            {
+                std::lock_guard lock(this->mutex_);
+                for (auto i : downloaded)
+                {
+                    this->state_.packages[i].status = package_status::installing;
+                    this->state_.packages[i].progress_percent = 100;
+                }
+                this->state_.overall_message = "Waiting for administrator approval...";
+            }
+
+            this->run_elevated_phase(downloaded);
         }
 
         {
             std::lock_guard lock(this->mutex_);
+            size_t done = 0, failed = 0;
+            for (auto i : work_indices)
+            {
+                if (this->state_.packages[i].status == package_status::completed) ++done;
+                else if (this->state_.packages[i].status == package_status::failed) ++failed;
+            }
+
             this->state_.running = false;
             this->state_.finished = true;
             if (work_indices.empty())
@@ -260,39 +295,6 @@ namespace redist
                 this->state_.overall_message = std::to_string(done) + " installed, " + std::to_string(failed) + " failed.";
             }
         }
-    }
-
-    void redist_installer::install_one(package_state& ps, const package_def& def)
-    {
-        {
-            std::lock_guard lock(this->mutex_);
-            ps.status = package_status::downloading;
-            ps.progress_percent = 0;
-        }
-
-        const auto dest = cache_dir() / def.filename;
-
-        if (!this->download_to(def.url, dest, ps))
-        {
-            std::lock_guard lock(this->mutex_);
-            ps.status = package_status::failed;
-            if (ps.error.empty()) ps.error = "Download failed";
-            return;
-        }
-
-
-        {
-            std::lock_guard lock(this->mutex_);
-            ps.status = package_status::installing;
-            ps.progress_percent = 100;
-        }
-
-        const auto success = def.is_directx
-            ? this->install_directx(dest, ps)
-            : this->run_installer(dest, def.install_args, ps);
-
-        std::lock_guard lock(this->mutex_);
-        ps.status = success ? package_status::completed : package_status::failed;
     }
 
     bool redist_installer::download_to(const std::string& url, const std::filesystem::path& dest, package_state& ps)
@@ -327,48 +329,173 @@ namespace redist
         return true;
     }
 
-    bool redist_installer::run_installer(const std::filesystem::path& exe, const std::string& args, package_state& ps)
+    void redist_installer::run_elevated_phase(const std::vector<size_t>& indices)
     {
-        DWORD exit_code = 0;
-        if (!shell_execute_wait(L"runas", exe.wstring(), widen(args), exe.parent_path().wstring(), exit_code))
+        const auto& defs = all_packages();
+
+        std::string joined;
+        std::unordered_set<std::string> batch_ids;
         {
-            return this->fail(ps, "Launch failed (" + std::to_string(exit_code) + ")");
+            std::lock_guard lock(this->mutex_);
+            for (auto i : indices)
+            {
+                if (!joined.empty()) joined += ',';
+                joined += this->state_.packages[i].id;
+                batch_ids.insert(this->state_.packages[i].id);
+            }
         }
 
-        // 3010 = reboot required (runtime is installed); 1638 = newer version already present.
-        if (exit_code == 0 || exit_code == 3010 || exit_code == 1638) return true;
+        pipe::listener listener;
+        pipe::listener::options opts{};
+        opts.name = REDIST_PIPE_NAME;
+        opts.access = PIPE_ACCESS_INBOUND;
+        opts.in_buffer = 8192;
+        // On create failure we fall back to exit-code-only mode; results re-detect on worker exit.
 
-        return this->fail(ps, "Installer exit " + std::to_string(exit_code));
+        listener.start(std::move(opts), [this, &listener, &batch_ids](void* pipe)
+        {
+            DWORD pid = 0;
+            if (!GetNamedPipeClientProcessId(pipe, &pid)) return;
+
+            // Only our own exe may report status.
+            const auto client = utils::nt::get_process_path(pid).wstring();
+            const auto self = utils::nt::library{}.get_path().wstring();
+            if (client.empty() || _wcsicmp(client.data(), self.data()) != 0) return;
+
+            std::string buffer;
+            char chunk[4096];
+            DWORD read = 0;
+            while (listener.read(pipe, chunk, sizeof(chunk), read) && read > 0)
+            {
+                buffer.append(chunk, read);
+                size_t newline;
+                while ((newline = buffer.find('\n')) != std::string::npos)
+                {
+                    auto line = buffer.substr(0, newline);
+                    buffer.erase(0, newline + 1);
+                    if (!line.empty() && line.back() == '\r') line.pop_back();
+                    if (!line.empty()) this->apply_worker_line(line, batch_ids);
+                }
+            }
+        });
+
+        const auto handle = utils::nt::relaunch_self_elevated("-redist-worker " + joined);
+        if (!handle)
+        {
+            const auto declined = GetLastError() == ERROR_CANCELLED;
+            this->fail_unfinished(indices, declined
+                ? "Administrator permission is required to install redistributables"
+                : "Could not start the elevated installer");
+            listener.stop();
+            return;
+        }
+
+        // Liveness is the health signal; installers can legitimately run for minutes.
+        constexpr DWORD max_wait_ms = 30 * 60 * 1000;
+        DWORD waited = 0;
+        while (WaitForSingleObject(handle, 1000) == WAIT_TIMEOUT)
+        {
+            waited += 1000;
+            if (waited >= max_wait_ms)
+            {
+                utils::nt::terminate_process_handle(handle);
+                this->fail_unfinished(indices, "Installation timed out");
+                break;
+            }
+        }
+
+        DWORD exit_code = 1;
+        GetExitCodeProcess(handle, &exit_code);
+        CloseHandle(handle);
+        listener.stop();
+
+        // Packages without a terminal pipe line: trust re-detection on clean exit, else fail.
+        if (exit_code == 0)
+        {
+            std::lock_guard lock(this->mutex_);
+            for (auto i : indices)
+            {
+                auto& ps = this->state_.packages[i];
+                if (ps.status != package_status::installing) continue;
+                if (this->is_installed(defs[i]))
+                {
+                    ps.status = package_status::completed;
+                }
+                else
+                {
+                    ps.status = package_status::failed;
+                    ps.error = "Installation did not complete";
+                }
+            }
+        }
+        else
+        {
+            this->fail_unfinished(indices, "Installer process ended unexpectedly (exit " + std::to_string(exit_code) + ")");
+        }
     }
 
-    bool redist_installer::install_directx(const std::filesystem::path& downloaded_exe, package_state& ps)
+    void redist_installer::apply_worker_line(const std::string& line, const std::unordered_set<std::string>& batch_ids)
     {
-        const auto extract_dir = cache_dir() / "dx_extract";
-        std::error_code ec;
-        std::filesystem::remove_all(extract_dir, ec);
-        std::filesystem::create_directories(extract_dir, ec);
+        rapidjson::Document doc;
+        doc.Parse(line.data(), line.size());
+        if (doc.HasParseError() || !doc.IsObject()) return;
 
-        DWORD exit_code = 0;
-        const auto extract_args = L"/Q /T:\"" + extract_dir.wstring() + L"\"";
-        if (!shell_execute_wait(L"open", downloaded_exe.wstring(), extract_args,
-            downloaded_exe.parent_path().wstring(), exit_code) || exit_code != 0)
+        const auto type = json_string(doc, "type");
+
+        if (type == "package")
         {
-            return this->fail(ps, "Extract failed (" + std::to_string(exit_code) + ")");
-        }
+            const auto id = json_string(doc, "id");
+            if (!batch_ids.contains(id)) return;
 
-        const auto dxsetup = extract_dir / "DXSETUP.exe";
-        if (!utils::io::file_exists(dxsetup))
+            const auto status = json_string(doc, "status");
+            std::lock_guard lock(this->mutex_);
+            for (auto& ps : this->state_.packages)
+            {
+                if (ps.id != id) continue;
+
+                if (status == "installing")
+                {
+                    ps.status = package_status::installing;
+                    this->state_.overall_message = "Installing " + ps.name + "...";
+                }
+                else if (status == "completed")
+                {
+                    ps.status = package_status::completed;
+                }
+                else if (status == "failed")
+                {
+                    ps.status = package_status::failed;
+                    ps.error = friendly_worker_error(json_string(doc, "error"));
+                }
+                break;
+            }
+        }
+        else if (type == "fatal")
         {
-            return this->fail(ps, "DXSETUP.exe missing after extract");
+            const auto error = friendly_worker_error(json_string(doc, "error"));
+            std::lock_guard lock(this->mutex_);
+            for (auto& ps : this->state_.packages)
+            {
+                if (!batch_ids.contains(ps.id)) continue;
+                if (ps.status == package_status::installing)
+                {
+                    ps.status = package_status::failed;
+                    ps.error = error;
+                }
+            }
         }
+    }
 
-        if (!shell_execute_wait(L"runas", dxsetup.wstring(), L"/silent", extract_dir.wstring(), exit_code))
+    void redist_installer::fail_unfinished(const std::vector<size_t>& indices, const std::string& msg)
+    {
+        std::lock_guard lock(this->mutex_);
+        for (auto i : indices)
         {
-            return this->fail(ps, "DXSETUP launch failed (" + std::to_string(exit_code) + ")");
+            auto& ps = this->state_.packages[i];
+            if (ps.status != package_status::installing) continue;
+            ps.status = package_status::failed;
+            ps.error = msg;
         }
-
-        if (exit_code == 0) return true;
-        return this->fail(ps, "DXSETUP exit " + std::to_string(exit_code));
     }
 
     redist_state redist_installer::get_state() const

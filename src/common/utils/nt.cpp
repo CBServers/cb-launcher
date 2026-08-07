@@ -323,7 +323,7 @@ namespace utils::nt
         return pid;
     }
 
-    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle)
+    unsigned long launch_process_elevated(const std::filesystem::path& process, const std::string& command_line, const std::filesystem::path& working_directory, HANDLE* out_handle, const int show)
     {
         if (out_handle)
         {
@@ -341,7 +341,7 @@ namespace utils::nt
         info.lpFile = file.data();
         info.lpParameters = params.empty() ? nullptr : params.data();
         info.lpDirectory = dir.empty() ? nullptr : dir.data();
-        info.nShow = SW_SHOWNORMAL;
+        info.nShow = show;
 
         if (!ShellExecuteExW(&info) || !info.hProcess)
         {
@@ -631,6 +631,14 @@ namespace utils::nt
     {
         const utils::nt::library self;
         launch_process(self.get_path(), command_line);
+    }
+
+    HANDLE relaunch_self_elevated(const std::string& command_line)
+    {
+        const library self;
+        HANDLE handle{};
+        launch_process_elevated(self.get_path(), command_line, self.get_path().parent_path(), &handle, SW_HIDE);
+        return handle;
     }
 
     void update_dll_search_path(const std::filesystem::path& directory)

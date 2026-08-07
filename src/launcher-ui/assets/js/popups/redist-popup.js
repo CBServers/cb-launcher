@@ -43,8 +43,8 @@ class RedistPopupController {
         this.popup.querySelector('.redist-popup-close-btn').addEventListener('click', () => this.hide());
         this.popup.querySelector('.redist-popup-install-all').addEventListener('click', () => this.installAllClick());
         this.popup.querySelector('.redist-popup-list').addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-install-id]');
-            if (btn) this.install([btn.dataset.installId]);
+            const btn = e.target.closest('[data-install-group]');
+            if (btn) this.installGroup(btn.dataset.installGroup);
         });
     }
 
@@ -52,7 +52,7 @@ class RedistPopupController {
         switch (status) {
             case 'installed':
             case 'completed': return this.t('support.redistStatusInstalled');
-            case 'pending': return this.t('support.redistStatusPending');
+            case 'pending': return this.t('support.redistStatusMissing');
             case 'downloading': return this.t('support.redistStatusDownloading') + ' ' + (progress || 0) + '%';
             case 'installing': return this.t('support.redistStatusInstalling');
             case 'failed': return this.t('support.redistStatusFailed');
@@ -81,17 +81,10 @@ class RedistPopupController {
         return groups;
     }
 
-    renderArch(p, running) {
-        const busy = running;
-        const installed = !isMissingRedist(p);
-        const label = installed ? this.t('common.reinstall') : this.t('common.install');
-        const btnClass = installed ? 'redist-row-install reinstall' : 'redist-row-install';
+    renderArchChip(p) {
         const archLabel = p.arch ? `<span class="redist-arch">${p.arch}</span>` : '';
         const titleAttr = p.error ? ` title="${p.error.replace(/"/g, '&quot;')}"` : '';
-        const showBadge = p.status === 'downloading' || p.status === 'installing' || p.status === 'failed';
-        const badge = showBadge
-            ? `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress)}</span>`
-            : '';
+        const badge = `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress)}</span>`;
         const progressFill = p.status === 'downloading'
             ? `<div class="redist-row-progress" style="width:${p.progress || 0}%"></div>`
             : '';
@@ -99,8 +92,14 @@ class RedistPopupController {
             ${progressFill}
             ${archLabel}
             ${badge}
-            <button class="${btnClass}" data-install-id="${p.id}"${busy ? ' disabled' : ''}>${label}</button>
         </div>`;
+    }
+
+    renderGroupButton(g, running) {
+        const anyMissing = g.archs.some(isMissingRedist);
+        const label = anyMissing ? this.t('common.install') : this.t('common.reinstall');
+        const btnClass = anyMissing ? 'redist-group-install' : 'redist-group-install reinstall';
+        return `<button class="${btnClass}" data-install-group="${g.id}"${running ? ' disabled' : ''}>${label}</button>`;
     }
 
     render(state) {
@@ -119,8 +118,9 @@ class RedistPopupController {
             <li class="redist-row">
                 <span class="redist-name">${g.name}</span>
                 <div class="redist-arch-list">
-                    ${g.archs.map(p => this.renderArch(p, running)).join('')}
+                    ${g.archs.map(p => this.renderArchChip(p)).join('')}
                 </div>
+                ${this.renderGroupButton(g, running)}
             </li>
         `).join('');
 
@@ -170,6 +170,16 @@ class RedistPopupController {
 
     ensurePolling() {
         if (!this.pollId) this.pollId = setInterval(() => this.poll(), 500);
+    }
+
+    async installGroup(groupId) {
+        const packages = (this.lastState && this.lastState.packages) || [];
+        const archs = packages.filter(p => (p.group_id || p.id) === groupId);
+        if (!archs.length) return;
+
+        // Install what's missing; if nothing is, this is a reinstall of the whole group.
+        const missing = archs.filter(isMissingRedist);
+        await this.install((missing.length ? missing : archs).map(p => p.id));
     }
 
     async install(ids) {
