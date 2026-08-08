@@ -61,6 +61,7 @@ namespace discord
         bool is_request{false};  // true => friend asked to join us; false => friend invited us
         bool is_approval{false}; // true => a host accepted a join request WE sent (prompt with approval text)
         bool needs_open{false};  // approving this join-request requires opening our match first
+        bool from_relay{false};  // arrived over the invite relay rather than the Discord SDK
     };
 
     // Outcome of an outgoing invite / join request, reported on the discord thread.

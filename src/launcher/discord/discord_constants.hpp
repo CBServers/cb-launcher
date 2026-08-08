@@ -12,6 +12,10 @@ namespace discord
     // accounts have linked the launcher.
     constexpr const char* LINK_REGISTRY_URL = "https://auth.cbservers.xyz";
 
+    // Self-hosted invite relay. Carries invites and join  requests off 
+    // Discord's app-wide rate-limited surface. Override with -relay-url <url>.
+    constexpr const char* RELAY_URL = "https://relay.cbservers.xyz";
+
     // Base URL for per-game rich-presence art (large image), keyed by game id
     // (e.g. "boiii"). Full URL is PRESENCE_ART_BASE + id + ".png".
     constexpr const char* PRESENCE_ART_BASE = "https://docs.cbservers.xyz/images/client-logos/";

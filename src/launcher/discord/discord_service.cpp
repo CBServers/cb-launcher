@@ -3,6 +3,7 @@
 #include "discord_constants.hpp"
 #include "game_config.hpp"
 #include "link_registry.hpp"
+#include "relay_client.hpp"
 #include "token_store.hpp"
 #include "ipc/ipc_server.hpp"
 
@@ -21,6 +22,7 @@
 #include <ctime>
 #include <deque>
 #include <map>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace discord
@@ -287,6 +289,24 @@ namespace discord
 
     using state_container = utils::concurrency::container<shared_state>;
 
+    // Transport-agnostic view of an incoming invite / join-request.
+    struct incoming_invite
+    {
+        uint64_t sender_id{};
+        bool is_request{false};  // true => they asked to join us
+        bool is_approval{false}; // transport already knows this approves a request we sent
+        std::string game_id{};
+        std::string match_id{};
+        std::string join_secret{};
+        std::string relay_id{};
+        bool from_relay{false};
+
+        // Transport hooks, so the policy never touches a transport-specific invite object.
+        std::function<void()> accept_cb{};  // accept an approval of a request we just sent
+        std::function<void()> approve_cb{}; // approve their join-request onto our open match
+        std::function<void()> retain_cb{};  // keep the transport's invite object for accept_invite
+    };
+
     struct discord_service::impl
     {
         std::shared_ptr<state_container> state = std::make_shared<state_container>();
@@ -353,9 +373,26 @@ namespace discord
         };
         std::vector<deferred_action> deferred_joinable_actions{};
         std::map<std::string, discordpp::ActivityInvite> invite_objs{};
+
+        // Relay counterpart of invite_objs: what accept/decline needs to answer a relay message.
+        struct relay_invite
+        {
+            std::string relay_id;
+            std::string kind; // "invite" | "join-request"
+            std::string join_secret;
+            std::string game_id;
+            std::string match_id;
+        };
+
+        std::unordered_map<std::string, relay_invite> relay_invites_{};
         std::map<uint64_t, std::chrono::steady_clock::time_point> pending_join_requests{}; // hosts we asked to join
         std::map<uint64_t, std::chrono::steady_clock::time_point> recent_knock_converts{}; // anti ping-pong for knock re-asks
         bool launch_command_registered{false}; // Discord cold-launch handler (registered once on ready)
+
+        // Invite transport. Started once linked; every failure falls back to the SDK path.
+        relay_client relay{};
+        // Presence snapshot for the relay poll body; written here, read from the poll thread.
+        utils::concurrency::container<relay_client::session_snapshot> relay_snapshot{};
 
         std::chrono::steady_clock::duration connect_backoff{CONNECT_RETRY_INITIAL};
         std::chrono::steady_clock::time_point next_connect_retry{};
@@ -406,11 +443,63 @@ namespace discord
                 return stamp_same_match(s.friends, own_game_id, own_match_id);
             });
 
+            this->update_relay_snapshot(joinable);
+
             // Our own match changing flips friends between joinable and "in your match".
             if (friends_changed)
             {
                 this->notify_friends_changed();
             }
+        }
+
+        // The relay stores this snapshot and returns it to nobody in v1; it is the v2 presence hook.
+        void update_relay_snapshot(const bool joinable)
+        {
+            relay_client::session_snapshot snapshot{};
+
+            if (this->current_activity)
+            {
+                const auto& a = *this->current_activity;
+                snapshot.valid = true;
+                snapshot.game = a.game_id;
+                snapshot.match_id = a.match_id;
+                snapshot.mode = a.mode;
+                snapshot.map = a.map_raw;
+                snapshot.gametype = a.gametype_raw;
+                snapshot.joinable = joinable;
+                snapshot.direct_join = a.direct_join;
+                snapshot.openable = a.openable;
+                snapshot.players = a.players;
+                snapshot.max_players = a.max_players;
+            }
+
+            this->relay_snapshot.access([&snapshot](relay_client::session_snapshot& stored)
+            {
+                stored = snapshot;
+            });
+        }
+
+        // Called on the relay poll thread, so everything it reads is behind a lock.
+        relay_client::session_snapshot build_relay_snapshot() const
+        {
+            auto snapshot = this->relay_snapshot.access<relay_client::session_snapshot>(
+                [](const relay_client::session_snapshot& stored) { return stored; });
+
+            // Soft metric: linked friends Discord shows online who publish no launcher activity.
+            snapshot.privacy_gap = this->state->access<int>([](const shared_state& s)
+            {
+                int gap = 0;
+                for (const auto& entry : s.friends)
+                {
+                    if (entry.linked && entry.status != "offline" && !entry.in_launcher)
+                    {
+                        ++gap;
+                    }
+                }
+                return gap;
+            });
+
+            return snapshot;
         }
 
         // Republishes the current game activity (on set and on reconnect) so presence survives SDK reconnects.
@@ -640,6 +729,107 @@ namespace discord
             return this->current_activity && this->current_activity->rich && !this->current_activity->join_secret.empty();
         }
 
+        bool is_known_friend(const std::string& user_id) const
+        {
+            return this->state->access<bool>([&user_id](const shared_state& s)
+            {
+                for (const auto& entry : s.friends)
+                {
+                    if (entry.id == user_id)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+
+        // Transport selection for outgoing invites/knocks: the relay first, the rate-limited SDK
+        // only when the recipient has no relay session or the relay itself is unreachable.
+        void send_through_relay(const uint64_t uid, const std::string& kind, const action_callback& on_result,
+                                std::function<void()> sdk_send)
+        {
+            if (!this->relay.enabled())
+            {
+                sdk_send();
+                return;
+            }
+
+            const auto game = this->current_activity ? this->current_activity->game_id : std::string{};
+            const auto match = this->current_activity ? this->current_activity->match_id : std::string{};
+            // An invite hands the recipient our secret; a knock has nothing to give yet.
+            const auto secret = kind == "invite" && this->has_real_secret()
+                                    ? this->current_activity->join_secret
+                                    : std::string{};
+
+            this->relay.send_invite_async(std::to_string(uid), kind, game, match, secret,
+                                          [i = this, uid, kind, on_result, sdk_send = std::move(sdk_send)](
+                                          const relay_client::outcome out) mutable
+            {
+                if (out == relay_client::outcome::delivered)
+                {
+                    utils::logger::write("[cbl-relay] {} -> {}: delivered", kind, uid);
+                    i->post([on_result] { report(on_result, {action_result::code::sent}); });
+                    return;
+                }
+
+                if (out == relay_client::outcome::throttled)
+                {
+                    utils::logger::write("[cbl-relay] {} -> {}: throttled", kind, uid);
+                    i->post([on_result]
+                    {
+                        report(on_result, {action_result::code::rate_limited, relay_client::throttle_retry_seconds});
+                    });
+                    return;
+                }
+
+                if (out == relay_client::outcome::blocked)
+                {
+                    utils::logger::write("[cbl-relay] {} -> {}: blocked", kind, uid);
+                    i->post([on_result] { report(on_result, {action_result::code::dropped}); });
+                    return;
+                }
+
+                utils::logger::write("[cbl-relay] {} -> {}: {}, falling back to Discord", kind, uid,
+                                     out == relay_client::outcome::offline ? "recipient offline" : "transport error");
+                i->post([i, sdk_send = std::move(sdk_send)]
+                {
+                    if (i->client && i->current_status() == link_status::linked)
+                    {
+                        sdk_send();
+                    }
+                });
+            });
+        }
+
+        // Answer a relay join-request. An approval always carries the real secret, never the knock placeholder.
+        void relay_reply(const std::string& to, const std::string& relay_id, const bool accept)
+        {
+            const auto secret = accept && this->has_real_secret() ? this->current_activity->join_secret : std::string{};
+            if (accept && secret.empty())
+            {
+                utils::logger::write("[cbl-relay] not replying to {}: the match publishes no join secret", to);
+                return;
+            }
+
+            const auto game = this->current_activity ? this->current_activity->game_id : std::string{};
+            const auto match = this->current_activity ? this->current_activity->match_id : std::string{};
+
+            this->relay.send_reply_async(to, relay_id, accept, game, match, secret,
+                                         [to, accept](const relay_client::outcome out)
+            {
+                if (out == relay_client::outcome::delivered)
+                {
+                    utils::logger::write("[cbl-relay] reply ({}) -> {}: delivered", accept ? "accept" : "decline", to);
+                    return;
+                }
+
+                // A relay knock has no Discord invite object, so there is nothing to fall back to.
+                utils::logger::write("[cbl-relay] reply ({}) -> {}: undelivered, dropping",
+                                     accept ? "accept" : "decline", to);
+            });
+        }
+
         // Run now if the activity is joinable, else queue until the next presence update makes it so.
         void defer_until_joinable(std::string label, std::function<void()> run)
         {
@@ -716,9 +906,14 @@ namespace discord
             utils::logger::write(
                 "[cbl-invite] {} accepted in Discord but their match is still closed; re-asking via launcher knock", uid);
             this->pending_join_requests[uid] = now;
-            this->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
+
+            // The trigger is Discord-side, but the ask it fires is a rate-limited send: same transport choice.
+            this->send_through_relay(uid, "join-request", {}, [this, uid]
             {
-                log_send_result("knock-convert ask-to-join", uid, result);
+                this->client->SendActivityJoinRequest(uid, [uid](const discordpp::ClientResult& result)
+                {
+                    log_send_result("knock-convert ask-to-join", uid, result);
+                });
             });
         }
 
@@ -742,14 +937,19 @@ namespace discord
                 });
         }
 
-        void on_invite(const discordpp::ActivityInvite& invite)
+        // Transport-agnostic incoming-invite policy; every transport funnels through here.
+        void handle_incoming(const incoming_invite& in)
         {
-            const auto sender = invite.SenderId();
-            const bool is_request = invite.Type() == discordpp::ActivityActionTypes::JoinRequest;
+            const auto sender = in.sender_id;
+            const bool is_request = in.is_request;
             const auto own = this->own_user_id();
 
-            if (!invite.IsValid())
+            // Discord gates who may reach the SDK path; the relay cannot, so a stranger would
+            // otherwise hit the auto-approve branch and be handed the real join secret. Our own
+            // friends cache is the gate, and it runs before any policy, queue or toast.
+            if (in.from_relay && !this->is_known_friend(std::to_string(sender)))
             {
+                utils::logger::write("[cbl-relay] dropping relay message from {} (not in the friends list)", sender);
                 return;
             }
 
@@ -760,7 +960,7 @@ namespace discord
             }
 
             // A host approving a join we asked for (within the TTL) prompts as an approval, not auto-join.
-            bool is_approval = false;
+            bool is_approval = in.is_approval;
             bool fresh_request = false;
             if (!is_request)
             {
@@ -768,7 +968,8 @@ namespace discord
                 if (it != this->pending_join_requests.end())
                 {
                     const auto elapsed = std::chrono::steady_clock::now() - it->second;
-                    is_approval = elapsed < JOIN_REQUEST_TTL;
+                    // The relay labels approvals itself; only the SDK path has to infer it from the TTL.
+                    is_approval = in.is_approval || elapsed < JOIN_REQUEST_TTL;
                     fresh_request = elapsed < AUTO_ACCEPT_WINDOW;
                     this->pending_join_requests.erase(it);
                 }
@@ -779,7 +980,10 @@ namespace discord
             if (is_approval && fresh_request)
             {
                 utils::logger::write("[cbl-invite] auto-accepting approval from {} (fresh request)", sender);
-                this->accept_join_invite(invite);
+                if (in.accept_cb)
+                {
+                    in.accept_cb();
+                }
                 return;
             }
 
@@ -787,7 +991,10 @@ namespace discord
             if (is_request && this->has_real_secret())
             {
                 utils::logger::write("[cbl-invite] auto-approving join-request from {} (match is open)", sender);
-                this->client->SendActivityJoinRequestReply(invite, [](const discordpp::ClientResult&) {});
+                if (in.approve_cb)
+                {
+                    in.approve_cb();
+                }
                 return;
             }
 
@@ -800,7 +1007,10 @@ namespace discord
             }
 
             const auto sender_id = std::to_string(sender);
-            this->invite_objs[sender_id] = invite;
+            if (in.retain_cb)
+            {
+                in.retain_cb();
+            }
 
             std::string sender_name{};
 
@@ -812,6 +1022,7 @@ namespace discord
                 entry.is_request = is_request;
                 entry.is_approval = is_approval;
                 entry.needs_open = is_request; // reaching here as a request implies the match must open first
+                entry.from_relay = in.from_relay;
 
                 // Resolve a friendly name/avatar from the friends cache if we have it.
                 for (const auto& f : s.friends)
@@ -823,6 +1034,13 @@ namespace discord
                         entry.game_id = f.game_id;
                         break;
                     }
+                }
+
+                // Relay invites name the sender's fork, which beats the presence cache when the
+                // sender hides their Discord activity.
+                if (!is_request && !in.game_id.empty())
+                {
+                    entry.game_id = in.game_id;
                 }
 
                 // A knock is about our match, not theirs, so the sender's game is the wrong art.
@@ -847,9 +1065,119 @@ namespace discord
                                  is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id);
         }
 
+        void on_invite(const discordpp::ActivityInvite& invite)
+        {
+            if (!invite.IsValid())
+            {
+                return;
+            }
+
+            incoming_invite in{};
+            in.sender_id = invite.SenderId();
+            in.is_request = invite.Type() == discordpp::ActivityActionTypes::JoinRequest;
+            in.accept_cb = [this, invite] { this->accept_join_invite(invite); };
+            in.approve_cb = [this, invite]
+            {
+                this->client->SendActivityJoinRequestReply(invite, [](const discordpp::ClientResult&) {});
+            };
+            in.retain_cb = [this, invite] { this->invite_objs[std::to_string(invite.SenderId())] = invite; };
+
+            this->handle_incoming(in);
+        }
+
+        // Relay dispatch: the same policy as the SDK path, with relay-flavored transport hooks.
+        void handle_relay_message(const relay_client::message& message)
+        {
+            const auto sender_id = std::to_string(message.sender_id);
+
+            // A decline answers a request we sent; clear the pending state instead of surfacing a join.
+            if (message.is_approval && !message.accept)
+            {
+                utils::logger::write("[cbl-relay] {} declined our join request", sender_id);
+                this->pending_join_requests.erase(message.sender_id);
+                this->remove_invite(sender_id);
+                return;
+            }
+
+            incoming_invite in{};
+            in.sender_id = message.sender_id;
+            in.is_request = message.kind == "join-request";
+            in.is_approval = message.is_approval;
+            in.game_id = message.game_id;
+            in.match_id = message.match_id;
+            in.join_secret = message.join_secret;
+            in.relay_id = message.id;
+            in.from_relay = true;
+
+            // The approval already carries the secret, so there is no accept round trip at all.
+            in.accept_cb = [this, sender_id, secret = message.join_secret]
+            {
+                if (secret.empty() || !this->join_secret_cb)
+                {
+                    utils::logger::write("[cbl-relay] approval from {} carried no join secret", sender_id);
+                    return;
+                }
+                this->join_secret_cb(secret);
+            };
+
+            in.approve_cb = [this, sender_id, relay_id = message.id]
+            {
+                this->relay_reply(sender_id, relay_id, true);
+            };
+
+            in.retain_cb = [this, sender_id, entry = relay_invite{message.id, message.kind, message.join_secret,
+                                                                 message.game_id, message.match_id}]
+            {
+                this->relay_invites_[sender_id] = entry;
+            };
+
+            this->handle_incoming(in);
+        }
+
+        // The relay payload already holds the join secret, so accepting needs no round trip.
+        void accept_relay_invite(const std::string& id, const relay_invite& entry)
+        {
+            if (entry.kind != "join-request")
+            {
+                if (entry.join_secret.empty() || !this->join_secret_cb)
+                {
+                    utils::logger::write("[cbl-relay] relay invite from {} carried no join secret; dropping", id);
+                    return;
+                }
+
+                utils::logger::write("[cbl-relay] accept_invite: accepting relay invite from {}", id);
+                this->join_secret_cb(entry.join_secret);
+                return;
+            }
+
+            utils::logger::write("[cbl-relay] accept_invite: approving relay join-request from {}", id);
+
+            const auto reply = [this, id, relay_id = entry.relay_id]
+            {
+                this->relay_reply(id, relay_id, true);
+            };
+
+            if (this->has_real_secret())
+            {
+                reply();
+            }
+            else if (this->current_activity && this->current_activity->rich && this->current_activity->openable &&
+                     this->open_match_cb)
+            {
+                // Approving a knock on a closed match: open it first, reply once the secret is real.
+                this->open_match_cb();
+                this->defer_until_joinable("relay join-request reply to " + id, reply);
+            }
+            else
+            {
+                utils::logger::write("[cbl-relay] cannot approve {}: match neither open nor openable", id);
+            }
+        }
+
         void remove_invite(const std::string& id)
         {
             this->invite_objs.erase(id);
+            this->relay_invites_.erase(id);
             this->state->access([&id](shared_state& s)
             {
                 std::erase_if(s.invites, [&id](const invite_entry& e) { return e.id == id; });
@@ -1066,6 +1394,13 @@ namespace discord
                 {
                     link_registry::register_link(access_token);
                 }).detach();
+
+                // Idempotent: a reconnect only refreshes the access token the session is minted with.
+                this->relay.start(access_token, [this] { return this->build_relay_snapshot(); },
+                                  [this](const relay_client::message& message)
+                                  {
+                                      this->post([this, message] { this->handle_relay_message(message); });
+                                  });
             }
 
             this->next_registry_refresh = std::chrono::steady_clock::now();
@@ -1221,7 +1556,9 @@ namespace discord
                 utils::properties::store(property_keys::DISCORD_DISPLAY_NAME, "");
             }
 
+            this->relay.stop();
             this->invite_objs.clear();
+            this->relay_invites_.clear();
             this->state->access([](shared_state& s)
             {
                 s.status = link_status::unlinked;
@@ -1321,6 +1658,8 @@ namespace discord
                 std::this_thread::sleep_for(TICK_INTERVAL);
             }
 
+            // Aborts any held poll, so shutdown never waits one out.
+            this->relay.stop();
             this->client.reset();
         }
     };
@@ -1572,11 +1911,14 @@ namespace discord
 
             const auto do_send = [i, uid, on_result]
             {
-                i->client->SendActivityInvite(uid, "Join my game on CB Servers",
-                                              [uid, on_result](const discordpp::ClientResult& result)
+                i->send_through_relay(uid, "invite", on_result, [i, uid, on_result]
                 {
-                    log_send_result("send_invite", uid, result);
-                    report(on_result, to_action_result(result));
+                    i->client->SendActivityInvite(uid, "Join my game on CB Servers",
+                                                  [uid, on_result](const discordpp::ClientResult& result)
+                    {
+                        log_send_result("send_invite", uid, result);
+                        report(on_result, to_action_result(result));
+                    });
                 });
             };
 
@@ -1627,10 +1969,13 @@ namespace discord
             // Remember we asked so the host's approval (an incoming Join invite) prompts as an approval, not an unsolicited invite.
             i->pending_join_requests[uid] = std::chrono::steady_clock::now();
 
-            i->client->SendActivityJoinRequest(uid, [uid, on_result](const discordpp::ClientResult& result)
+            i->send_through_relay(uid, "join-request", on_result, [i, uid, on_result]
             {
-                log_send_result("request_join", uid, result);
-                report(on_result, to_action_result(result));
+                i->client->SendActivityJoinRequest(uid, [uid, on_result](const discordpp::ClientResult& result)
+                {
+                    log_send_result("request_join", uid, result);
+                    report(on_result, to_action_result(result));
+                });
             });
         });
     }
@@ -1647,6 +1992,15 @@ namespace discord
     {
         this->impl_->post([i = this->impl_.get(), id]()
         {
+            // Relay messages carry their own accept path; the SDK object map is the fallback.
+            if (const auto relay_it = i->relay_invites_.find(id); relay_it != i->relay_invites_.end())
+            {
+                const auto entry = relay_it->second;
+                i->accept_relay_invite(id, entry);
+                i->remove_invite(id);
+                return;
+            }
+
             const auto it = i->invite_objs.find(id);
             if (it == i->invite_objs.end() || !i->client)
             {
@@ -1695,6 +2049,12 @@ namespace discord
     {
         this->impl_->post([i = this->impl_.get(), id]()
         {
+            // Only the relay can tell a sender they were declined; the SDK decline stays silent.
+            if (const auto it = i->relay_invites_.find(id); it != i->relay_invites_.end())
+            {
+                i->relay_reply(id, it->second.relay_id, false);
+            }
+
             i->remove_invite(id);
         });
     }
