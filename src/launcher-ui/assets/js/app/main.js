@@ -2219,7 +2219,7 @@ async function setupLanguageSelect() {
     if (!languageSelect.dataset.bound) {
         languageSelect.dataset.bound = 'true';
         languageSelect.addEventListener('change', async (event) => {
-            const SUPPORTED_LANGUAGES = ['en', 'fr', 'es'];
+            const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'ru'];
             const nextLanguage = SUPPORTED_LANGUAGES.includes(event.target.value) ? event.target.value : 'en';
             const previousLanguage = window.LauncherI18n ? window.LauncherI18n.getLanguage() : 'en';
 
