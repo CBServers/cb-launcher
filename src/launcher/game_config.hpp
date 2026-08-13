@@ -1,5 +1,7 @@
 #pragma once
 
+#include <updater/file_dest.hpp>
+
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -9,6 +11,42 @@
 
 namespace game_config
 {
+    // A client_data_folders entry. Constructs implicitly from a bare string, which keeps
+    // dest = automatic (today's client_install_path_files heuristic).
+    struct data_folder_t
+    {
+        data_folder_t(std::string folder_, updater::file_dest dest_ = updater::file_dest::automatic)
+            : folder(std::move(folder_)), dest(dest_)
+        {
+        }
+
+        data_folder_t(const char* folder_)
+            : folder(folder_)
+        {
+        }
+
+        std::string folder;
+        updater::file_dest dest = updater::file_dest::automatic;
+    };
+
+    // One updatable client of a game. A game can declare several (CoD4: CoD4x, IW3SP-Mod,
+    // IW3x); they share the game's install path but update independently. The install path
+    // itself stays on game_config_t, since it is the game's, not the client's.
+    struct client_files_t
+    {
+        std::string client_id;
+        std::string update_manifest_url;
+        std::string update_folder_url;
+        // The `appdata` root: client's appdata dir. Empty = same as the game's install path.
+        std::filesystem::path client_default_path;
+        // Files that always go to install_path even when client_default_path is set.
+        // Superseded per-file by an explicit `dest` in the manifest.
+        std::unordered_set<std::string> client_install_path_files;
+        // Relative folder path(s) under the client data root that bound client-file deletions.
+        std::vector<data_folder_t> client_data_folders;
+        std::vector<std::string> required_updater_files;
+    };
+
     class game_config_t
     {
     public:
@@ -71,12 +109,21 @@ namespace game_config
         // Property overrides for specific properties (e.g., HMW-specific overrides)
         std::unordered_map<std::string, std::string> property_overrides;
 
+        // Single-client authoring surface. get_game_config() synthesizes a one-element
+        // `clients` from these when `clients` is left empty; a game that declares `clients`
+        // explicitly owns these values there instead, and the fields below are unused.
         // Default directory for client files. Empty = use install_path (current behavior).
         std::filesystem::path client_default_path;
         // Files that always go to install_path even when client_default_path is set
         std::unordered_set<std::string> client_install_path_files;
-        // Relative folder path(s) under the client data root to clean of non-manifest files.
-        std::vector<std::string> client_data_folders;
+        // Relative folder path(s) under the client data root that bound client-file deletions.
+        std::vector<data_folder_t> client_data_folders;
+
+        // Every client of this game. Populated by get_game_config(); never read from the
+        // static table directly.
+        std::vector<client_files_t> clients;
+        // Mode -> client_id, for games whose modes map to different clients. Empty = one client.
+        std::unordered_map<std::string, std::string> mode_clients;
 
         // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
         std::vector<std::string> required_redists;

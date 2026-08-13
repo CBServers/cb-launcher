@@ -735,7 +735,7 @@ namespace commands::game_commands
                 else
                 {
                     const auto skip_files = ctx.get_skip_files(game, config);
-                    client_updater::run(config, skip_files, &progress_listener);
+                    client_updater::run_all(config, skip_files, &progress_listener);
 
                     // Revision-gated, so this only runs when behind. Wine gate disabled for testing: && !utils::nt::is_wine_environment()
                     if (!config.plutonium_game_names.empty())
@@ -1137,7 +1137,7 @@ namespace commands::game_commands
                     // Get files to skip based on game configuration
                     const auto skip_files = ctx.get_skip_files(game, config);
 
-                    client_updater::run(config, skip_files, &progress_listener);
+                    client_updater::run_all(config, skip_files, &progress_listener);
                     ensure_launch_prerequisites(config);
                     progress_listener.done_update();
 
@@ -1207,8 +1207,11 @@ namespace commands::game_commands
                     game_updater::game_updater game_updater(config, true, false, &progress_listener);
                     game_updater.delete_game();
 
-                    client_updater::client_updater client_updater(config, {}, &progress_listener);
-                    client_updater.delete_client();
+                    for (const auto& client : config.clients)
+                    {
+                        client_updater::client_updater client_updater(config, client, {}, &progress_listener);
+                        client_updater.delete_client();
+                    }
 
                     // Clear installation status and component caches
                     config.reset();

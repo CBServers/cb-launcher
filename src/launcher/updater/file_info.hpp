@@ -1,5 +1,7 @@
 #pragma once
 
+#include "file_dest.hpp"
+
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -13,6 +15,7 @@ namespace updater
         std::size_t size;
         std::string hash;
         std::string component; // Component this file belongs to (e.g., "base", "sp", "mp_dlc", "zm_dlc")
+        file_dest dest = file_dest::automatic; // Client manifests only; game manifests never set this
     };
 }
 

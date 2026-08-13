@@ -831,12 +831,32 @@ namespace game_config
         {"hmw-mod", "hmw"}
     };
 
+    // Games that don't declare `clients` get a one-element vector built from their flat
+    // client_* fields, so every consumer can iterate clients regardless of the game.
+    static game_config_t with_clients(game_config_t config)
+    {
+        if (config.clients.empty())
+        {
+            config.clients.push_back(client_files_t{
+                config.id.empty() ? config.game_key : config.id,
+                config.update_manifest_url,
+                config.update_folder_url,
+                config.client_default_path,
+                config.client_install_path_files,
+                config.client_data_folders,
+                config.required_updater_files
+            });
+        }
+
+        return config;
+    }
+
     std::optional<game_config_t> get_game_config(const std::string& game)
     {
         const auto it = game_configs_.find(game);
         if (it != game_configs_.end())
         {
-            return it->second;
+            return with_clients(it->second);
         }
         return std::nullopt;
     }
@@ -848,7 +868,7 @@ namespace game_config
         {
             if (config.id == id)
             {
-                return config;
+                return with_clients(config);
             }
         }
         return std::nullopt;
