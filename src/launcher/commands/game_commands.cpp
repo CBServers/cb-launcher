@@ -735,7 +735,7 @@ namespace commands::game_commands
                 else
                 {
                     const auto skip_files = ctx.get_skip_files(game, config);
-                    client_updater::run_all(config, skip_files, &progress_listener);
+                    client_updater::run_for_mode(config, mode, skip_files, &progress_listener);
 
                     // Revision-gated, so this only runs when behind. Wine gate disabled for testing: && !utils::nt::is_wine_environment()
                     if (!config.plutonium_game_names.empty())
@@ -1137,11 +1137,18 @@ namespace commands::game_commands
                     // Get files to skip based on game configuration
                     const auto skip_files = ctx.get_skip_files(game, config);
 
-                    client_updater::run_all(config, skip_files, &progress_listener);
+                    const auto clients_fetched = client_updater::run_all(config, skip_files, &progress_listener);
                     ensure_launch_prerequisites(config);
                     progress_listener.done_update();
 
-                    cef_ui.show_toast(config.display_name + " verification/update complete!", "success");
+                    if (clients_fetched)
+                    {
+                        cef_ui.show_toast(config.display_name + " verification/update complete!", "success");
+                    }
+                    else
+                    {
+                        cef_ui.show_toast(config.display_name + " updated, but a client update check could not be reached. Please verify again later.", "error");
+                    }
                 }
                 catch (const updater::update_cancelled&)
                 {

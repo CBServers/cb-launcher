@@ -329,6 +329,7 @@ namespace client_updater
 
         // Fetch manifest and compute valid files
         const auto manifest_files = get_file_infos(this->update_manifest_url_);
+        this->manifest_fetch_failed_ = manifest_files.empty();
         this->manifest_files_ = manifest_files;
         this->valid_files_ = client.required_updater_files.empty() ? manifest_files : find_file_infos(client.required_updater_files, manifest_files);
 
@@ -681,6 +682,17 @@ namespace client_updater
 
         const auto cached_files = read_manifest_cache(this->manifest_cache_path_);
         if (cached_files.empty())
+        {
+            return;
+        }
+
+        // Cache resolved under pre-dest rules but the manifest now carries dests: re-seed instead of diffing.
+        const auto cache_is_legacy = std::all_of(cached_files.begin(), cached_files.end(),
+            [](const cached_file& file) { return file.dest == updater::file_dest::automatic; });
+        const auto manifest_has_dest = std::any_of(this->manifest_files_.begin(), this->manifest_files_.end(),
+            [](const updater::file_info& file) { return file.dest != updater::file_dest::automatic; });
+
+        if (cache_is_legacy && manifest_has_dest)
         {
             return;
         }

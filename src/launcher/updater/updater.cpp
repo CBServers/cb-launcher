@@ -37,19 +37,47 @@ namespace game_updater
 
 namespace client_updater
 {
-    void run(const game_config::game_config_t& config, const game_config::client_files_t& client,
+    bool run(const game_config::game_config_t& config, const game_config::client_files_t& client,
         const std::vector<std::string>& skip_files, updater::ui_progress_listener* listener)
     {
         const client_updater client_updater{config, client, skip_files, listener};
         client_updater.run();
+        return !client_updater.manifest_fetch_failed();
     }
 
-    void run_all(const game_config::game_config_t& config, const std::vector<std::string>& skip_files,
+    bool run_all(const game_config::game_config_t& config, const std::vector<std::string>& skip_files,
         updater::ui_progress_listener* listener)
     {
+        auto fetched_all = true;
         for (const auto& client : config.clients)
         {
-            run(config, client, skip_files, listener);
+            fetched_all &= run(config, client, skip_files, listener);
         }
+
+        return fetched_all;
+    }
+
+    bool run_for_mode(const game_config::game_config_t& config, const std::string& mode,
+        const std::vector<std::string>& skip_files, updater::ui_progress_listener* listener)
+    {
+        if (config.mode_clients.empty())
+        {
+            return run_all(config, skip_files, listener);
+        }
+
+        const auto mapping = config.mode_clients.find(mode);
+        if (mapping != config.mode_clients.end())
+        {
+            for (const auto& client : config.clients)
+            {
+                if (client.client_id == mapping->second)
+                {
+                    return run(config, client, skip_files, listener);
+                }
+            }
+        }
+
+        // Unmapped mode or a client_id typo: update everything rather than silently skip.
+        return run_all(config, skip_files, listener);
     }
 }

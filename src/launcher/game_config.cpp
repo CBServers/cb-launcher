@@ -308,6 +308,9 @@ namespace game_config
         }
     }
 
+    constexpr auto dest_game = updater::file_dest::game;
+    constexpr auto dest_appdata = updater::file_dest::appdata;
+
     // Game configurations
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {
@@ -404,10 +407,7 @@ namespace game_config
                 .display_name = "Modern Warfare",
                 .id = "cod4x",
                 .exe_name = "iw3mp.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "cod4x.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "cod4x/",
                 .manifest_path = "manifest/cod4.json",
-                .required_updater_files = {},
                 .valid_game_files = {"binkw32.dll", "iw3mp.exe", "iw3sp.exe"},
                 .check_running_exes = {"iw3sp_mod.exe", "iw3mp.exe", "iw3sp.exe"},
                 .mode_arguments = {
@@ -422,9 +422,24 @@ namespace game_config
                 .base_folder = "cod4_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
-                .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
-                .client_install_path_files = {"miles32.dll", "mss32.dll", "iw3mp.exe", "iw3sp_mod.exe", "game.dll", "iw3sp_data/*"},
-                .client_data_folders = {"bin", "main", "zone", "iw3sp_data/assets", "iw3sp_data/miles", "iw3sp_data/zone"},
+                .clients = {
+                    {
+                        .client_id = "cod4x",
+                        // cod4x.json / cod4x/ are frozen for shipped builds; this client reads the new pair.
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "cod4x-mp.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "cod4x-mp/",
+                        .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
+                        .client_data_folders = {{"bin", dest_appdata}, {"main", dest_appdata}, {"zone", dest_appdata}},
+                    },
+                    {
+                        .client_id = "iw3sp-mod",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "iw3sp-mod.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "iw3sp-mod/",
+                        .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
+                        .client_data_folders = {{"iw3sp_data", dest_game}},
+                    },
+                },
+                .mode_clients = {{"sp", "iw3sp-mod"}, {"mp", "cod4x"}},
                 .required_redists = {"vcr2005", "vcr2008", "dx_jun2010"}
             }
         },

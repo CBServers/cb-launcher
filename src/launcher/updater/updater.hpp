@@ -17,10 +17,15 @@ namespace game_updater
 
 namespace client_updater
 {
-    void run(const game_config::game_config_t& config, const game_config::client_files_t& client,
+    // Each returns false when some attempted client's manifest could not be fetched.
+    bool run(const game_config::game_config_t& config, const game_config::client_files_t& client,
         const std::vector<std::string>& skip_files = {}, updater::ui_progress_listener* listener = nullptr);
 
     // Updates every client the game declares, in order.
-    void run_all(const game_config::game_config_t& config, const std::vector<std::string>& skip_files = {},
+    bool run_all(const game_config::game_config_t& config, const std::vector<std::string>& skip_files = {},
         updater::ui_progress_listener* listener = nullptr);
+
+    // Updates only the client a mode maps to; unmapped or blank modes fall back to run_all().
+    bool run_for_mode(const game_config::game_config_t& config, const std::string& mode,
+        const std::vector<std::string>& skip_files = {}, updater::ui_progress_listener* listener = nullptr);
 }

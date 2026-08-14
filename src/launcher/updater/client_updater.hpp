@@ -15,6 +15,9 @@ namespace client_updater
         void run() const;
         void delete_client() const;
 
+        // True when the client declares a manifest URL but the fetch/parse yielded nothing.
+        [[nodiscard]] bool manifest_fetch_failed() const { return this->manifest_fetch_failed_; }
+
         [[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
 
         void update_files(const std::vector<updater::file_info>& outdated_files) const;
@@ -31,6 +34,7 @@ namespace client_updater
         std::unordered_set<std::string> client_install_path_files_;
         std::vector<game_config::data_folder_t> client_data_folders_;
         updater::ui_progress_listener* progress_listener_;
+        bool manifest_fetch_failed_ = false;
 
         void update_file(const updater::file_info& file) const;
 
