@@ -13,6 +13,8 @@ namespace property_keys
     constexpr const char* CDN_PREFERENCE = "launcher-cdn-preference";
     constexpr const char* CDN_CUSTOM_URL = "launcher-cdn-custom-url";
     constexpr const char* GLOBAL_PLAYER_NAME = "launcher-global-player-name";
+    // One-shot flag: installs predating the IW3x default were seeded onto CoD4x for MP.
+    constexpr const char* COD4X_CLIENT_SEEDED = "launcher-cod4x-client-seeded";
 
     // Discord account link (tokens are DPAPI-encrypted + base64)
     constexpr const char* DISCORD_ACCESS_TOKEN = "launcher-discord-access-token";

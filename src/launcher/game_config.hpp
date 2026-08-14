@@ -148,6 +148,8 @@ namespace game_config
     const client_files_t* select_client_for_mode(const game_config_t& config, const std::string& mode);
     // True once any mode has more than one client; such games route through the private store.
     bool is_store_routed(const game_config_t& config);
+    // One-shot at startup: existing CoD4 installs keep CoD4x for MP; fresh setups get the default.
+    void seed_legacy_client_selections();
 
     // Function declarations
     std::optional<game_config_t> get_game_config(const std::string& game);

@@ -146,7 +146,7 @@
                 showInstalled: 'Show installed',
                 welcomeTitle: 'Welcome to CB Launcher',
                 welcomeBody: 'Welcome to CB Servers Launcher! Your one-stop launcher for Call of Duty community clients. Install, update, and play supported clients all from one place. Head to the <strong>Library</strong> tab to browse every available client and start playing. Need a hand? Head over to the <strong>Support</strong> tab or check out our <a href="https://docs.cbservers.xyz/launcher" target="_blank">docs</a>.',
-                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
+                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
             },
             library: {
                 title: 'Library',
@@ -196,7 +196,7 @@
                     reinstallAllTitle: 'Reinstall all redistributables?',
                     reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. Windows will show a single administrator permission (UAC) prompt. Continue?'
                 },
-                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
+                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -313,6 +313,7 @@
                     playButtonBehavior: 'Play Button Behavior',
                     playButtonBehaviorLabel: 'When the Play button is clicked, launch:',
                     askEveryTime: 'Ask me every time',
+                    modeClientLabel: '{{mode}} client:',
                     gameOptions: 'Game Options',
                     skipIntroCinematic: 'Skip intro cinematic',
                     disableCbExtension: 'Disable CB extension',
@@ -461,8 +462,8 @@
                     credits: 'CoD2x is developed by Yctn and eyza. Learn more at <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
                 },
                 'cod4x': {
-                    description: 'COD4: Modern Warfare enhanced with COD4x multiplayer and IW3SP-Mod for singleplayer. Experience the classic MW1 campaign and online play with modern client maintenance.',
-                    credits: 'Multiplayer is provided by the COD4x Client and developed by the <a href="https://cod4x.ovh/" target="_blank">CoD4x Project</a>.<br>Singleplayer is provided by the IW3SP-Mod Client and developed by <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                    description: 'COD4: Modern Warfare with a choice of IW3x or COD4x multiplayer and IW3SP-Mod for singleplayer. Experience the classic MW1 campaign and online play with modern client maintenance.',
+                    credits: 'Multiplayer is provided by the IW3x Client, developed by <a href="https://github.com/Divity" target="_blank">Divity</a> (<a href="https://iw3x.com/" target="_blank">iw3x.com</a>), or the COD4x Client by the <a href="https://cod4x.ovh/" target="_blank">CoD4x Project</a>.<br>Singleplayer is provided by the IW3SP-Mod Client and developed by <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
                 },
                 't4': {
                     description: 'Call of Duty: World at War enhanced with Plutonium T4 modifications. Experience the campaign, multiplayer, and zombies modes with improved stability and additional features.',
@@ -668,7 +669,7 @@
                 showInstalled: 'Voir les installes',
                 welcomeTitle: 'Bienvenue sur CB Launcher',
                 welcomeBody: 'Bienvenue sur CB Servers Launcher&nbsp;! Votre launcher tout-en-un pour les clients communautaires Call of Duty. Installez, mettez a jour et jouez aux clients pris en charge depuis un seul endroit. Rendez-vous dans l\'onglet <strong>Bibliotheque</strong> pour parcourir tous les clients disponibles et commencer a jouer. Besoin d\'aide&nbsp;? Rendez-vous dans l\'onglet <strong>Support</strong> ou consultez notre <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentation</a>.',
-                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
+                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
             },
             library: {
                 title: 'Bibliotheque',
@@ -718,7 +719,7 @@
                     reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
                     reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Windows affichera une seule invite d\'autorisation administrateur (UAC). Continuer ?'
                 },
-                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
+                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
             installer: {
@@ -835,6 +836,7 @@
                     playButtonBehavior: 'Comportement du bouton Jouer',
                     playButtonBehaviorLabel: "Quand le bouton Jouer est clique, lancer :",
                     askEveryTime: 'Demander a chaque fois',
+                    modeClientLabel: 'Client {{mode}} :',
                     gameOptions: 'Options du jeu',
                     skipIntroCinematic: "Passer l'intro cinematique",
                     disableCbExtension: "Desactiver l'extension CB",
@@ -983,8 +985,8 @@
                     credits: 'CoD2x est developpe par Yctn et eyza. En savoir plus sur <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
                 },
                 'cod4x': {
-                    description: 'COD4: Modern Warfare ameliore avec le multijoueur COD4x et IW3SP-Mod pour le solo. Profitez de la campagne MW1 classique et du jeu en ligne avec une maintenance moderne.',
-                    credits: 'Le multijoueur est fourni par le client COD4x et developpe par le <a href="https://cod4x.ovh/" target="_blank">Projet CoD4x</a>.<br>Le solo est fourni par le client IW3SP-Mod et developpe par <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                    description: 'COD4: Modern Warfare avec au choix le multijoueur IW3x ou COD4x et IW3SP-Mod pour le solo. Profitez de la campagne MW1 classique et du jeu en ligne avec une maintenance moderne.',
+                    credits: 'Le multijoueur est fourni par le client IW3x, developpe par <a href="https://github.com/Divity" target="_blank">Divity</a> (<a href="https://iw3x.com/" target="_blank">iw3x.com</a>), ou par le client COD4x du <a href="https://cod4x.ovh/" target="_blank">Projet CoD4x</a>.<br>Le solo est fourni par le client IW3SP-Mod et developpe par <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
                 },
                 't4': {
                     description: 'Call of Duty: World at War ameliore avec les modifications de Plutonium T4. Profitez de la campagne, du multijoueur et des zombies avec une meilleure stabilite et des fonctionnalites supplementaires.',
@@ -1190,7 +1192,7 @@
                 showInstalled: 'Mostrar instalados',
                 welcomeTitle: 'Bienvenido a CB Launcher',
                 welcomeBody: 'Bienvenido a CB Servers Launcher! Tu launcher todo-en-uno para los clientes comunitarios de Call of Duty. Instala, actualiza y juega a los clientes compatibles desde un solo lugar. Ve a la pestana <strong>Biblioteca</strong> para explorar todos los clientes disponibles y empezar a jugar. Necesitas ayuda? Pasa por la pestana <strong>Soporte</strong> o consulta nuestra <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentacion</a>.',
-                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
+                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
             },
             library: {
                 title: 'Biblioteca',
@@ -1240,7 +1242,7 @@
                     reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
                     reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Windows mostrara una sola ventana de permiso de administrador (UAC). ¿Continuar?'
                 },
-                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
+                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
             },
             installer: {
@@ -1357,6 +1359,7 @@
                     playButtonBehavior: 'Comportamiento del boton Jugar',
                     playButtonBehaviorLabel: 'Cuando se hace clic en Jugar, iniciar:',
                     askEveryTime: 'Preguntarme cada vez',
+                    modeClientLabel: 'Cliente de {{mode}}:',
                     gameOptions: 'Opciones del juego',
                     skipIntroCinematic: 'Omitir cinematica de introduccion',
                     disableCbExtension: 'Desactivar extension CB',
@@ -1505,8 +1508,8 @@
                     credits: 'CoD2x esta desarrollado por Yctn y eyza. Mas informacion en <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
                 },
                 'cod4x': {
-                    description: 'COD4: Modern Warfare mejorado con el multijugador de COD4x y IW3SP-Mod para un jugador. Disfruta de la clasica campana de MW1 y del juego en linea con mantenimiento de cliente moderno.',
-                    credits: 'El multijugador lo proporciona el cliente COD4x, desarrollado por el <a href="https://cod4x.ovh/" target="_blank">Proyecto CoD4x</a>.<br>El modo un jugador lo proporciona el cliente IW3SP-Mod, desarrollado por <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                    description: 'COD4: Modern Warfare con multijugador IW3x o COD4x a eleccion y IW3SP-Mod para un jugador. Disfruta de la clasica campana de MW1 y del juego en linea con mantenimiento de cliente moderno.',
+                    credits: 'El multijugador lo proporciona el cliente IW3x, desarrollado por <a href="https://github.com/Divity" target="_blank">Divity</a> (<a href="https://iw3x.com/" target="_blank">iw3x.com</a>), o el cliente COD4x del <a href="https://cod4x.ovh/" target="_blank">Proyecto CoD4x</a>.<br>El modo un jugador lo proporciona el cliente IW3SP-Mod, desarrollado por <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
                 },
                 't4': {
                     description: 'Call of Duty: World at War mejorado con las modificaciones de Plutonium T4. Disfruta de la campana, el multijugador y el modo zombis con mayor estabilidad y funciones adicionales.',
@@ -1712,7 +1715,7 @@
                 showInstalled: 'Показать установленные',
                 welcomeTitle: 'Добро пожаловать в CB Launcher',
                 welcomeBody: 'Добро пожаловать в CB Servers Launcher! Ваш универсальный лаунчер для клиентов сообщества Call of Duty. Устанавливайте, обновляйте и играйте в поддерживаемые клиенты из одного места. Перейдите на вкладку <strong>Библиотека</strong>, чтобы просмотреть все доступные клиенты и начать играть. Нужна помощь? Посетите вкладку <strong>Поддержка</strong> или ознакомьтесь с нашей <a href="https://docs.cbservers.xyz/launcher" target="_blank">документацией</a>.',
-                disclaimer: 'Этот лаунчер не связан и не одобрен IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, не обращайтесь к разработчикам оригинальных клиентов с вопросами поддержки по этому лаунчеру.'
+                disclaimer: 'Этот лаунчер не связан и не одобрен IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, не обращайтесь к разработчикам оригинальных клиентов с вопросами поддержки по этому лаунчеру.'
             },
             library: {
                 title: 'Библиотека',
@@ -1762,7 +1765,7 @@
                     reinstallAllTitle: 'Переустановить все распространяемые компоненты?',
                     reinstallAllBody: 'Это переустановит все {{total}} пакетов распространяемых компонентов, включая уже установленные. Windows покажет один запрос разрешения администратора (UAC). Продолжить?'
                 },
-                noteBody: 'Этот лаунчер не связан с IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, используйте каналы поддержки CB Servers для этого лаунчера и его форков.',
+                noteBody: 'Этот лаунчер не связан с IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, используйте каналы поддержки CB Servers для этого лаунчера и его форков.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -1879,6 +1882,7 @@
                     playButtonBehavior: 'Поведение кнопки "Играть"',
                     playButtonBehaviorLabel: 'При нажатии кнопки "Играть" запускать:',
                     askEveryTime: 'Спрашивать каждый раз',
+                    modeClientLabel: 'Клиент для режима "{{mode}}":',
                     gameOptions: 'Игровые опции',
                     skipIntroCinematic: 'Пропустить вступительный ролик',
                     disableCbExtension: 'Отключить расширение CB',
@@ -2027,8 +2031,8 @@
                     credits: 'CoD2x разработан Yctn и eyza. Узнайте больше на <a href="https://cod2x.me/" target="_blank">cod2x.me</a>.'
                 },
                 'cod4x': {
-                    description: 'COD4: Modern Warfare улучшенный с мультиплеером COD4x и IW3SP-Mod для одиночной игры. Наслаждайтесь классической кампанией MW1 и онлайн-игрой с современной поддержкой.',
-                    credits: 'Мультиплеер предоставлен клиентом COD4x, разработанным <a href="https://cod4x.ovh/" target="_blank">Проектом CoD4x</a>.<br>Одиночная игра предоставлена клиентом IW3SP-Mod, разработанным <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
+                    description: 'COD4: Modern Warfare с мультиплеером IW3x или COD4x на выбор и IW3SP-Mod для одиночной игры. Наслаждайтесь классической кампанией MW1 и онлайн-игрой с современной поддержкой.',
+                    credits: 'Мультиплеер предоставлен клиентом IW3x, разработанным <a href="https://github.com/Divity" target="_blank">Divity</a> (<a href="https://iw3x.com/" target="_blank">iw3x.com</a>), или клиентом COD4x от <a href="https://cod4x.ovh/" target="_blank">Проекта CoD4x</a>.<br>Одиночная игра предоставлена клиентом IW3SP-Mod, разработанным <a href="https://gitea.com/JerryALT" target="_blank">JerryALT</a>.'
                 },
                 't4': {
                     description: 'Call of Duty: World at War улучшенный модификациями Plutonium T4. Наслаждайтесь кампанией, мультиплеером и зомби-режимом с улучшенной стабильностью и дополнительными функциями.',

@@ -292,6 +292,8 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         printf("Debug console enabled\n");
 #endif
 
+        game_config::seed_legacy_client_selections();
+
         // Listen for forwarded deep links immediately so a link clicked mid-update isn't lost.
         deep_link::server deep_link_server{};
         deep_link_server.start(&on_deep_link);

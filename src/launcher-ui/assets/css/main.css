@@ -2400,6 +2400,42 @@ html[data-theme="dark"] .setup-button {
 .mode-info strong { display: block; font-size: 14px; margin-bottom: 2px; color: #fff; font-weight: 600; }
 .mode-info p { margin: 0; font-size: 12px; color: var(--text-muted); }
 
+/* Inline client picker for modes served by more than one client */
+.mode-client-select {
+    display: inline-flex;
+    margin-top: 8px;
+    border: 1px solid var(--border-hi);
+    border-radius: 10px;
+    background: var(--surface-lo);
+    padding: 3px;
+    gap: 3px;
+}
+
+.mode-client-select .client-btn {
+    background: transparent;
+    border: none;
+    padding: 5px 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    border-radius: 7px;
+    font-family: inherit;
+}
+
+.mode-client-select .client-btn:hover {
+    color: #fff;
+    background: var(--surface-hi);
+}
+
+.mode-client-select .client-btn.active {
+    background: var(--accent-grad);
+    color: #fff;
+    box-shadow: 0 2px 12px var(--accent-soft);
+}
+
 .remember-choice {
     margin-bottom: 20px;
     padding: 12px 14px;

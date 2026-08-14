@@ -89,6 +89,7 @@ class GameModePopup {
 
         // Generate mode options based on game's supported modes
         this.generateModeOptions(game, gameConfig);
+        await this.loadClientSelections(game, gameConfig);
 
         this.backdrop.style.display = 'flex';
 
@@ -122,6 +123,8 @@ class GameModePopup {
             await this.savePreference(this.currentGame, selectedMode);
         }
 
+        await this.saveClientSelection(selectedMode);
+
         this.hide();
         this.launchGame(selectedMode);
     }
@@ -150,6 +153,14 @@ class GameModePopup {
             const info = modeInfo[mode] || { name: mode.toUpperCase(), description: this.t('popup.gameMode.playMode', { mode: mode.toUpperCase() }) };
             const isFirst = index === 0;
 
+            // Modes served by more than one client get an inline picker
+            const clients = (gameConfig.modeClients || {})[mode] || [];
+            const clientSelector = clients.length > 1 ? `
+                <div class="mode-client-select" data-mode="${mode}">
+                    ${clients.map(c => `<button type="button" class="client-btn" data-client="${c.id}">${c.name}</button>`).join('')}
+                </div>
+            ` : '';
+
             const modeOption = document.createElement('label');
             modeOption.className = 'mode-option';
             modeOption.innerHTML = `
@@ -158,11 +169,60 @@ class GameModePopup {
                 <div class="mode-info">
                     <strong>${info.name}</strong>
                     <p>${info.description}</p>
+                    ${clientSelector}
                 </div>
             `;
 
             modeOptionsContainer.appendChild(modeOption);
         });
+
+        // Picking a client also selects its mode
+        this.popup.querySelectorAll('.mode-client-select').forEach(select => {
+            select.querySelectorAll('.client-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    select.querySelectorAll('.client-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const radio = this.popup.querySelector(`input[name="gameMode"][value="${select.dataset.mode}"]`);
+                    if (radio) {
+                        radio.checked = true;
+                    }
+                });
+            });
+        });
+    }
+
+    async loadClientSelections(game, gameConfig) {
+        for (const select of this.popup.querySelectorAll('.mode-client-select')) {
+            let saved = null;
+            try {
+                saved = await window.executeCommand('get-game-property', {
+                    game: game,
+                    suffix: PROPERTY_KEYS.GAME.SELECTED_CLIENT_PREFIX + select.dataset.mode
+                });
+            } catch (error) { /* fall through to default */ }
+
+            const buttons = select.querySelectorAll('.client-btn');
+            const active = saved ? select.querySelector(`.client-btn[data-client="${saved}"]`) : null;
+            (active || buttons[0]).classList.add('active');
+        }
+    }
+
+    async saveClientSelection(mode) {
+        const select = this.popup.querySelector(`.mode-client-select[data-mode="${mode}"]`);
+        const active = select ? select.querySelector('.client-btn.active') : null;
+        if (!active) {
+            return;
+        }
+
+        try {
+            await window.executeCommand('set-game-property', {
+                game: this.currentGame,
+                suffix: PROPERTY_KEYS.GAME.SELECTED_CLIENT_PREFIX + mode,
+                value: active.dataset.client
+            });
+        } catch (error) {
+            console.error(`Failed to save client selection for ${this.currentGame}:`, error);
+        }
     }
 
     async getSavedPreference(game) {

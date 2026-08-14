@@ -19,6 +19,7 @@ const PROPERTY_KEYS = {
         IS_INSTALLED: 'is-installed',
         LAUNCH_OPTIONS: 'launch-options',
         GAME_MODE: 'game-mode',
+        SELECTED_CLIENT_PREFIX: 'selected-client-',
         SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
         LAUNCH_ADMIN: 'launch-admin',
         DISABLE_CB_EXTENSION: 'disable-cb-extension',
@@ -78,17 +79,25 @@ class GameUtils {
             shortName: 'COD4',
             defaultInstallPath: 'cod4_game_files',
             uiId: 'cod4x',
-            client: 'COD4x / IW3SP-Mod',
-            provider: 'CoD4x Project / IW3SP-Mod',
+            client: 'IW3x / CoD4x / IW3SP-Mod',
+            provider: 'COD4R Project / CoD4x Project / IW3SP-Mod',
             clientKey: 'others',
             hasMultipleModes: true,
             supportedModes: ['sp', 'mp'],
+            // Modes served by more than one client; first entry is the default when no
+            // selection is saved, and the choice persists via selected-client-<mode>.
+            modeClients: {
+                'mp': [
+                    { id: 'iw3x', name: 'IW3x' },
+                    { id: 'cod4x', name: 'CoD4x' }
+                ]
+            },
             supportsName: true,
             specialSettings: [],
-            codeName: 'COD4x / IW3SP-Mod',
+            codeName: 'IW3x / CoD4x / IW3SP-Mod',
             version: 'IW3',
-            description: 'COD4: Modern Warfare with COD4x multiplayer and IW3SP-Mod for singleplayer. Built for classic MW1 sessions and modern client maintenance.',
-            credits: 'Multiplayer is provided by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
+            description: 'COD4: Modern Warfare with a choice of IW3x or COD4x multiplayer and IW3SP-Mod for singleplayer. Built for classic MW1 sessions and modern client maintenance.',
+            credits: 'Multiplayer is provided by <a href="https://iw3x.com/" target="_blank">IW3x</a>, developed by <a href="https://github.com/Divity" target="_blank">Divity</a>, or by CoD4x. Singleplayer is provided by IW3SP-Mod and developed by JerryALT.',
             accent: '#46D744',
             assetBase: './assets/img/games/cod4x',
             iconPath: './assets/img/games/cod4x/icon.ico',

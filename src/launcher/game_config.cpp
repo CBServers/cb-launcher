@@ -423,6 +423,16 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .clients = {
+                    // Declared first among MP clients, so it's the default without a saved selection.
+                    // Its presence flips CoD4 store-routed: every launch reconciles.
+                    {
+                        .client_id = "iw3x",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "iw3x.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "iw3x/",
+                        .modes = {"mp"},
+                        .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
+                        .client_data_folders = {{"bin", dest_appdata}, {"main", dest_game}, {"zone", dest_game}},
+                    },
                     {
                         .client_id = "cod4x",
                         // cod4x.json / cod4x/ are frozen for shipped builds; this client reads the new pair.
@@ -908,6 +918,30 @@ namespace game_config
         }
 
         return candidates.front();
+    }
+
+    void seed_legacy_client_selections()
+    {
+        // The flag, not is_installed, decides "existing": a fresh setup flips is_installed
+        // later, and must not be grandfathered on the next launcher start.
+        if (utils::properties::load(property_keys::COD4X_CLIENT_SEEDED))
+        {
+            return;
+        }
+        utils::properties::store(property_keys::COD4X_CLIENT_SEEDED, "true");
+
+        const auto config = get_game_config("cod4x");
+        if (!config || !config->is_installed())
+        {
+            return;
+        }
+
+        const auto key = std::string{property_keys::SELECTED_CLIENT_PREFIX} + "mp";
+        const auto existing = config->get(key);
+        if (!existing || existing->empty())
+        {
+            config->set(key, "cod4x");
+        }
     }
 
     bool is_store_routed(const game_config_t& config)

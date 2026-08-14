@@ -41,6 +41,7 @@ class GameSettingsPopup {
                             <option value="mp">Multiplayer</option>
                         </select>
                     </div>
+                    <div id="mode-client-rows"></div>
                 </div>
 
                 <div class="settings-section" id="game-options-section" style="display: none;">
@@ -251,6 +252,8 @@ class GameSettingsPopup {
             playBehaviorSection.style.display = 'none';
         }
 
+        this.populateModeClientRows();
+
         const supportsName = this.gameConfig.supportsName === true;
 
         skipIntroRow.style.display = game === 'bo3' ? 'flex' : 'none';
@@ -291,6 +294,30 @@ class GameSettingsPopup {
             option.textContent = info.name;
             behaviorSelect.appendChild(option);
         });
+    }
+
+    // One dropdown per mode served by more than one client (e.g. CoD4 MP: CoD4x / IW3x)
+    populateModeClientRows() {
+        const container = this.popup.querySelector('#mode-client-rows');
+        container.innerHTML = '';
+
+        const modeInfo = GameUtils.getModeInfo();
+        for (const [mode, clients] of Object.entries(this.gameConfig.modeClients || {})) {
+            if (!clients || clients.length < 2) {
+                continue;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'setting-item';
+            const modeName = (modeInfo[mode] || {}).name || mode.toUpperCase();
+            row.innerHTML = `
+                <label>${this.t('popup.gameSettings.modeClientLabel', { mode: modeName })}</label>
+                <select class="behavior-dropdown mode-client-select" data-mode="${mode}">
+                    ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                </select>
+            `;
+            container.appendChild(row);
+        }
     }
 
     hide() {
@@ -368,6 +395,17 @@ class GameSettingsPopup {
                         // No saved preference means "ask every time"
                         behaviorSelect.value = 'ask';
                     }
+                }
+
+                // Load per-mode client selections; unset falls back to the first declared client
+                for (const select of this.popup.querySelectorAll('.mode-client-select')) {
+                    const saved = await window.executeCommand('get-game-property', {
+                        game: this.currentGame,
+                        suffix: PROPERTY_KEYS.GAME.SELECTED_CLIENT_PREFIX + select.dataset.mode
+                    });
+                    select.value = saved && [...select.options].some(o => o.value === saved)
+                        ? saved
+                        : select.options[0].value;
                 }
 
                 // Load launch-as-admin setting (all games); unset means the game's default
@@ -513,6 +551,15 @@ class GameSettingsPopup {
                             value: selectedBehavior
                         });
                     }
+                }
+
+                // Save per-mode client selections
+                for (const select of this.popup.querySelectorAll('.mode-client-select')) {
+                    await window.executeCommand('set-game-property', {
+                        game: this.currentGame,
+                        suffix: PROPERTY_KEYS.GAME.SELECTED_CLIENT_PREFIX + select.dataset.mode,
+                        value: select.value
+                    });
                 }
 
                 // Save launch-as-admin (all games); store only when it differs from the game's default
