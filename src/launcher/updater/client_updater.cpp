@@ -17,35 +17,6 @@ namespace client_updater
 {
     namespace
     {
-        // Unknown tokens fall back to automatic: manifests are served to launcher builds we
-        // don't control, so an unrecognised dest must never be a hard failure.
-        updater::file_dest parse_file_dest(const std::string& token)
-        {
-            if (token == "game") return updater::file_dest::game;
-            if (token == "appdata") return updater::file_dest::appdata;
-            return updater::file_dest::automatic;
-        }
-
-        // Optional 4th manifest element: a bare string, or {"dest": "..."} for future flags.
-        updater::file_dest parse_file_dest(const rapidjson::Value& element)
-        {
-            if (element.IsString())
-            {
-                return parse_file_dest(std::string{element.GetString(), element.GetStringLength()});
-            }
-
-            if (element.IsObject())
-            {
-                const auto dest = element.FindMember("dest");
-                if (dest != element.MemberEnd() && dest->value.IsString())
-                {
-                    return parse_file_dest(std::string{dest->value.GetString(), dest->value.GetStringLength()});
-                }
-            }
-
-            return updater::file_dest::automatic;
-        }
-
         std::vector<updater::file_info> parse_file_infos(const std::string& json)
         {
             rapidjson::Document doc{};
@@ -75,7 +46,7 @@ namespace client_updater
                 info.name.assign(array[0].GetString(), array[0].GetStringLength());
                 info.size = array[1].GetInt64();
                 info.hash.assign(array[2].GetString(), array[2].GetStringLength());
-                info.dest = array.Size() > 3 ? parse_file_dest(array[3]) : updater::file_dest::automatic;
+                info.dest = array.Size() > 3 ? client_store::parse_file_dest(array[3]) : updater::file_dest::automatic;
 
                 files.emplace_back(std::move(info));
             }
@@ -143,69 +114,6 @@ namespace client_updater
             return std::max(1ull, std::min(cores, file_count));
         }
 
-        bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
-        {
-            std::error_code code{};
-            const auto relative = std::filesystem::relative(file, folder, code);
-            if (code)
-            {
-                return false;
-            }
-
-            const auto start = relative.begin();
-            return start != relative.end() && start->native() != L"..";
-        }
-
-        // Deepest-first, so a nested directory is gone before its parent is tested.
-        void prune_empty_directories(const std::set<std::filesystem::path>& directories)
-        {
-            std::vector<std::filesystem::path> sorted_dirs(directories.begin(), directories.end());
-            std::sort(sorted_dirs.begin(), sorted_dirs.end(), [](const auto& a, const auto& b) {
-                return std::distance(a.begin(), a.end()) > std::distance(b.begin(), b.end());
-            });
-
-            for (const auto& dir : sorted_dirs)
-            {
-                std::error_code ec;
-                if (std::filesystem::exists(dir, ec) && std::filesystem::is_empty(dir, ec))
-                {
-                    std::filesystem::remove(dir, ec);
-                    if (!ec)
-                    {
-                        printf("Removed empty directory: %s\n", dir.filename().string().data());
-                    }
-                }
-            }
-        }
-
-        // Comparable key for a path: absolute, normalized separators, case-folded like the filesystem itself
-        std::wstring path_key(const std::filesystem::path& path)
-        {
-            std::error_code code{};
-            const auto resolved = std::filesystem::absolute(path, code);
-            auto text = (code ? path : resolved).lexically_normal().wstring();
-
-            while (!text.empty() && (text.back() == L'\\' || text.back() == L'/'))
-            {
-                text.pop_back();
-            }
-
-            if (!text.empty())
-            {
-                ::CharLowerBuffW(text.data(), static_cast<DWORD>(text.size()));
-            }
-
-            return text;
-        }
-
-        // One entry of the applied-manifest cache: the manifest name plus the dest it was
-        // resolved with, so a later config change can't silently repoint an old name.
-        struct cached_file
-        {
-            std::string name;
-            updater::file_dest dest;
-        };
-
         const char* file_dest_token(const updater::file_dest dest)
         {
             switch (dest)
@@ -214,53 +122,6 @@ namespace client_updater
             case updater::file_dest::appdata: return "appdata";
             default: return "";
             }
-        }
-
-        std::vector<cached_file> read_manifest_cache(const std::filesystem::path& path)
-        {
-            std::string data{};
-            if (!utils::io::read_file(path, &data) || data.empty())
-            {
-                return {};
-            }
-
-            rapidjson::Document doc{};
-            doc.Parse(data.data(), data.size());
-            if (doc.HasParseError() || !doc.IsArray())
-            {
-                return {};
-            }
-
-            std::vector<cached_file> files{};
-            files.reserve(doc.GetArray().Size());
-
-            for (const auto& element : doc.GetArray())
-            {
-                // Bare string = dest automatic; ["name", "game"] carries an explicit dest.
-                if (element.IsString())
-                {
-                    files.emplace_back(cached_file{
-                        std::string{element.GetString(), element.GetStringLength()}, updater::file_dest::automatic});
-                    continue;
-                }
-
-                if (!element.IsArray())
-                {
-                    continue;
-                }
-
-                const auto array = element.GetArray();
-                if (array.Size() < 1 || !array[0].IsString())
-                {
-                    continue;
-                }
-
-                files.emplace_back(cached_file{
-                    std::string{array[0].GetString(), array[0].GetStringLength()},
-                    array.Size() > 1 ? parse_file_dest(array[1]) : updater::file_dest::automatic});
-            }
-
-            return files;
         }
 
         bool write_manifest_cache(const std::filesystem::path& path, const std::vector<updater::file_info>& files)
@@ -291,40 +152,38 @@ namespace client_updater
 
             return utils::io::write_file(path, std::string{buffer.GetString(), buffer.GetSize()}, false);
         }
+
+        // The install path is the game's, not the client's: a game's clients share one folder.
+        std::filesystem::path resolve_install_path(const game_config::game_config_t& config)
+        {
+            const auto install_path_prop = config.get_install_path();
+            if (!install_path_prop || install_path_prop->empty())
+            {
+                throw std::runtime_error("Game install path not set for: " + config.id);
+            }
+
+            return *install_path_prop;
+        }
     }
 
     client_updater::client_updater(const game_config::game_config_t& config, const game_config::client_files_t& client,
         const std::vector<std::string>& skip_files, updater::ui_progress_listener* listener)
-        : skip_files_(skip_files), progress_listener_(listener)
+        : install_path(resolve_install_path(config)), paths_(install_path, client),
+          client_id_(client.client_id), store_routed_(game_config::is_store_routed(config)),
+          skip_files_(skip_files), progress_listener_(listener)
     {
-        // The install path is the game's, not the client's: a game's clients all live in the
-        // same folder (CoD4x/IW3SP-Mod/IW3x, and mwr/hmw today).
-        const auto install_path_prop = config.get_install_path();
-        if (!install_path_prop || install_path_prop->empty())
-        {
-            throw std::runtime_error("Game install path not set for: " + config.id);
-        }
-
-        if (install_path_prop.has_value())
-        {
-            this->install_path = *install_path_prop;
-        }
-
         this->update_manifest_url_ = client.update_manifest_url;
         this->update_folder_url_ = client.update_folder_url;
 
         // Keyed on the client, so two clients of one game can't overwrite each other's cache
         // and diff away each other's files. Client ids are unique across all games.
-        this->manifest_cache_path_ = utils::properties::get_appdata_path() / "client-manifest"
-            / (client.client_id + ".json");
+        this->manifest_cache_path_ = client_store::manifest_cache_path(client.client_id);
 
         if (this->update_manifest_url_.empty() || this->update_folder_url_.empty())
         {
             return;
         }
 
-        this->client_default_path_ = client.client_default_path.empty() ? this->install_path : client.client_default_path;
-        this->client_install_path_files_ = client.client_install_path_files;
         this->client_data_folders_ = client.client_data_folders;
 
         // Fetch manifest and compute valid files
@@ -349,6 +208,11 @@ namespace client_updater
         if (this->valid_files_.empty())
         {
             return;
+        }
+
+        if (this->store_routed_)
+        {
+            client_store::sweep_store(this->client_id_, this->manifest_files_);
         }
 
         this->remove_stale_files();
@@ -584,93 +448,17 @@ namespace client_updater
 
     std::filesystem::path client_updater::get_drive_filename(const updater::file_info& file) const
     {
-        return this->resolve_drive_path(file.name, file.dest);
+        if (this->store_routed_)
+        {
+            return client_store::store_path(this->client_id_) / utils::string::utf8_to_path(file.name);
+        }
+
+        return this->paths_.resolve_file(file.name, file.dest);
     }
 
-    std::filesystem::path client_updater::resolve_drive_path(const std::string& name, const updater::file_dest dest) const
-    {
-        return this->resolve_base_path(name, dest) / name;
-    }
-
-    std::filesystem::path client_updater::resolve_base_path(const std::string& name, const updater::file_dest dest) const
-    {
-        if (dest == updater::file_dest::game)
-        {
-            return this->install_path;
-        }
-
-        if (dest == updater::file_dest::appdata)
-        {
-            return this->client_default_path_;
-        }
-
-        if (this->client_install_path_files_.empty())
-        {
-            return this->client_default_path_;
-        }
-
-        if (this->client_install_path_files_.contains(name))
-        {
-            return this->install_path;
-        }
-
-        for (const auto& entry : this->client_install_path_files_)
-        {
-            const auto star = entry.find('*');
-            if (star == std::string::npos) continue;
-            const auto prefix = entry.substr(0, star);
-            if (utils::string::starts_with(name, prefix))
-            {
-                return this->install_path;
-            }
-        }
-
-        return this->client_default_path_;
-    }
-
-    std::filesystem::path client_updater::resolve_data_dir(const game_config::data_folder_t& entry) const
-    {
-        const auto& folder = entry.folder;
-
-        if (entry.dest == updater::file_dest::game)
-        {
-            return this->install_path / folder;
-        }
-
-        if (entry.dest == updater::file_dest::appdata)
-        {
-            return this->client_default_path_ / folder;
-        }
-
-        if (this->client_install_path_files_.empty())
-        {
-            return this->client_default_path_ / folder;
-        }
-
-        if (this->client_install_path_files_.contains(folder))
-        {
-            return this->install_path / folder;
-        }
-
-        for (const auto& file : this->client_install_path_files_)
-        {
-            const auto star = file.find('*');
-            if (star == std::string::npos) continue;
-            const auto prefix = file.substr(0, star);
-            const auto folder_slash = folder + "/";
-            if (utils::string::starts_with(folder_slash, prefix) ||
-                utils::string::starts_with(prefix, folder_slash))
-            {
-                return this->install_path / folder;
-            }
-        }
-
-        return this->client_default_path_ / folder;
-    }
-
-    // Delete only names this client shipped last run and no longer ships. A file the launcher
-    // never wrote is never a delete candidate, so foreign files (fork self-updates, server
-    // downloads, hand-dropped files) are structurally unreachable.
+    // Delete only names this client shipped last run and no longer ships, so foreign files
+    // are structurally unreachable. Always resolves live destinations, even store-routed:
+    // a dropped name's live copy is deleted here, its store copy by the sweep.
     void client_updater::remove_stale_files() const
     {
         // A failed manifest fetch yields an empty manifest, which would diff as "this client
@@ -680,7 +468,7 @@ namespace client_updater
             return;
         }
 
-        const auto cached_files = read_manifest_cache(this->manifest_cache_path_);
+        const auto cached_files = client_store::read_manifest_cache(this->client_id_);
         if (cached_files.empty())
         {
             return;
@@ -688,7 +476,7 @@ namespace client_updater
 
         // Cache resolved under pre-dest rules but the manifest now carries dests: re-seed instead of diffing.
         const auto cache_is_legacy = std::all_of(cached_files.begin(), cached_files.end(),
-            [](const cached_file& file) { return file.dest == updater::file_dest::automatic; });
+            [](const client_store::cached_file& file) { return file.dest == updater::file_dest::automatic; });
         const auto manifest_has_dest = std::any_of(this->manifest_files_.begin(), this->manifest_files_.end(),
             [](const updater::file_info& file) { return file.dest != updater::file_dest::automatic; });
 
@@ -709,7 +497,7 @@ namespace client_updater
         roots.reserve(this->client_data_folders_.size());
         for (const auto& entry : this->client_data_folders_)
         {
-            roots.emplace_back(this->resolve_data_dir(entry));
+            roots.emplace_back(this->paths_.resolve_data_dir(entry));
         }
 
         std::set<std::filesystem::path> directories_to_check{};
@@ -721,11 +509,11 @@ namespace client_updater
                 continue;
             }
 
-            const auto path = this->resolve_drive_path(cached.name, cached.dest);
+            const auto path = this->paths_.resolve_file(cached.name, cached.dest);
 
             const auto is_scoped = std::any_of(roots.begin(), roots.end(), [&path](const std::filesystem::path& root)
             {
-                return is_inside_folder(path, root);
+                return client_store::is_inside_folder(path, root);
             });
 
             if (!is_scoped || !utils::io::file_exists(path))
@@ -746,11 +534,11 @@ namespace client_updater
             for (auto parent = path.parent_path(); !parent.empty() && parent != parent.parent_path();
                  parent = parent.parent_path())
             {
-                const auto parent_key = path_key(parent);
+                const auto parent_key = client_store::path_key(parent);
                 const auto inside_root = std::any_of(roots.begin(), roots.end(),
                     [&parent, &parent_key](const std::filesystem::path& root)
                 {
-                    return parent_key != path_key(root) && is_inside_folder(parent, root);
+                    return parent_key != client_store::path_key(root) && client_store::is_inside_folder(parent, root);
                 });
 
                 if (!inside_root)
@@ -762,7 +550,7 @@ namespace client_updater
             }
         }
 
-        prune_empty_directories(directories_to_check);
+        client_store::prune_empty_directories(directories_to_check);
     }
 
     void client_updater::store_applied_manifest() const
@@ -784,10 +572,15 @@ namespace client_updater
     void client_updater::delete_client() const
     {
         // Before the empty-manifest bail: an uninstall done offline must not leave a cache
-        // behind for the next install to diff against.
+        // behind for the next install to diff against. Same for the store subdir.
         if (!this->manifest_cache_path_.empty())
         {
             utils::io::remove_file(this->manifest_cache_path_);
+        }
+
+        if (this->store_routed_)
+        {
+            client_store::delete_store(this->client_id_);
         }
 
         if (this->valid_files_.empty())
@@ -795,11 +588,11 @@ namespace client_updater
             return;
         }
 
-        // Collect files that exist on disk
+        // Live destinations, not the store: uninstall removes them regardless of routing.
         std::vector<updater::file_info> files_to_delete;
         for (const auto& file : this->valid_files_)
         {
-            const auto drive_name = this->get_drive_filename(file);
+            const auto drive_name = this->paths_.resolve_file(file.name, file.dest);
             if (utils::io::file_exists(drive_name))
             {
                 files_to_delete.push_back(file);
@@ -824,7 +617,7 @@ namespace client_updater
                 this->progress_listener_->begin_file(file);
             }
 
-            const auto drive_name = this->get_drive_filename(file);
+            const auto drive_name = this->paths_.resolve_file(file.name, file.dest);
             if (!utils::io::remove_file(drive_name))
             {
                 printf("Warning: Failed to delete client file: %s\n", drive_name.string().data());
@@ -841,18 +634,18 @@ namespace client_updater
         std::set<std::filesystem::path> directories_to_check;
         for (const auto& file : files_to_delete)
         {
-            const auto file_path = this->get_drive_filename(file);
+            const auto file_path = this->paths_.resolve_file(file.name, file.dest);
             auto parent = file_path.parent_path();
-            const auto base = this->resolve_base_path(file.name, file.dest);
+            const auto base = this->paths_.resolve_base(file.name, file.dest);
 
-            while (parent != base && is_inside_folder(parent, base))
+            while (parent != base && client_store::is_inside_folder(parent, base))
             {
                 directories_to_check.insert(parent);
                 parent = parent.parent_path();
             }
         }
 
-        prune_empty_directories(directories_to_check);
+        client_store::prune_empty_directories(directories_to_check);
     }
 
     bool client_updater::is_update_cancelled() const

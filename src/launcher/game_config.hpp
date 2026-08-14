@@ -37,6 +37,8 @@ namespace game_config
         std::string client_id;
         std::string update_manifest_url;
         std::string update_folder_url;
+        // Modes this client serves ("sp", "mp", ...). Empty = every mode of the game.
+        std::vector<std::string> modes;
         // The `appdata` root: client's appdata dir. Empty = same as the game's install path.
         std::filesystem::path client_default_path;
         // Files that always go to install_path even when client_default_path is set.
@@ -122,8 +124,6 @@ namespace game_config
         // Every client of this game. Populated by get_game_config(); never read from the
         // static table directly.
         std::vector<client_files_t> clients;
-        // Mode -> client_id, for games whose modes map to different clients. Empty = one client.
-        std::unordered_map<std::string, std::string> mode_clients;
 
         // Redist group IDs required by this client (from redist_packages.cpp). Unioned with base_game's list at resolve time.
         std::vector<std::string> required_redists;
@@ -141,6 +141,13 @@ namespace game_config
     // Forward declarations
     extern const std::unordered_map<std::string, game_config_t> game_configs_;
     extern const std::unordered_map<std::string, std::string> ui_to_backend_mapping_;
+
+    // Clients serving `mode`, in declared order. A client with no modes serves every mode.
+    std::vector<const client_files_t*> clients_for_mode(const game_config_t& config, const std::string& mode);
+    // Persisted selection if valid, else first declared client serving the mode; null if none.
+    const client_files_t* select_client_for_mode(const game_config_t& config, const std::string& mode);
+    // True once any mode has more than one client; such games route through the private store.
+    bool is_store_routed(const game_config_t& config);
 
     // Function declarations
     std::optional<game_config_t> get_game_config(const std::string& game);

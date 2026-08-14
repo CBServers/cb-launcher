@@ -60,24 +60,17 @@ namespace client_updater
     bool run_for_mode(const game_config::game_config_t& config, const std::string& mode,
         const std::vector<std::string>& skip_files, updater::ui_progress_listener* listener)
     {
-        if (config.mode_clients.empty())
+        if (config.clients.size() < 2)
         {
             return run_all(config, skip_files, listener);
         }
 
-        const auto mapping = config.mode_clients.find(mode);
-        if (mapping != config.mode_clients.end())
+        if (const auto* client = game_config::select_client_for_mode(config, mode))
         {
-            for (const auto& client : config.clients)
-            {
-                if (client.client_id == mapping->second)
-                {
-                    return run(config, client, skip_files, listener);
-                }
-            }
+            return run(config, *client, skip_files, listener);
         }
 
-        // Unmapped mode or a client_id typo: update everything rather than silently skip.
+        // A mode no client claims: update everything rather than silently skip.
         return run_all(config, skip_files, listener);
     }
 }

@@ -428,6 +428,7 @@ namespace game_config
                         // cod4x.json / cod4x/ are frozen for shipped builds; this client reads the new pair.
                         .update_manifest_url = CLIENT_UPDATE_SERVER "cod4x-mp.json",
                         .update_folder_url = CLIENT_UPDATE_SERVER "cod4x-mp/",
+                        .modes = {"mp"},
                         .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
                         .client_data_folders = {{"bin", dest_appdata}, {"main", dest_appdata}, {"zone", dest_appdata}},
                     },
@@ -435,11 +436,11 @@ namespace game_config
                         .client_id = "iw3sp-mod",
                         .update_manifest_url = CLIENT_UPDATE_SERVER "iw3sp-mod.json",
                         .update_folder_url = CLIENT_UPDATE_SERVER "iw3sp-mod/",
+                        .modes = {"sp"},
                         .client_default_path = utils::properties::get_appdata_folder_path("CallofDuty4MW"),
                         .client_data_folders = {{"iw3sp_data", dest_game}},
                     },
                 },
-                .mode_clients = {{"sp", "iw3sp-mod"}, {"mp", "cod4x"}},
                 .required_redists = {"vcr2005", "vcr2008", "dx_jun2010"}
             }
         },
@@ -853,17 +854,88 @@ namespace game_config
         if (config.clients.empty())
         {
             config.clients.push_back(client_files_t{
-                config.id.empty() ? config.game_key : config.id,
-                config.update_manifest_url,
-                config.update_folder_url,
-                config.client_default_path,
-                config.client_install_path_files,
-                config.client_data_folders,
-                config.required_updater_files
+                .client_id = config.id.empty() ? config.game_key : config.id,
+                .update_manifest_url = config.update_manifest_url,
+                .update_folder_url = config.update_folder_url,
+                .client_default_path = config.client_default_path,
+                .client_install_path_files = config.client_install_path_files,
+                .client_data_folders = config.client_data_folders,
+                .required_updater_files = config.required_updater_files
             });
         }
 
         return config;
+    }
+
+    std::vector<const client_files_t*> clients_for_mode(const game_config_t& config, const std::string& mode)
+    {
+        std::vector<const client_files_t*> result{};
+
+        for (const auto& client : config.clients)
+        {
+            if (client.modes.empty() ||
+                std::find(client.modes.begin(), client.modes.end(), mode) != client.modes.end())
+            {
+                result.push_back(&client);
+            }
+        }
+
+        return result;
+    }
+
+    const client_files_t* select_client_for_mode(const game_config_t& config, const std::string& mode)
+    {
+        const auto candidates = clients_for_mode(config, mode);
+        if (candidates.empty())
+        {
+            return nullptr;
+        }
+
+        // An unknown or stale persisted id falls back to the first declared client.
+        if (candidates.size() > 1)
+        {
+            const auto selected = config.get(std::string{property_keys::SELECTED_CLIENT_PREFIX} + mode);
+            if (selected && !selected->empty())
+            {
+                for (const auto* candidate : candidates)
+                {
+                    if (candidate->client_id == *selected)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        return candidates.front();
+    }
+
+    bool is_store_routed(const game_config_t& config)
+    {
+        if (config.clients.size() < 2)
+        {
+            return false;
+        }
+
+        std::unordered_set<std::string> modes{};
+        for (const auto& client : config.clients)
+        {
+            // Two clients that both serve every mode collide on every mode.
+            if (client.modes.empty())
+            {
+                return true;
+            }
+
+            for (const auto& mode : client.modes)
+            {
+                if (!modes.emplace(mode).second)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     std::optional<game_config_t> get_game_config(const std::string& game)

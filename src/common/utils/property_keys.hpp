@@ -33,6 +33,8 @@ namespace property_keys
 
     // Game component settings (used with game config get/set)
     constexpr const char* DETECTED_COMPONENTS = "detected-components";
+    // + mode ("selected-client-mp"): which client serves a mode with more than one.
+    constexpr const char* SELECTED_CLIENT_PREFIX = "selected-client-";
     constexpr const char* SELECTED_COMPONENTS = "selected-components";
     constexpr const char* DISABLE_CB_EXTENSION = "disable-cb-extension";
 

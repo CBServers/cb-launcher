@@ -23,6 +23,7 @@
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/client_updater.hpp"
+#include "updater/client_store.hpp"
 #include "updater/ui_progress_listener.hpp"
 
 namespace commands::game_commands
@@ -609,6 +610,16 @@ namespace commands::game_commands
 
             const auto game_directory = *game_install;
 
+            // Match the live layout to this mode's selected client before any exe check.
+            try
+            {
+                client_store::reconcile(config, mode);
+            }
+            catch (const std::exception& e)
+            {
+                printf("Reconcile failed: %s\n", e.what());
+            }
+
             // Here rather than after the client update, so a skipped or failed update can't leave these unset.
             ensure_launch_prerequisites(config);
 
@@ -1139,6 +1150,10 @@ namespace commands::game_commands
 
                     const auto clients_fetched = client_updater::run_all(config, skip_files, &progress_listener);
                     ensure_launch_prerequisites(config);
+
+                    // Store-routed games write nothing live above, so reconcile every mode.
+                    client_store::reconcile_all(config);
+
                     progress_listener.done_update();
 
                     if (clients_fetched)
