@@ -1043,8 +1043,9 @@
                     </aside>`;
 
             return `
-            <div class="${pageCls}" id="${escapeHtml(config.uiId)}-page" style="display: none;">
+            <div class="${pageCls}" id="${escapeHtml(config.uiId)}-page" style="display: none;${config.accent ? ` --game-accent: ${escapeHtml(config.accent)};` : ''}">
                 <div class="hero-section ${escapeHtml(config.uiId)}" style="--hero-image: ${cssUrl(config.heroImagePath)}">
+                    <div class="hud-corners"></div>
                     <div class="hero-bottom-content">
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
                         <div class="game-meta-row">
