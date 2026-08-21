@@ -5,6 +5,9 @@
     <title>CB Servers Launcher</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preload" href="./assets/fonts/rajdhani-600.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="./assets/fonts/rajdhani-700.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="./assets/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
     <link href="./assets/css/main.css" rel="stylesheet" />
     <script src="./assets/js/core/utils.js"></script>
     <script src="./assets/js/core/i18n.js"></script>
@@ -102,8 +105,10 @@
             <main class="content-area">
                 <div class="page-section" id="home-page">
                     <div class="hub-hero" id="hub-hero">
+                        <div class="hud-corners"></div>
                         <div class="hub-hero-content">
                             <div class="hub-hero-info">
+                                <span class="hud-eyebrow hub-hero-eyebrow" data-i18n="home.heroEyebrow">Featured</span>
                                 <img class="hub-hero-logo" id="hub-hero-logo" alt="">
                                 <p class="hub-hero-sub" id="hub-hero-sub">A unified launcher for Call of Duty community clients.</p>
                             </div>
@@ -296,6 +301,7 @@
                                 <div class="cdn-control">
                                     <select class="cdn-select" id="theme-select">
                                         <option value="dark" data-i18n="settings.themeDark">Dark</option>
+                                        <option value="tactical" data-i18n="settings.themeTactical">Tactical</option>
                                         <option value="navy" data-i18n="settings.themeNavy">Navy Dark</option>
                                         <option value="navy-gradient" data-i18n="settings.themeNavyGradient">Navy Gradient</option>
                                     </select>
@@ -431,8 +437,6 @@
     </span>
 
     <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
-
-    <dark-mode-toggle hidden permanent="true"></dark-mode-toggle>
 </body>
 
 </html>

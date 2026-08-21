@@ -4713,3 +4713,808 @@ html[data-theme="dark"] .secondary-action:hover {
     font-weight: 600;
     white-space: nowrap;
 }
+
+/* ============================================================ */
+/* FONTS (bundled, SIL OFL — see assets/fonts/OFL.txt)          */
+/* ============================================================ */
+
+@font-face {
+    font-family: 'Rajdhani';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('../fonts/rajdhani-500.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Rajdhani';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('../fonts/rajdhani-600.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Rajdhani';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/rajdhani-700.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/ibm-plex-mono-400.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('../fonts/ibm-plex-mono-500.woff2') format('woff2');
+}
+
+/* ============================================================ */
+/* TACTICAL THEME                                               */
+/* Active when no data-theme attribute is set; every rule must  */
+/* be scoped to html:not([data-theme]) so the themes above      */
+/* render exactly as before. Per-game accents come from         */
+/* config.accent via an inline --game-accent custom property.   */
+/* ============================================================ */
+
+html:not([data-theme]) {
+    --bg-base: #0A0C0A;
+    --bg-deep: #060705;
+    --bg-gradient: var(--bg-base);
+
+    --surface: rgba(255, 255, 255, 0.045);
+    --surface-hi: rgba(255, 255, 255, 0.08);
+    --surface-lo: rgba(255, 255, 255, 0.03);
+    --surface-popup: rgba(14, 16, 12, 0.98);
+    --border: rgba(237, 232, 214, 0.1);
+    --border-hi: rgba(237, 232, 214, 0.18);
+
+    --text: #EDEDE6;
+    --text-bright: #F8F8F2;
+    --text-muted: #8A9178;
+    --text-dim: #5C6152;
+
+    --accent: #FFA02E;
+    --accent-contrast: #141309;
+    --accent-soft: rgba(255, 160, 46, 0.22);
+    --accent-glow: rgba(255, 160, 46, 0.45);
+    --accent-deep: #D97E14;
+    --accent-grad: linear-gradient(135deg, #FFA02E 0%, #E08417 100%);
+
+    --play: var(--accent);
+    --play-glow: rgba(255, 160, 46, 0.4);
+    --success: #35C24E;
+    --success-border: rgba(53, 194, 78, 0.35);
+    --warn: #FFCF4D;
+    --warn-soft: rgba(255, 207, 77, 0.14);
+    --warn-border: rgba(255, 207, 77, 0.32);
+    --danger: #FF4747;
+    --danger-strong: #D93838;
+
+    --radius: 4px;
+    --radius-sm: 3px;
+    --radius-lg: 6px;
+    --chamfer: 14px;
+    --chamfer-sm: 9px;
+    --clip-chamfer: polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, var(--chamfer) 100%, 0 calc(100% - var(--chamfer)));
+    --clip-chamfer-sm: polygon(0 0, calc(100% - var(--chamfer-sm)) 0, 100% var(--chamfer-sm), 100% 100%, var(--chamfer-sm) 100%, 0 calc(100% - var(--chamfer-sm)));
+
+    --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 24px rgba(255, 160, 46, 0.15);
+    --shadow-deep: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+    --font-display: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Consolas', 'SF Mono', monospace;
+    --tracking: 0.12em;
+
+    --nav-active-bg: linear-gradient(135deg, rgba(255, 160, 46, 0.16), rgba(255, 160, 46, 0.05));
+    --nav-active-border: rgba(255, 160, 46, 0.4);
+    --chip-active-bg: rgba(255, 160, 46, 0.14);
+    --chip-active-border: rgba(255, 160, 46, 0.5);
+    --focus-border: rgba(255, 160, 46, 0.55);
+    --card-hover-border: rgba(255, 160, 46, 0.45);
+    --hero-tint: rgba(255, 160, 46, 0.08);
+    --interactive-hover-border: rgba(255, 160, 46, 0.35);
+    --link-hover: #FFB95C;
+    --title-border: rgba(237, 232, 214, 0.07);
+    --checkbox-mark: #141309;
+}
+
+/* Tactical-only markup stays invisible on legacy themes */
+html[data-theme] .hud-corners,
+html[data-theme] .hub-hero-eyebrow {
+    display: none;
+}
+
+/* ── Shared treatments ── */
+
+/* Accent slash prefix on headings and labels */
+html:not([data-theme]) .hud-eyebrow::before,
+html:not([data-theme]) .sidebar-brand-sub::before,
+html:not([data-theme]) .description strong::before,
+html:not([data-theme]) .support-panel h2::before,
+html:not([data-theme]) .settings-content .settings-section h3::before,
+html:not([data-theme]) .friends-group-head::before,
+html:not([data-theme]) .popup-header h3::before,
+html:not([data-theme]) #message-box .mb-title::before {
+    content: '// ';
+    color: var(--accent);
+}
+
+/* Display-face headings */
+html:not([data-theme]) .sidebar-brand-title,
+html:not([data-theme]) .section-title,
+html:not([data-theme]) .hub-hero-title,
+html:not([data-theme]) .description strong,
+html:not([data-theme]) .support-panel h2,
+html:not([data-theme]) .settings-content .settings-section h3,
+html:not([data-theme]) .popup-header h3,
+html:not([data-theme]) #message-box .mb-title {
+    font-family: var(--font-display);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Display-face action buttons */
+html:not([data-theme]) .popup-actions button,
+html:not([data-theme]) .setup-actions button,
+html:not([data-theme]) .install-actions button,
+html:not([data-theme]) #message-box .mb-buttons button,
+html:not([data-theme]) .settings-action-btn,
+html:not([data-theme]) .support-action,
+html:not([data-theme]) .support-link,
+html:not([data-theme]) .verify-button,
+html:not([data-theme]) .manage-install-button {
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Mono badges and pills */
+html:not([data-theme]) .badge,
+html:not([data-theme]) .game-mod,
+html:not([data-theme]) .game-meta-row span,
+html:not([data-theme]) .library-card-size-pill,
+html:not([data-theme]) .library-card-player-pill,
+html:not([data-theme]) .library-card-soon-badge,
+html:not([data-theme]) .game-item-soon-chip,
+html:not([data-theme]) .detail-coming-soon-chip,
+html:not([data-theme]) .friends-group-count,
+html:not([data-theme]) .redist-badge {
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+}
+
+/* Mono readouts */
+html:not([data-theme]) .progress-stats,
+html:not([data-theme]) .progress-percent,
+html:not([data-theme]) .download-row-status,
+html:not([data-theme]) .download-progress-meta,
+html:not([data-theme]) .friend-activity,
+html:not([data-theme]) .friends-group-head,
+html:not([data-theme]) .settings-footer .footer-version,
+html:not([data-theme]) .detail-stat span,
+html:not([data-theme]) .detail-stat strong {
+    font-family: var(--font-mono);
+}
+
+html:not([data-theme]) .progress-percent,
+html:not([data-theme]) .download-progress-percent {
+    color: var(--accent);
+}
+
+/* Square off small controls */
+html:not([data-theme]) .control-btn,
+html:not([data-theme]) .search-field input,
+html:not([data-theme]) .cdn-select,
+html:not([data-theme]) .setting-text-input,
+html:not([data-theme]) .input-group input[type="text"],
+html:not([data-theme]) .cdn-test-btn,
+html:not([data-theme]) .popup-close,
+html:not([data-theme]) .install-browse-button,
+html:not([data-theme]) .game-settings-popup .browse-button,
+html:not([data-theme]) .inline-game-settings .browse-button,
+html:not([data-theme]) .friend-invite-btn,
+html:not([data-theme]) .friend-join-btn,
+html:not([data-theme]) .friend-same-match,
+html:not([data-theme]) .redist-row-install,
+html:not([data-theme]) .progress-pause-btn,
+html:not([data-theme]) .progress-cancel-btn,
+html:not([data-theme]) .download-row-pause,
+html:not([data-theme]) .download-row-cancel,
+html:not([data-theme]) .hub-hero-arrow,
+html:not([data-theme]) .hub-hero-dots,
+html:not([data-theme]) .hub-hero-dot.is-active,
+html:not([data-theme]) .progress-game-icon,
+html:not([data-theme]) .popup-actions button,
+html:not([data-theme]) .setup-actions button,
+html:not([data-theme]) .install-actions button,
+html:not([data-theme]) #message-box .mb-buttons button,
+html:not([data-theme]) .chip,
+html:not([data-theme]) .checkbox-custom,
+html:not([data-theme]) .install-path-display,
+html:not([data-theme]) .settings-content .toggle-btn,
+html:not([data-theme]) .game-settings-popup .toggle-btn,
+html:not([data-theme]) .inline-game-settings .toggle-btn,
+html:not([data-theme]) .game-settings-popup .input-group input,
+html:not([data-theme]) .inline-game-settings .input-group input,
+html:not([data-theme]) .game-settings-popup .launch-options-input,
+html:not([data-theme]) .inline-game-settings .launch-options-input,
+html:not([data-theme]) .game-settings-popup .behavior-dropdown,
+html:not([data-theme]) .inline-game-settings .behavior-dropdown {
+    border-radius: 2px;
+}
+
+html:not([data-theme]) .game-item-thumb,
+html:not([data-theme]) .download-row-icon,
+html:not([data-theme]) .verify-button,
+html:not([data-theme]) .manage-install-button,
+html:not([data-theme]) .game-settings-btn,
+html:not([data-theme]) .settings-action-btn,
+html:not([data-theme]) .library-install-btn,
+html:not([data-theme]) .library-card-menu,
+html:not([data-theme]) .toggle-group,
+html:not([data-theme]) .mode-option,
+html:not([data-theme]) .setup-option,
+html:not([data-theme]) .remember-choice,
+html:not([data-theme]) .install-info-section,
+html:not([data-theme]) .component-selection-popup .components-list,
+html:not([data-theme]) .components-list-compact,
+html:not([data-theme]) .component-selection-popup .component-item,
+html:not([data-theme]) .components-list-compact .component-item,
+html:not([data-theme]) .component-selection-popup .component-install-path-section,
+html:not([data-theme]) .settings-content .setting-item.inline-setting,
+html:not([data-theme]) .game-settings-item,
+html:not([data-theme]) .directory-row,
+html:not([data-theme]) .redist-row {
+    border-radius: var(--radius-sm);
+}
+
+/* Chamfered surfaces */
+html:not([data-theme]) .sidebar,
+html:not([data-theme]) .client-card,
+html:not([data-theme]) .library-card,
+html:not([data-theme]) .button-group,
+html:not([data-theme]) .detail-actions-panel,
+html:not([data-theme]) .support-panel,
+html:not([data-theme]) .settings-section,
+html:not([data-theme]) .game-mode-popup,
+html:not([data-theme]) .game-settings-popup,
+html:not([data-theme]) .setup-flow-popup,
+html:not([data-theme]) .component-selection-popup,
+html:not([data-theme]) .install-confirm-popup,
+html:not([data-theme]) .custom-server-popup,
+html:not([data-theme]) #message-box > .container {
+    clip-path: var(--clip-chamfer);
+}
+
+/* The legacy glassmorphism glows read wrong on flat chamfered
+   surfaces (and clip-path clips shadows anyway) */
+html:not([data-theme]) .sidebar,
+html:not([data-theme]) .hub-hero,
+html:not([data-theme]) .hero-section,
+html:not([data-theme]) .client-card:hover,
+html:not([data-theme]) .library-card:hover,
+html:not([data-theme]) .library-install-btn:hover,
+html:not([data-theme]) .library-card.is-running .library-install-btn:hover,
+html:not([data-theme]) .chip.active,
+html:not([data-theme]) .nav-badge,
+html:not([data-theme]) .nav-item.active::before,
+html:not([data-theme]) .play-button,
+html:not([data-theme]) .play-button:hover:not(:disabled),
+html:not([data-theme]) .setup-button,
+html:not([data-theme]) .setup-button:hover:not(:disabled),
+html:not([data-theme]) #hub-hero-play.is-running,
+html:not([data-theme]) #hub-hero-play.is-running:hover,
+html:not([data-theme]) .stop-button,
+html:not([data-theme]) .stop-button:hover:not(:disabled),
+html:not([data-theme]) .btn-play,
+html:not([data-theme]) .btn-save,
+html:not([data-theme]) .btn-setup-continue,
+html:not([data-theme]) .btn-install,
+html:not([data-theme]) .btn-apply,
+html:not([data-theme]) .btn-play:hover,
+html:not([data-theme]) .btn-save:hover,
+html:not([data-theme]) .btn-setup-continue:hover,
+html:not([data-theme]) .btn-install:hover,
+html:not([data-theme]) .btn-apply:hover,
+html:not([data-theme]) .settings-action-btn.update-btn,
+html:not([data-theme]) .settings-action-btn.update-btn:hover,
+html:not([data-theme]) .settings-content .toggle-btn.active,
+html:not([data-theme]) .game-settings-popup .toggle-btn.active,
+html:not([data-theme]) .inline-game-settings .toggle-btn.active,
+html:not([data-theme]) .support-action,
+html:not([data-theme]) .support-link,
+html:not([data-theme]) .support-action:hover,
+html:not([data-theme]) .support-link:hover,
+html:not([data-theme]) #support-page a[href],
+html:not([data-theme]) #support-page a[href]:hover,
+html:not([data-theme]) #support-page #install-redist-btn,
+html:not([data-theme]) #support-page #install-redist-btn:hover,
+html:not([data-theme]) .secondary-action:hover,
+html:not([data-theme]) .directory-configure:hover,
+html:not([data-theme]) .global-progress-bar,
+html:not([data-theme]) .game-mode-popup,
+html:not([data-theme]) .game-settings-popup,
+html:not([data-theme]) .setup-flow-popup,
+html:not([data-theme]) .component-selection-popup,
+html:not([data-theme]) .install-confirm-popup,
+html:not([data-theme]) .custom-server-popup,
+html:not([data-theme]) #message-box > .container,
+html:not([data-theme]) #message-box .mb-buttons button,
+html:not([data-theme]) #message-box .mb-buttons button:hover,
+html:not([data-theme]) .toast,
+html:not([data-theme]) .library-card-menu {
+    box-shadow: none;
+}
+
+/* Amber flat buttons: dark label, brighten on hover instead of glow */
+html:not([data-theme]) .setup-button,
+html:not([data-theme]) .btn-play,
+html:not([data-theme]) .btn-save,
+html:not([data-theme]) .btn-setup-continue,
+html:not([data-theme]) .btn-install,
+html:not([data-theme]) .btn-apply,
+html:not([data-theme]) .install-browse-button,
+html:not([data-theme]) .game-settings-popup .browse-button,
+html:not([data-theme]) .inline-game-settings .browse-button,
+html:not([data-theme]) .settings-action-btn.update-btn,
+html:not([data-theme]) #message-box .mb-buttons button,
+html:not([data-theme]) .support-action,
+html:not([data-theme]) .support-link {
+    color: var(--accent-contrast);
+}
+
+html:not([data-theme]) .play-button:hover:not(:disabled),
+html:not([data-theme]) .setup-button:hover:not(:disabled),
+html:not([data-theme]) #hub-hero-play.is-running:hover,
+html:not([data-theme]) .stop-button:hover:not(:disabled),
+html:not([data-theme]) .btn-play:hover,
+html:not([data-theme]) .btn-save:hover,
+html:not([data-theme]) .btn-setup-continue:hover,
+html:not([data-theme]) .btn-install:hover,
+html:not([data-theme]) .btn-apply:hover,
+html:not([data-theme]) .settings-action-btn.update-btn:hover,
+html:not([data-theme]) .support-action:hover,
+html:not([data-theme]) .support-link:hover,
+html:not([data-theme]) #support-page a[href]:hover,
+html:not([data-theme]) #support-page #install-redist-btn:hover,
+html:not([data-theme]) #message-box .mb-buttons button:hover {
+    filter: brightness(1.08);
+}
+
+/* ── Motion ── */
+
+html:not([data-theme]) body:not(.hidden) .title-bar { animation: bootIn 0.3s var(--ease) both; }
+html:not([data-theme]) body:not(.hidden) .sidebar { animation: bootIn 0.35s var(--ease) 0.06s both; }
+html:not([data-theme]) body:not(.hidden) .content-area { animation: bootIn 0.4s var(--ease) 0.12s both; }
+
+@keyframes bootIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ── Shell ── */
+
+html:not([data-theme]) ::-webkit-scrollbar-thumb { border-radius: 0; }
+
+html:not([data-theme]) .hud-eyebrow {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+html:not([data-theme]) .window::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 500;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.16) 0,
+        rgba(0, 0, 0, 0.16) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    opacity: 0.22;
+}
+
+html:not([data-theme]) .title-bar { background: var(--bg-deep); }
+
+html:not([data-theme]) .title-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+html:not([data-theme]) .title-text::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+    flex-shrink: 0;
+}
+
+html:not([data-theme]) .control-btn {
+    width: 30px;
+    height: 26px;
+}
+
+html:not([data-theme]) .sidebar-brand-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+html:not([data-theme]) .sidebar-brand-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+}
+
+html:not([data-theme]) .nav-item.active::before {
+    top: 8px;
+    bottom: 8px;
+    border-radius: 0;
+}
+
+html:not([data-theme]) .nav-label {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+html:not([data-theme]) .nav-badge {
+    height: 18px;
+    border-radius: 2px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+/* ── Headers ── */
+
+html:not([data-theme]) .page-title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+html:not([data-theme]) .page-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border-hi), transparent);
+}
+
+html:not([data-theme]) .section-title {
+    font-size: 19px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+html:not([data-theme]) .section-title::before {
+    content: '';
+    width: 14px;
+    height: 3px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+    flex-shrink: 0;
+}
+
+/* ── Heroes ── */
+
+html:not([data-theme]) .hub-hero,
+html:not([data-theme]) .hero-section {
+    --chamfer: 24px;
+    clip-path: var(--clip-chamfer);
+}
+
+html:not([data-theme]) .hud-corners {
+    position: absolute;
+    inset: 14px;
+    z-index: 3;
+    pointer-events: none;
+    --hud-c: var(--game-accent, var(--accent));
+    background:
+        linear-gradient(var(--hud-c), var(--hud-c)) top left / 22px 2px,
+        linear-gradient(var(--hud-c), var(--hud-c)) top left / 2px 22px,
+        linear-gradient(var(--hud-c), var(--hud-c)) top right / 22px 2px,
+        linear-gradient(var(--hud-c), var(--hud-c)) top right / 2px 22px,
+        linear-gradient(var(--hud-c), var(--hud-c)) bottom left / 22px 2px,
+        linear-gradient(var(--hud-c), var(--hud-c)) bottom left / 2px 22px,
+        linear-gradient(var(--hud-c), var(--hud-c)) bottom right / 22px 2px,
+        linear-gradient(var(--hud-c), var(--hud-c)) bottom right / 2px 22px;
+    background-repeat: no-repeat;
+    opacity: 0.85;
+}
+
+html:not([data-theme]) .hub-hero-eyebrow {
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.75);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Cards, chips, dots ── */
+
+html:not([data-theme]) .library-card-player-dot,
+html:not([data-theme]) .game-meta-row span.game-meta-player::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 0;
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success-border);
+}
+
+html:not([data-theme]) .library-install-btn {
+    background: rgba(0, 0, 0, 0.45);
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+}
+
+html:not([data-theme]) .game-meta-row span {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html:not([data-theme]) .chip {
+    padding: 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+html:not([data-theme]) .chip.active {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
+}
+
+html:not([data-theme]) .settings-content .toggle-btn.active,
+html:not([data-theme]) .game-settings-popup .toggle-btn.active,
+html:not([data-theme]) .inline-game-settings .toggle-btn.active {
+    background: var(--accent);
+    color: var(--accent-contrast);
+}
+
+/* ── Primary buttons ── */
+
+html:not([data-theme]) .play-button,
+html:not([data-theme]) .setup-button,
+html:not([data-theme]) .stop-button {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: var(--tracking);
+    border-radius: 0;
+    clip-path: var(--clip-chamfer-sm);
+}
+
+html:not([data-theme]) .play-button {
+    background: var(--accent-grad);
+    color: var(--accent-contrast);
+}
+
+html:not([data-theme]) #hub-hero-play.is-installing,
+html:not([data-theme]) #hub-hero-play.setup-button.is-installing {
+    background: var(--warn-soft);
+    border: 1px solid var(--warn-border);
+    color: var(--text);
+    filter: none;
+}
+
+html:not([data-theme]) #hub-hero-play.is-running,
+html:not([data-theme]) .stop-button {
+    background: linear-gradient(135deg, var(--danger) 0%, var(--danger-strong) 100%);
+    color: var(--text-bright);
+}
+
+/* Legacy icon colors are white literals; follow the dark button label */
+html:not([data-theme]) .play-icon { border-left-color: currentColor; }
+html:not([data-theme]) .stop-icon { background: currentColor; border-radius: 0; }
+
+html:not([data-theme]) .verify-button,
+html:not([data-theme]) .manage-install-button {
+    font-size: 13px;
+    letter-spacing: 0.1em;
+}
+
+/* ── Game detail ── */
+
+html:not([data-theme]) .detail-stat span {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+html:not([data-theme]) .detail-stat strong {
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+html:not([data-theme]) .description strong { font-size: 15px; }
+
+/* ── Progress ── */
+
+html:not([data-theme]) .global-progress-bar {
+    background: var(--surface-popup);
+    border-color: var(--border-hi);
+    clip-path: var(--clip-chamfer-sm);
+}
+
+html:not([data-theme]) .progress-bar-container {
+    height: 8px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+}
+
+html:not([data-theme]) .download-progress-bar {
+    height: 7px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+}
+
+/* [class] outranks the legacy per-game tint rules above */
+html:not([data-theme]) .download-progress-fill,
+html:not([data-theme]) .global-progress-bar[class] .progress-fill {
+    background: var(--game-accent, var(--accent));
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(0, 0, 0, 0.18) 0,
+        rgba(0, 0, 0, 0.18) 5px,
+        transparent 5px,
+        transparent 10px
+    );
+    background-size: 28px 100%;
+    box-shadow: none;
+    animation: progressStripes 0.8s linear infinite;
+}
+
+@keyframes progressStripes {
+    from { background-position: 0 0; }
+    to { background-position: 28px 0; }
+}
+
+html:not([data-theme]) .progress-stats { width: 170px; }
+html:not([data-theme]) .progress-percent { width: 52px; }
+
+/* ── Friends ── */
+
+html:not([data-theme]) .friend-status-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+}
+
+html:not([data-theme]) .friend-status-dot[data-status="online"] {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success-border);
+}
+
+html:not([data-theme]) .friends-group-head {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+}
+
+/* ── Support ── */
+
+html:not([data-theme]) #support-page a[href] {
+    background: var(--accent-grad);
+    color: var(--accent-contrast);
+    border-radius: 2px !important;
+}
+
+html:not([data-theme]) #support-page a[href]:hover { background: var(--accent-grad); }
+
+html:not([data-theme]) #support-page a.support-action.discord,
+html:not([data-theme]) #support-page a.support-action.discord:hover {
+    background: #5865F2;
+    color: #fff;
+}
+
+html:not([data-theme]) #support-page a.support-action.faq-games,
+html:not([data-theme]) #support-page a.support-action.faq-games:hover {
+    background: var(--surface-hi);
+    border: 1px solid var(--border-hi);
+    color: var(--text-bright);
+}
+
+html:not([data-theme]) #support-page .support-panel p a[href] {
+    background: none;
+    color: var(--accent);
+}
+
+html:not([data-theme]) #support-page .support-panel p a[href]:hover {
+    background: none;
+    color: var(--link-hover);
+    filter: none;
+}
+
+html:not([data-theme]) #support-page .support-footer a[href],
+html:not([data-theme]) #support-page .support-footer-links a[href] {
+    background: none;
+    color: var(--text-muted);
+}
+
+html:not([data-theme]) #support-page .support-footer a[href]:hover,
+html:not([data-theme]) #support-page .support-footer-links a[href]:hover {
+    background: none;
+    color: var(--text-bright);
+    filter: none;
+}
+
+html:not([data-theme]) #support-page #install-redist-btn { color: var(--accent-contrast) !important; }
+
+/* ── Settings ── */
+
+html:not([data-theme]) .settings-content .settings-section h3 { font-size: 16px; }
+
+html:not([data-theme]) .settings-footer .footer-version {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+}
+
+/* ── Overlays ── */
+
+html:not([data-theme]) .popup-header h3 { font-size: 18px; }
+html:not([data-theme]) #message-box .mb-title { font-size: 18px; }
+
+html:not([data-theme]) #message-box .mb-buttons button:first-child {
+    background: var(--surface-hi);
+    border: 1px solid var(--border-hi);
+    color: var(--text-bright);
+}
+
+html:not([data-theme]) #message-box .mb-buttons button:first-child:hover { filter: none; }
+
+html:not([data-theme]) #message-box .mb-buttons button.is-danger {
+    background: linear-gradient(135deg, var(--danger) 0%, var(--danger-strong) 100%);
+    color: var(--text-bright);
+}
+
+html:not([data-theme]) .toast {
+    border-radius: 2px;
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
