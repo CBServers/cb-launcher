@@ -201,9 +201,10 @@ function adjustChannelElements() {
 // All game-specific functionality is now handled in individual page files
 
 function applyTheme(theme) {
-    if (theme === 'dark' || theme === 'navy-gradient') {
+    if (theme === 'dark' || theme === 'navy' || theme === 'navy-gradient') {
         document.documentElement.setAttribute('data-theme', theme);
     } else {
+        // Tactical is the bare :root baseline
         document.documentElement.removeAttribute('data-theme');
     }
 }
@@ -834,8 +835,13 @@ window.ProgressManager = {
         this.cancelCallback = onCancel;
 
         progressBar.className = 'global-progress-bar';
+        progressBar.style.removeProperty('--game-accent');
         if (gameId) {
             progressBar.classList.add(gameId);
+            const config = GameUtils.getGameConfigByUIId(gameId);
+            if (config && config.accent) {
+                progressBar.style.setProperty('--game-accent', config.accent);
+            }
         }
 
         progressGameIcon.className = 'progress-game-icon';
@@ -961,6 +967,7 @@ window.ProgressManager = {
         if (progressBar) {
             progressBar.style.display = 'none';
             progressBar.className = 'global-progress-bar';
+            progressBar.style.removeProperty('--game-accent');
         }
         if (windowEl) {
             windowEl.classList.remove('progress-active');
