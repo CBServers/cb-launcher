@@ -15,6 +15,8 @@ namespace updater
         std::size_t size;
         std::string hash;
         std::string component; // Component this file belongs to (e.g., "base", "sp", "mp_dlc", "zm_dlc")
+        // Language-specific asset. Manifests are English-only, so these are absent on a localized install.
+        bool localized = false;
         file_dest dest = file_dest::automatic; // Client manifests only; game manifests never set this
     };
 }

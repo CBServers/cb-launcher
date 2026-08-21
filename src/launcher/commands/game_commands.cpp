@@ -1125,11 +1125,12 @@ namespace commands::game_commands
             // Clear component cache before verification
             config->set(property_keys::DETECTED_COMPONENTS, "");
 
-            updater::ui_progress_listener progress_listener;
-            progress_listener.reset(true);
+            // Shared, not a local: this handler returns while the detached worker still reports progress.
+            const auto progress_listener = std::make_shared<updater::ui_progress_listener>();
+            progress_listener->reset(true);
 
             // Run verification in a separate thread with progress tracking
-            std::thread([config = *config, &progress_listener, &cef_ui, skip_hash, delete_deselected, game, &ctx]()
+            std::thread([config = *config, progress_listener, &cef_ui, skip_hash, delete_deselected, game, &ctx]()
             {
                 try
                 {
@@ -1139,22 +1140,29 @@ namespace commands::game_commands
                         const auto base_config = game_config::get_game_config(config.base_game);
                         if (base_config)
                         {
-                            game_updater::run(*base_config, skip_hash, delete_deselected, &progress_listener);
+                            game_updater::run(*base_config, skip_hash, delete_deselected, progress_listener.get());
+                            base_config->set_installed(true);
                         }
                     }
 
-                    game_updater::run(config, skip_hash, delete_deselected, &progress_listener);
+                    game_updater::run(config, skip_hash, delete_deselected, progress_listener.get());
 
                     // Get files to skip based on game configuration
                     const auto skip_files = ctx.get_skip_files(game, config);
 
-                    const auto clients_fetched = client_updater::run_all(config, skip_files, &progress_listener);
+                    const auto clients_fetched = client_updater::run_all(config, skip_files, progress_listener.get());
                     ensure_launch_prerequisites(config);
 
                     // Store-routed games write nothing live above, so reconcile every mode.
                     client_store::reconcile_all(config);
 
-                    progress_listener.done_update();
+                    // Installed means game files verified and client files in place, not just the former.
+                    if (clients_fetched)
+                    {
+                        config.set_installed(true);
+                    }
+
+                    progress_listener->done_update();
 
                     if (clients_fetched)
                     {
@@ -1167,24 +1175,24 @@ namespace commands::game_commands
                 }
                 catch (const updater::update_cancelled&)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Update cancelled by user\n");
                     cef_ui.show_toast(config.display_name + " verification/update cancelled", "info");
                 }
                 catch (const std::exception& e)
                 {
                     // Set error in progress tracker and show error popup in UI
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Update error: %s\n", e.what());
                     cef_ui.show_message_box("Update Error", e.what());
                 }
                 catch (...)
                 {
                     // Set generic error for unknown exceptions
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Unknown update error\n");
                     cef_ui.show_message_box("Update Error", "An unknown error occurred during update");
                 }
@@ -1219,46 +1227,47 @@ namespace commands::game_commands
                 return;
             }
 
-            updater::ui_progress_listener progress_listener;
-            progress_listener.reset(true);
+            // Shared, not a local: this handler returns while the detached worker still reports progress.
+            const auto progress_listener = std::make_shared<updater::ui_progress_listener>();
+            progress_listener->reset(true);
 
-            std::thread([config = *config, &progress_listener, &cef_ui]()
+            std::thread([config = *config, progress_listener, &cef_ui]()
             {
                 try
                 {
-                    game_updater::game_updater game_updater(config, true, false, &progress_listener);
+                    game_updater::game_updater game_updater(config, true, false, progress_listener.get());
                     game_updater.delete_game();
 
                     for (const auto& client : config.clients)
                     {
-                        client_updater::client_updater client_updater(config, client, {}, &progress_listener);
+                        client_updater::client_updater client_updater(config, client, {}, progress_listener.get());
                         client_updater.delete_client();
                     }
 
                     // Clear installation status and component caches
                     config.reset();
 
-                    progress_listener.done_update();
+                    progress_listener->done_update();
                     cef_ui.show_toast(config.display_name + " uninstalled successfully.", "success");
                 }
                 catch (const updater::update_cancelled&)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Uninstall cancelled by user\n");
                     cef_ui.show_toast(config.display_name + " uninstall cancelled", "info");
                 }
                 catch (const std::exception& e)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Uninstall error: %s\n", e.what());
                     cef_ui.show_message_box("Uninstall Error", e.what());
                 }
                 catch (...)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
+                    progress_listener->cancel_update();
+                    progress_listener->done_update();
                     printf("Unknown uninstall error\n");
                     cef_ui.show_message_box("Uninstall Error", "An unknown error occurred during uninstall");
                 }

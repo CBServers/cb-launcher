@@ -18,9 +18,88 @@ namespace game_updater
 {
     namespace
     {
+        // Steam copies keep these manifest prefixes at the install root instead
+        constexpr std::string_view zone_prefix = "zone/";
+        constexpr std::string_view video_prefix = "raw/video/";
+
         std::string get_filename(const std::filesystem::path path)
         {
             return path.filename().string();
+        }
+
+        // Manifests are English-only apart from strays (mw3 ships three german/italian/polish iwds).
+        bool is_language(const std::string_view token)
+        {
+            for (const std::string_view language : {"english", "french", "german", "italian", "spanish",
+                "russian", "polish", "portuguese", "japanese", "korean", "chinese", "czech"})
+            {
+                if (utils::string::equals_no_case(token, language))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Language-specific manifest entry. Manifests are English-only, so a localized install lacks
+        // these even when the component is fully present, and they must not count toward detection.
+        bool is_localized_file(const std::string& name)
+        {
+            std::string_view remaining{name};
+            while (true)
+            {
+                const auto slash = remaining.find('/');
+                if (slash == std::string_view::npos)
+                {
+                    break;
+                }
+
+                if (utils::string::equals_no_case(remaining.substr(0, slash), "english"))
+                {
+                    return true;
+                }
+
+                remaining = remaining.substr(slash + 1);
+            }
+
+            // BO3 has no english folder; language lives in the filename (zone/en_base.xpak).
+            for (const auto* prefix : {"en_", "eng_", "english_"})
+            {
+                if (utils::string::starts_with_no_case(remaining, prefix))
+                {
+                    return true;
+                }
+            }
+
+            // localized_<lang>_ only: localized_common_ and localized_code_ are not language variants.
+            constexpr std::string_view localized_prefix{"localized_"};
+            if (utils::string::starts_with_no_case(remaining, localized_prefix))
+            {
+                const auto rest = remaining.substr(localized_prefix.size());
+                const auto underscore = rest.find('_');
+                if (underscore != std::string_view::npos && is_language(rest.substr(0, underscore)))
+                {
+                    return true;
+                }
+            }
+
+            // Dot-delimited language, as in BO2's sound/mpl_common.english.sabs
+            for (auto dot = remaining.find('.'); dot != std::string_view::npos; dot = remaining.find('.', dot + 1))
+            {
+                const auto next = remaining.find('.', dot + 1);
+                if (next == std::string_view::npos)
+                {
+                    break;
+                }
+
+                if (is_language(remaining.substr(dot + 1, next - dot - 1)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         std::vector<updater::file_info> parse_file_infos(const std::string& json)
@@ -96,6 +175,8 @@ namespace game_updater
                     {
                         info.component = "base";
                     }
+
+                    info.localized = is_localized_file(info.name);
 
                     manifest.files.push_back(info);
                 }
@@ -184,7 +265,7 @@ namespace game_updater
             this->install_path = *install_path_prop;
         }
 
-        this->is_steam_install = config.supports_steam_install && config.is_steam_install();
+        this->probe_layout();
         this->base_url = game_config::get_resolved_base_url(config);
 
         const auto manifest_json = game_config::read_manifest(config);
@@ -245,6 +326,9 @@ namespace game_updater
             printf("No component selection found, including required components\n");
         }
 
+        // A stored selection missing a required component (base, redist) must never narrow the update.
+        selected_components = this->with_required_components(selected_components);
+
         // Filter manifest files by selected components
         const auto filtered_files = this->filter_files_by_components(this->manifest_.files, selected_components);
 
@@ -273,12 +357,11 @@ namespace game_updater
             config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
-                config_.set_list(property_keys::SELECTED_COMPONENTS, detected);
+                config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
             }
 
-            // Mark game as fully installed
+            // The installed flag is the caller's to set, once client files are in place too.
             this->write_installed_hash(this->manifest_.hash);
-            config_.set_installed(true);
             return;
         }
 
@@ -309,12 +392,11 @@ namespace game_updater
             config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
-                config_.set_list(property_keys::SELECTED_COMPONENTS, detected);
+                config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
             }
 
-            // Mark game as fully installed
+            // The installed flag is the caller's to set, once client files are in place too.
             this->write_installed_hash(this->manifest_.hash);
-            config_.set_installed(true);
         }
 
         printf("Update complete!\n");
@@ -335,7 +417,7 @@ namespace game_updater
         check_cancelled();
 
         const auto url = this->base_url + "/" + utils::string::url_encode_path(file.name) + "?" + file.hash;
-        const auto target = this->get_drive_filename(file);
+        const auto target = this->resolve_target(file);
         const auto part = this->get_part_filename(file);
 
         if (target.has_parent_path())
@@ -540,7 +622,7 @@ namespace game_updater
 
     std::filesystem::path game_updater::get_part_filename(const updater::file_info& file) const
     {
-        auto part = this->get_drive_filename(file);
+        auto part = this->resolve_target(file);
         part += ("." + file.hash + ".part");
         return part;
     }
@@ -562,7 +644,7 @@ namespace game_updater
 
         for (const auto& file : files)
         {
-            const auto target = this->get_drive_filename(file);
+            const auto target = this->resolve_target(file);
             by_directory[target.parent_path()].emplace(
                 target.filename().native(), this->get_part_filename(file).filename().native());
         }
@@ -821,43 +903,92 @@ namespace game_updater
     bool game_updater::is_outdated_file(const updater::file_info& file) const
     {
         printf("Verifying file: %s\n", get_filename(file.name).data());
-        const auto drive_name = this->get_drive_filename(file);
-        if (!utils::io::file_exists(drive_name))
+        const auto existing = this->resolve_existing(file);
+        if (!existing.has_value())
         {
             return true;
         }
 
-        if (utils::io::file_size(drive_name) != file.size)
+        if (utils::io::file_size(*existing) != file.size)
         {
             return true;
         }
 
         if (!this->skip_hash_check_)
         {
-            const auto hash = utils::hash::get_file_hash(drive_name, [this]() { wait_if_paused_or_cancelled(); });
+            const auto hash = utils::hash::get_file_hash(*existing, [this]() { wait_if_paused_or_cancelled(); });
             return hash != file.hash;
         }
 
         return false;
     }
 
-    std::filesystem::path game_updater::get_drive_filename(const updater::file_info& file) const
+    void game_updater::probe_layout()
     {
-        if(this->is_steam_install)
+        if (!this->config_.supports_steam_install || this->install_path.empty())
         {
-            if (utils::string::starts_with(file.name, "zone/"))
+            return;
+        }
+
+        // A present directory proves canonical; absent is ambiguous, so the cached flag breaks the tie
+        const auto cached_steam = this->config_.is_steam_install();
+        const auto remap = [&](const std::filesystem::path& parent)
+        {
+            return utils::io::directory_exists(parent) ? false : cached_steam;
+        };
+
+        this->remap_zone_ = remap(this->install_path / "zone");
+        this->remap_video_ = remap(this->install_path / "raw" / "video");
+    }
+
+    std::vector<std::filesystem::path> game_updater::get_candidate_paths(const updater::file_info& file) const
+    {
+        std::vector<std::filesystem::path> candidates{};
+        candidates.push_back(this->install_path / utils::string::utf8_to_path(file.name));
+
+        if (!this->config_.supports_steam_install)
+        {
+            return candidates;
+        }
+
+        for (const auto prefix : {zone_prefix, video_prefix})
+        {
+            if (file.name.starts_with(prefix))
             {
-                const auto filename = utils::string::replace(file.name, "zone/", "");
-                return this->install_path / filename;
-            }
-            else if (utils::string::starts_with(file.name, "raw/video/"))
-            {
-                const auto filename = utils::string::replace(file.name, "raw/video/", "");
-                return this->install_path / filename;
+                candidates.push_back(this->install_path / utils::string::utf8_to_path(file.name.substr(prefix.size())));
+                break;
             }
         }
 
-        return this->install_path / file.name;
+        return candidates;
+    }
+
+    std::optional<std::filesystem::path> game_updater::resolve_existing(const updater::file_info& file) const
+    {
+        for (auto& candidate : this->get_candidate_paths(file))
+        {
+            if (utils::io::file_exists(candidate))
+            {
+                return std::move(candidate);
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    std::filesystem::path game_updater::resolve_target(const updater::file_info& file) const
+    {
+        if (this->remap_zone_ && file.name.starts_with(zone_prefix))
+        {
+            return this->install_path / utils::string::utf8_to_path(file.name.substr(zone_prefix.size()));
+        }
+
+        if (this->remap_video_ && file.name.starts_with(video_prefix))
+        {
+            return this->install_path / utils::string::utf8_to_path(file.name.substr(video_prefix.size()));
+        }
+
+        return this->install_path / utils::string::utf8_to_path(file.name);
     }
 
     std::filesystem::path game_updater::get_manifest_file_path() const
@@ -994,6 +1125,22 @@ namespace game_updater
         check_cancelled();
     }
 
+    std::vector<std::string> game_updater::with_required_components(const std::vector<std::string>& components) const
+    {
+        auto result = components;
+        const std::unordered_set<std::string> present(components.begin(), components.end());
+
+        for (const auto& [id, info] : this->manifest_.components)
+        {
+            if (info.required && !present.contains(id))
+            {
+                result.push_back(id);
+            }
+        }
+
+        return result;
+    }
+
     std::vector<component_info> game_updater::get_available_components() const
     {
         std::vector<component_info> components;
@@ -1016,13 +1163,16 @@ namespace game_updater
             return {};
         }
 
-        // Build list of all file paths to check
+        // Stat every layout candidate so a steam-shaped copy can't read as missing
         std::vector<std::filesystem::path> paths_to_check;
         paths_to_check.reserve(this->manifest_.files.size());
 
         for (const auto& file : this->manifest_.files)
         {
-            paths_to_check.push_back(this->get_drive_filename(file));
+            for (auto& candidate : this->get_candidate_paths(file))
+            {
+                paths_to_check.push_back(std::move(candidate));
+            }
         }
 
         // Batch stat all files (single open per file - NEW OPTIMIZATION)
@@ -1030,6 +1180,8 @@ namespace game_updater
 
         // Count files per component: {component_id -> {found, total}}
         std::unordered_map<std::string, std::pair<int, int>> component_stats;
+        // Language-specific files, tallied apart so a localized install can't look uninstalled
+        std::unordered_map<std::string, std::pair<int, int>> localized_stats;
 
         // Initialize counters for all components
         for (const auto& [comp_id, comp_info] : this->manifest_.components)
@@ -1059,14 +1211,22 @@ namespace game_updater
             check_cancelled();
 
             const auto& component = file.component;
-            component_stats[component].second++; // Increment total
+            auto& stats = file.localized ? localized_stats[component] : component_stats[component];
+            stats.second++; // Increment total
 
-            const auto drive_name = this->get_drive_filename(file);
-            auto it = file_stats.find(drive_name);
-
-            if (it != file_stats.end() && it->second.exists && it->second.size == file.size)
+            // First candidate present on disk decides, mirroring resolve_existing
+            for (const auto& candidate : this->get_candidate_paths(file))
             {
-                component_stats[component].first++; // Increment found
+                const auto it = file_stats.find(candidate);
+                if (it != file_stats.end() && it->second.exists)
+                {
+                    if (it->second.size == file.size)
+                    {
+                        stats.first++;
+                    }
+
+                    break;
+                }
             }
 
             // Mark file as complete
@@ -1080,7 +1240,12 @@ namespace game_updater
         std::vector<std::string> installed_components;
         for (const auto& [comp_id, stats] : component_stats)
         {
-            const auto [found, total] = stats;
+            // Only a component with no language-neutral files at all falls back to its localized ones
+            const auto localized = localized_stats.find(comp_id);
+            const auto [found, total] = (stats.second == 0 && localized != localized_stats.end())
+                ? localized->second
+                : stats;
+
             if (total > 0)
             {
                 const auto percentage = (found * 100) / total;
@@ -1149,7 +1314,8 @@ namespace game_updater
         const auto installed_components = this->detect_installed_components();
 
         // Create a set of selected components for fast lookup
-        std::unordered_set<std::string> selected_set(selected_components.begin(), selected_components.end());
+        const auto effective_selection = this->with_required_components(selected_components);
+        std::unordered_set<std::string> selected_set(effective_selection.begin(), effective_selection.end());
 
         // Find deselected components (installed but not selected)
         std::unordered_set<std::string> deselected_components;
@@ -1175,7 +1341,7 @@ namespace game_updater
             if (deselected_components.find(file.component) != deselected_components.end())
             {
                 // Check if the file actually exists on disk
-                const auto drive_name = this->get_drive_filename(file);
+                const auto drive_name = this->resolve_target(file);
                 if (utils::io::file_exists(drive_name))
                 {
                     files_to_delete.push_back(file);
@@ -1200,7 +1366,7 @@ namespace game_updater
         // Add all manifest files that exist
         for (const auto& file : this->manifest_.files)
         {
-            const auto drive_name = this->get_drive_filename(file);
+            const auto drive_name = this->resolve_target(file);
             if (utils::io::file_exists(drive_name))
             {
                 files_to_delete.push_back(file);
@@ -1223,8 +1389,7 @@ namespace game_updater
         std::set<std::filesystem::path> directories_to_check;
         for (const auto& file : files_to_delete)
         {
-            auto file_path = this->install_path / file.name;
-            auto parent = file_path.parent_path();
+            auto parent = this->resolve_target(file).parent_path();
 
             // Add all parent directories up to (but not including) install_path
             while (parent != this->install_path && is_inside_folder(parent, this->install_path))
@@ -1281,7 +1446,7 @@ namespace game_updater
                 this->progress_listener_->begin_file(file);
             }
 
-            const auto drive_name = this->get_drive_filename(file);
+            const auto drive_name = this->resolve_target(file);
             printf("Deleting: %s\n", get_filename(file.name).data());
 
             // Delete the file

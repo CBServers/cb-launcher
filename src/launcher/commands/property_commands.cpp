@@ -133,7 +133,8 @@ namespace commands::property_commands
                 {
                     const auto has_zone_folder = utils::io::directory_exists(path / "zone");
                     const auto has_video_folder = utils::io::directory_exists(path / "raw" / "video");
-                    config->set_steam_install(!has_zone_folder && !has_video_folder); //if this is the case, we assume its a steam install (which doesnt have these folders)
+                    // Steam copies vary; any missing canonical dir marks a steam-shaped install
+                    config->set_steam_install(!has_zone_folder || !has_video_folder);
                 }
                 else
                 {

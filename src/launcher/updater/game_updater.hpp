@@ -25,6 +25,8 @@ namespace game_updater
 
         // Component management methods
         [[nodiscard]] std::vector<component_info> get_available_components() const;
+        // Input components plus every component the manifest marks required, so base can never be dropped
+        [[nodiscard]] std::vector<std::string> with_required_components(const std::vector<std::string>& components) const;
         [[nodiscard]] std::vector<std::string> detect_installed_components() const;
         [[nodiscard]] std::vector<updater::file_info> filter_files_by_components(
             const std::vector<updater::file_info>& all_files,
@@ -36,7 +38,9 @@ namespace game_updater
         std::filesystem::path install_path;
         std::string base_url;
         update_manifest manifest_;
-        bool is_steam_install;
+        // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
+        bool remap_zone_{false};
+        bool remap_video_{false};
         bool skip_hash_check_;
         bool delete_deselected_;
         updater::ui_progress_listener* progress_listener_;
@@ -65,7 +69,14 @@ namespace game_updater
         std::size_t get_available_drive_space() const;
 
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
-        [[nodiscard]] std::filesystem::path get_drive_filename(const updater::file_info& file) const;
+        // Probes the install's layout from disk; the persisted steam flag only breaks ties
+        void probe_layout();
+        // Canonical path first, then the steam-remapped one where the prefix applies
+        [[nodiscard]] std::vector<std::filesystem::path> get_candidate_paths(const updater::file_info& file) const;
+        // First candidate present on disk; presence checks accept either layout
+        [[nodiscard]] std::optional<std::filesystem::path> resolve_existing(const updater::file_info& file) const;
+        // The one deterministic path downloads and deletions act on, from the probed layout
+        [[nodiscard]] std::filesystem::path resolve_target(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path get_manifest_file_path() const;
         [[nodiscard]] std::string read_installed_hash() const;
         void write_installed_hash(const std::string& hash) const;

@@ -137,7 +137,7 @@ namespace commands::component_commands
                             config.set_list(property_keys::DETECTED_COMPONENTS, detected);
                             if (config.get_list(property_keys::SELECTED_COMPONENTS).empty())
                             {
-                                config.set_list(property_keys::SELECTED_COMPONENTS, detected);
+                                config.set_list(property_keys::SELECTED_COMPONENTS, thread_updater.with_required_components(detected));
                             }
                         }
                         catch (const updater::update_cancelled&) {

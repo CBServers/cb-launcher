@@ -1495,7 +1495,7 @@ async function openInstallFlow(uiId) {
     if (install.status === 'installed') {
         showManageInstall(uiId);
     } else {
-        showSetupFlow(uiId);
+        await showSetupFlow(uiId);
     }
 }
 
@@ -1645,7 +1645,7 @@ async function handleDeepLink(url) {
 
             const install = await checkGameInstallation(uiId);
             if (install.status !== 'installed') {
-                showSetupFlow(uiId);
+                await showSetupFlow(uiId);
                 return;
             }
 
@@ -1812,8 +1812,11 @@ function stopGame(gameId) {
     }
 }
 
-function showSetupFlow(gameId) {
+async function showSetupFlow(gameId) {
     console.log(`Setup button clicked for ${gameId}`);
+
+    // Both branches of the flow need the network: a download, or client files for an existing install.
+    if (!await window.guardOnline()) return;
 
     const popups = ensureGamePopups(gameId);
 

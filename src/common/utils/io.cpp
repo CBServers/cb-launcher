@@ -103,12 +103,14 @@ namespace utils::io
         {
             file_stat_result stat{};
 
-            // Open once with ios::ate to get size immediately
-            std::ifstream stream(path, std::ios::binary | std::ios::ate);
-            if (stream.good())
+            // Attributes only: no handle open, so a file the running game holds open still reports its size
+            WIN32_FILE_ATTRIBUTE_DATA data{};
+            if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data) &&
+                !(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
             {
                 stat.exists = true;
-                stat.size = static_cast<std::size_t>(stream.tellg());
+                stat.size = static_cast<std::size_t>(
+                    (static_cast<std::uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow);
             }
             else
             {

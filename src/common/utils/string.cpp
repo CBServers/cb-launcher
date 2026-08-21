@@ -67,6 +67,19 @@ namespace utils::string
         return std::equal(substring.rbegin(), substring.rend(), text.rbegin());
     }
 
+    bool equals_no_case(const std::string_view a, const std::string_view b)
+    {
+        return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](const char x, const char y)
+        {
+            return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+        });
+    }
+
+    bool starts_with_no_case(const std::string_view text, const std::string_view prefix)
+    {
+        return text.size() >= prefix.size() && equals_no_case(text.substr(0, prefix.size()), prefix);
+    }
+
     std::string dump_hex(const std::string& data, const std::string& separator)
     {
         std::string result;

@@ -2,6 +2,7 @@
 #include "memory.hpp"
 #include <cstdint>
 #include <filesystem>
+#include <string_view>
 
 #ifndef ARRAYSIZE
 template <class Type, size_t n>
@@ -87,6 +88,8 @@ namespace utils::string
     std::string to_upper(const std::string& text);
     bool starts_with(const std::string& text, const std::string& substring);
     bool ends_with(const std::string& text, const std::string& substring);
+    bool equals_no_case(std::string_view a, std::string_view b);
+    bool starts_with_no_case(std::string_view text, std::string_view prefix);
 
     std::string dump_hex(const std::string& data, const std::string& separator = " ");
 
