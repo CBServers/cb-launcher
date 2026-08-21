@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 #include <utils/io.hpp>
 #include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 #include <utils/string.hpp>
 #include <game_config.hpp>
 
@@ -141,13 +142,19 @@ namespace commands::property_commands
                     config->set_steam_install(false);
                 }
 
-                // Mark as installed since validation passed
-                config->set_installed(true);
+                // Installed flips only once the setup pipeline's verify succeeds
             }
             else
             {
                 // For new downloads, mark as not installed yet
                 config->set_installed(false);
+            }
+
+            // A changed path invalidates any cached detection result
+            const auto previous_path = config->get_install_path();
+            if (!previous_path.has_value() || *previous_path != path)
+            {
+                config->set_list(property_keys::DETECTED_COMPONENTS, {});
             }
 
             if (!utils::io::directory_exists(path))

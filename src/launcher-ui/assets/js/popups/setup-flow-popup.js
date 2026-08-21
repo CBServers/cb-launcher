@@ -152,6 +152,12 @@ class SetupFlowPopup {
                     // Hide popup and trigger page refresh
                     this.hide();
                     this.triggerInstallationUpdate();
+
+                    // Continue the pipeline: detect components, confirm them, then verify installs the rest
+                    const gameId = this.getGameIdFromMapping(this.currentGame);
+                    if (gameId && typeof showManageInstall === 'function') {
+                        showManageInstall(gameId, { finishSetup: true });
+                    }
                 } else {
                     console.log('No folder selected');
                 }

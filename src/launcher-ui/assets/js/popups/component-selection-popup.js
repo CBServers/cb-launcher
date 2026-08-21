@@ -95,7 +95,7 @@ class ComponentSelectionPopup {
         this.popup.querySelector('.btn-uninstall').textContent = this.t('popup.componentSelection.uninstall');
         this.popup.querySelector('.btn-cancel').textContent = this.t('common.cancel');
         const applyBtn = this.popup.querySelector('.btn-apply');
-        const isInstallMode = this.options && this.options.startDownloadOnApply === true;
+        const isInstallMode = this.options && (this.options.startDownloadOnApply === true || this.options.finishSetup === true);
         applyBtn.textContent = isInstallMode ? this.t('common.install') : this.t('common.applyChanges');
     }
 
@@ -128,6 +128,7 @@ class ComponentSelectionPopup {
             detectExisting: true,
             preferDefaultComponents: false,
             startDownloadOnApply: false,
+            finishSetup: false,
             ...options
         };
         this.installPath = '';
@@ -141,7 +142,7 @@ class ComponentSelectionPopup {
 
         const uninstallBtn = this.popup.querySelector('.btn-uninstall');
         const popupActions = this.popup.querySelector('.popup-actions');
-        const hideUninstall = this.options.startDownloadOnApply === true;
+        const hideUninstall = this.options.startDownloadOnApply === true || this.options.finishSetup === true;
         if (uninstallBtn) {
             uninstallBtn.hidden = hideUninstall;
         }
@@ -151,9 +152,11 @@ class ComponentSelectionPopup {
 
         // Update title
         const title = this.popup.querySelector('#component-title');
-        const titleKey = this.options.startDownloadOnApply === true
-            ? 'popup.componentSelection.installTitleWithGame'
-            : 'popup.componentSelection.titleWithGame';
+        const titleKey = this.options.finishSetup === true
+            ? 'popup.componentSelection.setupTitleWithGame'
+            : this.options.startDownloadOnApply === true
+                ? 'popup.componentSelection.installTitleWithGame'
+                : 'popup.componentSelection.titleWithGame';
         title.textContent = this.t(titleKey, {
             game: gameConfig.displayName
         });
@@ -261,6 +264,22 @@ class ComponentSelectionPopup {
         for (const [compId, compInfo] of Object.entries(this.components)) {
             if (compInfo.required || (shouldUseDefaultSelection && compInfo.defaultEnabled === true)) {
                 this.selectedComponents.add(compId);
+            }
+        }
+
+        // Finish-setup resumes a stored selection too, e.g. an interrupted download's choices
+        if (this.options.finishSetup === true) {
+            const stored = await window.executeCommand('get-game-property', {
+                game: this.currentGame,
+                suffix: PROPERTY_KEYS.GAME.SELECTED_COMPONENTS
+            });
+            if (stored) {
+                for (const compId of stored.split(',')) {
+                    const id = compId.trim();
+                    if (id && this.components[id]) {
+                        this.selectedComponents.add(id);
+                    }
+                }
             }
         }
 
@@ -523,8 +542,10 @@ class ComponentSelectionPopup {
             const hasChanges = !this.setsAreEqual(this.selectedComponents, this.originalSelectedComponents);
 
             const shouldStartDownload = this.options.startDownloadOnApply === true;
+            // Finish-setup always verifies; that is what fetches missing files and flips installed
+            const finishSetup = this.options.finishSetup === true;
 
-            if (!hasChanges && !shouldStartDownload) {
+            if (!hasChanges && !shouldStartDownload && !finishSetup) {
                 // Still save current selection to properties (ensures required components are persisted)
                 const componentsArray = Array.from(this.selectedComponents);
                 await window.executeCommand('set-game-components', {
@@ -543,10 +564,11 @@ class ComponentSelectionPopup {
             const deselectedComponents = this.installedComponents.filter(
                 comp => !this.selectedComponents.has(comp)
             );
-            const willDeleteFiles = hasChanges && deselectedComponents.length > 0;
+            // Never delete from a user's pre-existing install during setup
+            const willDeleteFiles = !finishSetup && hasChanges && deselectedComponents.length > 0;
 
-            // Show confirmation dialog BEFORE saving (skip for fresh install flow)
-            if (!shouldStartDownload && typeof window.showMessageBox === 'function') {
+            // Show confirmation dialog BEFORE saving (skip for fresh install and finish-setup flows)
+            if (!shouldStartDownload && !finishSetup && typeof window.showMessageBox === 'function') {
                 let message = this.t('popup.componentSelection.confirmChangesBody');
 
                 if (willDeleteFiles) {

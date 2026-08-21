@@ -1825,6 +1825,13 @@ async function showSetupFlow(gameId) {
     // Both branches of the flow need the network: a download, or client files for an existing install.
     if (!await window.guardOnline()) return;
 
+    // A partial setup already has a path; resume the pipeline instead of re-picking one
+    const install = await checkGameInstallation(gameId);
+    if (install.status === 'partial') {
+        showManageInstall(gameId, { finishSetup: true });
+        return;
+    }
+
     const popups = ensureGamePopups(gameId);
 
     if (!popups.setupFlowPopup) {
