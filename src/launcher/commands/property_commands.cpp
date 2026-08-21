@@ -155,6 +155,7 @@ namespace commands::property_commands
             if (!previous_path.has_value() || *previous_path != path)
             {
                 config->set_list(property_keys::DETECTED_COMPONENTS, {});
+                config->set(property_keys::DETECTED_COMPONENTS_STAMP, "");
             }
 
             if (!utils::io::directory_exists(path))

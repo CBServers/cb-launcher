@@ -354,7 +354,7 @@ namespace game_updater
 
             printf("Detecting installed components...\n");
             const auto detected = this->detect_installed_components();
-            config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
+            this->store_detection_result(detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
                 config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
@@ -389,7 +389,7 @@ namespace game_updater
 
             printf("Detecting installed components...\n");
             const auto detected = this->detect_installed_components();
-            config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
+            this->store_detection_result(detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
                 config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
@@ -1100,6 +1100,11 @@ namespace game_updater
 
     bool game_updater::is_update_cancelled() const
     {
+        if (this->cancel_flag_ && this->cancel_flag_->load())
+        {
+            return true;
+        }
+
         return (this->progress_listener_ && this->progress_listener_->is_update_cancelled());
     }
 
@@ -1123,6 +1128,23 @@ namespace game_updater
             this->progress_listener_->wait_if_paused();
         }
         check_cancelled();
+    }
+
+    std::string game_updater::make_detection_stamp() const
+    {
+        return this->manifest_.hash + "|" + utils::string::path_to_utf8(this->install_path);
+    }
+
+    bool game_updater::detection_cache_valid() const
+    {
+        const auto stamp = config_.get(property_keys::DETECTED_COMPONENTS_STAMP);
+        return stamp.has_value() && *stamp == this->make_detection_stamp();
+    }
+
+    void game_updater::store_detection_result(const std::vector<std::string>& detected) const
+    {
+        config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
+        config_.set(property_keys::DETECTED_COMPONENTS_STAMP, this->make_detection_stamp());
     }
 
     std::vector<std::string> game_updater::with_required_components(const std::vector<std::string>& components) const

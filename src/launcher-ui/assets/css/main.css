@@ -2400,6 +2400,55 @@ html[data-theme="dark"] .setup-button {
 .mode-info strong { display: block; font-size: 14px; margin-bottom: 2px; color: #fff; font-weight: 600; }
 .mode-info p { margin: 0; font-size: 12px; color: var(--text-muted); }
 
+/* Mode with missing component files: not selectable, inline install action instead */
+.mode-option.unavailable {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.mode-option.unavailable:hover {
+    border-color: var(--border);
+    background: var(--surface-lo);
+}
+
+.mode-option.unavailable .radio-custom { opacity: 0.4; }
+.mode-option.unavailable .mode-info strong { color: var(--text-muted); }
+
+.mode-unavailable-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.mode-unavailable-note span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.mode-install-btn {
+    background: transparent;
+    border: 1px solid var(--border-hi);
+    padding: 5px 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    border-radius: 7px;
+    font-family: inherit;
+}
+
+.mode-install-btn:hover {
+    color: #fff;
+    border-color: var(--accent);
+    background: var(--surface-hi);
+}
+
 /* Inline client picker for modes served by more than one client */
 .mode-client-select {
     display: inline-flex;

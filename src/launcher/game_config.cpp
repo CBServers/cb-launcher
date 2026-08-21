@@ -270,6 +270,7 @@ namespace game_config
         this->set(property_keys::IS_INSTALLED, "");
         this->set(property_keys::IS_STEAM_INSTALL, "");
         this->set_list(property_keys::DETECTED_COMPONENTS, {});
+        this->set(property_keys::DETECTED_COMPONENTS_STAMP, "");
         this->set_list(property_keys::SELECTED_COMPONENTS, {});
         this->set(property_keys::LAUNCH_OPTIONS, "");
         this->set(property_keys::GAME_MODE, "");
@@ -570,6 +571,9 @@ namespace game_config
                     {"mp", ""},
                     {"zm", ""}
                 },
+                .mode_components = {
+                    {"sp", "sp"}
+                },
                 .mode_executables = {
                     {"sp", "T6SP-Mod.exe"},
                     {"mp", "plutonium.exe"},
@@ -666,6 +670,9 @@ namespace game_config
                     {"sp", "-singleplayer"},
                     {"mp", "-multiplayer"}
                 },
+                .mode_components = {
+                    {"sp", "sp"}
+                },
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
                 .base_folder = "ghosts_game_files",
@@ -694,6 +701,9 @@ namespace game_config
                     {"zm", "-zombies"},
                     {"sv", "-survival"}
                 },
+                .mode_components = {
+                    {"sp", "sp"}
+                },
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
                 .base_folder = "aw_game_files",
@@ -719,6 +729,9 @@ namespace game_config
                 .mode_arguments = {
                     {"sp", "-singleplayer"},
                     {"mp", "-multiplayer"}
+                },
+                .mode_components = {
+                    {"sp", "sp"}
                 },
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
@@ -826,6 +839,7 @@ namespace game_config
                 .property_overrides = {
                     {property_keys::IS_INSTALLED, "hmw"},
                     {property_keys::DETECTED_COMPONENTS, "hmw"},
+                    {property_keys::DETECTED_COMPONENTS_STAMP, "hmw"},
                     {property_keys::SELECTED_COMPONENTS, "hmw"},
                     {property_keys::LAUNCH_OPTIONS, "hmw"},
                     {property_keys::DISABLE_CB_EXTENSION, "hmw"}

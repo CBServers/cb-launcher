@@ -983,6 +983,31 @@ class GameUtils {
             throw new Error('Installation path not configured');
         }
 
+        // Hard mode gate: single choke point for the popup, deep links, -launch and library tiles.
+        // Fails open when no valid detection cache exists.
+        if (mode) {
+            let gate = null;
+            try { gate = await window.executeCommand('get-game-mode-availability', { game: backendGame }); }
+            catch (e) { console.error('get-game-mode-availability failed', e); }
+
+            const modeInfo = gate && gate.gated && gate.modes ? gate.modes[mode] : null;
+            if (modeInfo && modeInfo.available === false) {
+                const i18n = window.LauncherI18n;
+                const tr = (k, vars) => i18n ? i18n.t(k, vars) : k;
+                const modeName = (this.getModeInfo()[mode] || {}).name || mode.toUpperCase();
+                const choice = typeof window.showMessageBox === 'function'
+                    ? await window.showMessageBox(
+                        tr('errors.modeNotInstalledTitle', { mode: modeName }),
+                        tr('errors.modeNotInstalledBody', { game: gameConfig.displayName, mode: modeName }),
+                        [tr('common.install'), tr('common.cancel')])
+                    : 1;
+                if (choice === 0 && typeof window.showManageInstall === 'function') {
+                    window.showManageInstall(uiGameId, { preselectComponents: modeInfo.missingComponents || [] });
+                }
+                return;
+            }
+        }
+
         let skipRedistCheck = false;
         try {
             skipRedistCheck = (await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK)) === 'true';

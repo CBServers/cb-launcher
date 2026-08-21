@@ -6,6 +6,7 @@
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "redist/redist_worker.hpp"
+#include "updater/detection_service.hpp"
 #include "updater/updater.hpp"
 #include "uri_scheme.hpp"
 
@@ -163,6 +164,7 @@ namespace
             std::lock_guard lock(deep_link_sink_mutex);
             deep_link_sink = nullptr;
         }
+        detection_service::shutdown();
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
     }

@@ -8,54 +8,12 @@
 
 #include "updater/updater.hpp"
 #include "updater/game_updater.hpp"
+#include "updater/detection_service.hpp"
 #include "updater/ui_progress_listener.hpp"
 #include "updater/progress_tracker.hpp"
 
-#include <mutex>
-#include <unordered_set>
-
 namespace commands::component_commands
 {
-    namespace
-    {
-        // Per-game detection flag, kept separate from progress_tracker so
-        // detection can run while another game is verifying/updating.
-        std::mutex& detection_mutex()
-        {
-            static std::mutex m;
-            return m;
-        }
-
-        std::unordered_set<std::string>& detection_in_progress_games()
-        {
-            static std::unordered_set<std::string> set;
-            return set;
-        }
-
-        bool detection_is_active(const std::string& game_key)
-        {
-            std::lock_guard lock(detection_mutex());
-            return detection_in_progress_games().count(game_key) > 0;
-        }
-
-        struct detection_scope
-        {
-            std::string game_key;
-            explicit detection_scope(std::string key) : game_key(std::move(key))
-            {
-                std::lock_guard lock(detection_mutex());
-                detection_in_progress_games().insert(game_key);
-            }
-            ~detection_scope()
-            {
-                std::lock_guard lock(detection_mutex());
-                detection_in_progress_games().erase(game_key);
-            }
-            detection_scope(const detection_scope&) = delete;
-            detection_scope& operator=(const detection_scope&) = delete;
-        };
-    }
-
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
         cef_ui.add_command("get-game-component-info", [&cef_ui, &ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -86,6 +44,7 @@ namespace commands::component_commands
             if (force_refresh && detect_existing)
             {
                 config->set_list(property_keys::DETECTED_COMPONENTS, {});
+                config->set(property_keys::DETECTED_COMPONENTS_STAMP, "");
             }
 
             std::vector<game_updater::component_info> components;
@@ -112,40 +71,23 @@ namespace commands::component_commands
 
             if (detect_existing)
             {
-                // Try cache first (unless force refresh)
-                const auto cached = force_refresh ? std::vector<std::string>{} : config->get_list(property_keys::DETECTED_COMPONENTS);
+                // Try cache first; a stale stamp (manifest or path changed) is a miss
+                const auto cache_usable = !force_refresh && updater->detection_cache_valid();
+                const auto cached = cache_usable ? config->get_list(property_keys::DETECTED_COMPONENTS) : std::vector<std::string>{};
                 if (!cached.empty())
                 {
                     // Cache hit - instant response
                     installed = cached;
                 }
-                else if (detection_is_active(game))
+                else if (detection_service::is_active(game))
                 {
                     // Already detecting for this game; just report in-progress.
                     detection_in_progress = true;
                 }
                 else
                 {
-                    detection_in_progress = true;
-                    std::thread([config = *config, &cef_ui]() {
-                        const detection_scope scope(config.game_key);
-                        try {
-                            // nullptr listener: keep detection off the global progress_tracker.
-                            const game_updater::game_updater thread_updater(config, false, false, nullptr);
-                            const auto detected = thread_updater.detect_installed_components();
-
-                            config.set_list(property_keys::DETECTED_COMPONENTS, detected);
-                            if (config.get_list(property_keys::SELECTED_COMPONENTS).empty())
-                            {
-                                config.set_list(property_keys::SELECTED_COMPONENTS, thread_updater.with_required_components(detected));
-                            }
-                        }
-                        catch (const updater::update_cancelled&) {
-                        }
-                        catch (const std::exception& e) {
-                            cef_ui.show_message_box("Manage Install Error", e.what());
-                        }
-                    }).detach();
+                    // Property-only worker; results land in the cache and the popup polls for them
+                    detection_in_progress = detection_service::start_detection(*config);
                 }
             }
 
@@ -211,8 +153,74 @@ namespace commands::component_commands
             const auto config = ctx.get_game_config_from_request(value);
             response.SetObject();
             auto& allocator = response.GetAllocator();
-            const bool active = config ? detection_is_active(config->game_key) : false;
+            const bool active = config ? detection_service::is_active(config->game_key) : false;
             response.AddMember("active", active, allocator);
+        });
+
+        cef_ui.add_command("get-game-mode-availability", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto str = [&allocator](const std::string& s)
+            {
+                rapidjson::Value v;
+                v.SetString(s.data(), static_cast<rapidjson::SizeType>(s.length()), allocator);
+                return v;
+            };
+
+            bool gated = false;
+            rapidjson::Value modes(rapidjson::kObjectType);
+
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config || config->mode_arguments.empty())
+            {
+                response.AddMember("gated", gated, allocator);
+                response.AddMember("modes", modes, allocator);
+                return;
+            }
+
+            // Reads the cached detection only, never scans; no valid cache means fail open
+            std::unordered_set<std::string> detected;
+            std::optional<game_updater::game_updater> updater;
+            try
+            {
+                updater.emplace(*config);
+                if (updater->detection_cache_valid())
+                {
+                    const auto list = config->get_list(property_keys::DETECTED_COMPONENTS);
+                    detected.insert(list.begin(), list.end());
+                    gated = true;
+                }
+            }
+            catch (...)
+            {
+            }
+
+            for (const auto& [mode, unused] : config->mode_arguments)
+            {
+                const auto comp_it = config->mode_components.find(mode);
+                const std::string component = comp_it != config->mode_components.end() ? comp_it->second : "base";
+                const bool available = !gated || detected.contains(component);
+
+                rapidjson::Value mode_obj(rapidjson::kObjectType);
+                mode_obj.AddMember("available", available, allocator);
+
+                rapidjson::Value missing(rapidjson::kArrayType);
+                uint64_t download_size = 0;
+                if (!available)
+                {
+                    missing.PushBack(str(component), allocator);
+                    download_size = updater->calculate_component_size({component});
+                }
+                mode_obj.AddMember("missingComponents", missing, allocator);
+                mode_obj.AddMember("downloadSize", download_size, allocator);
+
+                modes.AddMember(str(mode), mode_obj, allocator);
+            }
+
+            response.AddMember("gated", gated, allocator);
+            response.AddMember("modes", modes, allocator);
         });
 
         cef_ui.add_command("get-available-space", [](const rapidjson::Value& value, rapidjson::Document& response)

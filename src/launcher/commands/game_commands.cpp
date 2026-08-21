@@ -1124,6 +1124,7 @@ namespace commands::game_commands
 
             // Clear component cache before verification
             config->set(property_keys::DETECTED_COMPONENTS, "");
+            config->set(property_keys::DETECTED_COMPONENTS_STAMP, "");
 
             // Shared, not a local: this handler returns while the detached worker still reports progress.
             const auto progress_listener = std::make_shared<updater::ui_progress_listener>();

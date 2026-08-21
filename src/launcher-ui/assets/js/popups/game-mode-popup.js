@@ -81,8 +81,11 @@ class GameModePopup {
         this.gameConfig = gameConfig;
         this.refreshTexts();
 
+        this.modeAvailability = await this.loadModeAvailability(game);
+
+        // A remembered mode whose files are missing must not launch; fall through to the popup
         const savedPreference = await this.getSavedPreference(game);
-        if (savedPreference && savedPreference !== '') {
+        if (savedPreference && savedPreference !== '' && this.isModeAvailable(savedPreference)) {
             this.launchGame(savedPreference);
             return;
         }
@@ -94,9 +97,9 @@ class GameModePopup {
         this.backdrop.style.display = 'flex';
 
         // Set default selection (prefer mp, then first available option)
-        const radioInputs = this.popup.querySelectorAll('input[name="gameMode"]');
+        const radioInputs = this.popup.querySelectorAll('input[name="gameMode"]:not(:disabled)');
         if (radioInputs.length > 0) {
-            const mpOption = this.popup.querySelector('input[name="gameMode"][value="mp"]');
+            const mpOption = this.popup.querySelector('input[name="gameMode"][value="mp"]:not(:disabled)');
             if (mpOption) {
                 mpOption.checked = true;
             } else {
@@ -105,6 +108,27 @@ class GameModePopup {
         }
 
         this.popup.querySelector('#rememberChoice').checked = false;
+    }
+
+    async loadModeAvailability(game) {
+        try {
+            return await window.executeCommand('get-game-mode-availability', { game: game });
+        } catch (error) {
+            console.error(`get-game-mode-availability failed for ${game}:`, error);
+            return null;
+        }
+    }
+
+    getModeAvailabilityInfo(mode) {
+        if (!this.modeAvailability || !this.modeAvailability.gated || !this.modeAvailability.modes) {
+            return null;
+        }
+        return this.modeAvailability.modes[mode] || null;
+    }
+
+    isModeAvailable(mode) {
+        const info = this.getModeAvailabilityInfo(mode);
+        return !info || info.available !== false;
     }
 
     hide() {
@@ -116,7 +140,11 @@ class GameModePopup {
     }
 
     async handlePlay() {
-        const selectedMode = this.popup.querySelector('input[name="gameMode"]:checked').value;
+        const checked = this.popup.querySelector('input[name="gameMode"]:checked');
+        if (!checked) {
+            return;
+        }
+        const selectedMode = checked.value;
         const remember = this.popup.querySelector('#rememberChoice').checked;
 
         if (remember) {
@@ -152,28 +180,59 @@ class GameModePopup {
         gameConfig.supportedModes.forEach((mode, index) => {
             const info = modeInfo[mode] || { name: mode.toUpperCase(), description: this.t('popup.gameMode.playMode', { mode: mode.toUpperCase() }) };
             const isFirst = index === 0;
+            const unavailable = !this.isModeAvailable(mode);
 
             // Modes served by more than one client get an inline picker
             const clients = (gameConfig.modeClients || {})[mode] || [];
-            const clientSelector = clients.length > 1 ? `
+            const clientSelector = !unavailable && clients.length > 1 ? `
                 <div class="mode-client-select" data-mode="${mode}">
                     ${clients.map(c => `<button type="button" class="client-btn" data-client="${c.id}">${c.name}</button>`).join('')}
                 </div>
             ` : '';
 
+            // Missing component: disable the mode and offer an inline install action
+            let unavailableNote = '';
+            if (unavailable) {
+                const availInfo = this.getModeAvailabilityInfo(mode);
+                const size = availInfo && availInfo.downloadSize ? GameUtils.formatBytes(availInfo.downloadSize) : null;
+                const installLabel = size
+                    ? this.t('popup.gameMode.installActionSize', { size: size })
+                    : this.t('popup.gameMode.installAction');
+                unavailableNote = `
+                    <div class="mode-unavailable-note">
+                        <span>${this.t('popup.gameMode.notInstalled')}</span>
+                        <button type="button" class="mode-install-btn" data-mode="${mode}">${installLabel}</button>
+                    </div>
+                `;
+            }
+
             const modeOption = document.createElement('label');
-            modeOption.className = 'mode-option';
+            modeOption.className = `mode-option${unavailable ? ' unavailable' : ''}`;
             modeOption.innerHTML = `
-                <input type="radio" name="gameMode" value="${mode}" ${isFirst ? 'checked' : ''} />
+                <input type="radio" name="gameMode" value="${mode}" ${unavailable ? 'disabled' : ''} ${isFirst && !unavailable ? 'checked' : ''} />
                 <span class="radio-custom"></span>
                 <div class="mode-info">
                     <strong>${info.name}</strong>
                     <p>${info.description}</p>
                     ${clientSelector}
+                    ${unavailableNote}
                 </div>
             `;
 
             modeOptionsContainer.appendChild(modeOption);
+        });
+
+        // Install action: hand off to Manage Install with the missing component pre-checked
+        this.popup.querySelectorAll('.mode-install-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const availInfo = this.getModeAvailabilityInfo(btn.dataset.mode);
+                this.hide();
+                const uiId = GameUtils.getUIIdFromBackendId(this.currentGame);
+                if (typeof window.showManageInstall === 'function') {
+                    window.showManageInstall(uiId, { preselectComponents: (availInfo && availInfo.missingComponents) || [] });
+                }
+            });
         });
 
         // Picking a client also selects its mode

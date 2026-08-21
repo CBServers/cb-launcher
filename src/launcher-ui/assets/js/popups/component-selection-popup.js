@@ -286,6 +286,15 @@ class ComponentSelectionPopup {
         // Save original selection for comparison later
         this.originalSelectedComponents = new Set(this.selectedComponents);
 
+        // Mode-gating install action: pre-check the missing components as a pending change
+        if (Array.isArray(this.options.preselectComponents)) {
+            for (const id of this.options.preselectComponents) {
+                if (this.components[id]) {
+                    this.selectedComponents.add(id);
+                }
+            }
+        }
+
         // Render components
         this.renderComponents();
         this.updateSummary();

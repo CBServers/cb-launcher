@@ -2,6 +2,7 @@
 
 #include "file_info.hpp"
 #include "ui_progress_listener.hpp"
+#include <atomic>
 #include <string>
 #include <filesystem>
 #include <optional>
@@ -23,11 +24,18 @@ namespace game_updater
 
         bool needs_to_update(const std::string& hash) const;
 
+        // External stop signal for listener-less detection (background sweep, shutdown)
+        void set_cancel_flag(const std::atomic<bool>* flag) { this->cancel_flag_ = flag; }
+
         // Component management methods
         [[nodiscard]] std::vector<component_info> get_available_components() const;
         // Input components plus every component the manifest marks required, so base can never be dropped
         [[nodiscard]] std::vector<std::string> with_required_components(const std::vector<std::string>& components) const;
         [[nodiscard]] std::vector<std::string> detect_installed_components() const;
+        // True while the stored detection matches the current manifest hash and install path
+        [[nodiscard]] bool detection_cache_valid() const;
+        // Persists the detection result together with its validity stamp
+        void store_detection_result(const std::vector<std::string>& detected) const;
         [[nodiscard]] std::vector<updater::file_info> filter_files_by_components(
             const std::vector<updater::file_info>& all_files,
             const std::vector<std::string>& selected_components) const;
@@ -44,6 +52,7 @@ namespace game_updater
         bool skip_hash_check_;
         bool delete_deselected_;
         updater::ui_progress_listener* progress_listener_;
+        const std::atomic<bool>* cancel_flag_{nullptr};
 
         void update_file(const updater::file_info& file) const;
 
@@ -78,6 +87,7 @@ namespace game_updater
         // The one deterministic path downloads and deletions act on, from the probed layout
         [[nodiscard]] std::filesystem::path resolve_target(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path get_manifest_file_path() const;
+        [[nodiscard]] std::string make_detection_stamp() const;
         [[nodiscard]] std::string read_installed_hash() const;
         void write_installed_hash(const std::string& hash) const;
         void delete_installed_hash() const;

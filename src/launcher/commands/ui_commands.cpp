@@ -9,6 +9,7 @@
 
 #include "redist/redist_installer.hpp"
 #include "redist/redist_packages.hpp"
+#include "updater/detection_service.hpp"
 
 #include "game_config.hpp"
 #include "deep_link.hpp"
@@ -121,6 +122,9 @@ namespace commands::ui_commands
 
             // The frontend calls "show" once init completes; flush any queued deep links.
             cef_ui.notify_frontend_ready();
+
+            // Stamp legacy installs in the background once the UI is up; no-op after the first call.
+            detection_service::start_sweep();
         });
 
         cef_ui.add_command("flash-taskbar", [&cef_ui](const auto&, auto&)

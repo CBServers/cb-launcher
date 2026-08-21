@@ -304,7 +304,10 @@
                 gameMode: {
                     title: 'Select Game Mode',
                     rememberChoice: 'Remember this choice',
-                    playMode: 'Play {{mode}} mode'
+                    playMode: 'Play {{mode}} mode',
+                    notInstalled: 'Not installed',
+                    installAction: 'Install',
+                    installActionSize: 'Install ({{size}})'
                 },
                 gameSettings: {
                     title: 'Game Settings',
@@ -423,7 +426,9 @@
                 gameNotConfiguredTitle: '{{game}} not configured',
                 gameNotConfiguredBody: 'You have not configured your {{game}} installation path.',
                 cannotLaunchTitle: 'Cannot launch right now',
-                cannotLaunchBody: 'Another game is currently updating. Please wait for it to finish or cancel it before launching a different game.'
+                cannotLaunchBody: 'Another game is currently updating. Please wait for it to finish or cancel it before launching a different game.',
+                modeNotInstalledTitle: '{{mode}} not installed',
+                modeNotInstalledBody: '{{game}} is missing the files for {{mode}}. You can install them now from Manage Install.'
             },
             mode: {
                 sp: {
@@ -830,7 +835,10 @@
                 gameMode: {
                     title: 'Choisir le mode de jeu',
                     rememberChoice: 'Memoriser ce choix',
-                    playMode: 'Jouer en mode {{mode}}'
+                    playMode: 'Jouer en mode {{mode}}',
+                    notInstalled: 'Non installe',
+                    installAction: 'Installer',
+                    installActionSize: 'Installer ({{size}})'
                 },
                 gameSettings: {
                     title: 'Parametres du jeu',
@@ -949,7 +957,9 @@
                 gameNotConfiguredTitle: '{{game}} non configure',
                 gameNotConfiguredBody: "Vous n'avez pas configure le chemin d'installation de {{game}}.",
                 cannotLaunchTitle: 'Lancement impossible pour le moment',
-                cannotLaunchBody: "Un autre jeu est en cours de mise a jour. Veuillez attendre la fin ou annuler avant de lancer un autre jeu."
+                cannotLaunchBody: "Un autre jeu est en cours de mise a jour. Veuillez attendre la fin ou annuler avant de lancer un autre jeu.",
+                modeNotInstalledTitle: '{{mode}} non installe',
+                modeNotInstalledBody: 'Les fichiers du mode {{mode}} de {{game}} sont manquants. Vous pouvez les installer maintenant depuis Gerer l\'installation.'
             },
             mode: {
                 sp: {
@@ -1356,7 +1366,10 @@
                 gameMode: {
                     title: 'Selecciona modo de juego',
                     rememberChoice: 'Recordar esta eleccion',
-                    playMode: 'Jugar en modo {{mode}}'
+                    playMode: 'Jugar en modo {{mode}}',
+                    notInstalled: 'No instalado',
+                    installAction: 'Instalar',
+                    installActionSize: 'Instalar ({{size}})'
                 },
                 gameSettings: {
                     title: 'Ajustes del juego',
@@ -1475,7 +1488,9 @@
                 gameNotConfiguredTitle: '{{game}} no configurado',
                 gameNotConfiguredBody: 'No has configurado la ruta de instalacion de {{game}}.',
                 cannotLaunchTitle: 'No se puede iniciar ahora',
-                cannotLaunchBody: 'Otro juego se esta actualizando. Espera a que termine o cancela la operacion antes de iniciar otro juego.'
+                cannotLaunchBody: 'Otro juego se esta actualizando. Espera a que termine o cancela la operacion antes de iniciar otro juego.',
+                modeNotInstalledTitle: '{{mode}} no instalado',
+                modeNotInstalledBody: 'Faltan los archivos del modo {{mode}} de {{game}}. Puedes instalarlos ahora desde Administrar instalacion.'
             },
             mode: {
                 sp: {
@@ -1880,7 +1895,10 @@
                 gameMode: {
                     title: 'Выберите режим игры',
                     rememberChoice: 'Запомнить этот выбор',
-                    playMode: 'Играть в режиме {{mode}}'
+                    playMode: 'Играть в режиме {{mode}}',
+                    notInstalled: 'Не установлено',
+                    installAction: 'Установить',
+                    installActionSize: 'Установить ({{size}})'
                 },
                 gameSettings: {
                     title: 'Настройки игры',
@@ -1999,7 +2017,9 @@
                 gameNotConfiguredTitle: '{{game}} не настроена',
                 gameNotConfiguredBody: 'Вы не настроили путь установки для {{game}}.',
                 cannotLaunchTitle: 'Невозможно запустить сейчас',
-                cannotLaunchBody: 'Другая игра обновляется. Пожалуйста, дождитесь завершения или отмените обновление перед запуском другой игры.'
+                cannotLaunchBody: 'Другая игра обновляется. Пожалуйста, дождитесь завершения или отмените обновление перед запуском другой игры.',
+                modeNotInstalledTitle: '{{mode}} не установлен',
+                modeNotInstalledBody: 'У {{game}} отсутствуют файлы режима {{mode}}. Вы можете установить их сейчас через Управление установкой.'
             },
             mode: {
                 sp: {
