@@ -351,6 +351,10 @@
                 importing: 'Copying {{name}}...',
                 extracting: 'Extracting {{name}}...',
                 loadMore: 'Load more ({{shown}} of {{total}})',
+                rating: '{{percent}}% positive ({{votes}} votes)',
+                updatedDate: 'Updated {{date}}',
+                viewOnSteam: 'View on Steam',
+                detailsFailed: 'Could not load the item details. Try again later.',
                 comingSoon: 'Coming soon',
                 foldersHint: 'Content folders used by this client:'
             },
@@ -936,6 +940,10 @@
                 importing: 'Copie de {{name}}...',
                 extracting: 'Extraction de {{name}}...',
                 loadMore: 'Afficher plus ({{shown}} sur {{total}})',
+                rating: '{{percent}}% positifs ({{votes}} votes)',
+                updatedDate: 'Mis a jour le {{date}}',
+                viewOnSteam: 'Voir sur Steam',
+                detailsFailed: "Impossible de charger les details de l'element. Reessayez plus tard.",
                 comingSoon: 'Bientot disponible',
                 foldersHint: 'Dossiers de contenu utilises par ce client :'
             },
@@ -1521,6 +1529,10 @@
                 importing: 'Copiando {{name}}...',
                 extracting: 'Extrayendo {{name}}...',
                 loadMore: 'Cargar mas ({{shown}} de {{total}})',
+                rating: '{{percent}}% positivos ({{votes}} votos)',
+                updatedDate: 'Actualizado el {{date}}',
+                viewOnSteam: 'Ver en Steam',
+                detailsFailed: 'No se pudieron cargar los detalles del elemento. Intentalo mas tarde.',
                 comingSoon: 'Proximamente',
                 foldersHint: 'Carpetas de contenido que usa este cliente:'
             },
@@ -2104,6 +2116,10 @@
                 importing: 'Копирование {{name}}...',
                 extracting: 'Распаковка {{name}}...',
                 loadMore: 'Показать ещё ({{shown}} из {{total}})',
+                rating: '{{percent}}% положительных ({{votes}} голосов)',
+                updatedDate: 'Обновлено {{date}}',
+                viewOnSteam: 'Открыть в Steam',
+                detailsFailed: 'Не удалось загрузить сведения об элементе. Попробуйте позже.',
                 comingSoon: 'Скоро',
                 foldersHint: 'Папки контента этого клиента:'
             },

@@ -10,6 +10,8 @@
 //   /v1/search?game=bo3&query=&kind=all|map|mod&sort=popular|recent|name&page=1
 //       -> { items: [{id,title,author,kind,preview,subscribers,size,updatedAt}], total, scrapedAt }
 //   /v1/meta?game=bo3 -> { scrapedAt, count }
+//   /v1/item?game=bo3&id=<publishedfileid>
+//       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes }
 //
 // KV cost model: see README. The free plan allows 50 subrequests per
 // invocation, so each cron run processes a bounded number of pages and
@@ -81,17 +83,48 @@ export function searchCatalog(items, { query = '', kind = 'all', sort = 'popular
     };
 }
 
+function kindFromTags(details) {
+    const tags = (details.tags || []).map(tag => (tag.tag || '').toLowerCase());
+    return tags.includes('mod') ? 'mod' : 'map';
+}
+
+export function toItemDetail(details) {
+    if (!details || !details.title || details.banned || Number(details.result || 1) !== 1) {
+        return null;
+    }
+
+    return {
+        id: String(details.publishedfileid),
+        title: details.title,
+        kind: kindFromTags(details),
+        preview: details.preview_url || '',
+        description: details.file_description || '',
+        screenshots: (details.previews || [])
+            .filter(preview => preview.preview_type === 0 && preview.url)
+            .map(preview => preview.url),
+        subscribers: Number(details.lifetime_subscriptions || details.subscriptions || 0),
+        size: Number(details.file_size || 0),
+        views: Number(details.views || 0),
+        createdAt: Number(details.time_created || 0),
+        updatedAt: Number(details.time_updated || 0),
+        votes: {
+            score: Number((details.vote_data || {}).score || 0),
+            up: Number((details.vote_data || {}).votes_up || 0),
+            down: Number((details.vote_data || {}).votes_down || 0),
+        },
+    };
+}
+
 export function toCatalogItem(details, authors) {
     if (!details || !details.title || details.banned) {
         return null;
     }
 
-    const tags = (details.tags || []).map(tag => (tag.tag || '').toLowerCase());
     return {
         id: String(details.publishedfileid),
         title: details.title,
         author: authors[details.creator] || '',
-        kind: tags.includes('mod') ? 'mod' : 'map',
+        kind: kindFromTags(details),
         preview: details.preview_url || '',
         subscribers: Number(details.lifetime_subscriptions || details.subscriptions || 0),
         size: Number(details.file_size || 0),
@@ -119,6 +152,37 @@ function handleSearch(url, catalog) {
     });
 
     return json(200, { items, total, scrapedAt: catalog ? catalog.scrapedAt : null }, { 'Cache-Control': 'max-age=60' });
+}
+
+async function handleItem(request, env, url, game) {
+    const id = url.searchParams.get('id') || '';
+    if (!/^\d{1,20}$/.test(id)) {
+        return json(400, { error: 'invalid id' });
+    }
+
+    const cacheKey = new Request(`https://cache/${game}/${id}`);
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const response = await steamGet('/IPublishedFileService/GetDetails/v1/', {
+        key: env.STEAM_API_KEY,
+        'publishedfileids[0]': id,
+        appid: GAMES[game].appid,
+        includetags: true,
+        includeadditionalpreviews: true,
+        includevotes: true,
+    });
+
+    const detail = toItemDetail((response.publishedfiledetails || [])[0]);
+    if (!detail) {
+        return json(404, { error: 'not found' });
+    }
+
+    const result = json(200, detail, { 'Cache-Control': 'max-age=3600' });
+    await caches.default.put(cacheKey, result.clone());
+    return result;
 }
 
 // ── Scrape ──────────────────────────────────────────────────────────────
@@ -236,15 +300,23 @@ export default {
             return json(400, { error: 'unknown game' });
         }
 
-        const catalog = await getCatalog(env, game);
         switch (url.pathname) {
             case '/v1/search':
-                return handleSearch(url, catalog);
-            case '/v1/meta':
+                return handleSearch(url, await getCatalog(env, game));
+            case '/v1/item':
+                try {
+                    return await handleItem(request, env, url, game);
+                } catch (error) {
+                    console.log(`item lookup failed: ${error}`);
+                    return json(502, { error: 'steam unavailable' });
+                }
+            case '/v1/meta': {
+                const catalog = await getCatalog(env, game);
                 return json(200, {
                     scrapedAt: catalog ? catalog.scrapedAt : null,
                     count: catalog ? catalog.items.length : 0,
                 });
+            }
             default:
                 return json(404, { error: 'not found' });
         }

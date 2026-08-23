@@ -106,6 +106,13 @@
         return GameUtils.getGameMapping(game);
     }
 
+    async function workshopFetch(path, params) {
+        const api = window.__modsMock.workshopApi || WORKSHOP_API;
+        const res = await fetch(`${api}${path}?${new URLSearchParams(params)}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
     async function getInstalled(game) {
         const mods = await window.executeCommand('get-installed-mods', { game: backendId(game) });
         return Array.isArray(mods) ? mods : [];
@@ -143,11 +150,8 @@
         }
 
         try {
-            const params = new URLSearchParams({ game: backendId(game), ...opts });
-            const api = window.__modsMock.workshopApi || WORKSHOP_API;
-            const res = await fetch(`${api}/v1/search?${params}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            const params = { game: backendId(game), ...opts };
+            const data = await workshopFetch('/v1/search', params);
             const items = (Array.isArray(data.items) ? data.items : [])
                 .map(item => Object.assign(item, { installed: false, updateAvailable: false }));
             return { items, total: Number(data.total) || items.length };
@@ -203,6 +207,24 @@
         }
     }
 
+    async function getDetails(game, id) {
+        if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
+            await delay();
+            const item = WORKSHOP.find(entry => entry.id === id);
+            if (!item) throw new Error('Unknown item');
+            return Object.assign(clone(item), {
+                description: '[h1]Preview[/h1]\nThis is placeholder detail text shown in UI preview mode.\n[b]Bold[/b], [i]italic[/i] and a [url=https://cbservers.xyz]link[/url].',
+                screenshots: [],
+                views: item.subscribers * 4,
+                createdAt: Math.floor(new Date(item.updatedAt).getTime() / 1000) - 86400 * 200,
+                updatedAt: Math.floor(new Date(item.updatedAt).getTime() / 1000),
+                votes: { score: 0.93, up: 1200, down: 90 }
+            });
+        }
+
+        return workshopFetch('/v1/item', { game: backendId(game), id });
+    }
+
     function getModsFolder(game, folder) {
         return window.executeCommand('get-mods-folder', { game: backendId(game), folder });
     }
@@ -212,6 +234,7 @@
         supports,
         getInstalled,
         search,
+        getDetails,
         getSteamStatus,
         install,
         update,

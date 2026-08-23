@@ -39,12 +39,6 @@
         return config ? config.displayName : gameId;
     }
 
-    function formatCount(value) {
-        if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-        if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-        return String(value);
-    }
-
     function kindBadge(kind) {
         return `<span class="badge mods-type-badge is-${escapeHtml(kind)}">${escapeHtml(t(kind === 'map' ? 'mods.kindMap' : 'mods.kindMod'))}</span>`;
     }
@@ -209,6 +203,7 @@
         } finally {
             delete s.busy[id];
             await loadInstalled(gameId);
+            onTick();
         }
     }
 
@@ -386,7 +381,16 @@
             ${shown < s.results.total ? `<div class="mods-load-more"><button class="mods-btn">${escapeHtml(t('mods.loadMore', { shown, total: s.results.total }))}</button></div>` : ''}
         `;
         host.querySelectorAll('.mods-install-btn').forEach(button => {
-            button.addEventListener('click', () => installItem(gameId, button.dataset.id));
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                installItem(gameId, button.dataset.id);
+            });
+        });
+        host.querySelectorAll('.mods-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const item = s.results.items.find(entry => entry.id === card.dataset.id);
+                if (item && window.ModDetailPopup) window.ModDetailPopup.show(gameId, item);
+            });
         });
         const more = host.querySelector('.mods-load-more button');
         if (more) more.addEventListener('click', () => runSearch(gameId, true));
@@ -428,7 +432,7 @@
                     <div class="mods-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
                     <div class="mods-card-author">${escapeHtml(t('mods.by', { author: item.author }))}</div>
                     <div class="mods-card-meta">
-                        <span>${escapeHtml(t('mods.subscribers', { count: formatCount(item.subscribers) }))}</span>
+                        <span>${escapeHtml(t('mods.subscribers', { count: GameUtils.formatCount(item.subscribers) }))}</span>
                         <span>${escapeHtml(GameUtils.formatBytes(item.size))}</span>
                     </div>
                     <button class="mods-install-btn" data-id="${escapeHtml(item.id)}" data-state="${button.stateName}"${button.disabled ? ' disabled' : ''}>
@@ -451,6 +455,9 @@
         element.disabled = button.disabled;
         element.querySelector('.mods-install-label').textContent = button.label;
         card.querySelector('.mods-progress-bar').style.width = `${button.percent}%`;
+        if (window.ModDetailPopup && window.ModDetailPopup.item && window.ModDetailPopup.item.id === id) {
+            window.ModDetailPopup.syncInstallButton(button.label, button.disabled);
+        }
     }
 
     function installItem(gameId, id) {
@@ -537,9 +544,18 @@
         }
     }
 
+    function cardButtonFor(gameId, id) {
+        const s = getState(gameId);
+        const item = s.results && s.results.items.find(entry => entry.id === id);
+        return item ? cardButton(s, item) : null;
+    }
+
     window.ModsView = {
         render,
         refresh: loadInstalled,
+        installFromDetail: installItem,
+        cardButtonFor,
+        kindBadge,
         supports: gameId => !!(window.ModsService && window.ModsService.supports(gameId))
     };
 })();
