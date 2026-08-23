@@ -45,6 +45,11 @@ function mockCommand(command, data) {
         case 'discord-link':
         case 'discord-unlink':
             return { started: false };
+        case 'browse-folder':
+            return 'C:\\Users\\preview\\Downloads\\zm_example_map';
+        case 'open-folder':
+        case 'open-url':
+            return true;
         default:
             return null;
     }

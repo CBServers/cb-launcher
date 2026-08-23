@@ -636,6 +636,15 @@ class GameUtils {
      * @param {number} bytes - Number of bytes
      * @returns {string} Formatted string (e.g., "1.5 GB")
      */
+    static escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     static formatBytes(bytes) {
         if (bytes === 0) return '0 Bytes';
 
