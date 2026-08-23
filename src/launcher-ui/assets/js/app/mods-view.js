@@ -16,6 +16,7 @@
                 query: '',
                 kind: 'all',
                 sort: 'popular',
+                page: 1,
                 installed: null,
                 results: null,
                 searching: false,
@@ -263,15 +264,22 @@
         renderWorkshopGrid(gameId);
     }
 
-    async function runSearch(gameId) {
+    async function runSearch(gameId, append) {
         const s = getState(gameId);
-        s.searching = true;
+        s.page = append ? s.page + 1 : 1;
+        s.searching = !append;
         renderWorkshopGrid(gameId);
         try {
-            s.results = await window.ModsService.search(gameId, { query: s.query, kind: s.kind, sort: s.sort });
+            const result = await window.ModsService.search(gameId, { query: s.query, kind: s.kind, sort: s.sort, page: s.page });
+            if (append && s.results) {
+                s.results.items.push(...result.items);
+                s.results.total = result.total;
+            } else {
+                s.results = result;
+            }
         } catch (error) {
             console.error(error);
-            s.results = { items: [], total: 0 };
+            if (!append) s.results = { items: [], total: 0 };
         }
         s.searching = false;
         renderWorkshopGrid(gameId);
@@ -372,10 +380,16 @@
             return;
         }
 
-        host.innerHTML = `<div class="mods-grid">${s.results.items.map(item => workshopCardHTML(s, item)).join('')}</div>`;
+        const shown = s.results.items.length;
+        host.innerHTML = `
+            <div class="mods-grid">${s.results.items.map(item => workshopCardHTML(s, item)).join('')}</div>
+            ${shown < s.results.total ? `<div class="mods-load-more"><button class="mods-btn">${escapeHtml(t('mods.loadMore', { shown, total: s.results.total }))}</button></div>` : ''}
+        `;
         host.querySelectorAll('.mods-install-btn').forEach(button => {
             button.addEventListener('click', () => installItem(gameId, button.dataset.id));
         });
+        const more = host.querySelector('.mods-load-more button');
+        if (more) more.addEventListener('click', () => runSearch(gameId, true));
     }
 
     function cardState(s, item) {
@@ -406,9 +420,10 @@
 
     function workshopCardHTML(s, item) {
         const button = cardButton(s, item);
+        const previewIsUrl = /^https?:/.test(item.preview);
         return `
             <article class="mods-card" data-id="${escapeHtml(item.id)}">
-                <div class="mods-card-art" style="--art: ${escapeHtml(item.preview)}">${kindBadge(item.kind)}</div>
+                <div class="mods-card-art"${previewIsUrl ? '' : ` style="--art: ${escapeHtml(item.preview)}"`}>${previewIsUrl ? `<img src="${escapeHtml(item.preview)}" alt="" loading="lazy">` : ''}${kindBadge(item.kind)}</div>
                 <div class="mods-card-body">
                     <div class="mods-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
                     <div class="mods-card-author">${escapeHtml(t('mods.by', { author: item.author }))}</div>

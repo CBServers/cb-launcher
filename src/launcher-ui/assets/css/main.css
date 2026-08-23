@@ -3946,6 +3946,16 @@ button { font-family: inherit; cursor: pointer; }
     position: relative;
     aspect-ratio: 16 / 9;
     background: var(--art, var(--surface-hi)) center / cover no-repeat;
+    overflow: hidden;
+}
+
+.mods-card-art img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .mods-card-art .mods-type-badge {
@@ -4023,6 +4033,12 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .mods-card .mods-progress { height: 3px; }
+
+.mods-load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
 
 /* Import */
 .mods-import-grid {

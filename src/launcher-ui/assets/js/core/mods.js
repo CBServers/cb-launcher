@@ -1,8 +1,6 @@
 // Mod manager facade. Installed list, import, uninstall and folder lookup are
-// native commands; Workshop search/status/install stay mocked until the
-// steamcmd and worker pieces exist:
-//   search          -> workshop-search    { game, query, kind, sort } { items: WorkshopItem[], total }
-//   getSteamStatus  -> steam-get-status   { game }                    { owned, loggedIn, username }
+// native commands; search hits the workshop worker (see worker/workshop);
+// install/update/getSteamStatus stay mocked until the steamcmd runner exists:
 //   install/update  -> install-mod / update-mod { game, id }
 //
 // InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import', workshopId }
@@ -20,6 +18,11 @@
 
     const MB = 1024 * 1024;
     const GB = 1024 * MB;
+
+    const WORKSHOP_API = 'https://workshop.cbservers.xyz';
+    const PREVIEW_MODE = window.location.protocol === 'file:'
+        || window.location.hostname === 'localhost'
+        || window.location.hostname === '127.0.0.1';
 
     window.__modsMock = window.__modsMock || { steamOwned: true, steamLoggedIn: true, latency: 450 };
 
@@ -108,19 +111,11 @@
         return Array.isArray(mods) ? mods : [];
     }
 
-    async function search(game, options) {
-        const caps = supports(game);
-        if (!caps || !caps.workshop) return { items: [], total: 0 };
-
-        await delay();
-
-        const query = String((options && options.query) || '').trim().toLowerCase();
-        const kind = (options && options.kind) || 'all';
-        const sort = (options && options.sort) || 'popular';
-
+    function searchMock({ query, kind, sort }) {
+        const needle = query.trim().toLowerCase();
         const items = WORKSHOP
             .filter(item => (kind === 'all' || item.kind === kind)
-                && (!query || item.title.toLowerCase().includes(query) || item.author.toLowerCase().includes(query)))
+                && (!needle || item.title.toLowerCase().includes(needle) || item.author.toLowerCase().includes(needle)))
             .sort((a, b) => {
                 if (sort === 'recent') return new Date(b.updatedAt) - new Date(a.updatedAt);
                 if (sort === 'name') return a.title.localeCompare(b.title);
@@ -129,6 +124,37 @@
             .map(item => Object.assign(clone(item), { installed: false, updateAvailable: false }));
 
         return { items, total: items.length };
+    }
+
+    async function search(game, options) {
+        const caps = supports(game);
+        if (!caps || !caps.workshop) return { items: [], total: 0 };
+
+        const opts = {
+            query: String((options && options.query) || ''),
+            kind: (options && options.kind) || 'all',
+            sort: (options && options.sort) || 'popular',
+            page: (options && options.page) || 1
+        };
+
+        if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
+            await delay();
+            return searchMock(opts);
+        }
+
+        try {
+            const params = new URLSearchParams({ game: backendId(game), ...opts });
+            const api = window.__modsMock.workshopApi || WORKSHOP_API;
+            const res = await fetch(`${api}/v1/search?${params}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const items = (Array.isArray(data.items) ? data.items : [])
+                .map(item => Object.assign(item, { installed: false, updateAvailable: false }));
+            return { items, total: Number(data.total) || items.length };
+        } catch (error) {
+            console.warn('Workshop search failed', error);
+            return { items: [], total: 0 };
+        }
     }
 
     async function getSteamStatus() {

@@ -350,6 +350,7 @@
                 chooseZip: 'Choose .zip',
                 importing: 'Copying {{name}}...',
                 extracting: 'Extracting {{name}}...',
+                loadMore: 'Load more ({{shown}} of {{total}})',
                 comingSoon: 'Coming soon',
                 foldersHint: 'Content folders used by this client:'
             },
@@ -934,6 +935,7 @@
                 chooseZip: 'Choisir un .zip',
                 importing: 'Copie de {{name}}...',
                 extracting: 'Extraction de {{name}}...',
+                loadMore: 'Afficher plus ({{shown}} sur {{total}})',
                 comingSoon: 'Bientot disponible',
                 foldersHint: 'Dossiers de contenu utilises par ce client :'
             },
@@ -1518,6 +1520,7 @@
                 chooseZip: 'Elegir .zip',
                 importing: 'Copiando {{name}}...',
                 extracting: 'Extrayendo {{name}}...',
+                loadMore: 'Cargar mas ({{shown}} de {{total}})',
                 comingSoon: 'Proximamente',
                 foldersHint: 'Carpetas de contenido que usa este cliente:'
             },
@@ -2100,6 +2103,7 @@
                 chooseZip: 'Выбрать .zip',
                 importing: 'Копирование {{name}}...',
                 extracting: 'Распаковка {{name}}...',
+                loadMore: 'Показать ещё ({{shown}} из {{total}})',
                 comingSoon: 'Скоро',
                 foldersHint: 'Папки контента этого клиента:'
             },
