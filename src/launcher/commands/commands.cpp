@@ -12,6 +12,7 @@
 #include "component_commands.hpp"
 #include "cdn_commands.hpp"
 #include "discord_commands.hpp"
+#include "mod_commands.hpp"
 
 namespace commands
 {
@@ -113,5 +114,6 @@ namespace commands
         component_commands::register_commands(cef_ui, ctx);
         cdn_commands::register_commands(cef_ui, ctx);
         discord_commands::register_commands(cef_ui, ctx);
+    mod_commands::register_commands(cef_ui, ctx);
     }
 }

@@ -16,3 +16,6 @@
 [submodule "deps/WinToast"]
 	path = deps/WinToast
 	url = https://github.com/mohabouje/WinToast.git
+[submodule "deps/miniz"]
+	path = deps/miniz
+	url = https://github.com/richgel999/miniz

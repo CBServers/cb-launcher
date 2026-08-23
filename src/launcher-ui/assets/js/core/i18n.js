@@ -348,6 +348,8 @@
                 importZipTitle: 'Install from .zip',
                 importZipBody: 'Pick a downloaded archive and the launcher will extract and place it for you.',
                 chooseZip: 'Choose .zip',
+                importing: 'Copying {{name}}...',
+                extracting: 'Extracting {{name}}...',
                 comingSoon: 'Coming soon',
                 foldersHint: 'Content folders used by this client:'
             },
@@ -930,6 +932,8 @@
                 importZipTitle: 'Installer depuis un .zip',
                 importZipBody: "Choisissez une archive telechargee et le launcher l'extraira et la placera pour vous.",
                 chooseZip: 'Choisir un .zip',
+                importing: 'Copie de {{name}}...',
+                extracting: 'Extraction de {{name}}...',
                 comingSoon: 'Bientot disponible',
                 foldersHint: 'Dossiers de contenu utilises par ce client :'
             },
@@ -1512,6 +1516,8 @@
                 importZipTitle: 'Instalar desde .zip',
                 importZipBody: 'Elige un archivo descargado y el launcher lo extraera y colocara por ti.',
                 chooseZip: 'Elegir .zip',
+                importing: 'Copiando {{name}}...',
+                extracting: 'Extrayendo {{name}}...',
                 comingSoon: 'Proximamente',
                 foldersHint: 'Carpetas de contenido que usa este cliente:'
             },
@@ -2092,6 +2098,8 @@
                 importZipTitle: 'Установить из .zip',
                 importZipBody: 'Выберите скачанный архив - лаунчер распакует и разместит его сам.',
                 chooseZip: 'Выбрать .zip',
+                importing: 'Копирование {{name}}...',
+                extracting: 'Распаковка {{name}}...',
                 comingSoon: 'Скоро',
                 foldersHint: 'Папки контента этого клиента:'
             },

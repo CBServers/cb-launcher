@@ -1,14 +1,11 @@
-// Mod manager facade backed by mock data until native support exists.
-// Each method maps to one future command (backend game id in payloads):
-//   getInstalled    -> get-installed-mods { game }                    InstalledMod[]
+// Mod manager facade. Installed list, import, uninstall and folder lookup are
+// native commands; Workshop search/status/install stay mocked until the
+// steamcmd and worker pieces exist:
 //   search          -> workshop-search    { game, query, kind, sort } { items: WorkshopItem[], total }
 //   getSteamStatus  -> steam-get-status   { game }                    { owned, loggedIn, username }
-//   install/update  -> install-mod / update-mod { game, id }, progress polled via get-mod-progress { game }
-//   uninstall       -> uninstall-mod      { game, id }                { success }
-//   importFolder/Zip-> import-mod         { game, path, kind }        { success, mod }
-//   getModsFolder   -> get-mods-folder    { game, folder }            path
+//   install/update  -> install-mod / update-mod { game, id }
 //
-// InstalledMod: { id, name, kind: 'map'|'mod', version, size, installedAt, updateAvailable, source: 'workshop'|'import', workshopId? }
+// InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import', workshopId }
 // WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable }
 // Progress:     { game, id, phase: 'downloading'|'extracting'|'done', percent }
 (function () {
@@ -64,51 +61,6 @@
         { id: '2999871123', title: 'Office Complex',             author: 'Abnormal202',      kind: 'map', subscribers: 23455,  size: 740 * MB, updatedAt: daysAgo(1) }
     ].map((item, index) => Object.assign(item, { preview: PREVIEWS[index % PREVIEWS.length] }));
 
-    function installedMod(fields) {
-        return Object.assign({
-            version: '—',
-            installedAt: new Date().toISOString(),
-            updateAvailable: false,
-            source: 'import'
-        }, fields);
-    }
-
-    const INSTALLED = {
-        boiii: [
-            installedMod({ id: 'ws:2967301155', workshopId: '2967301155', name: 'Leviathan',           kind: 'map', version: '1.4', size: 1.9 * GB, installedAt: daysAgo(30), source: 'workshop' }),
-            installedMod({ id: 'ws:2781201010', workshopId: '2781201010', name: 'Project Wunderwaffe', kind: 'mod', version: '2.1', size: 480 * MB, installedAt: daysAgo(20), source: 'workshop', updateAvailable: true }),
-            installedMod({ id: 'local:zm_frost', name: 'zm_frost', kind: 'map', size: 620 * MB, installedAt: daysAgo(5) })
-        ],
-        t4: [
-            installedMod({ id: 'local:nazi_zombie_kino', name: 'nazi_zombie_kino', kind: 'map', size: 310 * MB, installedAt: daysAgo(70) }),
-            installedMod({ id: 'local:ugx_mod', name: 'UGX Mod 1.1', kind: 'mod', version: '1.1', size: 240 * MB, installedAt: daysAgo(69) })
-        ],
-        t5: [
-            installedMod({ id: 'local:zm_sumpf_remake', name: 'zm_sumpf_remake', kind: 'map', size: 410 * MB, installedAt: daysAgo(14) })
-        ],
-        t6: [
-            installedMod({ id: 'local:zm_buried_lite', name: 'zm_buried_lite', kind: 'map', size: 380 * MB, installedAt: daysAgo(9) }),
-            installedMod({ id: 'local:zombie_reloaded', name: 'Zombie Reloaded', kind: 'mod', version: '0.9', size: 150 * MB, installedAt: daysAgo(3) })
-        ]
-    };
-
-    function installedFor(game) {
-        if (!INSTALLED[game]) INSTALLED[game] = [];
-        return INSTALLED[game];
-    }
-
-    function findInstalled(game, predicate) {
-        return installedFor(game).find(predicate) || null;
-    }
-
-    function upsertInstalled(game, mod) {
-        const list = installedFor(game);
-        const index = list.findIndex(entry => entry.id === mod.id);
-        if (index >= 0) list.splice(index, 1);
-        list.unshift(mod);
-        return clone(mod);
-    }
-
     function emit(event) {
         listeners.forEach(listener => {
             try { listener(event); } catch (error) { console.error(error); }
@@ -147,9 +99,13 @@
         return CAPABILITIES[game] || null;
     }
 
+    function backendId(game) {
+        return GameUtils.getGameMapping(game);
+    }
+
     async function getInstalled(game) {
-        await delay(180);
-        return clone(installedFor(game));
+        const mods = await window.executeCommand('get-installed-mods', { game: backendId(game) });
+        return Array.isArray(mods) ? mods : [];
     }
 
     async function search(game, options) {
@@ -170,13 +126,7 @@
                 if (sort === 'name') return a.title.localeCompare(b.title);
                 return b.subscribers - a.subscribers;
             })
-            .map(item => {
-                const installed = findInstalled(game, mod => mod.workshopId === item.id);
-                return Object.assign(clone(item), {
-                    installed: !!installed,
-                    updateAvailable: !!(installed && installed.updateAvailable)
-                });
-            });
+            .map(item => Object.assign(clone(item), { installed: false, updateAvailable: false }));
 
         return { items, total: items.length };
     }
@@ -192,66 +142,43 @@
         if (!item) throw new Error('Unknown workshop item ' + workshopId);
 
         await runFakeTransfer(game, workshopId, onTick);
-
-        const existing = findInstalled(game, mod => mod.workshopId === workshopId);
-        if (existing) return markUpdated(existing);
-
-        return upsertInstalled(game, installedMod({
-            id: 'ws:' + workshopId,
-            workshopId,
-            name: item.title,
-            kind: item.kind,
-            version: '1.0',
-            size: item.size,
-            source: 'workshop'
-        }));
-    }
-
-    function markUpdated(mod) {
-        mod.updateAvailable = false;
-        mod.installedAt = new Date().toISOString();
-        return clone(mod);
+        return { success: true };
     }
 
     async function update(game, id, onTick) {
-        const mod = findInstalled(game, entry => entry.id === id);
-        if (!mod) throw new Error('Unknown mod ' + id);
         await runFakeTransfer(game, id, onTick);
-        return markUpdated(mod);
+        return { success: true };
     }
 
     async function uninstall(game, id) {
-        await delay(250);
-        const list = installedFor(game);
-        const index = list.findIndex(entry => entry.id === id);
-        if (index >= 0) list.splice(index, 1);
-        return { success: index >= 0 };
-    }
-
-    async function importFromPath(game, path, kind) {
-        await delay(kind === 'zip' ? 900 : 600);
-        const name = String(path || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop().replace(/\.zip$/i, '') || 'imported_mod';
-        const mod = upsertInstalled(game, installedMod({
-            id: 'local:' + name.toLowerCase().replace(/[^a-z0-9_]+/g, '_'),
-            name,
-            kind: /^(zm_|mp_|nazi_zombie_)/i.test(name) ? 'map' : 'mod',
-            size: 300 * MB + Math.floor(Math.random() * 900 * MB),
-            importKind: kind
-        }));
-        return { success: true, mod };
-    }
-
-    async function getModsFolder(game, folder) {
-        let root = null;
-        try {
-            root = await window.executeCommand('get-game-property', {
-                game: GameUtils.getGameMapping(game),
-                suffix: PROPERTY_KEYS.GAME.INSTALL
-            });
-        } catch (error) {
-            root = null;
+        const result = await window.executeCommand('uninstall-mod', { game: backendId(game), id });
+        if (!result || !result.success) {
+            throw new Error((result && result.error) || 'Failed to uninstall the mod.');
         }
-        return (root || 'C:\\Games\\' + game).replace(/[\\/]+$/, '') + '\\' + folder;
+        return result;
+    }
+
+    async function importFromPath(game, path, kind, onPhase) {
+        const started = await window.executeCommand('import-mod', { game: backendId(game), path, kind });
+        if (!started || !started.success) {
+            throw new Error((started && started.error) || 'Failed to start the import.');
+        }
+
+        for (;;) {
+            await delay(300);
+            const job = await window.executeCommand('get-mod-progress', { game: backendId(game) });
+            if (!job) throw new Error('Lost track of the import.');
+            if (job.active) {
+                if (onPhase) onPhase(job.phase, job.name);
+                continue;
+            }
+            if (job.phase === 'error') throw new Error(job.error || 'Import failed.');
+            return { success: true, name: job.name };
+        }
+    }
+
+    function getModsFolder(game, folder) {
+        return window.executeCommand('get-mods-folder', { game: backendId(game), folder });
     }
 
     window.ModsService = {
@@ -263,8 +190,8 @@
         install,
         update,
         uninstall,
-        importFolder: (game, path) => importFromPath(game, path, 'folder'),
-        importZip: (game, path) => importFromPath(game, path, 'zip'),
+        importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
+        importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),
         getModsFolder,
         onProgress
     };

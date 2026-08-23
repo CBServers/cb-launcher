@@ -33,88 +33,120 @@ namespace utils::com
         } __;
     }
 
-    bool select_folder(std::string& out_folder, const std::string& title, const std::string& selected_folder)
+    namespace
     {
-        CComPtr<IFileOpenDialog> file_dialog{};
-        if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&file_dialog))))
+        bool show_open_dialog(std::string& out_path, const std::string& title, const std::string& selected_folder,
+                              const FILEOPENDIALOGOPTIONS extra_options, const std::vector<file_filter>& filters)
         {
-            throw std::runtime_error("Failed to create co instance");
-        }
-
-        DWORD dw_options;
-        if (FAILED(file_dialog->GetOptions(&dw_options)))
-        {
-            throw std::runtime_error("Failed to get options");
-        }
-
-        if (FAILED(file_dialog->SetOptions(dw_options | FOS_PICKFOLDERS | FOS_NOCHANGEDIR)))
-        {
-            throw std::runtime_error("Failed to set options");
-        }
-
-        auto wide_title = string::convert(title);
-        if (FAILED(file_dialog->SetTitle(wide_title.data())))
-        {
-            throw std::runtime_error("Failed to set title");
-        }
-
-        if (!selected_folder.empty())
-        {
-            file_dialog->ClearClientData();
-
-            auto wide_selected_folder = string::convert(selected_folder);
-            for (auto& chr : wide_selected_folder)
+            CComPtr<IFileOpenDialog> file_dialog{};
+            if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&file_dialog))))
             {
-                if (chr == L'/')
+                throw std::runtime_error("Failed to create co instance");
+            }
+
+            DWORD dw_options;
+            if (FAILED(file_dialog->GetOptions(&dw_options)))
+            {
+                throw std::runtime_error("Failed to get options");
+            }
+
+            if (FAILED(file_dialog->SetOptions(dw_options | extra_options | FOS_NOCHANGEDIR)))
+            {
+                throw std::runtime_error("Failed to set options");
+            }
+
+            auto wide_title = string::convert(title);
+            if (FAILED(file_dialog->SetTitle(wide_title.data())))
+            {
+                throw std::runtime_error("Failed to set title");
+            }
+
+            std::vector<std::wstring> wide_filters{};
+            std::vector<COMDLG_FILTERSPEC> specs{};
+            if (!filters.empty())
+            {
+                wide_filters.reserve(filters.size() * 2);
+                for (const auto& filter : filters)
                 {
-                    chr = L'\\';
+                    wide_filters.push_back(string::convert(filter.name));
+                    wide_filters.push_back(string::convert(filter.pattern));
+                    specs.push_back({wide_filters[wide_filters.size() - 2].data(), wide_filters.back().data()});
+                }
+
+                if (FAILED(file_dialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data())))
+                {
+                    throw std::runtime_error("Failed to set file types");
                 }
             }
 
-            IShellItem* shell_item = nullptr;
-            if (FAILED(SHCreateItemFromParsingName(wide_selected_folder.data(), NULL, IID_PPV_ARGS(&shell_item))))
+            if (!selected_folder.empty())
             {
-                throw std::runtime_error("Failed to create item from parsing name");
+                file_dialog->ClearClientData();
+
+                auto wide_selected_folder = string::convert(selected_folder);
+                for (auto& chr : wide_selected_folder)
+                {
+                    if (chr == L'/')
+                    {
+                        chr = L'\\';
+                    }
+                }
+
+                IShellItem* shell_item = nullptr;
+                if (FAILED(SHCreateItemFromParsingName(wide_selected_folder.data(), NULL, IID_PPV_ARGS(&shell_item))))
+                {
+                    throw std::runtime_error("Failed to create item from parsing name");
+                }
+
+                if (FAILED(file_dialog->SetDefaultFolder(shell_item)))
+                {
+                    throw std::runtime_error("Failed to set default folder");
+                }
             }
 
-            if (FAILED(file_dialog->SetDefaultFolder(shell_item)))
+            const auto result = file_dialog->Show(nullptr);
+            if (result == HRESULT_FROM_WIN32(ERROR_CANCELLED))
             {
-                throw std::runtime_error("Failed to set default folder");
+                return false;
             }
+
+            if (FAILED(result))
+            {
+                throw std::runtime_error("Failed to show dialog");
+            }
+
+            CComPtr<IShellItem> result_item{};
+            if (FAILED(file_dialog->GetResult(&result_item)))
+            {
+                throw std::runtime_error("Failed to get result");
+            }
+
+            PWSTR raw_path = nullptr;
+            if (FAILED(result_item->GetDisplayName(SIGDN_FILESYSPATH, &raw_path)))
+            {
+                throw std::runtime_error("Failed to get path display name");
+            }
+
+            const auto _ = finally([&raw_path]
+            {
+                CoTaskMemFree(raw_path);
+            });
+
+            const std::wstring result_path = raw_path;
+            out_path = string::convert(result_path);
+
+            return true;
         }
+    }
 
-        const auto result = file_dialog->Show(nullptr);
-        if (result == HRESULT_FROM_WIN32(ERROR_CANCELLED))
-        {
-            return false;
-        }
+    bool select_folder(std::string& out_folder, const std::string& title, const std::string& selected_folder)
+    {
+        return show_open_dialog(out_folder, title, selected_folder, FOS_PICKFOLDERS, {});
+    }
 
-        if (FAILED(result))
-        {
-            throw std::runtime_error("Failed to show dialog");
-        }
-
-        CComPtr<IShellItem> result_item{};
-        if (FAILED(file_dialog->GetResult(&result_item)))
-        {
-            throw std::runtime_error("Failed to get result");
-        }
-
-        PWSTR raw_path = nullptr;
-        if (FAILED(result_item->GetDisplayName(SIGDN_FILESYSPATH, &raw_path)))
-        {
-            throw std::runtime_error("Failed to get path display name");
-        }
-
-        const auto _ = finally([&raw_path]
-        {
-            CoTaskMemFree(raw_path);
-        });
-
-        const std::wstring result_path = raw_path;
-        out_folder = string::convert(result_path);
-
-        return true;
+    bool select_file(std::string& out_file, const std::string& title, const std::vector<file_filter>& filters, const std::string& selected_folder)
+    {
+        return show_open_dialog(out_file, title, selected_folder, FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM, filters);
     }
 
     CComPtr<IProgressDialog> create_progress_dialog()

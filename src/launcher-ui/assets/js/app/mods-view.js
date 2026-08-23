@@ -456,45 +456,60 @@
         const host = query(gameId, '.mods-view[data-view="import"]');
         if (!host) return;
 
+        const card = (cls, title, body, icon, label) => `
+                <div class="mods-import-card">
+                    <h4>${escapeHtml(t(title))}</h4>
+                    <p>${escapeHtml(t(body))}</p>
+                    <button class="secondary-action ${cls}">
+                        <span class="secondary-action-icon ${icon}"></span>
+                        ${escapeHtml(t(label))}
+                    </button>
+                </div>`;
+
         host.innerHTML = `
             <div class="mods-import-grid">
-                <div class="mods-import-card">
-                    <h4>${escapeHtml(t('mods.importFolderTitle'))}</h4>
-                    <p>${escapeHtml(t('mods.importFolderBody'))}</p>
-                    <button class="secondary-action mods-import-folder">
-                        <span class="secondary-action-icon folder-icon"></span>
-                        ${escapeHtml(t('mods.chooseFolder'))}
-                    </button>
-                </div>
-                <div class="mods-import-card is-placeholder">
-                    <h4>${escapeHtml(t('mods.importZipTitle'))} <span class="badge mods-soon-badge">${escapeHtml(t('mods.comingSoon'))}</span></h4>
-                    <p>${escapeHtml(t('mods.importZipBody'))}</p>
-                    <button class="secondary-action mods-import-zip" disabled>
-                        <span class="secondary-action-icon files-icon"></span>
-                        ${escapeHtml(t('mods.chooseZip'))}
-                    </button>
-                </div>
+                ${card('mods-import-folder', 'mods.importFolderTitle', 'mods.importFolderBody', 'folder-icon', 'mods.chooseFolder')}
+                ${card('mods-import-zip', 'mods.importZipTitle', 'mods.importZipBody', 'files-icon', 'mods.chooseZip')}
             </div>
+            <div class="mods-import-status" hidden><div class="spinner"></div><span></span></div>
             <div class="mods-folders-hint">
                 <span>${escapeHtml(t('mods.foldersHint'))}</span>
                 ${(s.caps.folders || []).map(f => `<code>${escapeHtml(f)}/</code>`).join('')}
             </div>
         `;
 
-        host.querySelector('.mods-import-folder').addEventListener('click', () => importFolder(gameId));
+        host.querySelector('.mods-import-folder').addEventListener('click', () => runImport(gameId, 'folder'));
+        host.querySelector('.mods-import-zip').addEventListener('click', () => runImport(gameId, 'zip'));
     }
 
-    async function importFolder(gameId) {
+    async function runImport(gameId, kind) {
+        const host = query(gameId, '.mods-view[data-view="import"]');
+        const status = host && host.querySelector('.mods-import-status');
+        const buttons = host ? host.querySelectorAll('.mods-import-card button') : [];
+        const setPhase = (phase, name) => {
+            if (!status) return;
+            status.hidden = !phase;
+            status.querySelector('span').textContent = phase ? t(phase === 'extracting' ? 'mods.extracting' : 'mods.importing', { name }) : '';
+        };
+
         try {
-            const path = await window.executeCommand('browse-folder');
+            const path = kind === 'zip'
+                ? await window.executeCommand('browse-file', { title: t('mods.importZipTitle'), filters: [{ name: 'Zip archives', pattern: '*.zip' }] })
+                : await window.executeCommand('browse-folder');
             if (!path) return;
-            const result = await window.ModsService.importFolder(gameId, path);
-            if (!result || !result.success) return;
-            window.showToast(t('mods.importedToast', { name: result.mod.name }), 'success');
+
+            buttons.forEach(b => b.disabled = true);
+            setPhase('copying', path.split(/[\\/]/).pop());
+            const importer = kind === 'zip' ? window.ModsService.importZip : window.ModsService.importFolder;
+            const result = await importer(gameId, path, setPhase);
+            window.showToast(t('mods.importedToast', { name: result.name }), 'success');
             await loadInstalled(gameId);
             switchView(gameId, 'installed');
         } catch (error) {
             reportError(error);
+        } finally {
+            buttons.forEach(b => b.disabled = false);
+            setPhase('');
         }
     }
 
