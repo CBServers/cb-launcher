@@ -12,7 +12,8 @@ const PROPERTY_KEYS = {
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name',
         CDN_CUSTOM_URL: 'launcher-cdn-custom-url',
         PINNED_GAMES: 'launcher-pinned-games',
-        DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications'
+        DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
+        REDUCE_MOTION: 'launcher-reduce-motion'
     },
     GAME: {
         INSTALL: 'install',

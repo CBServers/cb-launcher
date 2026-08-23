@@ -200,6 +200,14 @@ function adjustChannelElements() {
 
 // All game-specific functionality is now handled in individual page files
 
+function applyReduceMotion(enabled) {
+    if (enabled) {
+        document.documentElement.setAttribute('data-reduce-motion', 'true');
+    } else {
+        document.documentElement.removeAttribute('data-reduce-motion');
+    }
+}
+
 function applyTheme(theme) {
     if (theme === 'dark' || theme === 'navy' || theme === 'navy-gradient') {
         document.documentElement.setAttribute('data-theme', theme);
@@ -242,6 +250,9 @@ async function initialize() {
         try {
             const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
             applyTheme(savedTheme || 'dark');
+
+            const reduceMotion = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION);
+            applyReduceMotion(reduceMotion === 'true');
         } catch (_) {}
     }
 
@@ -1973,6 +1984,22 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Reduce Motion" setting
+        const reduceMotion = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION);
+        const reduceMotionToggle = document.getElementById('reduce-motion-toggle');
+
+        if (reduceMotionToggle) {
+            const buttons = reduceMotionToggle.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Default to "false" if not set
+            const targetValue = (reduceMotion === 'true') ? 'true' : 'false';
+            const targetButton = reduceMotionToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
         // Load CDN settings
         await initCdnSettings();
 
@@ -2358,6 +2385,12 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: clickedValue
                         });
                         console.log(`Skip redist check set to: ${clickedValue}`);
+                    } else if (settingId === 'reduce-motion-toggle') {
+                        applyReduceMotion(clickedValue === 'true');
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: clickedValue
+                        });
+                        console.log(`Reduce motion set to: ${clickedValue}`);
                     } else if (settingId === 'desktop-notifications-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS]: clickedValue
@@ -2397,6 +2430,7 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.LANGUAGE]: 'en',
                     [PROPERTY_KEYS.LAUNCHER.THEME]: 'dark',
                     [PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME]: '',
@@ -2430,6 +2464,7 @@ async function handleResetAllSettings() {
                     window.LauncherI18n.setLanguage('en');
                 }
                 applyTheme('dark');
+                applyReduceMotion(false);
                 const themeSelect = document.getElementById('theme-select');
                 if (themeSelect) themeSelect.value = 'dark';
 
