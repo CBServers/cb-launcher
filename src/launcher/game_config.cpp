@@ -7,11 +7,21 @@
 #include <utils/cdn.hpp>
 #include <utils/string.hpp>
 #include <unordered_set>
+#include <version.hpp>
 
 #define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
 
 namespace game_config
 {
+    namespace
+    {
+        // develop builds pull each client's dev channel instead of the one main users get
+        std::string select_channel(const std::string& main, const std::string& develop)
+        {
+            return GIT_BRANCH == "develop"s ? develop : main;
+        }
+    }
+
     // Property access method implementations
     std::string game_config_t::make_property_key(const std::string& suffix) const
     {
@@ -637,8 +647,10 @@ namespace game_config
                 .display_name = "Black Ops 3",
                 .id = "boiii",
                 .exe_name = "boiii.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "boiii.json",
+                                                     CLIENT_UPDATE_SERVER "boiii-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "boiii/",
+                                                   CLIENT_UPDATE_SERVER "boiii-dev/"),
                 .manifest_path = "manifest/bo3.json",
                 .required_updater_files = {},
                 .valid_game_files = {"BlackOps3.exe"},
@@ -661,8 +673,10 @@ namespace game_config
                 .display_name = "Ghosts",
                 .id = "iw6x",
                 .exe_name = "iw6x.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "iw6x.json",
+                                                     CLIENT_UPDATE_SERVER "iw6x-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "iw6x/",
+                                                   CLIENT_UPDATE_SERVER "iw6x-dev/"),
                 .manifest_path = "manifest/ghosts.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
@@ -690,8 +704,10 @@ namespace game_config
                 .display_name = "Advanced Warfare",
                 .id = "s1x",
                 .exe_name = "s1x.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "s1x.json",
+                                                     CLIENT_UPDATE_SERVER "s1x-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "s1x/",
+                                                   CLIENT_UPDATE_SERVER "s1x-dev/"),
                 .manifest_path = "manifest/aw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
@@ -721,8 +737,10 @@ namespace game_config
                 .display_name = "Modern Warfare Remastered",
                 .id = "h1-mod",
                 .exe_name = "h1-mod.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "h1-mod/files.json",
+                                                     CLIENT_UPDATE_SERVER "h1-mod/files-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "h1-mod/data/",
+                                                   CLIENT_UPDATE_SERVER "h1-mod/data-dev/"),
                 .manifest_path = "manifest/mwr.json",
                 .required_updater_files = {},
                 .valid_game_files = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
@@ -752,8 +770,10 @@ namespace game_config
                 .display_name = "Infinite Warfare",
                 .id = "iw7-mod",
                 .exe_name = "iw7-mod.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "iw7-mod/files.json",
+                                                     CLIENT_UPDATE_SERVER "iw7-mod/files-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "iw7-mod/data/",
+                                                   CLIENT_UPDATE_SERVER "iw7-mod/data-dev/"),
                 .manifest_path = "manifest/iw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw7_ship.exe"},
