@@ -576,6 +576,13 @@ class ComponentSelectionPopup {
             // Never delete from a user's pre-existing install during setup
             const willDeleteFiles = !finishSetup && hasChanges && deselectedComponents.length > 0;
 
+            // Components the pass has to fetch, measured against disk rather than the stored selection
+            const addedComponents = Array.from(this.selectedComponents).filter(
+                comp => !this.installedComponents.includes(comp)
+            );
+            // Adopting an existing install or only dropping components downloads nothing, so hashing every file buys nothing
+            const skipHash = finishSetup || (!shouldStartDownload && addedComponents.length === 0);
+
             // Show confirmation dialog BEFORE saving (skip for fresh install and finish-setup flows)
             if (!shouldStartDownload && !finishSetup && typeof window.showMessageBox === 'function') {
                 let message = this.t('popup.componentSelection.confirmChangesBody');
@@ -628,7 +635,7 @@ class ComponentSelectionPopup {
             // A fresh download is tagged as an install so the UI labels it correctly.
             const gameId = GameUtils.getUIIdFromBackendId(this.currentGame);
             if (gameId) {
-                verifyGame(gameId, willDeleteFiles, shouldStartDownload ? 'install' : 'verify');
+                verifyGame(gameId, willDeleteFiles, shouldStartDownload ? 'install' : 'verify', skipHash);
             }
 
         } catch (error) {

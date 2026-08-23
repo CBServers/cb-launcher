@@ -1115,6 +1115,13 @@ namespace commands::game_commands
                 printf("Skip hash verification enabled\n");
             }
 
+            // Passes that only adopt existing files or drop components settle for presence and size
+            if (!skip_hash && value.HasMember("skip_hash") && value["skip_hash"].IsBool() && value["skip_hash"].GetBool())
+            {
+                skip_hash = true;
+                printf("Skipping hash verification for this pass\n");
+            }
+
             // Check if deselected components should be deleted
             bool delete_deselected = false;
             if (value.HasMember("delete_components") && value["delete_components"].IsBool())

@@ -1767,8 +1767,8 @@ async function uninstallGameDirect(gameId) {
     return true;
 }
 
-async function verifyGame(gameId, deleteComponents = false, op = 'verify') {
-    console.log(`Verify button clicked for ${gameId}, deleteComponents: ${deleteComponents}, op: ${op}`);
+async function verifyGame(gameId, deleteComponents = false, op = 'verify', skipHash = false) {
+    console.log(`Verify button clicked for ${gameId}, deleteComponents: ${deleteComponents}, op: ${op}, skipHash: ${skipHash}`);
 
     if (!await window.guardOnline()) return false;
 
@@ -1779,7 +1779,7 @@ async function verifyGame(gameId, deleteComponents = false, op = 'verify') {
         gameId: gameId,
         command: 'verify-game',
         op: op,
-        commandArgs: { game: gameMapping, delete_components: deleteComponents },
+        commandArgs: { game: gameMapping, delete_components: deleteComponents, skip_hash: skipHash },
         initialMessage: op === 'install'
             ? t('popup.setup.downloading', { game: displayName })
             : t('progress.verifying', { game: displayName }),
