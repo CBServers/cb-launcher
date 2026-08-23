@@ -249,7 +249,7 @@ async function initialize() {
     if (typeof window.executeCommand === 'function') {
         try {
             const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
-            applyTheme(savedTheme || 'dark');
+            applyTheme(savedTheme || 'tactical');
 
             const reduceMotion = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION);
             applyReduceMotion(reduceMotion === 'true');
@@ -2006,8 +2006,8 @@ async function loadLauncherSettings() {
         // Load theme setting
         const savedTheme = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.THEME);
         const themeSelect = document.getElementById('theme-select');
-        if (themeSelect && savedTheme) {
-            themeSelect.value = savedTheme;
+        if (themeSelect) {
+            themeSelect.value = savedTheme || 'tactical';
         }
 
         // Load global player name
@@ -2463,10 +2463,10 @@ async function handleResetAllSettings() {
                 if (window.LauncherI18n) {
                     window.LauncherI18n.setLanguage('en');
                 }
-                applyTheme('dark');
+                applyTheme('tactical');
                 applyReduceMotion(false);
                 const themeSelect = document.getElementById('theme-select');
-                if (themeSelect) themeSelect.value = 'dark';
+                if (themeSelect) themeSelect.value = 'tactical';
 
                 // Reload settings page to show defaults
                 await refreshLocalizedUI('settings');
