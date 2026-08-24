@@ -20,6 +20,7 @@ namespace commands::mod_commands
             std::string name;
             std::string error;
             int percent{};
+            bool cancelled{};
         };
 
         std::mutex jobs_mutex_;
@@ -43,6 +44,27 @@ namespace commands::mod_commands
             }
         }
 
+        uint64_t read_size(const rapidjson::Value& value)
+        {
+            if (value.IsObject() && value.HasMember("size") && value["size"].IsUint64())
+            {
+                return value["size"].GetUint64();
+            }
+
+            return 0;
+        }
+
+        std::optional<game_config::game_config_t> config_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            auto config = ctx.get_game_config_from_request(value);
+            if (!config)
+            {
+                set_result(response, false, "Unknown game.");
+            }
+
+            return config;
+        }
+
         void update_job(const std::string& game, const std::function<void(import_job&)>& mutate)
         {
             std::lock_guard lock(jobs_mutex_);
@@ -53,12 +75,15 @@ namespace commands::mod_commands
         {
             return [game](const std::string& phase, const std::string& name, const int percent)
             {
+                auto keep_running = true;
                 update_job(game, [&](import_job& job)
                 {
                     job.phase = phase;
                     job.name = name;
                     job.percent = percent;
+                    keep_running = !job.cancelled;
                 });
+                return keep_running;
             };
         }
 
@@ -67,7 +92,7 @@ namespace commands::mod_commands
             update_job(game, [&result](import_job& job)
             {
                 job.active = false;
-                job.phase = result.success ? "done" : "error";
+                job.phase = result.success ? "done" : (result.error == "cancelled" ? "cancelled" : "error");
                 job.error = result.error;
                 if (result.mod)
                 {
@@ -101,7 +126,7 @@ namespace commands::mod_commands
                 return false;
             }
 
-            job = {true, "queued", {}, {}, 0};
+            job = {true, "queued", {}, {}, 0, false};
             return true;
         }
     }
@@ -168,19 +193,14 @@ namespace commands::mod_commands
 
         const auto workshop_install = [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto config = ctx.get_game_config_from_request(value);
+            const auto config = config_or_fail(ctx, value, response);
             if (!config)
             {
-                set_result(response, false, "Unknown game.");
                 return;
             }
 
             const auto id = mods::json_string(value, "id");
-            uint64_t size = 0;
-            if (value.IsObject() && value.HasMember("size") && value["size"].IsUint64())
-            {
-                size = value["size"].GetUint64();
-            }
+            const auto size = read_size(value);
 
             if (!claim_job(*config, response))
             {
@@ -192,6 +212,31 @@ namespace commands::mod_commands
         };
         cef_ui.add_command("install-workshop-mod", workshop_install);
         cef_ui.add_command("update-mod", workshop_install);
+
+        cef_ui.add_command("install-cdn-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto config = config_or_fail(ctx, value, response);
+            if (!config)
+            {
+                return;
+            }
+
+            const auto id = mods::json_string(value, "id");
+            const auto path = mods::json_string(value, "path");
+            const auto version = mods::json_string(value, "version");
+            const auto size = read_size(value);
+
+            if (!claim_job(*config, response))
+            {
+                return;
+            }
+
+            std::thread([config = *config, id, path, size, version]
+            {
+                finish_job(config.game_key, mods::install_cdn_item(config, id, path, size, version, job_progress(config.game_key)));
+            }).detach();
+            set_result(response, true);
+        });
 
         cef_ui.add_command("get-mod-progress", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
@@ -216,12 +261,31 @@ namespace commands::mod_commands
             response.AddMember("percent", job.percent, allocator);
         });
 
-        cef_ui.add_command("uninstall-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        cef_ui.add_command("cancel-mod-install", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto config = ctx.get_game_config_from_request(value);
+            const auto config = config_or_fail(ctx, value, response);
             if (!config)
             {
-                set_result(response, false, "Unknown game.");
+                return;
+            }
+
+            auto found = false;
+            update_job(config->game_key, [&found](import_job& job)
+            {
+                if (job.active)
+                {
+                    job.cancelled = true;
+                    found = true;
+                }
+            });
+            set_result(response, found);
+        });
+
+        cef_ui.add_command("uninstall-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto config = config_or_fail(ctx, value, response);
+            if (!config)
+            {
                 return;
             }
 

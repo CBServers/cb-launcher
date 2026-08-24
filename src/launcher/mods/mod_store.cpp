@@ -3,7 +3,9 @@
 #include "steamcmd.hpp"
 #include "updater/client_store.hpp"
 
+#include <utils/cdn.hpp>
 #include <utils/finally.hpp>
+#include <utils/http.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/properties.hpp>
@@ -607,7 +609,7 @@ namespace mods
         return {true, {}, mod};
     }
 
-    import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress)
+    import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress, const std::string& origin)
     {
         if (!supports(config) || !content_root(config))
         {
@@ -645,7 +647,7 @@ namespace mods
         const auto loose_files = utils::io::list_files(extracted).size() - top_level.size();
         const auto source = (top_level.size() == 1 && loose_files == 0) ? top_level.front() : extracted;
 
-        return import_folder(config, source, progress, "import");
+        return import_folder(config, source, progress, origin);
     }
 
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size, const progress_callback& progress)
@@ -690,6 +692,80 @@ namespace mods
         auto result = import_folder(config, *item, {}, "workshop");
         steamcmd::cleanup_downloads(layout->steam_appid, workshop_id);
         return result;
+    }
+
+    import_result install_cdn_item(const game_config::game_config_t& config, const std::string& catalog_id, const std::string& relative_path,
+                                   const uint64_t expected_size, const std::string& version, const progress_callback& progress)
+    {
+        if (!supports(config) || !content_root(config))
+        {
+            return fail("This game does not support mods or is not installed.");
+        }
+
+        // The catalog only carries CDN-relative paths, so the launcher can never
+        // be pointed at a foreign host.
+        if (relative_path.empty() || relative_path.front() == '/' || relative_path.find("..") != std::string::npos
+            || relative_path.find(':') != std::string::npos || !utils::string::ends_with(utils::string::to_lower(relative_path), ".zip"))
+        {
+            return fail("Invalid download path.");
+        }
+
+        const auto url = utils::cdn::cdn_manager::instance().get_active_cdn_url() + relative_path;
+        const auto staging = make_staging_dir();
+        const auto archive = staging / "download.zip";
+        utils::io::create_directory(staging);
+        const auto cleanup = utils::finally([&staging]
+        {
+            std::error_code code{};
+            std::filesystem::remove_all(staging, code);
+        });
+
+        std::ofstream file(archive, std::ios::binary);
+        if (!file.is_open())
+        {
+            return fail("Failed to create the download file.");
+        }
+
+        auto cancelled = false;
+        const auto result = utils::http::get_data_stream(url, {}, {},
+            [&](const size_t bytes, const size_t total, size_t)
+            {
+                const auto expected = expected_size ? expected_size : total;
+                const auto percent = expected ? static_cast<int>(std::min<uint64_t>(99, bytes * 100ull / expected)) : 0;
+                if (progress && !progress("downloading", catalog_id, percent))
+                {
+                    cancelled = true;
+                    return false;
+                }
+                return true;
+            },
+            [&file](const char* data, const size_t size)
+            {
+                file.write(data, static_cast<std::streamsize>(size));
+                return file.good();
+            });
+        file.close();
+
+        if (cancelled)
+        {
+            return fail("cancelled");
+        }
+
+        if (!result || result->code != CURLE_OK || result->response_code >= 400)
+        {
+            utils::logger::write("[cbl-mods] cdn download failed for {}", url);
+            return fail("Failed to download the mod from the CDN.");
+        }
+
+        auto imported = import_zip(config, archive, progress, "cdn");
+        if (imported.success && imported.mod)
+        {
+            imported.mod->workshop_id = catalog_id;
+            imported.mod->version = version;
+            upsert_index(config, *imported.mod);
+        }
+
+        return imported;
     }
 
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)

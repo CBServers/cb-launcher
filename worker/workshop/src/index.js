@@ -10,20 +10,30 @@
 //   /v1/search?game=bo3&query=&kind=all|map|mod&sort=popular|recent|name&page=1
 //       -> { items: [{id,title,author,kind,preview,subscribers,size,updatedAt}], total, scrapedAt }
 //   /v1/meta?game=bo3 -> { scrapedAt, count }
-//   /v1/item?game=bo3&id=<publishedfileid>
-//       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes }
+//   /v1/item?game=bo3&id=<item id>
+//       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes?, download?, version? }
+//   /v1/updated?game=bo3&ids=<comma list> -> { "<id>": <updatedAt unix>, ... }
+//
+// bo3 is scraped from Steam; games with catalogUrl sync a curated JSON from
+// the CBServers/updater repo (download paths are CDN-relative).
 //
 // KV cost model: see README. The free plan allows 50 subrequests per
 // invocation, so each cron run processes a bounded number of pages and
 // persists its cursor; a full sweep completes across ~10 runs.
 
 const STEAM_API = 'https://api.steampowered.com';
+const UPDATER_MODS = 'https://raw.githubusercontent.com/CBServers/updater/main/updater/mods';
 const GAMES = {
     bo3: { appid: 311210, creatorAppid: 455130 },
+    t4: { catalogUrl: `${UPDATER_MODS}/t4.json` },
+    t5: { catalogUrl: `${UPDATER_MODS}/t5.json` },
+    t6: { catalogUrl: `${UPDATER_MODS}/t6.json` },
 };
 
 const PAGE_SIZE = 60;
 const SCRAPE_INTERVAL_MS = 12 * 3600_000;
+const CATALOG_SYNC_INTERVAL_MS = 3600_000;
+const UPDATED_IDS_MAX = 100;
 const SCRAPE_ABANDON_MS = 6 * 3600_000;
 const PAGES_PER_RUN = 30;
 const AUTHOR_CALLS_PER_RUN = 8;
@@ -81,6 +91,46 @@ export function searchCatalog(items, { query = '', kind = 'all', sort = 'popular
         items: matches.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE),
         total: matches.length,
     };
+}
+
+// Curated catalog entries are authored by hand; keep only valid ones.
+export function toCuratedItem(entry) {
+    if (!entry || !entry.id || !entry.title || !entry.download || /^\/|(\.\.)|:/.test(entry.download)) {
+        return null;
+    }
+
+    return {
+        id: String(entry.id),
+        title: entry.title,
+        author: entry.author || '',
+        kind: entry.kind === 'mod' ? 'mod' : 'map',
+        preview: entry.preview || '',
+        subscribers: Number(entry.subscribers || 0),
+        size: Number(entry.size || 0),
+        updatedAt: Number(entry.updatedAt || 0),
+        download: entry.download,
+        version: entry.version || '',
+        description: entry.description || '',
+        screenshots: Array.isArray(entry.screenshots) ? entry.screenshots : [],
+    };
+}
+
+async function syncCuratedCatalog(env, game, config) {
+    const catalog = await getCatalog(env, game);
+    if (catalog && Date.now() - Date.parse(catalog.scrapedAt) < CATALOG_SYNC_INTERVAL_MS) {
+        return;
+    }
+
+    const response = await fetch(config.catalogUrl);
+    if (!response.ok) {
+        console.log(`catalog fetch failed for ${game}: ${response.status}`);
+        return;
+    }
+
+    const items = (((await response.json()) || {}).items || []).map(toCuratedItem).filter(Boolean);
+    await env.WORKSHOP.put(`catalog:${game}`, JSON.stringify({ scrapedAt: new Date().toISOString(), items }));
+    catalogCache.delete(game);
+    console.log(`synced ${items.length} curated items for ${game}`);
 }
 
 function kindFromTags(details) {
@@ -154,8 +204,28 @@ function handleSearch(url, catalog) {
     return json(200, { items, total, scrapedAt: catalog ? catalog.scrapedAt : null }, { 'Cache-Control': 'max-age=60' });
 }
 
+function handleUpdated(url, catalog) {
+    const ids = (url.searchParams.get('ids') || '').split(',').filter(id => /^\w{1,64}$/.test(id)).slice(0, UPDATED_IDS_MAX);
+    const byId = new Map((catalog ? catalog.items : []).map(item => [item.id, item.updatedAt]));
+    const result = {};
+    for (const id of ids) {
+        if (byId.has(id)) {
+            result[id] = byId.get(id);
+        }
+    }
+
+    return json(200, result, { 'Cache-Control': 'max-age=300' });
+}
+
 async function handleItem(request, env, url, game) {
     const id = url.searchParams.get('id') || '';
+
+    if (GAMES[game].catalogUrl) {
+        const catalog = await getCatalog(env, game);
+        const item = (catalog ? catalog.items : []).find(entry => entry.id === id);
+        return item ? json(200, item, { 'Cache-Control': 'max-age=300' }) : json(404, { error: 'not found' });
+    }
+
     if (!/^\d{1,20}$/.test(id)) {
         return json(400, { error: 'invalid id' });
     }
@@ -310,6 +380,8 @@ export default {
                     console.log(`item lookup failed: ${error}`);
                     return json(502, { error: 'steam unavailable' });
                 }
+            case '/v1/updated':
+                return handleUpdated(url, await getCatalog(env, game));
             case '/v1/meta': {
                 const catalog = await getCatalog(env, game);
                 return json(200, {
@@ -323,8 +395,12 @@ export default {
     },
 
     async scheduled(controller, env) {
-        for (const game of Object.keys(GAMES)) {
-            await runScrape(env, game);
+        for (const [game, config] of Object.entries(GAMES)) {
+            if (config.catalogUrl) {
+                await syncCuratedCatalog(env, game, config);
+            } else {
+                await runScrape(env, game);
+            }
         }
     },
 };

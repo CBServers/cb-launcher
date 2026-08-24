@@ -142,6 +142,14 @@ namespace mods::steamcmd
             return std::nullopt;
         }
 
+        const auto abort_download = [&](const std::string& reason)
+        {
+            utils::nt::terminate_process_handle(handle);
+            CloseHandle(handle);
+            cleanup_downloads(appid, workshop_id);
+            error = reason;
+        };
+
         uint64_t last_bytes = 0;
         auto stalled_ticks = 0;
         while (WaitForSingleObject(handle, 500) == WAIT_TIMEOUT)
@@ -152,16 +160,15 @@ namespace mods::steamcmd
 
             if (stalled_ticks > STALL_TIMEOUT_TICKS)
             {
-                utils::nt::terminate_process_handle(handle);
-                CloseHandle(handle);
-                error = "The download stalled and was cancelled.";
+                abort_download("The download stalled and was cancelled.");
                 return std::nullopt;
             }
 
-            if (progress && expected_size)
+            const auto percent = expected_size ? static_cast<int>(std::min<uint64_t>(99, bytes * 100 / expected_size)) : 0;
+            if (progress && !progress("downloading", workshop_id, percent))
             {
-                const auto percent = static_cast<int>(std::min<uint64_t>(99, bytes * 100 / expected_size));
-                progress("downloading", workshop_id, percent);
+                abort_download("cancelled");
+                return std::nullopt;
             }
         }
 
@@ -181,6 +188,6 @@ namespace mods::steamcmd
     {
         std::error_code code{};
         std::filesystem::remove_all(item_path(appid, workshop_id), code);
-        std::filesystem::remove_all(workshop_path() / "downloads" / std::to_string(appid), code);
+        std::filesystem::remove_all(workshop_path() / "downloads", code);
     }
 }

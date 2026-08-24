@@ -110,6 +110,10 @@
         const s = getState(gameId);
         try {
             s.installed = await window.ModsService.getInstalled(gameId);
+            const times = await window.ModsService.getUpdatedTimes(gameId, s.installed.filter(mod => mod.workshopId).map(mod => mod.workshopId));
+            s.installed.forEach(mod => {
+                mod.updateAvailable = !!(times[mod.workshopId] && times[mod.workshopId] > Date.parse(mod.installedAt) / 1000);
+            });
         } catch (error) {
             console.error(error);
             s.installed = [];
@@ -153,6 +157,9 @@
         host.querySelectorAll('.mods-uninstall-btn').forEach(button => {
             button.addEventListener('click', () => uninstallMod(gameId, button.dataset.id));
         });
+        host.querySelectorAll('.mods-cancel-btn').forEach(button => {
+            button.addEventListener('click', () => window.ModsService.cancelInstall(gameId));
+        });
     }
 
     function installedRowHTML(s, mod) {
@@ -163,7 +170,8 @@
             t(mod.source === 'workshop' ? 'mods.sourceWorkshop' : 'mods.sourceImport')
         ].filter(Boolean);
         const actions = busy !== undefined
-            ? `<span class="mods-row-progress">${escapeHtml(t('mods.installing', { percent: busy.percent }))}</span>`
+            ? `<span class="mods-row-progress">${escapeHtml(t('mods.installing', { percent: busy.percent }))}</span>
+               <button class="mods-btn is-danger mods-cancel-btn">${escapeHtml(t('mods.cancel'))}</button>`
             : `${mod.updateAvailable ? `<button class="mods-btn mods-update-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.update'))}</button>` : ''}
                <button class="mods-btn is-danger mods-uninstall-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.uninstall'))}</button>`;
 
@@ -188,12 +196,16 @@
         s.busy[id] = { percent: 0, phase: 'queued' };
         onTick();
         try {
-            await transfer(event => {
+            const result = await transfer(event => {
                 if (event.phase === 'done') return;
                 s.busy[id] = { percent: event.percent || 0, phase: event.phase || '' };
                 onTick();
             });
-            window.showToast(t(successKey, { name }), 'success');
+            if (result && result.cancelled) {
+                window.showToast(t('mods.cancelledToast'), 'info');
+            } else {
+                window.showToast(t(successKey, { name }), 'success');
+            }
         } catch (error) {
             reportError(error);
         } finally {
@@ -207,7 +219,7 @@
         const mod = (getState(gameId).installed || []).find(m => m.id === id);
         if (!mod || !mod.workshopId) return;
         return runTransfer(gameId, id,
-            onProgress => window.ModsService.update(gameId, mod.workshopId, onProgress, mod.size),
+            onProgress => window.ModsService.update(gameId, { id: mod.workshopId, size: mod.size }, onProgress),
             () => updateRow(gameId, id),
             'mods.updatedToast', mod.name);
     }
@@ -347,7 +359,11 @@
         host.querySelectorAll('.mods-install-btn').forEach(button => {
             button.addEventListener('click', event => {
                 event.stopPropagation();
-                installItem(gameId, button.dataset.id);
+                if (button.dataset.state === 'installing') {
+                    window.ModsService.cancelInstall(gameId);
+                } else {
+                    installItem(gameId, button.dataset.id);
+                }
             });
         });
         host.querySelectorAll('.mods-card').forEach(card => {
@@ -382,7 +398,7 @@
             stateName,
             percent: stateName === 'installing' ? busy.percent : 0,
             label: labels[stateName],
-            disabled: stateName !== 'idle' && stateName !== 'update'
+            disabled: stateName === 'installed'
         };
     }
 
@@ -400,7 +416,7 @@
                         <span>${escapeHtml(GameUtils.formatBytes(item.size))}</span>
                     </div>
                     <button class="mods-install-btn" data-id="${escapeHtml(item.id)}" data-state="${button.stateName}"${button.disabled ? ' disabled' : ''}>
-                        <span class="mods-install-label">${escapeHtml(button.label)}</span>
+                        <span class="mods-install-label">${escapeHtml(button.label)}</span><span class="mods-cancel-label">${escapeHtml(t('mods.cancel'))}</span>
                     </button>
                     <div class="mods-progress"><div class="mods-progress-bar" style="width:${button.percent}%"></div></div>
                 </div>
@@ -429,7 +445,7 @@
         const item = s.results && s.results.items.find(entry => entry.id === id);
         if (!item) return;
         return runTransfer(gameId, id,
-            onProgress => window.ModsService.install(gameId, id, onProgress, item.size),
+            onProgress => window.ModsService.install(gameId, item, onProgress),
             () => updateCard(gameId, id),
             'mods.installedToast', item.title);
     }
@@ -511,10 +527,23 @@
         return item ? cardButton(s, item) : null;
     }
 
+    async function openDeepLink(gameId, id) {
+        if (window.AppViews) window.AppViews.activateDetailTab(document.getElementById(`${gameId}-page`), gameId, 'mods');
+        switchView(gameId, 'workshop');
+        if (!id) return;
+        try {
+            const detail = await window.ModsService.getDetails(gameId, id);
+            window.ModDetailPopup.show(gameId, { id: detail.id, title: detail.title, author: '', size: detail.size, download: detail.download, version: detail.version });
+        } catch (error) {
+            reportError(error);
+        }
+    }
+
     window.ModsView = {
         render,
         refresh: loadInstalled,
         installFromDetail: installItem,
+        openDeepLink,
         cardButtonFor,
         kindBadge,
         supports: gameId => !!(window.ModsService && window.ModsService.supports(gameId))

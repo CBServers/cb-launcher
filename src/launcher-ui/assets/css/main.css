@@ -3995,15 +3995,29 @@ button { font-family: inherit; cursor: pointer; }
     color: #FFD08C;
 }
 
-.mods-install-btn[data-state="installed"],
-.mods-install-btn[data-state="installing"] {
+.mods-install-btn[data-state="installed"] {
     background: var(--surface-hi);
     border-color: var(--border);
     color: var(--text-muted);
     cursor: default;
 }
 
-.mods-install-btn[data-state="installing"] { color: #fff; }
+.mods-install-btn[data-state="installing"] {
+    background: var(--surface-hi);
+    border-color: var(--border);
+    color: #fff;
+}
+
+.mods-install-btn .mods-cancel-label { display: none; }
+
+.mods-install-btn[data-state="installing"]:hover {
+    border-color: rgba(255, 77, 94, 0.5);
+    background: rgba(255, 77, 94, 0.14);
+    color: #FFB2BA;
+}
+
+.mods-install-btn[data-state="installing"]:hover .mods-install-label { display: none; }
+.mods-install-btn[data-state="installing"]:hover .mods-cancel-label { display: inline; }
 
 .mods-card .mods-progress { height: 3px; }
 

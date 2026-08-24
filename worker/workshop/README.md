@@ -11,7 +11,26 @@ authentication of any kind.
 |---|---|---|
 | `GET /v1/search` | `game=bo3&query=&kind=all\|map\|mod&sort=popular\|recent\|name&page=1` | `{ items: [...], total, scrapedAt }` (60 per page) |
 | `GET /v1/meta` | `game=bo3` | `{ scrapedAt, count }` |
-| `GET /v1/item` | `game=bo3&id=<publishedfileid>` | full detail: description, screenshots, votes, dates (1 Steam call, edge-cached 1h) |
+| `GET /v1/item` | `game=bo3&id=<publishedfileid>` | full detail: description, screenshots, votes, dates (1 Steam call, edge-cached 1h; curated games answer from the catalog) |
+| `GET /v1/updated` | `game=bo3&ids=<comma list, max 100>` | `{ "<id>": <updatedAt unix> }` for installed-mod update badges |
+
+## Curated catalogs (Plutonium games)
+
+Games without a Steam Workshop (`t4`, `t5`, `t6`) sync a hand-authored
+catalog from `CBServers/updater` at `updater/mods/<game>.json`, refreshed by
+the cron once per hour (one subrequest per game). `download` paths are
+relative to the CDN root — the launcher prefixes its active CDN URL, so the
+catalog can never point installs at another host.
+
+```json
+{ "items": [ {
+    "id": "ugx-requiem", "title": "UGX Requiem", "author": "UGX Team",
+    "kind": "map", "preview": "https://...", "screenshots": [],
+    "description": "BBCode is supported here.",
+    "size": 123456789, "updatedAt": 1756000000, "version": "1.2",
+    "download": "mods/t4/ugx-requiem_1.2.zip"
+} ] }
+```
 
 ## Cost model
 

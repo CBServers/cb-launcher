@@ -1544,6 +1544,7 @@
 
     window.AppViews = {
         renderAll,
+        activateDetailTab,
         renderSidebarGames,
         renderHome,
         renderLibrary,

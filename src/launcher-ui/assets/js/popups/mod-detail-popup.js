@@ -100,8 +100,8 @@ class ModDetailPopup {
         const images = [detail.preview, ...detail.screenshots].filter(Boolean);
         const language = window.LauncherI18n ? window.LauncherI18n.getLanguage() : 'en';
         const updated = detail.updatedAt ? new Date(detail.updatedAt * 1000).toLocaleDateString(language) : '';
-        const percent = Math.round((detail.votes.score || 0) * 100);
-        const votes = detail.votes.up + detail.votes.down;
+        const percent = detail.votes ? Math.round(detail.votes.score * 100) : 0;
+        const votes = detail.votes ? detail.votes.up + detail.votes.down : 0;
 
         body.innerHTML = `
             ${images.length ? `<div class="mod-detail-hero"><img src="${this.esc(images[0])}" alt=""></div>` : ''}
@@ -139,7 +139,13 @@ class ModDetailPopup {
 
         this.installButton = body.querySelector('.mod-detail-install');
         this.installButton.addEventListener('click', () => {
-            if (window.ModsView) window.ModsView.installFromDetail(this.gameId, this.item.id);
+            if (!window.ModsView) return;
+            const state = window.ModsView.cardButtonFor(this.gameId, this.item.id);
+            if (state && state.stateName === 'installing') {
+                window.ModsService.cancelInstall(this.gameId);
+            } else {
+                window.ModsView.installFromDetail(this.gameId, this.item.id);
+            }
         });
         this.syncInstallButton();
     }

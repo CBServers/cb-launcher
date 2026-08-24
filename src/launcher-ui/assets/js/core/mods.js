@@ -10,10 +10,10 @@
     'use strict';
 
     const CAPABILITIES = {
-        boiii: { workshop: true,  import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
-        t4:    { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        t5:    { workshop: false, import: true, folders: ['mods'] },
-        t6:    { workshop: false, import: true, folders: ['mods', 'usermaps'] }
+        boiii: { workshop: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
+        t4:    { workshop: true, import: true, folders: ['mods', 'usermaps'] },
+        t5:    { workshop: true, import: true, folders: ['mods'] },
+        t6:    { workshop: true, import: true, folders: ['mods', 'usermaps'] }
     };
 
     const MB = 1024 * 1024;
@@ -134,12 +134,20 @@
                 if (onEvent) onEvent(job);
                 continue;
             }
+            if (job.phase === 'cancelled') return { success: false, cancelled: true };
             if (job.phase === 'error') throw new Error(job.error || 'The install failed.');
             return { success: true, name: job.name };
         }
     }
 
-    async function install(game, id, onTick, size) {
+    async function startJob(command, payload) {
+        const started = await window.executeCommand(command, payload);
+        if (!started || !started.success) {
+            throw new Error((started && started.error) || 'Failed to start the install.');
+        }
+    }
+
+    async function install(game, item, onTick) {
         if (PREVIEW_MODE) {
             for (let percent = 0; percent <= 100; percent += 25) {
                 if (onTick) onTick({ phase: 'downloading', percent });
@@ -148,12 +156,31 @@
             return { success: true };
         }
 
-        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id, size: size || 0 });
-        if (!started || !started.success) {
-            throw new Error((started && started.error) || 'Failed to start the install.');
+        const caps = supports(game) || {};
+        if (caps.steamAppId) {
+            await startJob('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0 });
+        } else {
+            let { download, version } = item;
+            if (!download) {
+                ({ download, version } = await getDetails(game, item.id));
+            }
+            await startJob('install-cdn-mod', { game: backendId(game), id: item.id, path: download || '', size: item.size || 0, version: version || '' });
         }
 
         return pollJob(game, onTick);
+    }
+
+    function cancelInstall(game) {
+        return window.executeCommand('cancel-mod-install', { game: backendId(game) });
+    }
+
+    async function getUpdatedTimes(game, ids) {
+        if (PREVIEW_MODE || !ids.length) return {};
+        try {
+            return await workshopFetch('/v1/updated', { game: backendId(game), ids: ids.join(',') });
+        } catch (error) {
+            return {};
+        }
     }
 
     async function uninstall(game, id) {
@@ -203,6 +230,8 @@
         getDetails,
         install,
         update: install,
+        cancelInstall,
+        getUpdatedTimes,
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
         importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),
