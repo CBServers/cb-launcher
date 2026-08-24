@@ -19,7 +19,12 @@ class ModDetailPopup {
     bbcodeToHtml(text) {
         let html = this.esc(String(text || ''));
 
+        // Description images render only from trusted hosts (Steam CDN, imgur).
+        const imageHost = /^https:\/\/(images\.steamusercontent\.com|steamuserimages-[a-z]\.akamaihd\.net|i\.imgur\.com|imgur\.com)\//i;
         html = html
+            .replace(/\[img\]\s*([^\[<]+?)\s*\[\/img\]/gi, (m, url) => {
+                return imageHost.test(url) ? `<img src="${url}" alt="" loading="lazy">` : '';
+            })
             .replace(/\[img\][\s\S]*?\[\/img\]/gi, '')
             .replace(/\[previewicon=[^\]]*\][\s\S]*?\[\/previewicon\]/gi, '')
             .replace(/\[(b|i|u|strike)\]([\s\S]*?)\[\/\1\]/gi, (m, tag, body) => {
@@ -98,13 +103,14 @@ class ModDetailPopup {
 
     render(body, detail) {
         const images = [detail.preview, ...detail.screenshots].filter(Boolean);
+        const heroSrc = this.esc(images[0]);
         const language = window.LauncherI18n ? window.LauncherI18n.getLanguage() : 'en';
         const updated = detail.updatedAt ? new Date(detail.updatedAt * 1000).toLocaleDateString(language) : '';
         const percent = detail.votes ? Math.round(detail.votes.score * 100) : 0;
         const votes = detail.votes ? detail.votes.up + detail.votes.down : 0;
 
         body.innerHTML = `
-            ${images.length ? `<div class="mod-detail-hero"><img src="${this.esc(images[0])}" alt=""></div>` : ''}
+            ${images.length ? `<div class="mod-detail-hero"><img class="mod-detail-hero-bg" src="${heroSrc}" alt=""><img src="${heroSrc}" alt=""></div>` : ''}
             ${images.length > 1 ? `<div class="mod-detail-thumbs">${images.map((url, index) =>
                 `<img src="${this.esc(url)}" data-index="${index}" class="${index === 0 ? 'active' : ''}" alt="" loading="lazy">`).join('')}</div>` : ''}
             <div class="mod-detail-meta">
@@ -121,10 +127,12 @@ class ModDetailPopup {
                 <button class="btn-apply mod-detail-install"></button>
             </div>`;
 
-        const hero = body.querySelector('.mod-detail-hero img');
+        const hero = body.querySelector('.mod-detail-hero img:not(.mod-detail-hero-bg)');
         body.querySelectorAll('.mod-detail-thumbs img').forEach(thumb => {
+            const heroBg = body.querySelector('.mod-detail-hero-bg');
             thumb.addEventListener('click', () => {
                 hero.src = thumb.src;
+                heroBg.src = thumb.src;
                 body.querySelectorAll('.mod-detail-thumbs img').forEach(other => other.classList.toggle('active', other === thumb));
             });
         });

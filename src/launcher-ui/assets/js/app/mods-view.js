@@ -405,9 +405,10 @@
     function workshopCardHTML(s, item) {
         const button = cardButton(s, item);
         const previewIsUrl = /^https?:/.test(item.preview);
+        const preview = escapeHtml(item.preview);
         return `
             <article class="mods-card" data-id="${escapeHtml(item.id)}">
-                <div class="mods-card-art"${previewIsUrl ? '' : ` style="--art: ${escapeHtml(item.preview)}"`}>${previewIsUrl ? `<img src="${escapeHtml(item.preview)}" alt="" loading="lazy">` : ''}${kindBadge(item.kind)}</div>
+                <div class="mods-card-art"${previewIsUrl ? '' : ` style="--art: ${preview}"`}>${previewIsUrl ? `<img class="mods-card-art-bg" src="${preview}" alt="" loading="lazy"><img src="${preview}" alt="" loading="lazy">` : ''}${kindBadge(item.kind)}</div>
                 <div class="mods-card-body">
                     <div class="mods-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
                     <div class="mods-card-author">${escapeHtml(t('mods.by', { author: item.author }))}</div>
