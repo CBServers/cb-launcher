@@ -36,7 +36,7 @@ The launcher registers a `cbservers://` URL protocol on startup (per-user, no ad
 | `cbservers://play/<game>[/<mode>]` | Launches the game (optionally in a specific mode). If it isn't installed yet, the setup flow opens instead. |
 | `cbservers://game/<game>` | Opens the game's page without launching. |
 | `cbservers://install/<game>` | Opens the game's page and starts its setup/install flow. |
-| `cbservers://mods/<game>[/<id>]` | Opens the game's Mods tab; with an item id, opens that Workshop/catalog item's detail popup. |
+| `cbservers://mods/<game>[/<id>]` | Opens the game's Mods tab; with a Workshop item id, opens that item's detail popup. |
 
 `<game>` accepts the same ids as `-launch` (e.g. `bo2`, `waw`, `mw3`, `cod4`). `<mode>` accepts the same values as `-mode`, validated against what the game supports.
 

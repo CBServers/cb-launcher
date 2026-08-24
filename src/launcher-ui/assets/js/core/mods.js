@@ -11,9 +11,9 @@
 
     const CAPABILITIES = {
         boiii: { workshop: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
-        t4:    { workshop: true, import: true, folders: ['mods', 'usermaps'] },
-        t5:    { workshop: true, import: true, folders: ['mods'] },
-        t6:    { workshop: true, import: true, folders: ['mods', 'usermaps'] }
+        t4:    { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        t5:    { workshop: false, import: true, folders: ['mods'] },
+        t6:    { workshop: false, import: true, folders: ['mods', 'usermaps'] }
     };
 
     const MB = 1024 * 1024;
@@ -140,13 +140,6 @@
         }
     }
 
-    async function startJob(command, payload) {
-        const started = await window.executeCommand(command, payload);
-        if (!started || !started.success) {
-            throw new Error((started && started.error) || 'Failed to start the install.');
-        }
-    }
-
     async function install(game, item, onTick) {
         if (PREVIEW_MODE) {
             for (let percent = 0; percent <= 100; percent += 25) {
@@ -156,15 +149,9 @@
             return { success: true };
         }
 
-        const caps = supports(game) || {};
-        if (caps.steamAppId) {
-            await startJob('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0 });
-        } else {
-            let { download, version } = item;
-            if (!download) {
-                ({ download, version } = await getDetails(game, item.id));
-            }
-            await startJob('install-cdn-mod', { game: backendId(game), id: item.id, path: download || '', size: item.size || 0, version: version || '' });
+        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0 });
+        if (!started || !started.success) {
+            throw new Error((started && started.error) || 'Failed to start the install.');
         }
 
         return pollJob(game, onTick);

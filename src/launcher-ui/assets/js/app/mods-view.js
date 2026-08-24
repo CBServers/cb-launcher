@@ -529,11 +529,12 @@
 
     async function openDeepLink(gameId, id) {
         if (window.AppViews) window.AppViews.activateDetailTab(document.getElementById(`${gameId}-page`), gameId, 'mods');
+        if (!getState(gameId).caps.workshop) return;
         switchView(gameId, 'workshop');
         if (!id) return;
         try {
             const detail = await window.ModsService.getDetails(gameId, id);
-            window.ModDetailPopup.show(gameId, { id: detail.id, title: detail.title, author: '', size: detail.size, download: detail.download, version: detail.version });
+            window.ModDetailPopup.show(gameId, { id: detail.id, title: detail.title, author: '', size: detail.size });
         } catch (error) {
             reportError(error);
         }

@@ -44,16 +44,6 @@ namespace commands::mod_commands
             }
         }
 
-        uint64_t read_size(const rapidjson::Value& value)
-        {
-            if (value.IsObject() && value.HasMember("size") && value["size"].IsUint64())
-            {
-                return value["size"].GetUint64();
-            }
-
-            return 0;
-        }
-
         std::optional<game_config::game_config_t> config_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
         {
             auto config = ctx.get_game_config_from_request(value);
@@ -200,7 +190,7 @@ namespace commands::mod_commands
             }
 
             const auto id = mods::json_string(value, "id");
-            const auto size = read_size(value);
+            const auto size = value.IsObject() && value.HasMember("size") && value["size"].IsUint64() ? value["size"].GetUint64() : 0;
 
             if (!claim_job(*config, response))
             {
@@ -213,30 +203,6 @@ namespace commands::mod_commands
         cef_ui.add_command("install-workshop-mod", workshop_install);
         cef_ui.add_command("update-mod", workshop_install);
 
-        cef_ui.add_command("install-cdn-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
-        {
-            const auto config = config_or_fail(ctx, value, response);
-            if (!config)
-            {
-                return;
-            }
-
-            const auto id = mods::json_string(value, "id");
-            const auto path = mods::json_string(value, "path");
-            const auto version = mods::json_string(value, "version");
-            const auto size = read_size(value);
-
-            if (!claim_job(*config, response))
-            {
-                return;
-            }
-
-            std::thread([config = *config, id, path, size, version]
-            {
-                finish_job(config.game_key, mods::install_cdn_item(config, id, path, size, version, job_progress(config.game_key)));
-            }).detach();
-            set_result(response, true);
-        });
 
         cef_ui.add_command("get-mod-progress", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
