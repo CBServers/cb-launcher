@@ -495,7 +495,7 @@
                 </div>
                 <div class="game-item-copy">
                     <span class="game-item-title">${escapeHtml(config.displayName)}</span>
-                    <small class="game-item-sub">${escapeHtml(config.codeName)}</small>
+                    <small class="game-item-sub">${escapeHtml(config.client)}</small>
                 </div>
                 ${config.comingSoon ? `<span class="game-item-soon-chip">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
             `;
@@ -705,7 +705,7 @@
                        <span data-action-label>${escapeHtml(t('common.install'))}</span>
                    </button>`;
             return `
-            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.codeName} ${config.client}`.toLowerCase())}">
+            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
                 ${comingSoon ? `<span class="library-card-soon-badge">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
                 <span class="library-card-player-pill" data-player-badge hidden>
@@ -1050,7 +1050,7 @@
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
                         <div class="game-meta-row">
                             <span class="game-meta-player" data-game-player-badge hidden>0</span>
-                            <span>${escapeHtml(config.codeName)}</span>
+                            <span>${escapeHtml(config.client)}</span>
                             <span class="game-meta-size" data-game-size-badge hidden></span>
                         </div>
                     </div>
