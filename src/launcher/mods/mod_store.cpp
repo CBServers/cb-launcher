@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "mod_store.hpp"
+#include "steamcmd.hpp"
 #include "updater/client_store.hpp"
 
 #include <utils/finally.hpp>
@@ -25,13 +26,14 @@ namespace mods
         {
             bool plutonium;
             std::vector<std::string> folders;
+            uint32_t steam_appid;
         };
 
         const std::unordered_map<std::string, game_layout> layouts_ = {
-            {"bo3", {false, {FOLDER_USERMAPS, FOLDER_MODS}}},
-            {"t4",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}}},
-            {"t5",  {true,  {FOLDER_MODS}}},
-            {"t6",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}}},
+            {"bo3", {false, {FOLDER_USERMAPS, FOLDER_MODS}, 311210}},
+            {"t4",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"t5",  {true,  {FOLDER_MODS}, 0}},
+            {"t6",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
         };
 
         const game_layout* layout_for(const game_config::game_config_t& config)
@@ -208,6 +210,7 @@ namespace mods
             std::string title;
             std::string type;
             std::string publisher_id;
+            std::string folder_name;
         };
 
         std::optional<workshop_info> read_workshop_json(const std::filesystem::path& directory);
@@ -240,6 +243,7 @@ namespace mods
                 json_string(doc, "Title"),
                 utils::string::to_lower(json_string(doc, "Type")),
                 json_string(doc, "PublisherID"),
+                json_string(doc, "FolderName"),
             };
         }
 
@@ -306,7 +310,7 @@ namespace mods
             return true;
         }
 
-        std::string extract_archive(const std::filesystem::path& archive, const std::filesystem::path& into)
+        std::string extract_archive_impl(const std::filesystem::path& archive, const std::filesystem::path& into)
         {
             FILE* file = nullptr;
             if (_wfopen_s(&file, archive.c_str(), L"rb") != 0 || !file)
@@ -411,6 +415,16 @@ namespace mods
     bool supports(const game_config::game_config_t& config)
     {
         return layout_for(config) != nullptr;
+    }
+
+    std::string extract_zip(const std::filesystem::path& archive, const std::filesystem::path& into)
+    {
+        return extract_archive_impl(archive, into);
+    }
+
+    uint64_t folder_size(const std::filesystem::path& directory)
+    {
+        return directory_size(directory);
     }
 
     std::optional<std::filesystem::path> content_root(const game_config::game_config_t& config)
@@ -520,7 +534,7 @@ namespace mods
         return result;
     }
 
-    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress)
+    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress, const std::string& origin)
     {
         const auto layout = layout_for(config);
         const auto root = content_root(config);
@@ -534,7 +548,14 @@ namespace mods
             return fail("The selected folder does not exist.");
         }
 
-        const auto dirname = utils::string::path_to_utf8(source.filename());
+        // Prefer the workshop.json folder name: steamcmd item dirs are named by
+        // numeric id, but the game expects the map's own folder name.
+        auto dirname = utils::string::path_to_utf8(source.filename());
+        if (const auto info = read_workshop_json(source); info && is_safe_dirname(info->folder_name))
+        {
+            dirname = info->folder_name;
+        }
+
         if (!is_safe_dirname(dirname))
         {
             return fail("The folder name contains characters the game cannot load.");
@@ -555,7 +576,7 @@ namespace mods
         const auto target = *root / folder / dirname;
         if (progress)
         {
-            progress("copying", dirname);
+            progress("copying", dirname, 0);
         }
 
         try
@@ -576,7 +597,7 @@ namespace mods
         mod.name = dirname;
         mod.kind = kind;
         mod.folder = folder;
-        mod.source = "import";
+        mod.source = origin;
         mod.installed_at = now_iso8601();
         apply_workshop_info(mod, target);
         mod.size = directory_size(target);
@@ -609,11 +630,11 @@ namespace mods
 
         if (progress)
         {
-            progress("extracting", stem);
+            progress("extracting", stem, 0);
         }
 
         utils::io::create_directory(extracted);
-        if (const auto error = extract_archive(archive, extracted); !error.empty())
+        if (const auto error = extract_zip(archive, extracted); !error.empty())
         {
             utils::logger::write("[cbl-mods] zip import of {} failed: {}", utils::string::path_to_utf8(archive), error);
             return fail(error);
@@ -624,7 +645,51 @@ namespace mods
         const auto loose_files = utils::io::list_files(extracted).size() - top_level.size();
         const auto source = (top_level.size() == 1 && loose_files == 0) ? top_level.front() : extracted;
 
-        return import_folder(config, source, progress);
+        return import_folder(config, source, progress, "import");
+    }
+
+    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size, const progress_callback& progress)
+    {
+        const auto layout = layout_for(config);
+        const auto root = content_root(config);
+        if (!layout || !root || !layout->steam_appid)
+        {
+            return fail("This game does not support Workshop downloads or is not installed.");
+        }
+
+        if (workshop_id.empty() || !std::all_of(workshop_id.begin(), workshop_id.end(), [](const unsigned char c) { return std::isdigit(c); }))
+        {
+            return fail("Invalid Workshop item id.");
+        }
+
+        std::error_code code{};
+        const auto steamcmd_space = std::filesystem::space(utils::properties::get_appdata_path(), code);
+        const auto target_space = std::filesystem::space(*root, code);
+        if (!code && expected_size && (steamcmd_space.available < expected_size || target_space.available < expected_size))
+        {
+            return fail("Not enough free disk space for this item.");
+        }
+
+        std::string error{};
+        if (!steamcmd::ensure_installed(progress, error))
+        {
+            return fail(error);
+        }
+
+        const auto item = steamcmd::download_item(layout->steam_appid, workshop_id, expected_size, progress, error);
+        if (!item)
+        {
+            return fail(error);
+        }
+
+        if (progress)
+        {
+            progress("installing", workshop_id, 0);
+        }
+
+        auto result = import_folder(config, *item, {}, "workshop");
+        steamcmd::cleanup_downloads(layout->steam_appid, workshop_id);
+        return result;
     }
 
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)

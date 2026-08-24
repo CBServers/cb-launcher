@@ -30,7 +30,7 @@ namespace mods
         std::optional<installed_mod> mod;
     };
 
-    using progress_callback = std::function<void(const std::string& phase, const std::string& name)>;
+    using progress_callback = std::function<void(const std::string& phase, const std::string& name, int percent)>;
 
     std::string json_string(const rapidjson::Value& object, const char* key);
     rapidjson::Value to_json(const installed_mod& mod, rapidjson::Document::AllocatorType& allocator);
@@ -40,8 +40,12 @@ namespace mods
     std::vector<content_folder> content_folders(const game_config::game_config_t& config);
     std::optional<std::filesystem::path> ensure_content_folder(const game_config::game_config_t& config, const std::string& folder);
 
+    std::string extract_zip(const std::filesystem::path& archive, const std::filesystem::path& into);
+    uint64_t folder_size(const std::filesystem::path& directory);
+
     std::vector<installed_mod> list_installed(const game_config::game_config_t& config);
-    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {});
+    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {}, const std::string& origin = "import");
     import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress = {});
+    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, uint64_t expected_size, const progress_callback& progress = {});
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error);
 }

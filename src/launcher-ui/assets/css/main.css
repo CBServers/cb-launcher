@@ -3899,26 +3899,6 @@ button { font-family: inherit; cursor: pointer; }
 .mods-workshop-controls .filter-chips { flex: 1; }
 .mods-workshop-controls .cdn-select { min-width: 180px; }
 
-.mods-ownership-notice {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 16px;
-    margin-bottom: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--accent-soft);
-    border: 1px solid var(--focus-border);
-    color: #fff;
-    font-size: 12.5px;
-}
-
-.mods-ownership-notice.is-warning {
-    background: rgba(255, 178, 63, 0.14);
-    border-color: rgba(255, 178, 63, 0.4);
-    color: #FFD08C;
-}
-
 .mods-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -4024,13 +4004,6 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .mods-install-btn[data-state="installing"] { color: #fff; }
-
-.mods-install-btn[data-state="locked"] {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--text-dim);
-    cursor: not-allowed;
-}
 
 .mods-card .mods-progress { height: 3px; }
 
@@ -5545,7 +5518,6 @@ html:not([data-theme]) .mods-subnav,
 html:not([data-theme]) .mods-subtab,
 html:not([data-theme]) .mods-btn,
 html:not([data-theme]) .mods-install-btn,
-html:not([data-theme]) .mods-ownership-notice,
 html:not([data-theme]) .mods-loading,
 html:not([data-theme]) .mods-empty,
 html:not([data-theme]) .checkbox-custom,

@@ -19,6 +19,7 @@ namespace commands::mod_commands
             std::string phase;
             std::string name;
             std::string error;
+            int percent{};
         };
 
         std::mutex jobs_mutex_;
@@ -48,22 +49,22 @@ namespace commands::mod_commands
             mutate(jobs_[game]);
         }
 
-        void run_import(const game_config::game_config_t config, const std::filesystem::path path, const bool is_zip)
+        mods::progress_callback job_progress(const std::string& game)
         {
-            const auto progress = [&config](const std::string& phase, const std::string& name)
+            return [game](const std::string& phase, const std::string& name, const int percent)
             {
-                update_job(config.game_key, [&](import_job& job)
+                update_job(game, [&](import_job& job)
                 {
                     job.phase = phase;
                     job.name = name;
+                    job.percent = percent;
                 });
             };
+        }
 
-            const auto result = is_zip
-                ? mods::import_zip(config, path, progress)
-                : mods::import_folder(config, path, progress);
-
-            update_job(config.game_key, [&result](import_job& job)
+        void finish_job(const std::string& game, const mods::import_result& result)
+        {
+            update_job(game, [&result](import_job& job)
             {
                 job.active = false;
                 job.phase = result.success ? "done" : "error";
@@ -73,6 +74,35 @@ namespace commands::mod_commands
                     job.name = result.mod->name;
                 }
             });
+        }
+
+        void run_import(const game_config::game_config_t config, const std::filesystem::path path, const bool is_zip)
+        {
+            const auto progress = job_progress(config.game_key);
+            finish_job(config.game_key, is_zip
+                ? mods::import_zip(config, path, progress)
+                : mods::import_folder(config, path, progress));
+        }
+
+        void run_workshop_install(const game_config::game_config_t config, const std::string workshop_id, const uint64_t size)
+        {
+            finish_job(config.game_key, mods::install_workshop_item(config, workshop_id, size, job_progress(config.game_key)));
+        }
+
+        // One import/install job per game at a time; returns false (and answers the
+        // request) when one is already running.
+        bool claim_job(const game_config::game_config_t& config, rapidjson::Document& response)
+        {
+            std::lock_guard lock(jobs_mutex_);
+            auto& job = jobs_[config.game_key];
+            if (job.active)
+            {
+                set_result(response, false, "Another install is already running for this game.");
+                return false;
+            }
+
+            job = {true, "queued", {}, {}, 0};
+            return true;
         }
     }
 
@@ -127,21 +157,41 @@ namespace commands::mod_commands
                 return;
             }
 
+            if (!claim_job(*config, response))
             {
-                std::lock_guard lock(jobs_mutex_);
-                auto& job = jobs_[config->game_key];
-                if (job.active)
-                {
-                    set_result(response, false, "Another import is already running for this game.");
-                    return;
-                }
-
-                job = {true, "queued", {}, {}};
+                return;
             }
 
             std::thread(run_import, *config, utils::string::utf8_to_path(path), mods::json_string(value, "kind") == "zip").detach();
             set_result(response, true);
         });
+
+        const auto workshop_install = [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config)
+            {
+                set_result(response, false, "Unknown game.");
+                return;
+            }
+
+            const auto id = mods::json_string(value, "id");
+            uint64_t size = 0;
+            if (value.IsObject() && value.HasMember("size") && value["size"].IsUint64())
+            {
+                size = value["size"].GetUint64();
+            }
+
+            if (!claim_job(*config, response))
+            {
+                return;
+            }
+
+            std::thread(run_workshop_install, *config, id, size).detach();
+            set_result(response, true);
+        };
+        cef_ui.add_command("install-workshop-mod", workshop_install);
+        cef_ui.add_command("update-mod", workshop_install);
 
         cef_ui.add_command("get-mod-progress", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
@@ -163,6 +213,7 @@ namespace commands::mod_commands
             response.AddMember("phase", make_string(job.phase, allocator), allocator);
             response.AddMember("name", make_string(job.name, allocator), allocator);
             response.AddMember("error", make_string(job.error, allocator), allocator);
+            response.AddMember("percent", job.percent, allocator);
         });
 
         cef_ui.add_command("uninstall-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)

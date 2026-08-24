@@ -1,11 +1,11 @@
-// Mod manager facade. Installed list, import, uninstall and folder lookup are
-// native commands; search hits the workshop worker (see worker/workshop);
-// install/update/getSteamStatus stay mocked until the steamcmd runner exists:
-//   install/update  -> install-mod / update-mod { game, id }
+// Mod manager facade. Installed list, import, uninstall, folder lookup and
+// Workshop installs (anonymous steamcmd) are native commands; search and item
+// details hit the workshop worker (see worker/workshop). Preview mode
+// (file://, localhost) serves mock data instead.
 //
 // InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import', workshopId }
 // WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable }
-// Progress:     { game, id, phase: 'downloading'|'extracting'|'done', percent }
+// Job progress:  { active, phase: 'queued'|'preparing'|'downloading'|'copying'|'extracting'|'installing'|'done'|'error', name, percent, error }
 (function () {
     'use strict';
 
@@ -24,9 +24,7 @@
         || window.location.hostname === 'localhost'
         || window.location.hostname === '127.0.0.1';
 
-    window.__modsMock = window.__modsMock || { steamOwned: true, steamLoggedIn: true, latency: 450 };
-
-    const listeners = new Set();
+    window.__modsMock = window.__modsMock || { latency: 450 };
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, typeof ms === 'number' ? ms : window.__modsMock.latency));
@@ -63,40 +61,6 @@
         { id: '2840561120', title: 'Chaos Perks',                author: 'Ardivee',          kind: 'mod', subscribers: 42019,  size: 88 * MB,  updatedAt: daysAgo(60) },
         { id: '2999871123', title: 'Office Complex',             author: 'Abnormal202',      kind: 'map', subscribers: 23455,  size: 740 * MB, updatedAt: daysAgo(1) }
     ].map((item, index) => Object.assign(item, { preview: PREVIEWS[index % PREVIEWS.length] }));
-
-    function emit(event) {
-        listeners.forEach(listener => {
-            try { listener(event); } catch (error) { console.error(error); }
-        });
-    }
-
-    function onProgress(listener) {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-    }
-
-    function runFakeTransfer(game, id, onTick) {
-        const publish = event => {
-            if (onTick) onTick(event);
-            emit(event);
-        };
-        return new Promise(resolve => {
-            let percent = 0;
-            const tick = () => {
-                percent = Math.min(100, percent + 4 + Math.random() * 9);
-                publish({ game, id, phase: percent >= 100 ? 'extracting' : 'downloading', percent: Math.floor(percent) });
-                if (percent < 100) {
-                    setTimeout(tick, 140 + Math.random() * 160);
-                    return;
-                }
-                setTimeout(() => {
-                    publish({ game, id, phase: 'done', percent: 100 });
-                    resolve();
-                }, 350);
-            };
-            tick();
-        });
-    }
 
     function supports(game) {
         return CAPABILITIES[game] || null;
@@ -161,23 +125,35 @@
         }
     }
 
-    async function getSteamStatus() {
-        await delay(120);
-        const { steamOwned, steamLoggedIn } = window.__modsMock;
-        return { owned: !!steamOwned, loggedIn: !!steamLoggedIn, username: steamLoggedIn ? 'preview_user' : null };
+    async function pollJob(game, onEvent) {
+        for (;;) {
+            await delay(300);
+            const job = await window.executeCommand('get-mod-progress', { game: backendId(game) });
+            if (!job) throw new Error('Lost track of the install.');
+            if (job.active) {
+                if (onEvent) onEvent(job);
+                continue;
+            }
+            if (job.phase === 'error') throw new Error(job.error || 'The install failed.');
+            return { success: true, name: job.name };
+        }
     }
 
-    async function install(game, workshopId, onTick) {
-        const item = WORKSHOP.find(entry => entry.id === workshopId);
-        if (!item) throw new Error('Unknown workshop item ' + workshopId);
+    async function install(game, id, onTick, size) {
+        if (PREVIEW_MODE) {
+            for (let percent = 0; percent <= 100; percent += 25) {
+                if (onTick) onTick({ phase: 'downloading', percent });
+                await delay(200);
+            }
+            return { success: true };
+        }
 
-        await runFakeTransfer(game, workshopId, onTick);
-        return { success: true };
-    }
+        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id, size: size || 0 });
+        if (!started || !started.success) {
+            throw new Error((started && started.error) || 'Failed to start the install.');
+        }
 
-    async function update(game, id, onTick) {
-        await runFakeTransfer(game, id, onTick);
-        return { success: true };
+        return pollJob(game, onTick);
     }
 
     async function uninstall(game, id) {
@@ -194,17 +170,7 @@
             throw new Error((started && started.error) || 'Failed to start the import.');
         }
 
-        for (;;) {
-            await delay(300);
-            const job = await window.executeCommand('get-mod-progress', { game: backendId(game) });
-            if (!job) throw new Error('Lost track of the import.');
-            if (job.active) {
-                if (onPhase) onPhase(job.phase, job.name);
-                continue;
-            }
-            if (job.phase === 'error') throw new Error(job.error || 'Import failed.');
-            return { success: true, name: job.name };
-        }
+        return pollJob(game, job => onPhase && onPhase(job.phase, job.name));
     }
 
     async function getDetails(game, id) {
@@ -235,13 +201,11 @@
         getInstalled,
         search,
         getDetails,
-        getSteamStatus,
         install,
-        update,
+        update: install,
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
         importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),
-        getModsFolder,
-        onProgress
+        getModsFolder
     };
 })();

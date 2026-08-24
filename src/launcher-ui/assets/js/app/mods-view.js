@@ -20,7 +20,6 @@
                 installed: null,
                 results: null,
                 searching: false,
-                steam: null,
                 busy: {},
                 caps: window.ModsService.supports(gameId) || {}
             };
@@ -96,10 +95,7 @@
         if (caps.import) renderImport(gameId);
 
         loadInstalled(gameId);
-        if (caps.workshop) {
-            loadSteamStatus(gameId);
-            if (s.results === null) runSearch(gameId);
-        }
+        if (caps.workshop && s.results === null) runSearch(gameId);
     }
 
     function switchView(gameId, view) {
@@ -167,7 +163,7 @@
             t(mod.source === 'workshop' ? 'mods.sourceWorkshop' : 'mods.sourceImport')
         ].filter(Boolean);
         const actions = busy !== undefined
-            ? `<span class="mods-row-progress">${escapeHtml(t('mods.installing', { percent: busy }))}</span>`
+            ? `<span class="mods-row-progress">${escapeHtml(t('mods.installing', { percent: busy.percent }))}</span>`
             : `${mod.updateAvailable ? `<button class="mods-btn mods-update-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.update'))}</button>` : ''}
                <button class="mods-btn is-danger mods-uninstall-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.uninstall'))}</button>`;
 
@@ -180,7 +176,7 @@
                 </div>
                 <div class="mods-row-meta">${meta.map(m => `<span>${escapeHtml(m)}</span>`).join('')}</div>
                 <div class="mods-row-actions">${actions}</div>
-                <div class="mods-progress"><div class="mods-progress-bar" style="width:${busy || 0}%"></div></div>
+                <div class="mods-progress"><div class="mods-progress-bar" style="width:${busy ? busy.percent : 0}%"></div></div>
             </div>`;
     }
 
@@ -189,12 +185,12 @@
         const s = getState(gameId);
         if (s.busy[id] !== undefined) return;
 
-        s.busy[id] = 0;
+        s.busy[id] = { percent: 0, phase: 'queued' };
         onTick();
         try {
             await transfer(event => {
                 if (event.phase === 'done') return;
-                s.busy[id] = event.percent;
+                s.busy[id] = { percent: event.percent || 0, phase: event.phase || '' };
                 onTick();
             });
             window.showToast(t(successKey, { name }), 'success');
@@ -209,23 +205,23 @@
 
     function updateMod(gameId, id) {
         const mod = (getState(gameId).installed || []).find(m => m.id === id);
-        if (!mod) return;
+        if (!mod || !mod.workshopId) return;
         return runTransfer(gameId, id,
-            onProgress => window.ModsService.update(gameId, id, onProgress),
+            onProgress => window.ModsService.update(gameId, mod.workshopId, onProgress, mod.size),
             () => updateRow(gameId, id),
             'mods.updatedToast', mod.name);
     }
 
     function updateRow(gameId, id) {
-        const percent = getState(gameId).busy[id];
+        const busy = getState(gameId).busy[id] || { percent: 0 };
         const row = query(gameId, `.mods-row[data-mod-id="${CSS.escape(id)}"]`);
         const label = row && row.querySelector('.mods-row-progress');
         if (!label) {
             renderInstalled(gameId);
             return;
         }
-        label.textContent = t('mods.installing', { percent });
-        row.querySelector('.mods-progress-bar').style.width = `${percent}%`;
+        label.textContent = t('mods.installing', { percent: busy.percent });
+        row.querySelector('.mods-progress-bar').style.width = `${busy.percent}%`;
     }
 
     async function uninstallMod(gameId, id) {
@@ -246,17 +242,6 @@
             reportError(error);
         }
         await loadInstalled(gameId);
-    }
-
-    async function loadSteamStatus(gameId) {
-        const s = getState(gameId);
-        try {
-            s.steam = await window.ModsService.getSteamStatus(gameId);
-        } catch (error) {
-            s.steam = { owned: false, loggedIn: false };
-        }
-        renderSteamNotice(gameId);
-        renderWorkshopGrid(gameId);
     }
 
     async function runSearch(gameId, append) {
@@ -305,7 +290,6 @@
                     ${option('name', t('mods.sortName'))}
                 </select>
             </div>
-            <div class="mods-steam-notice"></div>
             <div class="mods-grid-host"></div>
         `;
 
@@ -338,27 +322,7 @@
             runSearch(gameId);
         });
 
-        renderSteamNotice(gameId);
         renderWorkshopGrid(gameId);
-    }
-
-    function renderSteamNotice(gameId) {
-        const s = getState(gameId);
-        const host = query(gameId, '.mods-steam-notice');
-        if (!host) return;
-
-        if (s.steam && !s.steam.owned) {
-            host.innerHTML = `<div class="mods-ownership-notice is-warning">${escapeHtml(t('mods.steamNotOwned', { game: gameName(gameId) }))}</div>`;
-        } else if (s.steam && !s.steam.loggedIn) {
-            host.innerHTML = `
-                <div class="mods-ownership-notice">
-                    <span>${escapeHtml(t('mods.steamSignIn'))}</span>
-                    <button class="mods-btn mods-steam-signin">${escapeHtml(t('mods.steamSignInAction'))}</button>
-                </div>`;
-            host.querySelector('.mods-steam-signin').addEventListener('click', () => window.showToast(t('mods.comingSoon'), 'info'));
-        } else {
-            host.innerHTML = '';
-        }
     }
 
     function renderWorkshopGrid(gameId) {
@@ -400,23 +364,23 @@
         if (s.busy[item.id] !== undefined) return 'installing';
         if (item.installed && item.updateAvailable) return 'update';
         if (item.installed) return 'installed';
-        if (!(s.steam && s.steam.owned && s.steam.loggedIn)) return 'locked';
         return 'idle';
     }
 
     function cardButton(s, item) {
         const stateName = cardState(s, item);
-        const percent = s.busy[item.id] || 0;
+        const busy = s.busy[item.id] || { percent: 0, phase: '' };
         const labels = {
-            installing: t('mods.installing', { percent }),
+            installing: busy.phase === 'preparing' || busy.phase === 'queued'
+                ? t('mods.preparing')
+                : t('mods.installing', { percent: busy.percent }),
             installed: t('mods.installedLabel'),
             update: t('mods.update'),
-            locked: t('mods.locked'),
             idle: t('mods.install')
         };
         return {
             stateName,
-            percent: stateName === 'installing' ? percent : 0,
+            percent: stateName === 'installing' ? busy.percent : 0,
             label: labels[stateName],
             disabled: stateName !== 'idle' && stateName !== 'update'
         };
@@ -465,10 +429,7 @@
         const item = s.results && s.results.items.find(entry => entry.id === id);
         if (!item) return;
         return runTransfer(gameId, id,
-            onProgress => window.ModsService.install(gameId, id, onProgress).then(() => {
-                item.installed = true;
-                item.updateAvailable = false;
-            }),
+            onProgress => window.ModsService.install(gameId, id, onProgress, item.size),
             () => updateCard(gameId, id),
             'mods.installedToast', item.title);
     }
