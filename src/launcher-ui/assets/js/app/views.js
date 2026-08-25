@@ -990,18 +990,24 @@
         renderHomeFromStates(states);
     }
 
-    // Active detail tab per game (uiId -> 'overview' | 'mods'), kept across
-    // language-change re-renders.
+    // Active detail tab per game (uiId -> 'overview' | 'mods' | 'servers'), kept
+    // across language-change re-renders.
     const detailTabState = {};
+
+    function renderDetailTabView(gameId, tab) {
+        if (tab === 'mods' && window.ModsView) {
+            window.ModsView.render(gameId);
+        } else if (tab === 'servers' && window.ServersView) {
+            window.ServersView.render(gameId);
+        }
+    }
 
     function activateDetailTab(page, gameId, tab) {
         if (!page) return;
         detailTabState[gameId] = tab;
         page.querySelectorAll('.detail-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         page.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === tab));
-        if (tab === 'mods' && window.ModsView) {
-            window.ModsView.render(gameId);
-        }
+        renderDetailTabView(gameId, tab);
     }
 
     function renderGamePages() {
@@ -1015,7 +1021,12 @@
             const hasCredits = credits && String(credits).trim().length > 0;
             const hasProvider = config.provider && String(config.provider).trim().length > 0;
             const hasMods = !comingSoon && window.ModsView && window.ModsView.supports(config.uiId);
-            const activeTab = detailTabState[config.uiId] || 'overview';
+            const hasServers = !comingSoon && window.ServersView && window.ServersView.supports(config.uiId);
+            const hasTabs = hasMods || hasServers;
+            let activeTab = detailTabState[config.uiId] || 'overview';
+            if ((activeTab === 'mods' && !hasMods) || (activeTab === 'servers' && !hasServers)) {
+                activeTab = 'overview';
+            }
 
             const descriptionSection = `
                         <section class="description">
@@ -1075,10 +1086,11 @@
                 <div class="game-details">
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
 
-                    ${hasMods ? `
+                    ${hasTabs ? `
                     <div class="detail-tabs is-visible" data-game="${escapeHtml(config.uiId)}">
                         <button class="detail-tab${activeTab === 'overview' ? ' active' : ''}" data-tab="overview">${escapeHtml(t('detail.overview'))}</button>
-                        <button class="detail-tab${activeTab === 'mods' ? ' active' : ''}" data-tab="mods">${escapeHtml(t('mods.tab'))}</button>
+                        ${hasMods ? `<button class="detail-tab${activeTab === 'mods' ? ' active' : ''}" data-tab="mods">${escapeHtml(t('mods.tab'))}</button>` : ''}
+                        ${hasServers ? `<button class="detail-tab${activeTab === 'servers' ? ' active' : ''}" data-tab="servers">${escapeHtml(t('servers.tab'))}</button>` : ''}
                     </div>
                     <div class="tab-panel${activeTab === 'overview' ? ' active' : ''}" data-tab-panel="overview">
                         <div class="detail-panel-grid">
@@ -1086,7 +1098,8 @@
                             ${actionsAside}
                         </div>
                     </div>
-                    <div class="tab-panel mods-panel${activeTab === 'mods' ? ' active' : ''}" data-tab-panel="mods" id="${escapeHtml(config.uiId)}-mods-panel"></div>
+                    ${hasMods ? `<div class="tab-panel mods-panel${activeTab === 'mods' ? ' active' : ''}" data-tab-panel="mods" id="${escapeHtml(config.uiId)}-mods-panel"></div>` : ''}
+                    ${hasServers ? `<div class="tab-panel servers-panel${activeTab === 'servers' ? ' active' : ''}" data-tab-panel="servers" id="${escapeHtml(config.uiId)}-servers-panel"></div>` : ''}
                     ` : `
                     <div class="detail-panel-grid">
                         ${descriptionSection}
@@ -1104,9 +1117,7 @@
             tabs.querySelectorAll('.detail-tab').forEach(button => {
                 button.addEventListener('click', () => activateDetailTab(page, gameId, button.dataset.tab));
             });
-            if (detailTabState[gameId] === 'mods' && window.ModsView) {
-                window.ModsView.render(gameId);
-            }
+            renderDetailTabView(gameId, detailTabState[gameId]);
         });
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
