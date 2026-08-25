@@ -397,16 +397,22 @@ class GameUtils {
             shortName: 'CoD',
             defaultInstallPath: 'cod1_game_files',
             uiId: 'cod1',
-            client: 'CoD1 v1.1',
-            provider: 'COD.PM',
+            client: 'CoD1 v1.1 / CoD1.1x',
+            provider: 'COD.PM / CoDExtended',
             clientKey: 'others',
             hasMultipleModes: true,
             supportedModes: ['sp', 'mp'],
+            modeClients: {
+                'mp': [
+                    { id: 'cod1', name: 'Vanilla' },
+                    { id: 'cod1x', name: 'CoD1.1x' }
+                ]
+            },
             supportsName: true,
             specialSettings: [],
             version: '1.1',
-            description: 'Call of Duty (2003) running on the original v1.1 game. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
-            credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
+            description: 'Call of Duty (2003) running on the original v1.1 game, with a choice of vanilla or CoD1.1x multiplayer. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
+            credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>. The CoD1.1x multiplayer client is developed by <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client" target="_blank">CoDExtended</a>).',
             accent: '#93a8bc',
             assetBase: './assets/img/games/cod1',
             iconPath: './assets/img/games/cod1/icon.ico',
@@ -419,16 +425,22 @@ class GameUtils {
             shortName: 'UO',
             defaultInstallPath: 'coduo_game_files',
             uiId: 'coduo',
-            client: 'CoDUO v1.51',
-            provider: 'COD.PM',
+            client: 'CoDUO v1.51 / CoDUO1.51x',
+            provider: 'COD.PM / CoDExtended',
             clientKey: 'others',
             hasMultipleModes: true,
             supportedModes: ['sp', 'mp'],
+            modeClients: {
+                'mp': [
+                    { id: 'coduo', name: 'Vanilla' },
+                    { id: 'coduox', name: 'CoDUO1.51x' }
+                ]
+            },
             supportsName: true,
             specialSettings: [],
             version: '1.51',
-            description: 'Call of Duty: United Offensive running on the v1.51 game. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
-            credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.',
+            description: 'Call of Duty: United Offensive running on the v1.51 game, with a choice of vanilla or CoDUO1.51x multiplayer. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
+            credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>. The CoDUO1.51x multiplayer client is developed by <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client-uo" target="_blank">CoDExtended</a>).',
             accent: '#ededec',
             assetBase: './assets/img/games/coduo',
             iconPath: './assets/img/games/coduo/icon.ico',

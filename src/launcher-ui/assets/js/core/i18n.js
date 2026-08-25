@@ -147,7 +147,7 @@
                 showInstalled: 'Show installed',
                 welcomeTitle: 'Welcome to CB Launcher',
                 welcomeBody: 'Welcome to CB Servers Launcher! Your one-stop launcher for Call of Duty community clients. Install, update, and play supported clients all from one place. Head to the <strong>Library</strong> tab to browse every available client and start playing. Need a hand? Head over to the <strong>Support</strong> tab or check out our <a href="https://docs.cbservers.xyz/launcher" target="_blank">docs</a>.',
-                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
+                disclaimer: 'This launcher is not affiliated with or endorsed by IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod, or Project BO4. Please do not contact the original client maintainers with support requests regarding this launcher.'
             },
             library: {
                 title: 'Library',
@@ -197,7 +197,7 @@
                     reinstallAllTitle: 'Reinstall all redistributables?',
                     reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. Windows will show a single administrator permission (UAC) prompt. Continue?'
                 },
-                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
+                noteBody: 'This launcher is not affiliated with IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod, or Project BO4. Please use CB Servers support channels for this launcher and its forks.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -460,12 +460,12 @@
             },
             game: {
                 'cod1': {
-                    description: 'Call of Duty (2003) running on the original v1.1 game. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
-                    credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty (2003) running on the original v1.1 game, with a choice of vanilla or CoD1.1x multiplayer. Jump straight into the classic World War II campaign and multiplayer from one launcher page.',
+                    credits: 'Game files for the base v1.1 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>The CoD1.1x multiplayer client is developed by <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client" target="_blank">CoDExtended</a>).'
                 },
                 'coduo': {
-                    description: 'Call of Duty: United Offensive running on the v1.51 game. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
-                    credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty: United Offensive running on the v1.51 game, with a choice of vanilla or CoDUO1.51x multiplayer. The classic UO expansion with new campaigns, weapons and vehicle-based multiplayer, ready to play.',
+                    credits: 'Game files for the base v1.51 game are provided by <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>The CoDUO1.51x multiplayer client is developed by <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client-uo" target="_blank">CoDExtended</a>).'
                 },
                 'cod2x': {
                     description: 'Call of Duty 2 enhanced with the CoD2x client on top of the v1.3 game. Modern fixes and quality-of-life improvements for classic COD2 multiplayer.',
@@ -680,7 +680,7 @@
                 showInstalled: 'Voir les installes',
                 welcomeTitle: 'Bienvenue sur CB Launcher',
                 welcomeBody: 'Bienvenue sur CB Servers Launcher&nbsp;! Votre launcher tout-en-un pour les clients communautaires Call of Duty. Installez, mettez a jour et jouez aux clients pris en charge depuis un seul endroit. Rendez-vous dans l\'onglet <strong>Bibliotheque</strong> pour parcourir tous les clients disponibles et commencer a jouer. Besoin d\'aide&nbsp;? Rendez-vous dans l\'onglet <strong>Support</strong> ou consultez notre <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentation</a>.',
-                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
+                disclaimer: 'Ce launcher n\'est ni affilie ni approuve par IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod ou Project BO4. Merci de ne pas contacter les developpeurs des clients d\'origine pour des questions concernant ce launcher.'
             },
             library: {
                 title: 'Bibliotheque',
@@ -730,7 +730,7 @@
                     reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
                     reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Windows affichera une seule invite d\'autorisation administrateur (UAC). Continuer ?'
                 },
-                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
+                noteBody: "Ce launcher n'est pas affilie a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod ou Project BO4. Utilisez les canaux de support CB Servers pour ce launcher et ses forks.",
                 github: 'GitHub CB Servers'
             },
             installer: {
@@ -993,12 +993,12 @@
             },
             game: {
                 'cod1': {
-                    description: "Call of Duty (2003) tourne sur le jeu original en v1.1. Lancez-vous directement dans la campagne et le multijoueur classiques de la Seconde Guerre mondiale depuis une seule page.",
-                    credits: 'Les fichiers du jeu de base v1.1 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: "Call of Duty (2003) tourne sur le jeu original en v1.1, avec au choix le multijoueur vanilla ou CoD1.1x. Lancez-vous directement dans la campagne et le multijoueur classiques de la Seconde Guerre mondiale depuis une seule page.",
+                    credits: 'Les fichiers du jeu de base v1.1 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>Le client multijoueur CoD1.1x est developpe par <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client" target="_blank">CoDExtended</a>).'
                 },
                 'coduo': {
-                    description: "Call of Duty: United Offensive tourne sur le jeu en v1.51. L'extension UO classique avec de nouvelles campagnes, des armes et du multijoueur en vehicule, prete a jouer.",
-                    credits: 'Les fichiers du jeu de base v1.51 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: "Call of Duty: United Offensive tourne sur le jeu en v1.51, avec au choix le multijoueur vanilla ou CoDUO1.51x. L'extension UO classique avec de nouvelles campagnes, des armes et du multijoueur en vehicule, prete a jouer.",
+                    credits: 'Les fichiers du jeu de base v1.51 sont fournis par <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>Le client multijoueur CoDUO1.51x est developpe par <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client-uo" target="_blank">CoDExtended</a>).'
                 },
                 'cod2x': {
                     description: 'Call of Duty 2 ameliore avec le client CoD2x sur le jeu en v1.3. Corrections modernes et ameliorations de confort pour le multijoueur classique de COD2.',
@@ -1213,7 +1213,7 @@
                 showInstalled: 'Mostrar instalados',
                 welcomeTitle: 'Bienvenido a CB Launcher',
                 welcomeBody: 'Bienvenido a CB Servers Launcher! Tu launcher todo-en-uno para los clientes comunitarios de Call of Duty. Instala, actualiza y juega a los clientes compatibles desde un solo lugar. Ve a la pestana <strong>Biblioteca</strong> para explorar todos los clientes disponibles y empezar a jugar. Necesitas ayuda? Pasa por la pestana <strong>Soporte</strong> o consulta nuestra <a href="https://docs.cbservers.xyz/launcher" target="_blank">documentacion</a>.',
-                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
+                disclaimer: 'Este launcher no esta afiliado ni respaldado por IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod ni Project BO4. Por favor, no contactes a los desarrolladores originales de los clientes con consultas de soporte sobre este launcher.'
             },
             library: {
                 title: 'Biblioteca',
@@ -1263,7 +1263,7 @@
                     reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
                     reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Windows mostrara una sola ventana de permiso de administrador (UAC). ¿Continuar?'
                 },
-                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
+                noteBody: 'Este launcher no esta afiliado a IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod ni Project BO4. Por favor, usa los canales de soporte de CB Servers para este launcher y sus forks.',
                 github: 'GitHub de CB Servers'
             },
             installer: {
@@ -1526,12 +1526,12 @@
             },
             game: {
                 'cod1': {
-                    description: 'Call of Duty (2003) ejecutandose sobre el juego original en v1.1. Entra directamente a la campana y el multijugador clasicos de la Segunda Guerra Mundial desde una sola pagina.',
-                    credits: 'Los archivos del juego base v1.1 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty (2003) ejecutandose sobre el juego original en v1.1, con multijugador vanilla o CoD1.1x a eleccion. Entra directamente a la campana y el multijugador clasicos de la Segunda Guerra Mundial desde una sola pagina.',
+                    credits: 'Los archivos del juego base v1.1 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>El cliente multijugador CoD1.1x lo desarrolla <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client" target="_blank">CoDExtended</a>).'
                 },
                 'coduo': {
-                    description: 'Call of Duty: United Offensive ejecutandose sobre el juego en v1.51. La clasica expansion UO con nuevas campanas, armas y multijugador con vehiculos, lista para jugar.',
-                    credits: 'Los archivos del juego base v1.51 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty: United Offensive ejecutandose sobre el juego en v1.51, con multijugador vanilla o CoDUO1.51x a eleccion. La clasica expansion UO con nuevas campanas, armas y multijugador con vehiculos, lista para jugar.',
+                    credits: 'Los archivos del juego base v1.51 los proporciona <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>El cliente multijugador CoDUO1.51x lo desarrolla <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client-uo" target="_blank">CoDExtended</a>).'
                 },
                 'cod2x': {
                     description: 'Call of Duty 2 mejorado con el cliente CoD2x sobre el juego en v1.3. Correcciones modernas y mejoras de calidad de vida para el multijugador clasico de COD2.',
@@ -1745,7 +1745,7 @@
                 showInstalled: 'Показать установленные',
                 welcomeTitle: 'Добро пожаловать в CB Launcher',
                 welcomeBody: 'Добро пожаловать в CB Servers Launcher! Ваш универсальный лаунчер для клиентов сообщества Call of Duty. Устанавливайте, обновляйте и играйте в поддерживаемые клиенты из одного места. Перейдите на вкладку <strong>Библиотека</strong>, чтобы просмотреть все доступные клиенты и начать играть. Нужна помощь? Посетите вкладку <strong>Поддержка</strong> или ознакомьтесь с нашей <a href="https://docs.cbservers.xyz/launcher" target="_blank">документацией</a>.',
-                disclaimer: 'Этот лаунчер не связан и не одобрен IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, не обращайтесь к разработчикам оригинальных клиентов с вопросами поддержки по этому лаунчеру.'
+                disclaimer: 'Этот лаунчер не связан и не одобрен IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, не обращайтесь к разработчикам оригинальных клиентов с вопросами поддержки по этому лаунчеру.'
             },
             library: {
                 title: 'Библиотека',
@@ -1795,7 +1795,7 @@
                     reinstallAllTitle: 'Переустановить все распространяемые компоненты?',
                     reinstallAllBody: 'Это переустановит все {{total}} пакетов распространяемых компонентов, включая уже установленные. Windows покажет один запрос разрешения администратора (UAC). Продолжить?'
                 },
-                noteBody: 'Этот лаунчер не связан с IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, используйте каналы поддержки CB Servers для этого лаунчера и его форков.',
+                noteBody: 'Этот лаунчер не связан с IW4x, Plutonium, AlterWare, Aurora, HorizonMW, CoD4x Project, IW3x, IW3SP-Mod, CoDExtended, T6SP-Mod, H2-Mod или Project BO4. Пожалуйста, используйте каналы поддержки CB Servers для этого лаунчера и его форков.',
                 github: 'CB Servers GitHub'
             },
             installer: {
@@ -2057,12 +2057,12 @@
             },
             game: {
                 'cod1': {
-                    description: 'Call of Duty (2003) на оригинальной версии v1.1. Погрузитесь в классическую кампанию и мультиплеер Второй мировой войны с одной страницы лаунчера.',
-                    credits: 'Файлы для базовой версии v1.1 предоставлены <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty (2003) на оригинальной версии v1.1 с выбором мультиплеера vanilla или CoD1.1x. Погрузитесь в классическую кампанию и мультиплеер Второй мировой войны с одной страницы лаунчера.',
+                    credits: 'Файлы для базовой версии v1.1 предоставлены <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>Мультиплеерный клиент CoD1.1x разработан <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client" target="_blank">CoDExtended</a>).'
                 },
                 'coduo': {
-                    description: 'Call of Duty: United Offensive на версии v1.51. Классическое дополнение UO с новыми кампаниями, оружием и мультиплеером с техникой, готовое к игре.',
-                    credits: 'Файлы для базовой версии v1.51 предоставлены <a href="https://cod.pm/" target="_blank">cod.pm</a>.'
+                    description: 'Call of Duty: United Offensive на версии v1.51 с выбором мультиплеера vanilla или CoDUO1.51x. Классическое дополнение UO с новыми кампаниями, оружием и мультиплеером с техникой, готовое к игре.',
+                    credits: 'Файлы для базовой версии v1.51 предоставлены <a href="https://cod.pm/" target="_blank">cod.pm</a>.<br>Мультиплеерный клиент CoDUO1.51x разработан <a href="https://github.com/PrawyCoD1" target="_blank">Prawy</a> (<a href="https://github.com/xtnded/codextended-client-uo" target="_blank">CoDExtended</a>).'
                 },
                 'cod2x': {
                     description: 'Call of Duty 2 улучшенный с клиентом CoD2x поверх версии v1.3. Современные исправления и улучшения качества жизни для классического мультиплеера COD2.',

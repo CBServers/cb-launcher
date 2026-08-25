@@ -331,10 +331,7 @@ namespace game_config
                 .display_name = "Call of Duty",
                 .id = "cod1",
                 .exe_name = "CoDMP.exe",
-                .update_manifest_url = "",
-                .update_folder_url = "",
                 .manifest_path = "manifest/cod1.json",
-                .required_updater_files = {},
                 .valid_game_files = {"CoDSP.exe", "CoDMP.exe"},
                 .check_running_exes = {"CoDSP.exe", "CoDMP.exe"},
                 .mode_arguments = {
@@ -350,6 +347,21 @@ namespace game_config
                 .base_folder = "cod1_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .clients = {
+                    // Declared first among MP clients, so vanilla stays the default without a saved selection.
+                    {
+                        .client_id = "cod1",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "cod1.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "cod1/",
+                        .modes = {"mp"},
+                    },
+                    {
+                        .client_id = "cod1x",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "cod1x.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "cod1x/",
+                        .modes = {"mp"},
+                    },
+                },
                 .required_redists = {"vcr2005", "dx_jun2010"}
             },
         },
@@ -360,10 +372,7 @@ namespace game_config
                 .display_name = "United Offensive",
                 .id = "coduo",
                 .exe_name = "CoDUOMP.exe",
-                .update_manifest_url = "",
-                .update_folder_url = "",
                 .manifest_path = "manifest/coduo.json",
-                .required_updater_files = {},
                 .valid_game_files = {"CoDUOSP.exe", "CoDUOMP.exe"},
                 .check_running_exes = {"CoDUOSP.exe", "CoDUOMP.exe"},
                 .mode_arguments = {
@@ -379,6 +388,21 @@ namespace game_config
                 .base_folder = "coduo_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
+                .clients = {
+                    // Declared first among MP clients, so vanilla stays the default without a saved selection.
+                    {
+                        .client_id = "coduo",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "coduo.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "coduo/",
+                        .modes = {"mp"},
+                    },
+                    {
+                        .client_id = "coduox",
+                        .update_manifest_url = CLIENT_UPDATE_SERVER "coduox.json",
+                        .update_folder_url = CLIENT_UPDATE_SERVER "coduox/",
+                        .modes = {"mp"},
+                    },
+                },
                 .required_redists = {"vcr2005", "dx_jun2010"}
             },
         },
