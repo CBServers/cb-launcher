@@ -1595,7 +1595,7 @@ async function handleStartupDeepLink() {
     }
 }
 
-// Routes a cbservers:// URL of the form cbservers://<verb>/<game>[/<mode>].
+// Routes a cbservers:// URL of the form cbservers://<verb>/<game>[/<mode|item id>].
 async function handleDeepLink(url) {
     if (!url || typeof url !== 'string') return;
 
@@ -1615,7 +1615,7 @@ async function handleDeepLink(url) {
     const gameSlug = segments[1];
     const modeArg = segments[2];
 
-    if (!['play', 'game', 'install'].includes(verb)) {
+    if (!['play', 'game', 'install', 'mods'].includes(verb)) {
         console.warn(`deep link: unknown action "${verb}"`);
         if (typeof window.showToast === 'function') {
             window.showToast(t('deepLink.unknownAction', { action: verb }), 'error');
@@ -1647,6 +1647,12 @@ async function handleDeepLink(url) {
     switch (verb) {
         case 'game':
             // Navigate only.
+            return;
+
+        case 'mods':
+            if (window.ModsView && window.ModsView.supports(uiId)) {
+                await window.ModsView.openDeepLink(uiId, modeArg);
+            }
             return;
 
         case 'install':

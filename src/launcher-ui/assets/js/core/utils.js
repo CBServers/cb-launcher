@@ -619,6 +619,21 @@ class GameUtils {
      * @param {number} bytes - Number of bytes
      * @returns {string} Formatted string (e.g., "1.5 GB")
      */
+    static escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    static formatCount(value) {
+        if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        return String(value);
+    }
+
     static formatBytes(bytes) {
         if (bytes === 0) return '0 Bytes';
 
