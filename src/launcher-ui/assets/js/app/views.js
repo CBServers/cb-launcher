@@ -990,6 +990,20 @@
         renderHomeFromStates(states);
     }
 
+    // Active detail tab per game (uiId -> 'overview' | 'mods'), kept across
+    // language-change re-renders.
+    const detailTabState = {};
+
+    function activateDetailTab(page, gameId, tab) {
+        if (!page) return;
+        detailTabState[gameId] = tab;
+        page.querySelectorAll('.detail-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        page.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === tab));
+        if (tab === 'mods' && window.ModsView) {
+            window.ModsView.render(gameId);
+        }
+    }
+
     function renderGamePages() {
         const host = document.getElementById('game-pages');
         if (!host) return;
@@ -1000,6 +1014,8 @@
             const credits = gameCredits(config);
             const hasCredits = credits && String(credits).trim().length > 0;
             const hasProvider = config.provider && String(config.provider).trim().length > 0;
+            const hasMods = !comingSoon && window.ModsView && window.ModsView.supports(config.uiId);
+            const activeTab = detailTabState[config.uiId] || 'overview';
 
             const descriptionSection = `
                         <section class="description">
@@ -1059,14 +1075,39 @@
                 <div class="game-details">
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
 
+                    ${hasMods ? `
+                    <div class="detail-tabs is-visible" data-game="${escapeHtml(config.uiId)}">
+                        <button class="detail-tab${activeTab === 'overview' ? ' active' : ''}" data-tab="overview">${escapeHtml(t('detail.overview'))}</button>
+                        <button class="detail-tab${activeTab === 'mods' ? ' active' : ''}" data-tab="mods">${escapeHtml(t('mods.tab'))}</button>
+                    </div>
+                    <div class="tab-panel${activeTab === 'overview' ? ' active' : ''}" data-tab-panel="overview">
+                        <div class="detail-panel-grid">
+                            ${descriptionSection}
+                            ${actionsAside}
+                        </div>
+                    </div>
+                    <div class="tab-panel mods-panel${activeTab === 'mods' ? ' active' : ''}" data-tab-panel="mods" id="${escapeHtml(config.uiId)}-mods-panel"></div>
+                    ` : `
                     <div class="detail-panel-grid">
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
+                    `}
                 </div>
             </div>
         `;
         }).join('');
+
+        host.querySelectorAll('.detail-tabs').forEach(tabs => {
+            const page = tabs.closest('.game-page');
+            const gameId = tabs.dataset.game;
+            tabs.querySelectorAll('.detail-tab').forEach(button => {
+                button.addEventListener('click', () => activateDetailTab(page, gameId, button.dataset.tab));
+            });
+            if (detailTabState[gameId] === 'mods' && window.ModsView) {
+                window.ModsView.render(gameId);
+            }
+        });
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
             button.addEventListener('click', async () => {
@@ -1503,6 +1544,7 @@
 
     window.AppViews = {
         renderAll,
+        activateDetailTab,
         renderSidebarGames,
         renderHome,
         renderLibrary,

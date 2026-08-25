@@ -422,7 +422,7 @@ namespace launcher_updater
         for (const auto& file : existing_files)
         {
             const auto entry = std::filesystem::relative(file, this->base_);
-            if ((entry.string() == "user" || entry.string() == "data" || entry.string() == "manifest") && utils::io::directory_exists(file) || file.extension() == ".key")
+            if ((entry.string() == "user" || entry.string() == "data" || entry.string() == "manifest" || entry.string() == "mods") && utils::io::directory_exists(file) || file.extension() == ".key")
             {
                 continue;
             }

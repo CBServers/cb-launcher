@@ -3678,6 +3678,566 @@ button { font-family: inherit; cursor: pointer; }
     align-items: start;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MODS TAB
+   ═══════════════════════════════════════════════════════════════ */
+
+.detail-tabs.is-visible {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--title-border);
+}
+
+.mods-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.mods-subnav {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+}
+
+.mods-subtab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 9px;
+    padding: 8px 14px;
+    color: var(--text-muted);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.22s var(--ease);
+}
+
+.mods-subtab:hover { color: #fff; background: var(--surface-hi); }
+
+.mods-subtab.active {
+    color: #fff;
+    background: var(--accent-grad);
+    box-shadow: 0 0 18px var(--accent-soft);
+}
+
+.mods-count {
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    padding: 2px 7px;
+}
+
+.mods-folder-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mods-folder-actions .secondary-action {
+    width: auto;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.mods-view { display: none; }
+.mods-view.active { display: block; }
+
+.mods-loading,
+.mods-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 160px;
+    padding: 24px;
+    border-radius: var(--radius);
+    border: 1px dashed var(--border-hi);
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.mods-loading .spinner { width: 22px; height: 22px; border-width: 2px; }
+
+/* Installed list */
+.mods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mods-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main actions" "meta actions";
+    column-gap: 16px;
+    row-gap: 4px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: border-color 0.2s var(--ease);
+}
+
+.mods-row:hover { border-color: var(--border-hi); }
+.mods-row.is-updatable { border-color: rgba(255, 178, 63, 0.35); }
+
+.mods-row-main {
+    grid-area: main;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.mods-row-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mods-row-meta {
+    grid-area: meta;
+    display: flex;
+    gap: 14px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.mods-row-actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mods-row-progress {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.mods-type-badge {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.mods-type-badge.is-map {
+    background: var(--accent-soft);
+    border-color: var(--focus-border);
+}
+
+.mods-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-hi);
+    background: var(--surface-hi);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s var(--ease);
+}
+
+.mods-btn:hover {
+    border-color: var(--focus-border);
+    box-shadow: 0 0 18px var(--accent-soft);
+}
+
+.mods-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 11px;
+}
+
+.mods-btn-icon {
+    width: 17px;
+    height: 17px;
+    background: currentColor;
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+}
+
+.mods-btn.is-danger { color: #FFB2BA; }
+.mods-btn.is-danger:hover {
+    border-color: rgba(255, 77, 94, 0.5);
+    background: rgba(255, 77, 94, 0.14);
+    box-shadow: none;
+}
+
+.mods-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: transparent;
+    pointer-events: none;
+}
+
+.mods-progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--accent-grad);
+    transition: width 0.2s var(--ease);
+}
+
+/* Workshop */
+.mods-workshop-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.mods-workshop-controls .search-field { width: 260px; }
+.mods-workshop-controls .filter-chips { flex: 1; }
+.mods-workshop-controls .cdn-select { min-width: 180px; }
+
+.mods-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px;
+}
+
+.mods-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transition: all 0.3s var(--ease);
+}
+
+.mods-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--card-hover-border);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45), 0 0 28px var(--accent-soft);
+}
+
+.mods-card-art {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--art, var(--surface-hi)) center / cover no-repeat;
+    overflow: hidden;
+}
+
+.mods-card-art img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Blurred copy of the preview fills the frame so non-16:9 art isn't cropped */
+.mods-card-art img.mods-card-art-bg,
+.mod-detail-hero img.mod-detail-hero-bg {
+    object-fit: cover;
+    filter: blur(14px) brightness(0.55);
+    transform: scale(1.15);
+}
+
+.mods-card-art .mods-type-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+}
+
+.mods-card-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px 16px;
+}
+
+.mods-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mods-card-author {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.mods-card-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.mods-install-btn {
+    margin-top: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--focus-border);
+    background: var(--accent-grad);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.2s var(--ease);
+}
+
+.mods-install-btn:hover:not(:disabled) { box-shadow: 0 0 20px var(--accent-glow); }
+
+.mods-install-btn[data-state="update"] {
+    background: rgba(255, 178, 63, 0.2);
+    border-color: rgba(255, 178, 63, 0.45);
+    color: #FFD08C;
+}
+
+.mods-install-btn[data-state="installed"] {
+    background: var(--surface-hi);
+    border-color: var(--border);
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.mods-install-btn[data-state="installing"] {
+    background: var(--surface-hi);
+    border-color: var(--border);
+    color: #fff;
+}
+
+.mods-install-btn .mods-cancel-label { display: none; }
+
+.mods-install-btn[data-state="installing"]:hover {
+    border-color: rgba(255, 77, 94, 0.5);
+    background: rgba(255, 77, 94, 0.14);
+    color: #FFB2BA;
+}
+
+.mods-install-btn[data-state="installing"]:hover .mods-install-label { display: none; }
+.mods-install-btn[data-state="installing"]:hover .mods-cancel-label { display: inline; }
+
+.mods-card .mods-progress { height: 3px; }
+
+.mods-load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+/* Workshop item detail popup */
+.mod-detail-popup {
+    width: min(720px, calc(100vw - 80px));
+    max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+}
+
+.mod-detail-popup .popup-content {
+    overflow-y: auto;
+}
+
+.mod-detail-hero {
+    border-radius: var(--radius-sm);
+    background: var(--bg-deep);
+    overflow: hidden;
+}
+
+.mod-detail-hero {
+    position: relative;
+    aspect-ratio: 16 / 9;
+}
+
+.mod-detail-hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.mod-detail-thumbs {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.mod-detail-thumbs img {
+    pointer-events: auto;
+    width: 96px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0.65;
+    transition: all 0.2s var(--ease);
+}
+
+.mod-detail-thumbs img:hover { opacity: 1; }
+
+.mod-detail-thumbs img.active {
+    border-color: var(--accent);
+    opacity: 1;
+}
+
+.mod-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 14px 0 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.mod-detail-rating { color: #7EE8A8; }
+
+.mod-detail-desc {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.mod-detail-desc h4 {
+    margin: 10px 0 4px;
+    color: #fff;
+}
+
+.mod-detail-desc img {
+    max-width: 100%;
+    border-radius: 6px;
+    display: block;
+    margin: 8px auto;
+}
+
+.mod-detail-desc a {
+    color: var(--link-hover);
+    cursor: pointer;
+}
+
+.mod-detail-desc blockquote {
+    margin: 8px 0;
+    padding: 6px 12px;
+    border-left: 3px solid var(--border-hi);
+}
+
+.mod-detail-desc ul,
+.mod-detail-desc ol {
+    margin: 6px 0;
+    padding-left: 22px;
+}
+
+.mod-detail-popup .popup-actions {
+    padding: 16px 0 0;
+}
+
+/* Import */
+.mods-import-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.mods-import-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.mods-import-card h4 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.mods-import-card p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.mods-import-card .secondary-action { width: auto; align-self: flex-start; }
+
+.mods-import-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.mods-import-status .spinner { width: 18px; height: 18px; border-width: 2px; }
+
+.mods-folders-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.mods-folders-hint code {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
 .description p {
     margin: 8px 0 0 0;
 }
@@ -3745,6 +4305,16 @@ html[data-theme="dark"] .secondary-action:hover {
 .folder-icon {
     -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
+}
+
+.trash-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M9.75 6.75V4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v2.25M17.4 6.75l-.63 12.1a2.25 2.25 0 01-2.25 2.15H9.48a2.25 2.25 0 01-2.25-2.15L6.6 6.75M10.2 10.5v6.6M13.8 10.5v6.6"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M9.75 6.75V4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v2.25M17.4 6.75l-.63 12.1a2.25 2.25 0 01-2.25 2.15H9.48a2.25 2.25 0 01-2.25-2.15L6.6 6.75M10.2 10.5v6.6M13.8 10.5v6.6"/></svg>');
+}
+
+.info-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.04-.02a.75.75 0 011.06.94l-.51 1.53a.75.75 0 001.06.94l.04-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.01v.01H12v-.01z"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.04-.02a.75.75 0 011.06.94l-.51 1.53a.75.75 0 001.06.94l.04-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.01v.01H12v-.01z"/></svg>');
 }
 
 .files-icon {
@@ -4894,7 +5464,8 @@ html:not([data-theme]) .support-panel h2::before,
 html:not([data-theme]) .settings-content .settings-section h3::before,
 html:not([data-theme]) .friends-group-head::before,
 html:not([data-theme]) .popup-header h3::before,
-html:not([data-theme]) #message-box .mb-title::before {
+html:not([data-theme]) #message-box .mb-title::before,
+html:not([data-theme]) .mods-import-card h4::before {
     content: '// ';
     color: var(--accent);
 }
@@ -4907,7 +5478,10 @@ html:not([data-theme]) .description strong,
 html:not([data-theme]) .support-panel h2,
 html:not([data-theme]) .settings-content .settings-section h3,
 html:not([data-theme]) .popup-header h3,
-html:not([data-theme]) #message-box .mb-title {
+html:not([data-theme]) #message-box .mb-title,
+html:not([data-theme]) .detail-tab,
+html:not([data-theme]) .mods-subtab,
+html:not([data-theme]) .mods-import-card h4 {
     font-family: var(--font-display);
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -4922,7 +5496,9 @@ html:not([data-theme]) .settings-action-btn,
 html:not([data-theme]) .support-action,
 html:not([data-theme]) .support-link,
 html:not([data-theme]) .verify-button,
-html:not([data-theme]) .manage-install-button {
+html:not([data-theme]) .manage-install-button,
+html:not([data-theme]) .mods-btn,
+html:not([data-theme]) .mods-install-btn {
     font-family: var(--font-display);
     font-size: 13.5px;
     font-weight: 600;
@@ -4940,7 +5516,10 @@ html:not([data-theme]) .library-card-soon-badge,
 html:not([data-theme]) .game-item-soon-chip,
 html:not([data-theme]) .detail-coming-soon-chip,
 html:not([data-theme]) .friends-group-count,
-html:not([data-theme]) .redist-badge {
+html:not([data-theme]) .redist-badge,
+html:not([data-theme]) .mods-type-badge,
+html:not([data-theme]) .mods-update-badge,
+html:not([data-theme]) .mods-count {
     border-radius: 2px;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -4956,7 +5535,13 @@ html:not([data-theme]) .friend-activity,
 html:not([data-theme]) .friends-group-head,
 html:not([data-theme]) .settings-footer .footer-version,
 html:not([data-theme]) .detail-stat span,
-html:not([data-theme]) .detail-stat strong {
+html:not([data-theme]) .detail-stat strong,
+html:not([data-theme]) .mods-row-meta,
+html:not([data-theme]) .mod-detail-meta,
+html:not([data-theme]) .mods-card-meta,
+html:not([data-theme]) .mods-row-progress,
+html:not([data-theme]) .mods-import-status,
+html:not([data-theme]) .mods-folders-hint code {
     font-family: var(--font-mono);
 }
 
@@ -4993,6 +5578,13 @@ html:not([data-theme]) .setup-actions button,
 html:not([data-theme]) .install-actions button,
 html:not([data-theme]) #message-box .mb-buttons button,
 html:not([data-theme]) .chip,
+html:not([data-theme]) .detail-tab,
+html:not([data-theme]) .mods-subnav,
+html:not([data-theme]) .mods-subtab,
+html:not([data-theme]) .mods-btn,
+html:not([data-theme]) .mods-install-btn,
+html:not([data-theme]) .mods-loading,
+html:not([data-theme]) .mods-empty,
 html:not([data-theme]) .checkbox-custom,
 html:not([data-theme]) .install-path-display,
 html:not([data-theme]) .settings-content .toggle-btn,
@@ -5046,7 +5638,11 @@ html:not([data-theme]) .setup-flow-popup,
 html:not([data-theme]) .component-selection-popup,
 html:not([data-theme]) .install-confirm-popup,
 html:not([data-theme]) .custom-server-popup,
-html:not([data-theme]) #message-box > .container {
+html:not([data-theme]) #message-box > .container,
+html:not([data-theme]) .mods-row,
+html:not([data-theme]) .mods-card,
+html:not([data-theme]) .mods-import-card,
+html:not([data-theme]) .mod-detail-popup {
     clip-path: var(--clip-chamfer);
 }
 
