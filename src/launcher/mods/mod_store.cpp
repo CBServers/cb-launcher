@@ -869,7 +869,8 @@ namespace mods
 
         if (progress)
         {
-            progress("installing", workshop_id, 0);
+            // The copy into the game folder is unmeasured, so hold the bar where the download left it.
+            progress("installing", workshop_id, 99);
         }
 
         auto result = import_folder(config, *item, {}, "workshop");
