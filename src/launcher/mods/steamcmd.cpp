@@ -309,5 +309,8 @@ namespace mods::steamcmd
         std::error_code code{};
         std::filesystem::remove_all(item_path(appid, workshop_id), code);
         std::filesystem::remove_all(workshop_path() / "downloads", code);
+        // Without this, SteamCMD's manifest keeps claiming the removed content and a
+        // later item sharing chunks aborts with "Missing game files" trying to reuse it.
+        std::filesystem::remove(workshop_path() / utils::string::va("appworkshop_%u.acf", appid), code);
     }
 }
