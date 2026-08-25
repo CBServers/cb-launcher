@@ -4,6 +4,7 @@
 #include "mods/mod_store.hpp"
 
 #include <utils/com.hpp>
+#include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/string.hpp>
 
@@ -134,6 +135,23 @@ namespace commands::mod_commands
             }
 
             if (const auto path = mods::ensure_content_folder(*config, mods::json_string(value, "folder")))
+            {
+                response.SetString(utils::string::path_to_utf8(*path), response.GetAllocator());
+            }
+        });
+
+        cef_ui.add_command("get-mod-folder", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetNull();
+
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config)
+            {
+                return;
+            }
+
+            const auto path = mods::mod_path(*config, mods::json_string(value, "id"));
+            if (path && utils::io::directory_exists(*path))
             {
                 response.SetString(utils::string::path_to_utf8(*path), response.GetAllocator());
             }

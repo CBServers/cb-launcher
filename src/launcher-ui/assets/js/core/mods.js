@@ -209,6 +209,10 @@
         return window.executeCommand('get-mods-folder', { game: backendId(game), folder });
     }
 
+    function getModFolder(game, id) {
+        return window.executeCommand('get-mod-folder', { game: backendId(game), id });
+    }
+
     window.ModsService = {
         CAPABILITIES,
         supports,
@@ -222,6 +226,7 @@
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
         importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),
-        getModsFolder
+        getModsFolder,
+        getModFolder
     };
 })();

@@ -154,6 +154,12 @@
         host.querySelectorAll('.mods-update-btn').forEach(button => {
             button.addEventListener('click', () => updateMod(gameId, button.dataset.id));
         });
+        host.querySelectorAll('.mods-details-btn').forEach(button => {
+            button.addEventListener('click', () => openModDetails(gameId, button.dataset.id));
+        });
+        host.querySelectorAll('.mods-row-folder-btn').forEach(button => {
+            button.addEventListener('click', () => openModFolder(gameId, button.dataset.id));
+        });
         host.querySelectorAll('.mods-uninstall-btn').forEach(button => {
             button.addEventListener('click', () => uninstallMod(gameId, button.dataset.id));
         });
@@ -162,18 +168,31 @@
         });
     }
 
+    function iconButtonHTML(id, classes, icon, label) {
+        return `<button class="mods-btn mods-icon-btn ${classes}" data-id="${escapeHtml(id)}" title="${escapeHtml(label)}">
+                    <span class="mods-btn-icon ${icon}"></span>
+                </button>`;
+    }
+
+    function sourceLabel(source) {
+        if (source === 'steam') return t('mods.sourceSteam');
+        return t(source === 'workshop' ? 'mods.sourceWorkshop' : 'mods.sourceImport');
+    }
+
     function installedRowHTML(s, mod) {
         const busy = s.busy[mod.id];
         const meta = [
             mod.version && mod.version !== '—' ? t('mods.version', { version: mod.version }) : null,
             GameUtils.formatBytes(mod.size || 0),
-            t(mod.source === 'workshop' ? 'mods.sourceWorkshop' : 'mods.sourceImport')
+            sourceLabel(mod.source)
         ].filter(Boolean);
         const actions = busy !== undefined
             ? `<span class="mods-row-progress">${escapeHtml(t('mods.installing', { percent: busy.percent }))}</span>
                <button class="mods-btn is-danger mods-cancel-btn">${escapeHtml(t('mods.cancel'))}</button>`
             : `${mod.updateAvailable ? `<button class="mods-btn mods-update-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.update'))}</button>` : ''}
-               <button class="mods-btn is-danger mods-uninstall-btn" data-id="${escapeHtml(mod.id)}">${escapeHtml(t('mods.uninstall'))}</button>`;
+               ${mod.workshopId && s.caps.workshop ? iconButtonHTML(mod.id, 'mods-details-btn', 'info-icon', t('mods.details')) : ''}
+               ${iconButtonHTML(mod.id, 'mods-row-folder-btn', 'folder-icon', t('mods.openModFolder'))}
+               ${iconButtonHTML(mod.id, 'mods-uninstall-btn is-danger', 'trash-icon', t('mods.uninstall'))}`;
 
         return `
             <div class="mods-row${mod.updateAvailable ? ' is-updatable' : ''}" data-mod-id="${escapeHtml(mod.id)}">
@@ -240,9 +259,12 @@
         const mod = (getState(gameId).installed || []).find(m => m.id === id);
         if (!mod) return;
 
+        const body = mod.source === 'steam'
+            ? t('mods.uninstallSteamConfirmBody', { name: escapeHtml(mod.name) })
+            : t('mods.uninstallConfirmBody', { name: escapeHtml(mod.name), game: escapeHtml(gameName(gameId)) });
         const choice = await window.showMessageBox(
             t('mods.uninstallConfirmTitle'),
-            t('mods.uninstallConfirmBody', { name: escapeHtml(mod.name), game: escapeHtml(gameName(gameId)) }),
+            body,
             [t('common.cancel'), { label: t('mods.uninstall'), danger: true }]
         );
         if (choice !== 1) return;
@@ -513,6 +535,25 @@
         }
     }
 
+    function openModDetails(gameId, id) {
+        const mod = (getState(gameId).installed || []).find(entry => entry.id === id);
+        if (!mod || !mod.workshopId || !window.ModDetailPopup) return;
+        window.ModDetailPopup.show(gameId, { id: mod.workshopId, title: mod.name, author: '', size: mod.size });
+    }
+
+    async function openModFolder(gameId, id) {
+        try {
+            const path = await window.ModsService.getModFolder(gameId, id);
+            if (path) {
+                await window.executeCommand('open-folder', { path });
+            } else {
+                window.showToast(t('mods.folderMissing'), 'error');
+            }
+        } catch (error) {
+            reportError(error);
+        }
+    }
+
     async function openFolder(gameId, folder) {
         try {
             const path = await window.ModsService.getModsFolder(gameId, folder);
@@ -524,7 +565,11 @@
 
     function cardButtonFor(gameId, id) {
         const s = getState(gameId);
-        const item = s.results && s.results.items.find(entry => entry.id === id);
+        // The detail popup also opens from the installed list, where the workshop
+        // search results may not hold this item.
+        const installed = (s.installed || []).find(mod => mod.workshopId === id);
+        const item = (s.results && s.results.items.find(entry => entry.id === id))
+            || (installed ? { id, installed: true, updateAvailable: !!installed.updateAvailable } : null);
         return item ? cardButton(s, item) : null;
     }
 

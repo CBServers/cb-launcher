@@ -48,5 +48,6 @@ namespace mods
     import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {}, const std::string& origin = "import");
     import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress = {});
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, uint64_t expected_size, const progress_callback& progress = {});
+    std::optional<std::filesystem::path> mod_path(const game_config::game_config_t& config, const std::string& id);
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error);
 }

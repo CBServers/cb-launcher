@@ -9,6 +9,7 @@
 #include <utils/properties.hpp>
 #include <utils/string.hpp>
 
+#include <chrono>
 #include <ctime>
 #include <random>
 #include <miniz.h>
@@ -19,6 +20,8 @@ namespace mods
     {
         constexpr auto FOLDER_USERMAPS = "usermaps";
         constexpr auto FOLDER_MODS = "mods";
+        constexpr auto FOLDER_STEAM = "steam-workshop";
+        constexpr auto SOURCE_STEAM = "steam";
         constexpr auto KIND_MAP = "map";
         constexpr auto KIND_MOD = "mod";
 
@@ -57,14 +60,29 @@ namespace mods
             return utils::properties::get_appdata_path() / "mods" / "staging";
         }
 
-        std::string now_iso8601()
+        std::string format_iso8601(const std::time_t value)
         {
-            const auto now = std::time(nullptr);
             std::tm utc{};
-            gmtime_s(&utc, &now);
+            gmtime_s(&utc, &value);
             char buffer[32]{};
             std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
             return buffer;
+        }
+
+        std::string now_iso8601()
+        {
+            return format_iso8601(std::time(nullptr));
+        }
+
+        std::string iso8601_from(const std::filesystem::file_time_type& time)
+        {
+            if (time == std::filesystem::file_time_type{})
+            {
+                return {};
+            }
+
+            const auto system = std::chrono::clock_cast<std::chrono::system_clock>(time);
+            return format_iso8601(std::chrono::system_clock::to_time_t(system));
         }
 
         std::string make_id(const std::string& folder, const std::string& dirname)
@@ -171,19 +189,38 @@ namespace mods
             }
         }
 
-        uint64_t directory_size(const std::filesystem::path& directory)
+        struct directory_stats
         {
-            uint64_t total = 0;
+            uint64_t size{};
+            std::filesystem::file_time_type newest{};
+        };
+
+        directory_stats scan_directory(const std::filesystem::path& directory)
+        {
+            directory_stats stats{};
             std::error_code code{};
             for (std::filesystem::recursive_directory_iterator it(directory, code), end; !code && it != end; it.increment(code))
             {
-                if (it->is_regular_file(code))
+                if (!it->is_regular_file(code))
                 {
-                    total += it->file_size(code);
+                    continue;
+                }
+
+                stats.size += it->file_size(code);
+
+                std::error_code time_code{};
+                if (const auto written = it->last_write_time(time_code); !time_code && written > stats.newest)
+                {
+                    stats.newest = written;
                 }
             }
 
-            return total;
+            return stats;
+        }
+
+        uint64_t directory_size(const std::filesystem::path& directory)
+        {
+            return scan_directory(directory).size;
         }
 
         std::vector<std::filesystem::path> subdirectories(const std::filesystem::path& directory)
@@ -205,6 +242,34 @@ namespace mods
             return result;
         }
 
+        // Steam keeps subscribed items outside the game folder, in a sibling of
+        // steamapps/common: <library>/steamapps/workshop/content/<appid>.
+        std::optional<std::filesystem::path> steam_workshop_root(const game_layout& layout, const game_config::game_config_t& config)
+        {
+            const auto install = config.get_install_path();
+            if (!layout.steam_appid || !install || install->empty())
+            {
+                return std::nullopt;
+            }
+
+            for (auto directory = install->lexically_normal();;)
+            {
+                if (utils::string::to_lower(utils::string::path_to_utf8(directory.filename())) == "steamapps")
+                {
+                    const auto root = directory / "workshop" / "content" / std::to_string(layout.steam_appid);
+                    return utils::io::directory_exists(root) ? std::optional{root} : std::nullopt;
+                }
+
+                auto parent = directory.parent_path();
+                if (parent.empty() || parent == directory)
+                {
+                    return std::nullopt;
+                }
+
+                directory = std::move(parent);
+            }
+        }
+
         struct workshop_info
         {
             std::string title;
@@ -224,10 +289,17 @@ namespace mods
             }
         }
 
+        // Workshop items are staged either flat or with everything under zone/.
+        bool read_workshop_json_file(const std::filesystem::path& directory, std::string& data)
+        {
+            return (utils::io::read_file(directory / "workshop.json", &data) && !data.empty()) ||
+                   (utils::io::read_file(directory / "zone" / "workshop.json", &data) && !data.empty());
+        }
+
         std::optional<workshop_info> read_workshop_json(const std::filesystem::path& directory)
         {
             std::string data{};
-            if (!utils::io::read_file(directory / "workshop.json", &data) || data.empty())
+            if (!read_workshop_json_file(directory, data))
             {
                 return std::nullopt;
             }
@@ -260,6 +332,18 @@ namespace mods
             return false;
         }
 
+        // Fastfiles sit either at the root or under zone/, depending on how the item was packed.
+        std::vector<std::filesystem::path> content_directories(const std::filesystem::path& directory)
+        {
+            std::vector<std::filesystem::path> result{directory};
+            if (utils::io::directory_exists(directory / "zone"))
+            {
+                result.push_back(directory / "zone");
+            }
+
+            return result;
+        }
+
         std::string detect_kind(const game_layout& layout, const std::filesystem::path& directory)
         {
             if (!layout.plutonium)
@@ -273,18 +357,68 @@ namespace mods
                 return {};
             }
 
-            if (utils::io::file_exists(directory / "mod.ff"))
+            const auto contents = content_directories(directory);
+            for (const auto& content : contents)
             {
-                return KIND_MOD;
+                if (utils::io::file_exists(content / "mod.ff"))
+                {
+                    return KIND_MOD;
+                }
             }
 
             const auto dirname = utils::string::to_lower(utils::string::path_to_utf8(directory.filename()));
-            if (utils::io::file_exists(directory / (dirname + ".ff")) || has_file_with_suffix(directory, "_load.ff"))
+            for (const auto& content : contents)
             {
-                return KIND_MAP;
+                if (utils::io::file_exists(content / (dirname + ".ff")) || has_file_with_suffix(content, "_load.ff"))
+                {
+                    return KIND_MAP;
+                }
             }
 
             return {};
+        }
+
+        // An item is renamed to its workshop FolderName on install, so a copy that was
+        // installed under a different name (its numeric id, say) would linger on disk and
+        // keep claiming the same update.
+        void remove_stale_copies(const game_config::game_config_t& config, const game_layout& layout,
+            const std::filesystem::path& root, const std::string& workshop_id,
+            const std::string& keep_folder, const std::string& keep_dirname)
+        {
+            if (workshop_id.empty())
+            {
+                return;
+            }
+
+            const auto keep = utils::string::to_lower(keep_dirname);
+            for (const auto& folder : layout.folders)
+            {
+                for (const auto& directory : subdirectories(root / folder))
+                {
+                    const auto dirname = utils::string::path_to_utf8(directory.filename());
+                    if (folder == keep_folder && utils::string::to_lower(dirname) == keep)
+                    {
+                        continue;
+                    }
+
+                    const auto info = read_workshop_json(directory);
+                    if (!info || info->publisher_id != workshop_id)
+                    {
+                        continue;
+                    }
+
+                    std::error_code code{};
+                    std::filesystem::remove_all(directory, code);
+                    if (code)
+                    {
+                        utils::logger::write("[cbl-mods] failed to remove stale copy {}: {}", utils::string::path_to_utf8(directory), code.message());
+                        continue;
+                    }
+
+                    erase_index(config, make_id(folder, dirname));
+                    utils::logger::write("[cbl-mods] removed stale copy {} of workshop item {}", utils::string::path_to_utf8(directory), workshop_id);
+                }
+            }
         }
 
         import_result fail(std::string error)
@@ -481,6 +615,50 @@ namespace mods
         return std::nullopt;
     }
 
+    namespace
+    {
+        // Steam-subscribed items are not split into usermaps/mods on disk, so the
+        // workshop.json Type decides what each one is.
+        void append_steam_workshop(const game_layout& layout, const game_config::game_config_t& config, std::vector<installed_mod>& result)
+        {
+            const auto root = steam_workshop_root(layout, config);
+            if (!root)
+            {
+                return;
+            }
+
+            for (const auto& directory : subdirectories(*root))
+            {
+                const auto dirname = utils::string::path_to_utf8(directory.filename());
+                const auto info = read_workshop_json(directory);
+                if (!info || (info->type != KIND_MAP && info->type != KIND_MOD) || !is_safe_dirname(dirname))
+                {
+                    continue;
+                }
+
+                const auto workshop_id = info->publisher_id.empty() ? dirname : info->publisher_id;
+                const auto duplicate = std::any_of(result.begin(), result.end(), [&workshop_id](const installed_mod& mod)
+                {
+                    return !mod.workshop_id.empty() && mod.workshop_id == workshop_id;
+                });
+                if (duplicate)
+                {
+                    continue;
+                }
+
+                installed_mod mod{};
+                mod.id = make_id(FOLDER_STEAM, dirname);
+                mod.name = !info->title.empty() ? info->title : (!info->folder_name.empty() ? info->folder_name : dirname);
+                mod.kind = info->type;
+                mod.folder = FOLDER_STEAM;
+                mod.source = SOURCE_STEAM;
+                mod.workshop_id = workshop_id;
+                mod.size = directory_size(directory);
+                result.push_back(std::move(mod));
+            }
+        }
+    }
+
     std::vector<installed_mod> list_installed(const game_config::game_config_t& config)
     {
         std::vector<installed_mod> result{};
@@ -498,6 +676,7 @@ namespace mods
             {
                 const auto dirname = utils::string::path_to_utf8(directory.filename());
                 const auto id = make_id(folder.name, dirname);
+                const auto stats = scan_directory(directory);
 
                 installed_mod mod{};
                 const auto known = std::find_if(index.begin(), index.end(), [&id](const installed_mod& entry) { return entry.id == id; });
@@ -510,15 +689,20 @@ namespace mods
                     mod.id = id;
                     mod.name = dirname;
                     mod.source = "import";
+                    // Never installed through the launcher, so stand in the newest file on
+                    // disk: without it an update check has nothing to compare against.
+                    mod.installed_at = iso8601_from(stats.newest);
                     apply_workshop_info(mod, directory);
                 }
 
                 mod.kind = folder.name == FOLDER_USERMAPS ? KIND_MAP : KIND_MOD;
                 mod.folder = folder.name;
-                mod.size = directory_size(directory);
+                mod.size = stats.size;
                 result.push_back(std::move(mod));
             }
         }
+
+        append_steam_workshop(*layout, config, result);
 
         // Forget index entries whose folder was removed outside the launcher.
         const auto before = index.size();
@@ -600,6 +784,7 @@ namespace mods
         mod.source = origin;
         mod.installed_at = now_iso8601();
         apply_workshop_info(mod, target);
+        remove_stale_copies(config, *layout, *root, mod.workshop_id, folder, dirname);
         mod.size = directory_size(target);
         upsert_index(config, mod);
 
@@ -692,27 +877,53 @@ namespace mods
         return result;
     }
 
-    bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)
+    std::optional<std::filesystem::path> mod_path(const game_config::game_config_t& config, const std::string& id)
     {
         const auto separator = id.find(':');
         if (separator == std::string::npos)
         {
-            error = "Invalid mod id.";
-            return false;
+            return std::nullopt;
         }
 
         const auto folder = id.substr(0, separator);
         const auto dirname = id.substr(separator + 1);
         const auto layout = layout_for(config);
-        const auto root = content_root(config);
-        if (!layout || !root || !has_folder(*layout, folder) || !is_safe_dirname(dirname))
+        if (!layout || !is_safe_dirname(dirname))
+        {
+            return std::nullopt;
+        }
+
+        // Steam-subscribed items live outside the content folders, in their own library path.
+        std::optional<std::filesystem::path> parent{};
+        if (folder == FOLDER_STEAM)
+        {
+            parent = steam_workshop_root(*layout, config);
+        }
+        else if (const auto root = content_root(config); root && has_folder(*layout, folder))
+        {
+            parent = *root / folder;
+        }
+
+        if (!parent)
+        {
+            return std::nullopt;
+        }
+
+        const auto target = (*parent / dirname).lexically_normal();
+        return client_store::is_inside_folder(target, *parent) ? std::optional{target} : std::nullopt;
+    }
+
+    bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)
+    {
+        const auto path = mod_path(config, id);
+        if (!path)
         {
             error = "Invalid mod id.";
             return false;
         }
 
-        const auto target = (*root / folder / dirname).lexically_normal();
-        if (!client_store::is_inside_folder(target, *root / folder) || !utils::io::directory_exists(target))
+        const auto& target = *path;
+        if (!utils::io::directory_exists(target))
         {
             error = "The mod folder no longer exists.";
             return false;

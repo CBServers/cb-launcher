@@ -3862,6 +3862,25 @@ button { font-family: inherit; cursor: pointer; }
     box-shadow: 0 0 18px var(--accent-soft);
 }
 
+.mods-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 11px;
+}
+
+.mods-btn-icon {
+    width: 17px;
+    height: 17px;
+    background: currentColor;
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+}
+
 .mods-btn.is-danger { color: #FFB2BA; }
 .mods-btn.is-danger:hover {
     border-color: rgba(255, 77, 94, 0.5);
@@ -4286,6 +4305,16 @@ html[data-theme="dark"] .secondary-action:hover {
 .folder-icon {
     -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
+}
+
+.trash-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M9.75 6.75V4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v2.25M17.4 6.75l-.63 12.1a2.25 2.25 0 01-2.25 2.15H9.48a2.25 2.25 0 01-2.25-2.15L6.6 6.75M10.2 10.5v6.6M13.8 10.5v6.6"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M9.75 6.75V4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v2.25M17.4 6.75l-.63 12.1a2.25 2.25 0 01-2.25 2.15H9.48a2.25 2.25 0 01-2.25-2.15L6.6 6.75M10.2 10.5v6.6M13.8 10.5v6.6"/></svg>');
+}
+
+.info-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.04-.02a.75.75 0 011.06.94l-.51 1.53a.75.75 0 001.06.94l.04-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.01v.01H12v-.01z"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.04-.02a.75.75 0 011.06.94l-.51 1.53a.75.75 0 001.06.94l.04-.02M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.01v.01H12v-.01z"/></svg>');
 }
 
 .files-icon {
