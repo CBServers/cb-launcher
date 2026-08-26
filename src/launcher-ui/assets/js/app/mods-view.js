@@ -106,6 +106,16 @@
         panel.querySelectorAll('.mods-view').forEach(v => v.classList.toggle('active', v.dataset.view === view));
     }
 
+    // Search results arrive with installed/updateAvailable cleared; re-mark them from the installed list.
+    function syncInstalledFlags(s) {
+        if (!s.results || !s.installed) return;
+        s.results.items.forEach(item => {
+            const installed = s.installed.find(mod => mod.workshopId === item.id);
+            item.installed = !!installed;
+            item.updateAvailable = !!(installed && installed.updateAvailable);
+        });
+    }
+
     async function loadInstalled(gameId) {
         const s = getState(gameId);
         try {
@@ -127,11 +137,7 @@
         }
 
         if (s.results) {
-            s.results.items.forEach(item => {
-                const installed = s.installed.find(mod => mod.workshopId === item.id);
-                item.installed = !!installed;
-                item.updateAvailable = !!(installed && installed.updateAvailable);
-            });
+            syncInstalledFlags(s);
             renderWorkshopGrid(gameId);
         }
     }
@@ -296,6 +302,7 @@
             if (!append) s.results = { items: [], total: 0 };
         }
         s.searching = false;
+        syncInstalledFlags(s);
         renderWorkshopGrid(gameId);
     }
 
