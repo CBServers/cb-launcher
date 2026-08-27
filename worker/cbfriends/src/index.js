@@ -17,7 +17,9 @@ const AVATAR_HOSTS = new Set([
     'steamcdn-a.akamaihd.net', 'avatars.steamstatic.com',
     'cdn.cbservers.xyz',
 ]);
-const RATE_PER_MINUTE = 60;        // per device key, across the CB endpoints
+// The launcher itself polls ~54/min in steady state, so this only has to be high enough to leave
+// room for user actions on top while still stopping scripted abuse.
+const RATE_PER_MINUTE = 240;       // per device key, across the CB endpoints
 const RECOVER_PER_HOUR = 5;        // per anchor; HWID is a weak secret
 const RECOVER_BLOCK_IF_ACTIVE_MS = 5 * 60_000; // an account in active use does not need recovery
 const SECURITY_EVENTS = 20;
