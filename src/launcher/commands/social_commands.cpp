@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "social_commands.hpp"
+#include "invite_notification.hpp"
 #include "cef/cef_ui.hpp"
 #include "social/cbfriends_service.hpp"
 
@@ -278,6 +279,46 @@ namespace commands::social_commands
             const bool ok = !id.empty();
             if (ok) social::cbfriends_service::instance().decline_invite(id);
             response.AddMember("ok", ok, allocator);
+        });
+
+        // Mirrors the Discord path: the frontend supplies only the id and the localized strings, and
+        // the sender's art is resolved here from our own state.
+        cef_ui.add_command("cbfriends-show-invite-notification", [&cef_ui](const rapidjson::Value& value,
+                                                                          rapidjson::Document& response)
+        {
+            response.SetObject();
+
+            if (!invite_notification::wanted(cef_ui))
+            {
+                return;
+            }
+
+            const auto id = read_string(value, "id");
+            const auto title = read_string(value, "title");
+            const auto body = read_string(value, "body");
+            if (id.empty() || title.empty())
+            {
+                return;
+            }
+
+            for (const auto& inv : social::cbfriends_service::instance().get_invites())
+            {
+                if (inv.id == id)
+                {
+                    invite_notification::show(cef_ui, id, title, body, inv.sender_avatar, inv.game);
+                    return;
+                }
+            }
+        });
+
+        cef_ui.add_command("cbfriends-dismiss-invite-notification", [](const rapidjson::Value& value,
+                                                                      rapidjson::Document&)
+        {
+            const auto id = read_string(value, "id");
+            if (!id.empty())
+            {
+                invite_notification::dismiss(id);
+            }
         });
 
         cef_ui.add_command("cbfriends-set-community-active", [](const rapidjson::Value& value, rapidjson::Document& response)

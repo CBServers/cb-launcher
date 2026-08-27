@@ -133,6 +133,8 @@ function mockCommand(command, data) {
         case 'cbfriends-set-activity':
         case 'cbfriends-load-older-chat':
         case 'cbfriends-report':
+        case 'cbfriends-show-invite-notification':
+        case 'cbfriends-dismiss-invite-notification':
             return { ok: true };
         case 'cbfriends-block':
             mockCb.blocked.push(mockPerson('blocked' + mockCb.blocked.length, 'Blocked user'));

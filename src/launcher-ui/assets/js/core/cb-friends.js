@@ -436,24 +436,34 @@
         }
     }
 
-    async function promptCbInvite(inv) {
-        const name = inv.senderName || 'A friend';
+    // Naming the game needs its own phrasing per language, so fall back to the game-less wording
+    // rather than interpolating an empty name.
+    function cbInviteStrings(inv) {
+        const name = inv.senderName || t('aFriend');
         const game = gameName(inv.gameId);
-        let title, body, acceptLabel;
-        if (inv.isRequest) {
-            title = t('joinRequestTitle');
-            body = `${name} wants to join your ${game || 'game'}.` + (inv.needsOpen ? ' Accepting opens your match to them.' : '');
-            acceptLabel = t('approve');
-        } else {
-            title = t('inviteTitle');
-            body = `${name} invited you to join their ${game || 'game'}.`;
-            acceptLabel = t('join');
+        const key = inv.isRequest ? 'joinRequestBody' : 'inviteBody';
+        return {
+            title: t(inv.isRequest ? 'joinRequestTitle' : 'inviteTitle'),
+            body: t(game ? key : key + 'NoGame', { name, game })
+                + (inv.isRequest && inv.needsOpen ? t('joinRequestOpen') : ''),
+            acceptLabel: t(inv.isRequest ? 'approve' : 'join'),
+        };
+    }
+
+    async function promptCbInvite(inv) {
+        const { title, body, acceptLabel } = cbInviteStrings(inv);
+
+        // Approvals normally connect on their own, so a desktop toast for them is just noise.
+        if (!inv.isApproval) {
+            window.executeCommand('cbfriends-show-invite-notification', { id: inv.id, title, body }).catch(() => {});
         }
+
         let accepted = false;
         try {
             const idx = await window.showMessageBox(title, body, [acceptLabel, { label: t('decline'), danger: true }]);
             accepted = idx === 0;
         } catch (error) { return; }
+        window.executeCommand('cbfriends-dismiss-invite-notification', { id: inv.id }).catch(() => {});
         try {
             await window.executeCommand(accepted ? 'cbfriends-accept-invite' : 'cbfriends-decline-invite', { id: inv.id });
         } catch (error) { console.warn('CB invite response failed:', error); }
