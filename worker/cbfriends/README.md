@@ -76,11 +76,13 @@ device-key authed and route between CB friends by `cbId`.
 
 Two classes, because KV can neither hold a request open nor serialise appends:
 
-- `ChatRoom` (binding `CHAT`) — one per chat room, holds recent history.
+- `ChatRoom` (binding `CHAT`) — one per chat room. History is kept in Durable Object **storage**
+  (`msg:<zero-padded id>` plus a `seq` counter), so it survives evictions and redeploys. The
+  in-memory array is only a mirror of the tail, loaded on wake via `blockConcurrencyWhile`. The last
+  200 messages per room are retained; older ones are deleted from storage as new ones arrive.
 - `Mailbox` (binding `MAILBOX`) — one per Discord user, holds their relay long-poll and mailbox.
-
-Both keep state in memory, so a redeploy or eviction drops chat scrollback and any undelivered relay
-message. Undelivered messages simply fall back to the SDK; scrollback is not currently persisted.
+  Deliberately **not** persisted: invites are short-lived, and anything undelivered falls back to the
+  Discord SDK, so surviving a redeploy would buy nothing.
 
 ## Deploy
 

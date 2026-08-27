@@ -26,13 +26,45 @@ function persist() {
         console.warn('could not persist KV:', e.message);
     }
 }
-// Durable Object shim: runs the worker's real ChatRoom class, one instance per room name.
-function doBinding(Cls) {
+// Durable Object storage shim, backed by the same store as KV so it persists like the real thing.
+function doStorage(prefix) {
+    const full = key => `${prefix}${key}`;
+    return {
+        async get(key) {
+            const raw = store.get(full(key));
+            return raw === undefined ? undefined : JSON.parse(raw);
+        },
+        async put(keyOrEntries, value) {
+            const entries = typeof keyOrEntries === 'object'
+                ? Object.entries(keyOrEntries)
+                : [[keyOrEntries, value]];
+            for (const [k, v] of entries) store.set(full(k), JSON.stringify(v));
+            persist();
+        },
+        async delete(keys) {
+            for (const k of (Array.isArray(keys) ? keys : [keys])) store.delete(full(k));
+            persist();
+        },
+        async list({ prefix: p = '', limit, reverse } = {}) {
+            let keys = [...store.keys()]
+                .filter(k => k.startsWith(full(p)))
+                .sort();
+            if (reverse) keys.reverse();
+            if (limit) keys = keys.slice(0, limit);
+            return new Map(keys.map(k => [k.slice(prefix.length), JSON.parse(store.get(k))]));
+        },
+    };
+}
+
+// Runs the worker's real Durable Object classes, one instance per name.
+function doBinding(Cls, kind) {
     const instances = new Map();
     return {
         idFromName(name) { return name; },
         get(name) {
-            if (!instances.has(name)) instances.set(name, new Cls({}));
+            if (!instances.has(name)) {
+                instances.set(name, new Cls({ storage: doStorage(`do:${kind}:${name}:`) }));
+            }
             return instances.get(name);
         },
     };
@@ -48,8 +80,8 @@ const env = {
             return { keys, list_complete: true };
         },
     },
-    CHAT: doBinding(module.ChatRoom),
-    MAILBOX: doBinding(module.Mailbox),
+    CHAT: doBinding(module.ChatRoom, 'chat'),
+    MAILBOX: doBinding(module.Mailbox, 'mailbox'),
 };
 
 const server = createServer(async (req, res) => {

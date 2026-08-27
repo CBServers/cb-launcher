@@ -311,8 +311,13 @@ async function handleRecover(env, fpr, body, anchorKey) {
 const PRESENCE_FRESH_MS = 90_000;
 const LFG_FRESH_MS = 15 * 60_000;
 const CHAT_MAX_LENGTH = 300;
-const CHAT_HISTORY = 100;
+const CHAT_HISTORY = 200;
 const CHAT_PER_MINUTE = 12;
+
+// Zero-padded so storage keys sort in message order.
+function msgKey(id) {
+    return 'msg:' + String(id).padStart(12, '0');
+}
 
 async function readArray(env, key) {
     const raw = await env.CB.get(key);
@@ -867,6 +872,26 @@ export class ChatRoom {
         this.messages = [];
         this.seq = 0;
         this.rate = new Map();
+        this.ready = null;
+
+        // History lives in Durable Object storage so it survives evictions and redeploys; the array
+        // above is just a mirror of the tail. Requests are blocked until it is loaded.
+        if (state && state.blockConcurrencyWhile) {
+            state.blockConcurrencyWhile(async () => { await this.load(); });
+        }
+    }
+
+    async load() {
+        const stored = await this.state.storage.list({ prefix: 'msg:', limit: CHAT_HISTORY, reverse: true });
+        this.messages = [...stored.values()].reverse();
+        this.seq = (await this.state.storage.get('seq')) || 0;
+    }
+
+    // Loading is normally done in the constructor; this covers runtimes without it.
+    async ensureLoaded() {
+        if (this.state && this.state.blockConcurrencyWhile) return;
+        if (!this.ready) this.ready = this.load();
+        await this.ready;
     }
 
     // Per-sender cap so one account can't flood the room.
@@ -882,6 +907,7 @@ export class ChatRoom {
     }
 
     async fetch(request) {
+        await this.ensureLoaded();
         const { pathname } = new URL(request.url);
         const body = await request.json().catch(() => ({}));
 
@@ -896,8 +922,15 @@ export class ChatRoom {
                 text: body.text,
                 at: Date.now(),
             };
+
             this.messages.push(message);
-            if (this.messages.length > CHAT_HISTORY) this.messages.shift();
+            await this.state.storage.put({ [msgKey(message.id)]: message, seq: this.seq });
+
+            // Trim the tail to the retention window, dropping the same keys from storage.
+            if (this.messages.length > CHAT_HISTORY) {
+                const dropped = this.messages.splice(0, this.messages.length - CHAT_HISTORY);
+                await this.state.storage.delete(dropped.map(m => msgKey(m.id)));
+            }
             return json(200, { ok: true, id: message.id });
         }
 
