@@ -24,15 +24,16 @@ modified, and that is the whole review surface:
 | `src/launcher/ipc/ipc_server.cpp` | +53 — CB friends join the existing `friends` IPC line, tagged `source:"cb"` |
 | `src/launcher/commands/commands.cpp` | +2 — registers the new command group |
 | `src/launcher/commands/discord_commands.cpp` | **−81/+5, no behaviour change** — the toast helpers moved verbatim into `invite_notification.cpp` so CB invites raise the same toast instead of duplicating them |
-| `src/launcher/discord/discord_constants.hpp` | comment only |
+| `src/launcher/discord/discord_constants.hpp` | `RELAY_URL` now points at the cbfriends worker — see *Retiring the standalone relay* |
 | `src/common/utils/property_keys.hpp` | +17 — new property keys |
 | `src/launcher-ui/*` | additive — new tab, new panel, new i18n block, mocks |
 | `.gitignore` | ignores the local worker dev store |
 
-**The Discord bridge is functionally untouched.** After the relay-hostname revert (below), the entire
-`src/launcher/discord/` tree differs from upstream by one reflowed comment. `relay_client.cpp`,
-`discord_service.cpp` and the Discord friends UI are byte-identical. That was a hard constraint
-throughout: CB friends live *beside* Discord friends, they do not replace or reroute them.
+**The Discord bridge is functionally untouched.** The whole `src/launcher/discord/` tree differs from
+upstream by a single constant — `RELAY_URL` — and its comment. `relay_client.cpp`,
+`discord_service.cpp` and the Discord friends UI are byte-identical, so the relay protocol on the
+wire is unchanged and only its destination moves. That was a hard constraint throughout: CB friends
+live *beside* Discord friends, they do not replace or reroute them.
 
 ## Cloudflare: what has to exist
 
@@ -53,20 +54,27 @@ wrangler deploy
 Then point a hostname at it. The launcher reads `social.cbservers.xyz` for CB endpoints
 (`src/launcher/social/social_constants.hpp`), overridable with `-cbfriends-url`.
 
-### The one decision to make: the relay hostname
+### Retiring the standalone relay
 
-`relay.cbservers.xyz` is live and serving invites today. The cbfriends worker speaks that same
-protocol, so there are two ways to retire the standalone relay:
+The invite relay currently runs as its own service at `relay.cbservers.xyz`, outside this repo. The
+cbfriends worker speaks the same protocol (`relay_client.cpp` is unchanged, so the wire format is
+identical), which is what lets that service be switched off.
 
-1. **Route swap (what the branch is set up for).** Leave `RELAY_URL = relay.cbservers.xyz` and add
-   that hostname as a second route on the cbfriends worker. Builds already in the wild keep working,
-   there is no flag day, and rollback is a route change.
-2. **URL change.** Point `RELAY_URL` at `social.cbservers.xyz`. This requires the worker to be
-   deployed *before* any build ships, or invites fall back to the Discord SDK — which is the
-   rate-limit problem the relay exists to avoid.
+Retiring it fully takes two routes on the one worker:
 
-The branch ships option 1 because it is reversible and does not couple a launcher release to a
-deploy. Option 2 is a one-line change if preferred.
+1. **`social.cbservers.xyz`** — what this branch points `RELAY_URL` and `CBFRIENDS_URL` at. Covers
+   every build from this branch onward.
+2. **`relay.cbservers.xyz`** — repointed at the same worker. Covers the builds already installed,
+   which will keep calling that hostname forever.
+
+With both routes live the old service takes zero traffic and can be turned off. With only the first,
+it still serves everyone who has not updated.
+
+**Ordering matters.** `social.cbservers.xyz` must be deployed and answering *before* a build from
+this branch is released. If it is not, invites on that build fall back to the Discord SDK — the
+rate-limit problem the relay was built to avoid. `worker/cbfriends/test/relay.test.mjs` covers the
+protocol end to end (11 assertions, including that `offline` and `throttled` stay distinct, since
+the client falls back on one and not the other), so it can be verified before any DNS moves.
 
 ## Testing without deploying
 
