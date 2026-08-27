@@ -551,6 +551,8 @@ namespace social
                     last_slow_ = now;
                     refresh_blocked();
                     refresh_security();
+                    // Keeps the Community badge honest while its tab is closed.
+                    if (!community_active_) refresh_lfg();
                 }
                 if (community_active_)
                 {

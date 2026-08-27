@@ -136,6 +136,7 @@
                 library: 'Library',
                 downloads: 'Downloads',
                 friends: 'Friends',
+                community: 'Community',
                 support: 'Support',
                 settings: 'Settings',
                 myGames: 'My Games'
@@ -729,6 +730,7 @@
                 library: 'Bibliotheque',
                 downloads: 'Telechargements',
                 friends: 'Amis',
+                community: 'Communaute',
                 support: 'Support',
                 settings: 'Parametres',
                 myGames: 'Mes Jeux'
@@ -1322,6 +1324,7 @@
                 library: 'Biblioteca',
                 downloads: 'Descargas',
                 friends: 'Amigos',
+                community: 'Comunidad',
                 support: 'Soporte',
                 settings: 'Ajustes',
                 myGames: 'Mis Juegos'
@@ -1915,6 +1918,7 @@
                 library: 'Библиотека',
                 downloads: 'Загрузки',
                 friends: 'Друзья',
+                community: 'Сообщество',
                 support: 'Поддержка',
                 settings: 'Настройки',
                 myGames: 'Мои игры'

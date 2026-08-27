@@ -492,8 +492,18 @@
         }
 
         if (status.state === 'ready') await fetchFriends();
+        setNavBadge('friends-badge', friends.incoming.length);
+
         // Don't rebuild the panel while the user is editing their profile or typing in a field.
         if (activeSource === 'cb' && !editingProfile && !interacting()) render(status);
+    }
+
+    // Shows a count on a sidebar item, or hides it when there is nothing waiting.
+    function setNavBadge(id, count) {
+        const badge = document.getElementById(id);
+        if (!badge) return;
+        badge.textContent = String(count);
+        badge.style.display = count > 0 ? '' : 'none';
     }
 
     window.CbFriendsManager = {

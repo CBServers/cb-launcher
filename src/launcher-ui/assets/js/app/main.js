@@ -314,6 +314,10 @@ async function initialize() {
                 window.CbFriendsManager.start();
             }
 
+            if (!window.IS_OFFLINE && window.CommunityManager) {
+                window.CommunityManager.startBadgePolling();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });

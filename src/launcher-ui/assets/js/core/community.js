@@ -3,12 +3,14 @@
 
 (function () {
     const POLL_MS = 6 * 1000;
+    const BADGE_POLL_MS = 60 * 1000;
     const ALL = 'all';
 
     function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
 
     let active = false;
     let timer = null;
+    let badgeTimer = null;
     let bound = false;
     let room = null;           // null = hub, otherwise ALL or a game id
     let posts = [];            // LFG posts for the open room
@@ -419,7 +421,31 @@
         });
     }
 
+    // Counts the board while the tab is closed, so the sidebar can say someone is looking.
+    async function pollBadge() {
+        const nav = document.getElementById('community');
+        const badge = document.getElementById('community-badge');
+        if (!badge) return;
+        if (active || !nav || nav.style.display === 'none') { badge.style.display = 'none'; return; }
+
+        await checkProfile();
+        let count = 0;
+        if (profileReady) {
+            try {
+                const res = await window.executeCommand('cbfriends-get-lfg');
+                count = ((res && res.posts) || []).filter(p => p.relation !== 'friend').length;
+            } catch (error) { count = 0; }
+        }
+        badge.textContent = String(count);
+        badge.style.display = count > 0 ? '' : 'none';
+    }
+
     window.CommunityManager = {
+        startBadgePolling() {
+            if (badgeTimer) return;
+            pollBadge();
+            badgeTimer = setInterval(pollBadge, BADGE_POLL_MS);
+        },
         setActive(on) {
             active = on;
             bind();
@@ -441,6 +467,7 @@
                 clearInterval(timer);
                 timer = null;
             }
+            pollBadge();
         }
     };
 })();
