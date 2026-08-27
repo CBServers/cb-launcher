@@ -47,7 +47,10 @@ namespace social
         std::string bio;
         std::string accent;
         std::string favorite_game;
+        // game id -> seconds played, accumulated from our own presence beats.
+        std::vector<std::pair<std::string, int64_t>> playtime;
         int64_t created_at{0};
+        int64_t last_seen{0};
         std::string relation; // "self" | "friend" | "requested" | "incoming" | "none"
         std::string note;     // LFG only
         int slots{0};         // LFG only

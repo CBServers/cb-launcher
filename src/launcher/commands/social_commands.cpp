@@ -42,6 +42,15 @@ namespace commands::social_commands
             add_string(obj, "accent", person.accent, allocator);
             add_string(obj, "favoriteGame", person.favorite_game, allocator);
             obj.AddMember("createdAt", person.created_at, allocator);
+            obj.AddMember("lastSeen", person.last_seen, allocator);
+            rapidjson::Value playtime(rapidjson::kObjectType);
+            for (const auto& [game, seconds] : person.playtime)
+            {
+                rapidjson::Value key;
+                key.SetString(game.data(), static_cast<rapidjson::SizeType>(game.size()), allocator);
+                playtime.AddMember(key, seconds, allocator);
+            }
+            obj.AddMember("playtime", playtime, allocator);
             add_string(obj, "relation", person.relation, allocator);
             add_string(obj, "note", person.note, allocator);
             obj.AddMember("slots", person.slots, allocator);

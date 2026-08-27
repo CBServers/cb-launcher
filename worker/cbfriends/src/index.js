@@ -182,6 +182,16 @@ async function putAccount(env, account) {
     await env.CB.put(`acct:${account.cbId}`, JSON.stringify(account));
 }
 
+// Writes the account and keeps the directory's cached copy in step, so an edit shows up at once.
+async function saveProfile(env, account) {
+    await putAccount(env, account);
+    await dirCall(env, 'profile', {
+        cbId: account.cbId,
+        profile: account.profile,
+        createdAt: account.createdAt,
+    });
+}
+
 function publicView(account, extra = {}) {
     return { cbId: account.cbId, profile: account.profile, ...extra };
 }
@@ -344,7 +354,7 @@ async function handleProfileUpdate(env, cbId, body) {
         account.profile.handle = body.handle;
     }
 
-    await putAccount(env, account);
+    await saveProfile(env, account);
     return json(200, publicView(account));
 }
 
@@ -672,6 +682,8 @@ const PRESENCE_FRESH_MS = 90_000;
 const LFG_FRESH_MS = 15 * 60_000;
 const PLAYED_WITH_MS = 6 * 3600_000;  // how long a match roster is worth suggesting from
 const PLAYED_WITH_MATCHES = 5;        // recent matches kept per person
+const PLAY_CREDIT_MAX_MS = 90_000;    // a longer gap than this is a new session, not played time
+const PLAY_FLUSH_SECONDS = 600;       // bank playtime to the account in chunks, not per beat
 const CHAT_MAX_LENGTH = 300;
 const CHAT_HISTORY = 200;
 const CHAT_PER_MINUTE = 12;
@@ -732,7 +744,9 @@ function personFrom(cbId, profile, createdAt, pres) {
         accent: profile.accent || '',
         avatarCustom: !!profile.avatarCustom,
         favoriteGame: profile.favoriteGame || '',
+        playtime: profile.playtime || {},
         createdAt: createdAt || 0,
+        lastSeen: live.lastSeen || 0,
         online: live.online,
         game: live.game,
         mode: live.mode,
@@ -841,7 +855,7 @@ async function handleFriendList(env, cbId) {
 // The beat carries the profile too, so the directory can serve friend lists without touching KV.
 async function handlePresence(env, cbId, body) {
     const account = await getAccount(env, cbId);
-    await dirCall(env, 'beat', {
+    const beat = await dirCall(env, 'beat', {
         cbId,
         profile: (account && account.profile) || {},
         createdAt: (account && account.createdAt) || 0,
@@ -856,6 +870,14 @@ async function handlePresence(env, cbId, body) {
             matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
         },
     });
+
+    if (beat.flush && account) {
+        account.profile.playtime = account.profile.playtime || {};
+        for (const [game, seconds] of Object.entries(beat.flush)) {
+            account.profile.playtime[game] = (account.profile.playtime[game] || 0) + seconds;
+        }
+        await saveProfile(env, account);
+    }
     return json(200, { ok: true });
 }
 
@@ -918,7 +940,7 @@ async function handleDiscordSync(env, cbId, body) {
         account.profile.displayName = discordUser.displayName.slice(0, 64);
     }
 
-    await putAccount(env, account);
+    await saveProfile(env, account);
     await env.CB.put(`discord:${discordUser.id}`, cbId);
     return json(200, publicView(account));
 }
@@ -1689,10 +1711,28 @@ export class Directory {
             const it = this.entry(body.cbId);
             it.profile = body.profile || it.profile;
             it.createdAt = body.createdAt || it.createdAt;
+
+            // Credit the gap since the last beat, which is how long they have been in that game.
+            const previous = it.pres ? it.pres.at : 0;
+            const game = (body.pres || {}).game || '';
+            if (previous && game && now - previous <= PLAY_CREDIT_MAX_MS) {
+                const seconds = Math.round((now - previous) / 1000);
+                it.pending = it.pending || {};
+                it.pending[game] = (it.pending[game] || 0) + seconds;
+                it.pendingTotal = (it.pendingTotal || 0) + seconds;
+            }
+
             it.pres = { ...(body.pres || {}), at: now };
             this.noteMatch(body.cbId, it, it.pres.matchId, it.pres.game, now);
             this.prune();
-            return json(200, { ok: true });
+
+            let flush = null;
+            if ((it.pendingTotal || 0) >= PLAY_FLUSH_SECONDS) {
+                flush = it.pending;
+                it.pending = {};
+                it.pendingTotal = 0;
+            }
+            return json(200, { ok: true, flush });
         }
 
         if (pathname === '/played-with') {
@@ -1707,6 +1747,17 @@ export class Directory {
                 }
             }
             return json(200, { people: [...seen.values()] });
+        }
+
+        // Refreshes the cached profile only. Anything written to the account after a beat would
+        // otherwise read stale until the next one.
+        if (pathname === '/profile') {
+            const it = this.people.get(body.cbId);
+            if (it) {
+                it.profile = body.profile || it.profile;
+                it.createdAt = body.createdAt || it.createdAt;
+            }
+            return json(200, { ok: true });
         }
 
         if (pathname === '/people') {

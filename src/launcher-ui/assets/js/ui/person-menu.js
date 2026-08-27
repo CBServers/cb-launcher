@@ -107,6 +107,30 @@
         }
     }
 
+    function hours(seconds) {
+        const h = seconds / 3600;
+        if (h < 1) return t('underAnHour');
+        return t('hoursPlayed', { n: h < 10 ? h.toFixed(1) : Math.round(h) });
+    }
+
+    function ago(ms) {
+        const mins = Math.round((Date.now() - ms) / 60000);
+        if (mins < 60) return t('minutesAgo', { n: Math.max(1, mins) });
+        const h = Math.round(mins / 60);
+        return h < 24 ? t('hoursAgo', { n: h }) : t('daysAgo', { n: Math.round(h / 24) });
+    }
+
+    // The three games they have actually put time into; anything below an hour is noise.
+    function playedRows(playtime) {
+        const top = Object.entries(playtime || {})
+            .filter(([, seconds]) => seconds >= 60)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
+        if (!top.length) return '';
+        return top.map(([game, seconds]) =>
+            `<div class="cb-person-field"><span>${escapeHtml(gameName(game))}</span>${escapeHtml(hours(seconds))}</div>`).join('');
+    }
+
     function cardHtml(p, loading) {
         if (loading) {
             return `<div class="cb-person-card"><div class="cb-person-loading">${escapeHtml(t('loading'))}</div></div>`;
@@ -128,6 +152,8 @@
             p.bio ? `<div class="cb-person-bio">${escapeHtml(p.bio)}</div>` : '',
             p.favoriteGame ? `<div class="cb-person-field"><span>${escapeHtml(t('favouriteGame'))}</span>${escapeHtml(gameName(p.favoriteGame))}</div>` : '',
             since ? `<div class="cb-person-field"><span>${escapeHtml(t('memberSince'))}</span>${escapeHtml(since)}</div>` : '',
+            !p.online && p.lastSeen ? `<div class="cb-person-field"><span>${escapeHtml(t('lastSeen'))}</span>${escapeHtml(ago(p.lastSeen))}</div>` : '',
+            playedRows(p.playtime),
         ].filter(Boolean).join('');
 
         return `

@@ -113,6 +113,20 @@ namespace social
             p.favorite_game = json_get(v, "favoriteGame");
             p.created_at = (v.IsObject() && v.HasMember("createdAt") && v["createdAt"].IsInt64())
                 ? v["createdAt"].GetInt64() : 0;
+            p.last_seen = (v.IsObject() && v.HasMember("lastSeen") && v["lastSeen"].IsInt64())
+                ? v["lastSeen"].GetInt64() : 0;
+            // Member iterators, not GetObject(): that name collides with the wingdi macro.
+            if (v.IsObject() && v.HasMember("playtime") && v["playtime"].IsObject())
+            {
+                const auto& played = v["playtime"];
+                for (auto it = played.MemberBegin(); it != played.MemberEnd(); ++it)
+                {
+                    if (it->value.IsInt64())
+                    {
+                        p.playtime.emplace_back(it->name.GetString(), it->value.GetInt64());
+                    }
+                }
+            }
             p.relation = json_get(v, "relation");
             p.note = json_get(v, "note");
             p.slots = (v.IsObject() && v.HasMember("slots") && v["slots"].IsInt()) ? v["slots"].GetInt() : 0;
