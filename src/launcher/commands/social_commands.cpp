@@ -326,6 +326,65 @@ namespace commands::social_commands
             }
         });
 
+        // Direct messages.
+        cef_ui.add_command("cbfriends-set-dm-peer", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().set_dm_peer(read_string(value, "cbId"));
+        });
+
+        cef_ui.add_command("cbfriends-send-dm", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const auto cb_id = read_string(value, "cbId");
+            const auto text = read_string(value, "text");
+            const bool ok = !cb_id.empty() && !text.empty();
+            if (ok) social::cbfriends_service::instance().send_dm(cb_id, text);
+            response.AddMember("ok", ok, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-get-dm", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            auto& service = social::cbfriends_service::instance();
+
+            add_string(response, "peer", service.get_dm_peer(), allocator);
+            rapidjson::Value messages(rapidjson::kArrayType);
+            for (const auto& m : service.get_dm_messages())
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                obj.AddMember("id", m.id, allocator);
+                add_string(obj, "cbId", m.cb_id, allocator);
+                add_string(obj, "handle", m.handle, allocator);
+                add_string(obj, "displayName", m.display_name, allocator);
+                add_string(obj, "accent", m.accent, allocator);
+                add_string(obj, "text", m.text, allocator);
+                messages.PushBack(obj, allocator);
+            }
+            response.AddMember("messages", messages, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-get-dm-list", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            auto& service = social::cbfriends_service::instance();
+
+            rapidjson::Value conversations(rapidjson::kArrayType);
+            for (const auto& c : service.get_dm_conversations())
+            {
+                auto obj = person_value(c.person, allocator);
+                add_string(obj, "preview", c.preview, allocator);
+                obj.AddMember("lastAt", c.last_at, allocator);
+                obj.AddMember("unread", c.unread, allocator);
+                conversations.PushBack(obj, allocator);
+            }
+            response.AddMember("conversations", conversations, allocator);
+            response.AddMember("unread", service.get_dm_unread(), allocator);
+        });
+
         // Moderation. The role shown here only decides what to draw; the worker re-checks authority
         // on every one of these calls, so a forged role buys nothing.
         cef_ui.add_command("cbfriends-mod-status", [](const rapidjson::Value&, rapidjson::Document& response)

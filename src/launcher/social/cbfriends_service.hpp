@@ -110,6 +110,15 @@ namespace social
         int device_count{0};
     };
 
+    // One row of the conversation list: who, the last thing said, and how much is unread.
+    struct dm_conversation
+    {
+        cb_person person;
+        std::string preview;
+        int64_t last_at{0};
+        int unread{0};
+    };
+
     struct friends_snapshot
     {
         std::vector<cb_person> friends;
@@ -211,6 +220,14 @@ namespace social
 
         // The board is only polled while the Community tab is open.
         void set_community_active(bool active);
+        // Direct messages. Friends only; the worker checks that on every call.
+        void set_dm_peer(const std::string& cb_id); // "" closes the conversation
+        std::string get_dm_peer() const;
+        std::vector<chat_message> get_dm_messages() const;
+        std::vector<dm_conversation> get_dm_conversations() const;
+        int get_dm_unread() const;
+        void send_dm(const std::string& cb_id, const std::string& text);
+
         // Moderation. The role is decided server-side on every call; this is only what to show.
         std::string get_mod_role() const;
         void set_mod_active(bool active);
@@ -271,6 +288,10 @@ namespace social
         void chat_loop();
         void poll_chat(bool hold);
         void stop_chat_worker();
+        void dm_loop();
+        void poll_dm(bool hold);
+        void stop_dm_worker();
+        void refresh_dm_list();
         void refresh_blocked();
         void refresh_security();
         void refresh_mod_role();
@@ -310,6 +331,12 @@ namespace social
         std::function<void(std::string)> join_secret_cb_;
         std::function<void()> open_match_cb_;
 
+        std::string dm_peer_;
+        std::vector<chat_message> dm_;
+        int64_t dm_after_{0};
+        std::vector<dm_conversation> dm_list_;
+        int dm_unread_{0};
+
         std::string chat_room_;
         std::vector<chat_message> chat_;
         int64_t chat_after_{0};
@@ -328,8 +355,10 @@ namespace social
 
         std::thread worker_;
         std::thread chat_worker_;
+        std::thread dm_worker_;
         std::atomic<bool> running_{false};
         std::atomic<bool> chat_running_{false};
+        std::atomic<bool> dm_running_{false};
         std::atomic<bool> community_active_{false};
         std::atomic<bool> mod_active_{false};
         std::atomic<bool> broadcasting_{false};

@@ -7165,3 +7165,141 @@ html:not([data-theme]) .toast {
     font-size: 13px;
     color: var(--text-dim);
 }
+
+/* ---- Direct messages ---- */
+
+.dm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.dm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+    cursor: pointer;
+}
+
+.dm-row:hover {
+    border-color: var(--border-hi);
+}
+
+.dm-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.dm-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+}
+
+.dm-row-preview {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-unread {
+    flex: 0 0 auto;
+    min-width: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    color: #fff;
+    background: var(--accent-grad);
+    border-radius: 10px;
+}
+
+.dm-thread {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+}
+
+.dm-thread-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dm-back {
+    padding: 2px 10px;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+    cursor: pointer;
+}
+
+.dm-thread-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-bright);
+}
+
+.dm-log {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.dm-msg {
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.dm-msg-who {
+    margin-right: 8px;
+    font-weight: 700;
+    color: var(--text-bright);
+}
+
+.dm-msg-text {
+    color: var(--text);
+}
+
+.dm-compose {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.dm-compose input {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-bright);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+}
+
+.dm-empty {
+    padding: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+}

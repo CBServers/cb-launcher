@@ -492,7 +492,7 @@
         }
 
         if (status.state === 'ready') await fetchFriends();
-        setNavBadge('friends-badge', friends.incoming.length);
+        refreshBadge();
 
         // Don't rebuild the panel while the user is editing their profile or typing in a field.
         if (activeSource === 'cb' && !editingProfile && !interacting()) render(status);
@@ -506,8 +506,15 @@
         badge.style.display = count > 0 ? '' : 'none';
     }
 
+    // Pending requests and unread messages both want the user's attention, so they share a badge.
+    function refreshBadge() {
+        const dms = window.DirectMessages ? window.DirectMessages.getUnread() : 0;
+        setNavBadge('friends-badge', friends.incoming.length + dms);
+    }
+
     window.CbFriendsManager = {
         refresh,
+        refreshBadge,
         start() {
             if (started) return;
             started = true;

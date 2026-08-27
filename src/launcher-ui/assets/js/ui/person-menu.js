@@ -243,6 +243,8 @@
             const known = person.relation === 'friend' || person.relation === 'requested';
             const items = [
                 { label: t('viewProfile'), action: () => showCard(person) },
+                { label: t('message'), hidden: isSelf || person.relation !== 'friend' || !window.DirectMessages,
+                  action: () => window.DirectMessages.open(person.cbId) },
                 { label: t('addFriend'), hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
                 { label: t('block'), hidden: isSelf, danger: true, action: () => blockUser(person) },
                 { label: t('report'), hidden: isSelf, danger: true, action: () => reportUser(person) },

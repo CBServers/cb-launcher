@@ -37,6 +37,9 @@ const mockCb = {
     viewedProfile: null,
     blocked: [],
     securityEvents: [],
+    dmConversations: [],
+    dmMessages: [],
+    dmPeer: '',
     modRole: '',
     modReports: [],
     modLog: [],
@@ -134,6 +137,15 @@ function mockCommand(command, data) {
         }
         case 'cbfriends-get-viewed-profile':
             return { profile: mockCb.viewedProfile || null };
+        case 'cbfriends-get-dm-list':
+            return { conversations: mockCb.dmConversations, unread: 0 };
+        case 'cbfriends-get-dm':
+            return { peer: mockCb.dmPeer, messages: mockCb.dmMessages };
+        case 'cbfriends-set-dm-peer':
+            mockCb.dmPeer = data && data.cbId;
+            return { ok: true };
+        case 'cbfriends-send-dm':
+            return { ok: true };
         case 'cbfriends-mod-status':
             return { role: mockCb.modRole };
         case 'cbfriends-mod-get-reports':

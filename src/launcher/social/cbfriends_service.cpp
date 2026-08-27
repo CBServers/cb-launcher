@@ -527,6 +527,7 @@ namespace social
     void cbfriends_service::stop()
     {
         stop_chat_worker();
+        stop_dm_worker();
         running_ = false;
         if (worker_.joinable())
         {
@@ -559,6 +560,7 @@ namespace social
                     refresh_blocked();
                     refresh_security();
                     refresh_mod_role();
+                    refresh_dm_list();
                     // Keeps the Community badge honest while its tab is closed.
                     if (!community_active_) refresh_lfg();
                 }
@@ -1369,6 +1371,154 @@ namespace social
     {
         std::lock_guard lock(mutex_);
         return security_;
+    }
+
+    // Direct messages. One held poll per open conversation, mirroring the room chat above.
+
+    void cbfriends_service::set_dm_peer(const std::string& cb_id)
+    {
+        {
+            std::lock_guard lock(mutex_);
+            if (dm_peer_ == cb_id) return;
+            dm_peer_ = cb_id;
+            dm_.clear();
+            dm_after_ = 0;
+        }
+
+        stop_dm_worker();
+        if (!cb_id.empty() && get_state() == profile_state::ready)
+        {
+            dm_running_ = true;
+            dm_worker_ = std::thread(&cbfriends_service::dm_loop, this);
+        }
+    }
+
+    void cbfriends_service::stop_dm_worker()
+    {
+        dm_running_ = false;
+        if (dm_worker_.joinable())
+        {
+            dm_worker_.join();
+        }
+    }
+
+    void cbfriends_service::dm_loop()
+    {
+        using namespace std::chrono_literals;
+        while (dm_running_)
+        {
+            poll_dm(true);
+            for (int i = 0; i < 4 && dm_running_; ++i)
+            {
+                std::this_thread::sleep_for(250ms);
+            }
+        }
+    }
+
+    std::string cbfriends_service::get_dm_peer() const
+    {
+        std::lock_guard lock(mutex_);
+        return dm_peer_;
+    }
+
+    std::vector<chat_message> cbfriends_service::get_dm_messages() const
+    {
+        std::lock_guard lock(mutex_);
+        return dm_;
+    }
+
+    std::vector<dm_conversation> cbfriends_service::get_dm_conversations() const
+    {
+        std::lock_guard lock(mutex_);
+        return dm_list_;
+    }
+
+    int cbfriends_service::get_dm_unread() const
+    {
+        std::lock_guard lock(mutex_);
+        return dm_unread_;
+    }
+
+    void cbfriends_service::send_dm(const std::string& cb_id, const std::string& text)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "to", cb_id);
+        add_string(body, "text", text);
+        // The room wakes our own held poll on delivery, so there is nothing to chase here.
+        post_action("/v1/dm/send", serialize(body), {});
+    }
+
+    void cbfriends_service::poll_dm(const bool hold)
+    {
+        if (get_state() != profile_state::ready) return;
+
+        std::string peer;
+        int64_t after;
+        {
+            std::lock_guard lock(mutex_);
+            peer = dm_peer_;
+            after = dm_after_;
+        }
+        if (peer.empty()) return;
+
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "with", peer);
+        body.AddMember("after", after, body.GetAllocator());
+        if (hold) body.AddMember("hold", true, body.GetAllocator());
+
+        auto doc = hold
+            ? post_json(base_url() + "/v1/dm/poll", serialize(body), CHAT_HOLD_TIMEOUT_SECONDS,
+                        [this](size_t, size_t, size_t) { return dm_running_.load(); })
+            : post_json(base_url() + "/v1/dm/poll", serialize(body));
+        if (!doc || !doc->HasMember("messages") || !(*doc)["messages"].IsArray()) return;
+
+        std::lock_guard lock(mutex_);
+        if (dm_peer_ != peer) return; // the user switched conversations mid-request
+
+        for (const auto& m : (*doc)["messages"].GetArray())
+        {
+            chat_message message;
+            message.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
+            message.cb_id = json_get(m, "cbId");
+            message.handle = json_get(m, "handle");
+            message.display_name = json_get(m, "displayName");
+            message.accent = json_get(m, "accent");
+            message.text = json_get(m, "text");
+            dm_.push_back(std::move(message));
+            dm_after_ = (std::max)(dm_after_, dm_.back().id);
+        }
+        if (dm_.size() > 200)
+        {
+            dm_.erase(dm_.begin(), dm_.begin() + (dm_.size() - 200));
+        }
+    }
+
+    void cbfriends_service::refresh_dm_list()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/dm/list", ts_body());
+        if (!doc || !doc->HasMember("conversations") || !(*doc)["conversations"].IsArray()) return;
+
+        std::vector<dm_conversation> list;
+        for (const auto& c : (*doc)["conversations"].GetArray())
+        {
+            dm_conversation row;
+            row.person = parse_person(c);
+            row.preview = json_get(c, "preview");
+            row.last_at = (c.IsObject() && c.HasMember("lastAt") && c["lastAt"].IsInt64())
+                ? c["lastAt"].GetInt64() : 0;
+            row.unread = (c.IsObject() && c.HasMember("unread") && c["unread"].IsInt())
+                ? c["unread"].GetInt() : 0;
+            list.push_back(std::move(row));
+        }
+
+        std::lock_guard lock(mutex_);
+        dm_list_ = std::move(list);
+        dm_unread_ = (doc->HasMember("unread") && (*doc)["unread"].IsInt()) ? (*doc)["unread"].GetInt() : 0;
     }
 
     // Moderation. Every endpoint re-checks authority server-side; nothing here is a permission.

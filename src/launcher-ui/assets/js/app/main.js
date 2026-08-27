@@ -322,6 +322,10 @@ async function initialize() {
                 window.ModerationManager.start();
             }
 
+            if (!window.IS_OFFLINE && window.DirectMessages) {
+                window.DirectMessages.start();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });

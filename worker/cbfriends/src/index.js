@@ -24,6 +24,7 @@ const RECOVER_PER_HOUR = 5;        // per anchor; HWID is a weak secret
 const RECOVER_BLOCK_IF_ACTIVE_MS = 5 * 60_000; // an account in active use does not need recovery
 const SECURITY_EVENTS = 20;
 const CHAT_PAGE = 50;         // scrollback page size
+const DM_PREFIX = 'dm-';      // reserved room-id prefix; the open chat endpoints refuse it
 const TS_SKEW_SECONDS = 300;
 
 function json(status, body) {
@@ -942,6 +943,9 @@ async function handleProfileGet(env, cbId, body) {
 function chatRoomName(room) {
     const value = String(room || '').trim().toLowerCase();
     if (value === 'all') return 'all';
+    // A DM room id is derived from two cbIds, which are public, so the open chat endpoints must not
+    // be able to name one. DMs go through /v1/dm/*, which checks the friendship first.
+    if (value.startsWith(DM_PREFIX)) return '';
     return /^[a-z0-9-]{2,32}$/.test(value) ? value : '';
 }
 
@@ -952,6 +956,88 @@ function toChatRoom(env, room, path, payload) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload || {}),
     }));
+}
+
+// Direct messages. A conversation is an ordinary ChatRoom with an authorisation gate in front of
+// it, so history, retention and the held poll all come for free. The room id is derived from the
+// pair so both sides compute the same one without storing a mapping.
+
+async function dmRoom(a, b) {
+    const pair = [a, b].sort().join('|');
+    return DM_PREFIX + (await sha256Hex(new TextEncoder().encode(pair))).slice(0, 28);
+}
+
+// Both sides must still be friends and unblocked; that is the whole access check for a conversation.
+async function dmPeer(env, cbId, other) {
+    if (!other || other === cbId) return null;
+    const me = await graphGet(env, cbId);
+    if (!me.friends.includes(other)) return null;
+    if (await eitherBlocked(env, cbId, other)) return null;
+    return other;
+}
+
+async function handleDmSend(env, cbId, body) {
+    const peer = await dmPeer(env, cbId, String(body.to || ''));
+    if (!peer) return json(403, { error: 'not friends' });
+
+    const text = typeof body.text === 'string' ? body.text.trim().slice(0, CHAT_MAX_LENGTH) : '';
+    if (!text) return json(400, { error: 'empty message' });
+
+    const mute = await activeMute(env, cbId);
+    if (mute) return json(403, { error: 'you are muted', until: mute.until, reason: mute.reason });
+
+    const account = await getAccount(env, cbId);
+    const profile = (account && account.profile) || {};
+    const room = await dmRoom(cbId, peer);
+    const res = await toChatRoom(env, room, 'send', {
+        cbId,
+        handle: profile.handle || '',
+        displayName: profile.displayName || profile.handle || '',
+        accent: profile.accent || '',
+        text,
+    });
+    const sent = await res.json();
+    if (!sent.ok) return json(res.status, sent);
+
+    // Each side keeps its own inbox row, so listing conversations never walks the rooms.
+    const at = Date.now();
+    await Promise.all([
+        graphApply(env, cbId, [{ op: 'dm', peer, lastId: sent.id, lastAt: at, preview: text, unread: false }]),
+        graphApply(env, peer, [{ op: 'dm', peer: cbId, lastId: sent.id, lastAt: at, preview: text, unread: true }]),
+    ]);
+    return json(200, { ok: true, id: sent.id });
+}
+
+async function handleDmPoll(env, cbId, body) {
+    const peer = await dmPeer(env, cbId, String(body.with || ''));
+    if (!peer) return json(403, { error: 'not friends' });
+
+    const room = await dmRoom(cbId, peer);
+    const res = await toChatRoom(env, room, 'poll', {
+        after: body.after, before: body.before, hold: body.hold === true,
+    });
+    const data = await res.json();
+
+    // Reaching the live tail is what marks a conversation read.
+    if (!body.before) {
+        await graphApply(env, cbId, [{ op: 'dm-read', peer }]);
+    }
+    return json(200, data);
+}
+
+// The conversation list, newest first, with unread counts for the badge.
+async function handleDmList(env, cbId) {
+    const edges = await graphGet(env, cbId);
+    const inbox = edges.dm || {};
+    const ids = Object.keys(inbox);
+    const people = Object.fromEntries((await peopleViews(env, ids)).map(p => [p.cbId, p]));
+    const conversations = ids
+        .map(id => ({ ...people[id], ...inbox[id], cbId: id }))
+        .sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+    return json(200, {
+        conversations,
+        unread: conversations.reduce((n, c) => n + (c.unread || 0), 0),
+    });
 }
 
 async function handleChatSend(env, cbId, body) {
@@ -1248,6 +1334,12 @@ export default {
                 return handleInviteSend(env, cbId, body);
             case '/v1/invite/poll':
                 return handleInvitePoll(env, cbId);
+            case '/v1/dm/send':
+                return handleDmSend(env, cbId, body);
+            case '/v1/dm/poll':
+                return handleDmPoll(env, cbId, body);
+            case '/v1/dm/list':
+                return handleDmList(env, cbId);
             case '/v1/chat/send':
                 return handleChatSend(env, cbId, body);
             case '/v1/chat/poll':
@@ -1478,6 +1570,7 @@ export class SocialGraph {
                 incoming: [...new Set(body.incoming || [])],
                 outgoing: [...new Set(body.outgoing || [])],
                 blocked: [...new Set(body.blocked || [])],
+                dm: {},
             };
             await this.state.storage.put('edges', this.edges);
             return json(200, this.view());
@@ -1485,12 +1578,30 @@ export class SocialGraph {
 
         if (pathname === '/apply') {
             let dirty = false;
-            for (const { op, list, cbId } of (body.ops || [])) {
-                const current = this.edges[list];
-                if (!current || !cbId) continue;
-                if (op === 'add' && !current.includes(cbId)) { current.push(cbId); dirty = true; }
-                if (op === 'remove' && current.includes(cbId)) {
-                    this.edges[list] = current.filter(x => x !== cbId);
+            for (const op of (body.ops || [])) {
+                if (op.op === 'dm' || op.op === 'dm-read') {
+                    if (!op.peer) continue;
+                    if (!this.edges.dm) this.edges.dm = {};
+                    const row = this.edges.dm[op.peer] || { unread: 0 };
+                    if (op.op === 'dm-read') {
+                        if (!row.unread) continue;
+                        row.unread = 0;
+                    } else {
+                        row.lastId = op.lastId;
+                        row.lastAt = op.lastAt;
+                        row.preview = String(op.preview || '').slice(0, 120);
+                        row.unread = op.unread ? (row.unread || 0) + 1 : 0;
+                    }
+                    this.edges.dm[op.peer] = row;
+                    dirty = true;
+                    continue;
+                }
+
+                const current = this.edges[op.list];
+                if (!current || !op.cbId) continue;
+                if (op.op === 'add' && !current.includes(op.cbId)) { current.push(op.cbId); dirty = true; }
+                if (op.op === 'remove' && current.includes(op.cbId)) {
+                    this.edges[op.list] = current.filter(x => x !== op.cbId);
                     dirty = true;
                 }
             }
