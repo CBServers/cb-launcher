@@ -158,3 +158,5 @@ deps/discord_social_sdk
 
 CLAUDE.md
 .claude
+# Local cbfriends/relay dev store
+worker/*/kv.json
