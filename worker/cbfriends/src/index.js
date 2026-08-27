@@ -492,6 +492,7 @@ const LFG_FRESH_MS = 15 * 60_000;
 const CHAT_MAX_LENGTH = 300;
 const CHAT_HISTORY = 200;
 const CHAT_PER_MINUTE = 12;
+const CHAT_HOLD_MS = 25_000;   // shorter than the client's read timeout
 
 // Zero-padded so storage keys sort in message order.
 function msgKey(id) {
@@ -798,13 +799,22 @@ async function handleChatPoll(env, cbId, body) {
     const room = chatRoomName(body.room);
     if (!room) return json(400, { error: 'bad room' });
 
-    const res = await toChatRoom(env, room, 'poll', { after: body.after, before: body.before });
+    const res = await toChatRoom(env, room, 'poll', {
+        after: body.after, before: body.before, hold: body.hold === true,
+    });
     const blocks = (await graphGet(env, cbId)).blocked;
     if (!blocks.length) return res;
 
     // Blocked authors are filtered here rather than in the room, which has no idea who is reading.
+    // `cursor` still counts them, so a room of nothing but blocked chatter cannot spin the client.
     const data = await res.json();
-    return json(200, { ...data, messages: (data.messages || []).filter(m => !blocks.includes(m.cbId)) });
+    const messages = data.messages || [];
+    const cursor = messages.reduce((max, m) => (m.id > max ? m.id : max), 0);
+    return json(200, {
+        ...data,
+        messages: messages.filter(m => !blocks.includes(m.cbId)),
+        cursor,
+    });
 }
 
 // Deliver-once: returns pending messages and clears the mailbox.
@@ -1064,6 +1074,7 @@ export class ChatRoom {
         this.seq = 0;
         this.rate = new Map();
         this.ready = null;
+        this.waiters = [];
 
         // History lives in Durable Object storage so it survives evictions and redeploys; the array
         // above is just a mirror of the tail. Requests are blocked until it is loaded.
@@ -1083,6 +1094,11 @@ export class ChatRoom {
         if (this.state && this.state.blockConcurrencyWhile) return;
         if (!this.ready) this.ready = this.load();
         await this.ready;
+    }
+
+    wake() {
+        const waiters = this.waiters.splice(0);
+        for (const resolve of waiters) resolve();
     }
 
     // Per-sender cap so one account can't flood the room.
@@ -1122,6 +1138,7 @@ export class ChatRoom {
                 const dropped = this.messages.splice(0, this.messages.length - CHAT_HISTORY);
                 await this.state.storage.delete(dropped.map(m => msgKey(m.id)));
             }
+            this.wake();
             return json(200, { ok: true, id: message.id });
         }
 
@@ -1134,8 +1151,25 @@ export class ChatRoom {
                 });
                 return json(200, { messages: [...older.values()].reverse(), history: true });
             }
+
             const after = Number(body.after) || 0;
-            return json(200, { messages: this.messages.filter(m => m.id > after) });
+            const since = () => this.messages.filter(m => m.id > after);
+            if (body.hold && !since().length) {
+                // Held open so a message arrives the moment it is sent, rather than on the next tick.
+                await new Promise(resolve => {
+                    let done = false;
+                    const finish = () => {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        this.waiters = this.waiters.filter(w => w !== finish);
+                        resolve();
+                    };
+                    const timer = setTimeout(finish, CHAT_HOLD_MS);
+                    this.waiters.push(finish);
+                });
+            }
+            return json(200, { messages: since(), seq: this.seq });
         }
 
         return json(404, { error: 'not found' });

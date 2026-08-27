@@ -88,7 +88,12 @@ device-key authed and route between CB friends by `cbId`.
 Four classes, because KV can neither hold a request open, serialise appends, nor be read back
 immediately after a write:
 
-- `ChatRoom` (binding `CHAT`) — one per chat room. History is kept in Durable Object **storage**
+- `ChatRoom` (binding `CHAT`) — one per chat room. A poll sent with `hold` is held open until someone
+  sends or ~25s elapses, so a message arrives the moment it is sent and an idle room costs one
+  request every 25 seconds instead of one every five. Because the worker filters blocked authors
+  after the room replies, the response also carries a `cursor` past everything it considered —
+  without it, a room of nothing but blocked chatter would spin the client. History is kept in
+  Durable Object **storage**
   (`msg:<zero-padded id>` plus a `seq` counter), so it survives evictions and redeploys. The
   in-memory array is only a mirror of the tail, loaded on wake via `blockConcurrencyWhile`. The last
   200 messages per room are retained; older ones are deleted from storage as new ones arrive.

@@ -23,6 +23,8 @@ namespace social
 {
     namespace
     {
+        constexpr int CHAT_HOLD_TIMEOUT_SECONDS = 40; // the room holds a poll for ~25s
+
         std::string json_get(const rapidjson::Value& value, const char* key)
         {
             if (value.IsObject() && value.HasMember(key) && value[key].IsString())
@@ -48,7 +50,9 @@ namespace social
         }
 
         // Signs the exact bytes sent; the worker verifies over the same string.
-        std::optional<utils::http::result> post_signed(const std::string& url, const std::string& body)
+        std::optional<utils::http::result> post_signed(const std::string& url, const std::string& body,
+                                                       int timeout = 30,
+                                                       std::function<bool(size_t, size_t, size_t)> abort = {})
         {
             auto& id = identity::instance();
             const auto key_b64 = utils::cryptography::base64::encode(id.public_key());
@@ -64,7 +68,7 @@ namespace social
                 {"X-CB-Sig", sig_b64},
             };
 
-            return utils::http::get_data(url, body, headers, {}, 30, 1);
+            return utils::http::get_data(url, body, headers, std::move(abort), timeout, 1);
         }
 
         std::string discord_access_token()
@@ -74,9 +78,11 @@ namespace social
         }
 
         // POSTs a signed body, returning the parsed 200 response or nullopt.
-        std::optional<rapidjson::Document> post_json(const std::string& url, const std::string& body)
+        std::optional<rapidjson::Document> post_json(const std::string& url, const std::string& body,
+                                                     int timeout = 30,
+                                                     std::function<bool(size_t, size_t, size_t)> abort = {})
         {
-            const auto resp = post_signed(url, body);
+            const auto resp = post_signed(url, body, timeout, std::move(abort));
             if (!resp)
             {
                 return std::nullopt;
@@ -520,6 +526,7 @@ namespace social
 
     void cbfriends_service::stop()
     {
+        stop_chat_worker();
         running_ = false;
         if (worker_.joinable())
         {
@@ -557,7 +564,6 @@ namespace social
                 if (community_active_)
                 {
                     refresh_lfg();
-                    poll_chat();
                 }
             }
 
@@ -1138,9 +1144,37 @@ namespace social
             chat_oldest_ = 0;
             chat_more_ = true;
         }
+
+        stop_chat_worker();
         if (!room.empty() && get_state() == profile_state::ready)
         {
-            std::thread(&cbfriends_service::poll_chat, this).detach();
+            chat_running_ = true;
+            chat_worker_ = std::thread(&cbfriends_service::chat_loop, this);
+        }
+    }
+
+    void cbfriends_service::stop_chat_worker()
+    {
+        chat_running_ = false;
+        if (chat_worker_.joinable())
+        {
+            chat_worker_.join();
+        }
+    }
+
+    // Holds a poll open on its own thread, so a message lands the moment it is sent.
+    void cbfriends_service::chat_loop()
+    {
+        using namespace std::chrono_literals;
+        while (chat_running_)
+        {
+            poll_chat(true);
+
+            // Only reached when the hold expired or the request failed; a short rest bounds retries.
+            for (int i = 0; i < 4 && chat_running_; ++i)
+            {
+                std::this_thread::sleep_for(250ms);
+            }
         }
     }
 
@@ -1157,10 +1191,11 @@ namespace social
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
         add_string(body, "room", room);
         add_string(body, "text", text);
-        post_action("/v1/chat/send", serialize(body), [this] { poll_chat(); });
+        // The room wakes every held poll on delivery, including ours, so there is nothing to chase.
+        post_action("/v1/chat/send", serialize(body), {});
     }
 
-    void cbfriends_service::poll_chat()
+    void cbfriends_service::poll_chat(const bool hold)
     {
         if (get_state() != profile_state::ready)
         {
@@ -1184,8 +1219,13 @@ namespace social
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
         add_string(body, "room", room);
         body.AddMember("after", after, body.GetAllocator());
+        if (hold) body.AddMember("hold", true, body.GetAllocator());
 
-        auto doc = post_json(base_url() + "/v1/chat/poll", serialize(body));
+        // Read timeout outlives the server's hold; the abort drops it the moment the room closes.
+        auto doc = hold
+            ? post_json(base_url() + "/v1/chat/poll", serialize(body), CHAT_HOLD_TIMEOUT_SECONDS,
+                        [this](size_t, size_t, size_t) { return chat_running_.load(); })
+            : post_json(base_url() + "/v1/chat/poll", serialize(body));
         if (!doc || !doc->HasMember("messages") || !(*doc)["messages"].IsArray())
         {
             return;
@@ -1195,6 +1235,12 @@ namespace social
         if (chat_room_ != room)
         {
             return; // the user switched rooms while the request was in flight
+        }
+
+        // Counts messages the server filtered out, so a room of blocked chatter can't spin us.
+        if (doc->HasMember("cursor") && (*doc)["cursor"].IsInt64())
+        {
+            chat_after_ = (std::max)(chat_after_, (*doc)["cursor"].GetInt64());
         }
         for (const auto& m : (*doc)["messages"].GetArray())
         {

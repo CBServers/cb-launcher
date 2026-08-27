@@ -224,7 +224,9 @@ namespace social
         void send_broadcast_keepalive();
         void load_broadcast();
         void poll_invites();
-        void poll_chat();
+        void chat_loop();
+        void poll_chat(bool hold);
+        void stop_chat_worker();
         void refresh_blocked();
         void refresh_security();
         void process_message(const rapidjson::Value& message);
@@ -274,7 +276,9 @@ namespace social
         std::optional<cb_person> viewed_profile_;
 
         std::thread worker_;
+        std::thread chat_worker_;
         std::atomic<bool> running_{false};
+        std::atomic<bool> chat_running_{false};
         std::atomic<bool> community_active_{false};
         std::atomic<bool> broadcasting_{false};
         std::atomic<int64_t> last_presence_{0};
