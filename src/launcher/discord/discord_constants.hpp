@@ -12,9 +12,11 @@ namespace discord
     // accounts have linked the launcher.
     constexpr const char* LINK_REGISTRY_URL = "https://auth.cbservers.xyz";
 
-    // Self-hosted invite relay, served by the cbfriends worker. Carries invites and join requests
-    // off Discord's app-wide rate-limited surface. Override with -relay-url <url>.
-    constexpr const char* RELAY_URL = "https://social.cbservers.xyz";
+    // Self-hosted invite relay. Carries invites and join requests off Discord's app-wide
+    // rate-limited surface. Override with -relay-url <url>. The cbfriends worker also serves this
+    // protocol, so the relay is retired by pointing this hostname at it, not by changing the URL:
+    // builds already in the wild keep working through the cutover.
+    constexpr const char* RELAY_URL = "https://relay.cbservers.xyz";
 
     // Base URL for per-game rich-presence art (large image), keyed by game id
     // (e.g. "boiii"). Full URL is PRESENCE_ART_BASE + id + ".png".
