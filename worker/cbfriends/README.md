@@ -49,6 +49,39 @@ one, returning `409 recoverable` so the client recovers instead of duplicating.
 case-insensitive (the folded form is the key). Phase 1 moves the friend graph to D1; Phase 0 needs
 only these key→value lookups.
 
+## Discord invite relay
+
+This worker also serves the Discord invite relay that used to run separately, so there is one
+service instead of two. Those endpoints speak the protocol `src/launcher/discord/relay_client.cpp`
+already implements, and are authenticated by **Discord token / relay token** — never a device key —
+so they keep working for people who never opt into a CB profile.
+
+| Endpoint | Auth | Response |
+|---|---|---|
+| `/v1/session/start` | `Bearer <discord token>` | `{ relayToken, relayEnabled }` |
+| `/v1/poll` | `Bearer <relayToken>` | `{ invites: [...] }` — long-poll, held ~25s |
+| `/v1/invite` | `Bearer <relayToken>` | `{ reason }` |
+| `/v1/invite/reply` | `Bearer <relayToken>` | `{ reason }` |
+
+`reason` is what the client classifies on: `delivered`; `offline` → **the launcher falls back to the
+Discord SDK**; `throttled` (429) → report rate-limited and **do not** fall back, which is the whole
+point of the relay; `blocked` / `failed`.
+
+Set the KV key `relayEnabled` to `false` to push every client back onto the SDK without redeploying.
+
+These are distinct from the CB game invites (`/v1/invite/send`, `/v1/invite/poll`), which are
+device-key authed and route between CB friends by `cbId`.
+
+## Durable Objects
+
+Two classes, because KV can neither hold a request open nor serialise appends:
+
+- `ChatRoom` (binding `CHAT`) — one per chat room, holds recent history.
+- `Mailbox` (binding `MAILBOX`) — one per Discord user, holds their relay long-poll and mailbox.
+
+Both keep state in memory, so a redeploy or eviction drops chat scrollback and any undelivered relay
+message. Undelivered messages simply fall back to the SDK; scrollback is not currently persisted.
+
 ## Deploy
 
 ```

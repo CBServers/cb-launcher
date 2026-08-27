@@ -27,14 +27,16 @@ function persist() {
     }
 }
 // Durable Object shim: runs the worker's real ChatRoom class, one instance per room name.
-const rooms = new Map();
-const chatBinding = {
-    idFromName(name) { return name; },
-    get(name) {
-        if (!rooms.has(name)) rooms.set(name, new module.ChatRoom({}));
-        return rooms.get(name);
-    },
-};
+function doBinding(Cls) {
+    const instances = new Map();
+    return {
+        idFromName(name) { return name; },
+        get(name) {
+            if (!instances.has(name)) instances.set(name, new Cls({}));
+            return instances.get(name);
+        },
+    };
+}
 
 const env = {
     CB: {
@@ -46,7 +48,8 @@ const env = {
             return { keys, list_complete: true };
         },
     },
-    CHAT: chatBinding,
+    CHAT: doBinding(module.ChatRoom),
+    MAILBOX: doBinding(module.Mailbox),
 };
 
 const server = createServer(async (req, res) => {

@@ -700,17 +700,91 @@ async function handleLfgList(env, cbId, body) {
     return json(200, { posts });
 }
 
+// ---- Discord invite relay ----
+//
+// Speaks the protocol relay_client.cpp already implements, so retiring the standalone relay is just
+// a URL change. Identity here is Discord only, keyed by Discord id, so it keeps working for people
+// who never opt into a CB profile.
+
+const RELAY_PATHS = new Set(['/v1/session/start', '/v1/poll', '/v1/invite', '/v1/invite/reply']);
+const RELAY_SESSION_TTL = 3600;
+const RELAY_RATE_PER_MINUTE = 30;
+
+function relayMailbox(env, discordId, path, payload) {
+    const stub = env.MAILBOX.get(env.MAILBOX.idFromName(discordId));
+    return stub.fetch(new Request(`https://mailbox/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+    }));
+}
+
+async function relayFetch(request, env, pathname) {
+    const auth = request.headers.get('Authorization') || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    if (!token) return json(401, { error: 'unauthorized' });
+
+    // Exchange a Discord bearer for a relay token.
+    if (pathname === '/v1/session/start') {
+        const user = await resolveDiscordUser(token);
+        if (!user) return json(401, { error: 'unauthorized' });
+
+        const relayToken = 'rl_' + crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+        await env.CB.put(`sess:${await sha256Hex(new TextEncoder().encode(relayToken))}`, user.id,
+                         { expirationTtl: RELAY_SESSION_TTL });
+        const enabled = (await env.CB.get('relayEnabled')) !== 'false';
+        return json(200, { relayToken, relayEnabled: enabled });
+    }
+
+    const me = await env.CB.get(`sess:${await sha256Hex(new TextEncoder().encode(token))}`);
+    if (!me) return json(401, { error: 'unauthorized' });
+
+    let body = {};
+    try { body = await request.json(); } catch { body = {}; }
+
+    if (pathname === '/v1/poll') {
+        return relayMailbox(env, me, 'poll', { ack: body.ack, session: body.session });
+    }
+
+    const to = String(body.to || '');
+    if (!SNOWFLAKE_RE.test(to) || to === me) return json(200, { reason: 'failed' });
+
+    const gate = await relayMailbox(env, me, 'rate', { limit: RELAY_RATE_PER_MINUTE });
+    if (!(await gate.json()).allowed) return json(429, { reason: 'throttled' });
+
+    const isReply = pathname === '/v1/invite/reply';
+    return relayMailbox(env, to, 'deliver', {
+        message: {
+            id: 'rmsg_' + crypto.randomUUID().replace(/-/g, ''),
+            from: me,
+            kind: isReply ? 'invite' : (body.kind === 'join-request' ? 'join-request' : 'invite'),
+            game: String(body.game || ''),
+            matchId: String(body.matchId || ''),
+            joinSecret: (!isReply || body.accept !== false) ? String(body.joinSecret || '') : '',
+            isApproval: isReply,
+            accept: body.accept !== false,
+        },
+    });
+}
+
 export default {
     async fetch(request, env) {
         if (request.method !== 'POST') {
             return json(405, { error: 'method not allowed' });
         }
 
+        const { pathname } = new URL(request.url);
+
+        // Discord invite relay. Authed by Discord token / relay token rather than a device key, so it
+        // is dispatched before the CB auth below and works for users with no CB profile.
+        if (RELAY_PATHS.has(pathname)) {
+            return relayFetch(request, env, pathname);
+        }
+
         const auth = await authenticate(request);
         if (auth.error) return auth.error;
         const { fpr, body } = auth;
 
-        const { pathname } = new URL(request.url);
         switch (pathname) {
             case '/v1/account/bootstrap':
                 return handleBootstrap(env, fpr, body);
@@ -830,6 +904,75 @@ export class ChatRoom {
         if (pathname === '/poll') {
             const after = Number(body.after) || 0;
             return json(200, { messages: this.messages.filter(m => m.id > after) });
+        }
+
+        return json(404, { error: 'not found' });
+    }
+}
+
+// One instance per Discord user, holding that user's long-poll and mailbox.
+export class Mailbox {
+    constructor(state) {
+        this.state = state;
+        this.messages = [];
+        this.waiters = [];
+        this.lastSeen = 0;
+        this.rate = new Map();
+        this.snapshot = null;
+    }
+
+    // A recipient who hasn't polled recently is offline, so the sender falls back to the SDK.
+    reachable() {
+        return Date.now() - this.lastSeen < 90_000;
+    }
+
+    wake() {
+        const waiters = this.waiters.splice(0);
+        for (const resolve of waiters) resolve();
+    }
+
+    async fetch(request) {
+        const { pathname } = new URL(request.url);
+        const body = await request.json().catch(() => ({}));
+
+        if (pathname === '/rate') {
+            const bucket = Math.floor(Date.now() / 60000);
+            for (const key of this.rate.keys()) if (key !== bucket) this.rate.delete(key);
+            const count = (this.rate.get(bucket) || 0) + 1;
+            this.rate.set(bucket, count);
+            return json(200, { allowed: count <= (body.limit || RELAY_RATE_PER_MINUTE) });
+        }
+
+        if (pathname === '/deliver') {
+            if (!this.reachable()) return json(200, { reason: 'offline' });
+            this.messages.push(body.message);
+            if (this.messages.length > 64) this.messages.shift();
+            this.wake();
+            return json(200, { reason: 'delivered' });
+        }
+
+        if (pathname === '/poll') {
+            this.lastSeen = Date.now();
+            if (body.session && typeof body.session === 'object') this.snapshot = body.session;
+
+            const acked = new Set(Array.isArray(body.ack) ? body.ack : []);
+            if (acked.size) this.messages = this.messages.filter(m => !acked.has(m.id));
+            if (this.messages.length) return json(200, { invites: this.messages });
+
+            // Hold until a delivery wakes it or the hold elapses.
+            await new Promise(resolve => {
+                let done = false;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    this.waiters = this.waiters.filter(w => w !== finish);
+                    resolve();
+                };
+                const timer = setTimeout(finish, 25_000);
+                this.waiters.push(finish);
+            });
+            return json(200, { invites: this.messages });
         }
 
         return json(404, { error: 'not found' });

@@ -15,6 +15,11 @@ kv_namespaces = [
 name = "CHAT"
 class_name = "ChatRoom"
 
+# One Durable Object per Discord user holds that user's relay long-poll and mailbox.
+[[durable_objects.bindings]]
+name = "MAILBOX"
+class_name = "Mailbox"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom"]
+new_classes = ["ChatRoom", "Mailbox"]
