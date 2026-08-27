@@ -25,8 +25,9 @@ namespace commands::social_commands
             return {};
         }
 
-        void add_person(rapidjson::Value& array, const social::cb_person& person,
-                        rapidjson::Document::AllocatorType& allocator)
+        // Builds the JSON shape for one person; add_person pushes it into an array.
+        rapidjson::Value person_value(const social::cb_person& person,
+                                      rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value obj(rapidjson::kObjectType);
             add_string(obj, "cbId", person.cb_id, allocator);
@@ -50,7 +51,13 @@ namespace commands::social_commands
             obj.AddMember("directJoin", person.direct_join, allocator);
             obj.AddMember("openable", person.openable, allocator);
             obj.AddMember("sameMatch", person.same_match, allocator);
-            array.PushBack(obj, allocator);
+            return obj;
+        }
+
+        void add_person(rapidjson::Value& array, const social::cb_person& person,
+                        rapidjson::Document::AllocatorType& allocator)
+        {
+            array.PushBack(person_value(person, allocator), allocator);
         }
     }
 
@@ -175,9 +182,7 @@ namespace commands::social_commands
                 return;
             }
 
-            rapidjson::Value array(rapidjson::kArrayType);
-            add_person(array, *person, allocator);
-            response.AddMember("profile", array[0], allocator);
+            response.AddMember("profile", person_value(*person, allocator), allocator);
         });
 
         cef_ui.add_command("cbfriends-get-friends", [](const rapidjson::Value&, rapidjson::Document& response)
@@ -319,6 +324,113 @@ namespace commands::social_commands
             {
                 invite_notification::dismiss(id);
             }
+        });
+
+        // Moderation. The role shown here only decides what to draw; the worker re-checks authority
+        // on every one of these calls, so a forged role buys nothing.
+        cef_ui.add_command("cbfriends-mod-status", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            add_string(response, "role", social::cbfriends_service::instance().get_mod_role(), allocator);
+        });
+
+        cef_ui.add_command("cbfriends-set-mod-active", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            const auto active = value.IsObject() && value.HasMember("active") && value["active"].IsBool()
+                && value["active"].GetBool();
+            social::cbfriends_service::instance().set_mod_active(active);
+        });
+
+        cef_ui.add_command("cbfriends-mod-get-reports", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value reports(rapidjson::kArrayType);
+            for (const auto& r : social::cbfriends_service::instance().get_mod_reports())
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                add_string(obj, "id", r.id, allocator);
+                add_string(obj, "reason", r.reason, allocator);
+                add_string(obj, "context", r.context, allocator);
+                add_string(obj, "status", r.status, allocator);
+                obj.AddMember("at", r.at, allocator);
+                obj.AddMember("reporter", person_value(r.reporter, allocator), allocator);
+                obj.AddMember("target", person_value(r.target, allocator), allocator);
+                reports.PushBack(obj, allocator);
+            }
+            response.AddMember("reports", reports, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-mod-get-log", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value entries(rapidjson::kArrayType);
+            for (const auto& e : social::cbfriends_service::instance().get_mod_log())
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                add_string(obj, "action", e.action, allocator);
+                add_string(obj, "detail", e.detail, allocator);
+                obj.AddMember("at", e.at, allocator);
+                obj.AddMember("by", person_value(e.by, allocator), allocator);
+                obj.AddMember("target", person_value(e.target, allocator), allocator);
+                entries.PushBack(obj, allocator);
+            }
+            response.AddMember("entries", entries, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-mod-lookup", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().mod_lookup(read_string(value, "handle"));
+        });
+
+        cef_ui.add_command("cbfriends-mod-get-lookup", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto found = social::cbfriends_service::instance().get_mod_lookup();
+            if (!found)
+            {
+                response.AddMember("account", rapidjson::Value(rapidjson::kNullType), allocator);
+                return;
+            }
+
+            rapidjson::Value obj(rapidjson::kObjectType);
+            obj.AddMember("person", person_value(found->person, allocator), allocator);
+            add_string(obj, "role", found->role, allocator);
+            add_string(obj, "muteReason", found->mute_reason, allocator);
+            obj.AddMember("mutedUntil", found->muted_until, allocator);
+            obj.AddMember("createdAt", found->created_at, allocator);
+            obj.AddMember("deviceCount", found->device_count, allocator);
+            response.AddMember("account", obj, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-mod-resolve", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().mod_resolve(read_string(value, "id"));
+        });
+
+        cef_ui.add_command("cbfriends-mod-mute", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            const auto minutes = (value.IsObject() && value.HasMember("minutes") && value["minutes"].IsInt())
+                ? value["minutes"].GetInt() : 0;
+            social::cbfriends_service::instance().mod_mute(read_string(value, "cbId"), minutes,
+                                                           read_string(value, "reason"));
+        });
+
+        cef_ui.add_command("cbfriends-mod-set-role", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().mod_set_role(read_string(value, "cbId"),
+                                                               read_string(value, "role"));
         });
 
         cef_ui.add_command("cbfriends-set-community-active", [](const rapidjson::Value& value, rapidjson::Document& response)

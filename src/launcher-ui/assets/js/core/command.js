@@ -36,7 +36,11 @@ const mockCb = {
     },
     viewedProfile: null,
     blocked: [],
-    securityEvents: []
+    securityEvents: [],
+    modRole: '',
+    modReports: [],
+    modLog: [],
+    modLookup: null
 };
 function mockPerson(handle, name, extra) {
     return Object.assign({ cbId: 'cb_' + handle, handle, displayName: name || handle, avatarUrl: '', online: false, game: '', mode: '', status: '', relation: '', note: '' }, extra || {});
@@ -130,6 +134,19 @@ function mockCommand(command, data) {
         }
         case 'cbfriends-get-viewed-profile':
             return { profile: mockCb.viewedProfile || null };
+        case 'cbfriends-mod-status':
+            return { role: mockCb.modRole };
+        case 'cbfriends-mod-get-reports':
+            return { reports: mockCb.modReports };
+        case 'cbfriends-mod-get-log':
+            return { entries: mockCb.modLog };
+        case 'cbfriends-mod-get-lookup':
+            return { account: mockCb.modLookup };
+        case 'cbfriends-set-mod-active':
+        case 'cbfriends-mod-lookup':
+        case 'cbfriends-mod-resolve':
+        case 'cbfriends-mod-mute':
+        case 'cbfriends-mod-set-role':
         case 'cbfriends-set-activity':
         case 'cbfriends-load-older-chat':
         case 'cbfriends-report':

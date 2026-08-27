@@ -428,7 +428,7 @@ async function handleBlockList(env, cbId) {
     return json(200, { blocked: await peopleViews(env, (await graphGet(env, cbId)).blocked) });
 }
 
-// Reports are stored for an operator to review; there is no automated action.
+// Reports queue for a moderator; nothing is actioned automatically.
 async function handleReport(env, cbId, body) {
     const target = String(body.cbId || '');
     if (!target || target === cbId) return json(400, { error: 'bad target' });
@@ -440,8 +440,188 @@ async function handleReport(env, cbId, body) {
         reason: typeof body.reason === 'string' ? body.reason.slice(0, 300) : '',
         context: typeof body.context === 'string' ? body.context.slice(0, 300) : '',
         at: Date.now(),
+        status: 'open',
     }));
     return json(200, { ok: true, id });
+}
+
+// ---- moderation ----
+//
+// Authority is a server-side allowlist keyed by cbId, never by handle (which changes) or HWID
+// (which is a forgeable machine-local secret). The device-key signature already proves who is
+// calling, so a role is just a lookup. Every mod endpoint re-checks it; the client hiding a tab
+// is cosmetic.
+//
+// `admin` is settable only by writing `role:<cbId>` in KV directly, so there is no in-app path
+// from a compromised moderator to full control. An admin can grant and revoke `mod`.
+
+const MOD_REPORT_PAGE = 100;
+const MOD_LOG_KEEP = 500;
+
+async function roleOf(env, cbId) {
+    return (await env.CB.get(`role:${cbId}`)) || '';
+}
+
+// Returns the caller's role, or an error Response the caller propagates.
+async function requireRole(env, cbId, needed) {
+    const role = await roleOf(env, cbId);
+    const ok = needed === 'admin' ? role === 'admin' : (role === 'mod' || role === 'admin');
+    // 404 rather than 403: a non-moderator cannot tell these endpoints exist.
+    return ok ? { role } : { error: json(404, { error: 'not found' }) };
+}
+
+// Records who did what to whom, so moderator actions are auditable after the fact.
+async function modLog(env, cbId, action, target, detail) {
+    const at = Date.now();
+    const id = `modlog:${String(at).padStart(14, '0')}_${crypto.randomUUID().slice(0, 8)}`;
+    await env.CB.put(id, JSON.stringify({ at, by: cbId, action, target, detail: detail || '' }));
+}
+
+// A mute is a record with an expiry rather than a flag, so temporary mutes lapse on their own.
+async function activeMute(env, cbId) {
+    const raw = await env.CB.get(`muted:${cbId}`);
+    if (!raw) return null;
+    let mute;
+    try { mute = JSON.parse(raw); } catch { return { until: 0, reason: '' }; }
+    if (mute.until && Date.now() > mute.until) {
+        await env.CB.delete(`muted:${cbId}`);
+        return null;
+    }
+    return mute;
+}
+
+async function handleModStatus(env, cbId) {
+    return json(200, { role: await roleOf(env, cbId) });
+}
+
+// Newest first, so the queue opens on what just came in.
+async function handleModReports(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const wantOpen = body.status !== 'all';
+    const reports = [];
+    let cursor;
+    do {
+        const page = await env.CB.list({ prefix: 'report:', cursor });
+        for (const entry of page.keys) {
+            const raw = await env.CB.get(entry.name);
+            if (!raw) continue;
+            let rec;
+            try { rec = JSON.parse(raw); } catch { continue; }
+            if (wantOpen && rec.status !== 'open') continue;
+            reports.push(rec);
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor && reports.length < MOD_REPORT_PAGE * 4);
+
+    reports.sort((a, b) => b.at - a.at);
+    const page = reports.slice(0, MOD_REPORT_PAGE);
+
+    // Both sides of a report are named, so the queue is readable without a second lookup each.
+    const ids = [...new Set(page.flatMap(r => [r.reporter, r.target]))];
+    const people = Object.fromEntries((await peopleViews(env, ids)).map(p => [p.cbId, p]));
+    return json(200, {
+        reports: page.map(r => ({ ...r, reporterProfile: people[r.reporter], targetProfile: people[r.target] })),
+        total: reports.length,
+    });
+}
+
+async function handleModResolve(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const raw = await env.CB.get(`report:${body.id}`);
+    if (!raw) return json(404, { error: 'no such report' });
+    const rec = JSON.parse(raw);
+    rec.status = body.status === 'open' ? 'open' : 'closed';
+    rec.handledBy = cbId;
+    rec.handledAt = Date.now();
+    await env.CB.put(`report:${rec.id}`, JSON.stringify(rec));
+    await modLog(env, cbId, 'resolve', rec.target, rec.id);
+    return json(200, { ok: true });
+}
+
+// minutes <= 0 unmutes, so one endpoint covers both directions.
+async function handleModMute(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const target = String(body.cbId || '');
+    if (!target) return json(400, { error: 'cbId required' });
+    if (await roleOf(env, target)) return json(403, { error: 'cannot mute a moderator' });
+
+    const minutes = Number.isFinite(body.minutes) ? Math.trunc(body.minutes) : 0;
+    if (minutes <= 0) {
+        await env.CB.delete(`muted:${target}`);
+        await modLog(env, cbId, 'unmute', target, '');
+        return json(200, { ok: true, muted: false });
+    }
+
+    const reason = typeof body.reason === 'string' ? body.reason.slice(0, 200) : '';
+    const until = Date.now() + minutes * 60_000;
+    await env.CB.put(`muted:${target}`, JSON.stringify({ until, reason, by: cbId, at: Date.now() }));
+    await modLog(env, cbId, 'mute', target, `${minutes}m ${reason}`);
+    return json(200, { ok: true, muted: true, until });
+}
+
+// The moderator's view of one account: profile, mute state, and who they have been reported by.
+async function handleModLookup(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    let target = String(body.cbId || '');
+    if (!target && typeof body.handle === 'string') {
+        target = (await env.CB.get(`handle:${body.handle.toLowerCase()}`)) || '';
+    }
+    if (!target) return json(404, { error: 'no such account' });
+
+    const account = await getAccount(env, target);
+    if (!account) return json(404, { error: 'no such account' });
+
+    return json(200, {
+        person: await personView(env, target),
+        role: await roleOf(env, target),
+        mute: await activeMute(env, target),
+        // Deliberately not the Discord id, HWID or recovery hashes: moderation does not need them.
+        createdAt: account.createdAt,
+        deviceCount: (account.deviceKeys || []).length,
+    });
+}
+
+async function handleModLog(env, cbId) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const page = await env.CB.list({ prefix: 'modlog:' });
+    const names = page.keys.map(k => k.name).sort().reverse().slice(0, MOD_LOG_KEEP);
+    const entries = [];
+    for (const name of names) {
+        const raw = await env.CB.get(name);
+        if (raw) { try { entries.push(JSON.parse(raw)); } catch { /* skip */ } }
+    }
+    const ids = [...new Set(entries.flatMap(e => [e.by, e.target]).filter(Boolean))];
+    const people = Object.fromEntries((await peopleViews(env, ids)).map(p => [p.cbId, p]));
+    return json(200, { entries: entries.map(e => ({ ...e, byProfile: people[e.by], targetProfile: people[e.target] })) });
+}
+
+// Only an admin moves the moderator list, and only between '' and 'mod'.
+async function handleModSetRole(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'admin');
+    if (gate.error) return gate.error;
+
+    const target = String(body.cbId || '');
+    if (!target || target === cbId) return json(400, { error: 'bad target' });
+    if (!(await getAccount(env, target))) return json(404, { error: 'no such account' });
+    if ((await roleOf(env, target)) === 'admin') return json(403, { error: 'cannot change an admin' });
+
+    if (body.role === 'mod') {
+        await env.CB.put(`role:${target}`, 'mod');
+    } else {
+        await env.CB.delete(`role:${target}`);
+    }
+    await modLog(env, cbId, 'set-role', target, body.role === 'mod' ? 'mod' : 'none');
+    return json(200, { ok: true });
 }
 
 // Friends, presence and LFG. Edges live in a SocialGraph object per account; presence and LFG posts
@@ -781,8 +961,8 @@ async function handleChatSend(env, cbId, body) {
     const text = typeof body.text === 'string' ? body.text.trim().slice(0, CHAT_MAX_LENGTH) : '';
     if (!text) return json(400, { error: 'empty message' });
 
-    // Operator mute, set by hand in KV; there is no in-app moderator tooling yet.
-    if (await env.CB.get(`muted:${cbId}`)) return json(403, { error: 'you are muted' });
+    const mute = await activeMute(env, cbId);
+    if (mute) return json(403, { error: 'you are muted', until: mute.until, reason: mute.reason });
 
     const account = await getAccount(env, cbId);
     const profile = (account && account.profile) || {};
@@ -1026,6 +1206,20 @@ export default {
                 return handleBlockList(env, cbId);
             case '/v1/report':
                 return handleReport(env, cbId, body);
+            case '/v1/mod/status':
+                return handleModStatus(env, cbId);
+            case '/v1/mod/reports':
+                return handleModReports(env, cbId, body);
+            case '/v1/mod/resolve':
+                return handleModResolve(env, cbId, body);
+            case '/v1/mod/mute':
+                return handleModMute(env, cbId, body);
+            case '/v1/mod/lookup':
+                return handleModLookup(env, cbId, body);
+            case '/v1/mod/log':
+                return handleModLog(env, cbId);
+            case '/v1/mod/set-role':
+                return handleModSetRole(env, cbId, body);
             case '/v1/account/sync-discord':
                 return handleDiscordSync(env, cbId, body);
             case '/v1/friends/add':

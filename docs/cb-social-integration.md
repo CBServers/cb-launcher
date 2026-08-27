@@ -97,13 +97,16 @@ The suite drives the real `src/index.js` through signed requests, no wrangler or
 node worker/cbfriends/test/run.mjs
 ```
 
-12 suites, 141 assertions. Two are worth knowing about:
+13 suites, 168 assertions. Three are worth knowing about:
 
 - `kv-budget.test.mjs` pins the cost of the launcher's poll loop. It builds a population, measures,
   grows it 6×, and asserts the cost did not change — a poll cycle is a flat 5 KV reads regardless of
   how many friends or broadcasters exist. A regression that reintroduces a per-friend read fails
   here rather than on the bill.
 - `graph.test.mjs` covers the KV→Durable Object migration described below.
+- `moderation.test.mjs` is mostly about the authority boundary rather than the queue: that the
+  endpoints 404 to non-moderators, that nobody can grant themselves a role, that `admin` is
+  unreachable through the API, and that moderators cannot be muted.
 
 ## Migration behaviour on first deploy
 
@@ -117,12 +120,31 @@ Durable Object, so rolling the worker back would lose post-deploy friend changes
 
 ## Known gaps
 
-- **No operator moderation UI.** Mutes are set by hand as `muted:<cbId>` in KV, and reports land in
-  `report:<id>` with no way to read them without wrangler. With a community this size that is the
-  first thing worth building.
 - **`cb:` i18n block is English-only.** 117 keys. `t()` falls back to English, so fr/es/ru users see
   English text rather than raw keys, but it is untranslated.
 - **The in-game side is not in this repo.** `docs/boiii-cb-friends.md` is the launcher→fork contract.
+
+## Moderation
+
+There is a Moderation page in the launcher, shown only to accounts the worker gives a role to.
+Report queue, account lookup by handle, timed mutes, and an audit trail of every moderator action.
+
+Authority is a server-side allowlist keyed by `cbId` — deliberately not by handle, which users can
+change, and not by HWID, which is a forgeable machine-local secret. The device-key signature already
+proves who is calling, so a role is just a lookup, and every endpoint re-checks it. The client
+hiding the tab is cosmetic.
+
+Two tiers:
+
+- **`admin`** — set only by writing KV directly, so there is no in-app path from a compromised
+  moderator account to full control:
+  ```bash
+  wrangler kv key put --binding CB "role:cb_<theirCbId>" admin
+  ```
+- **`mod`** — granted and revoked in-app by an admin, from the lookup tab.
+
+Non-moderators get `404` rather than `403` from these endpoints, so their existence is not
+discoverable. Mutes carry an expiry and lapse on their own; moderators cannot be muted.
 
 ## Scale headroom
 

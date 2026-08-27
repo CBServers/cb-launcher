@@ -17,6 +17,7 @@
     <script src="./assets/js/core/discord-friends.js"></script>
     <script src="./assets/js/core/cb-friends.js"></script>
     <script src="./assets/js/core/community.js"></script>
+    <script src="./assets/js/core/moderation.js"></script>
     <script src="./assets/js/ui/person-menu.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
     <script src="./assets/js/ui/toast.js"></script>
@@ -79,6 +80,11 @@
                         <div class="nav-icon friends-icon"></div>
                         <span class="nav-label" data-i18n="nav.community">Community</span>
                         <span class="nav-badge" id="community-badge" style="display:none;">0</span>
+                    </div>
+                    <div class="nav-item" id="moderation" style="display:none;">
+                        <div class="nav-icon settings-icon"></div>
+                        <span class="nav-label" data-i18n="nav.moderation">Moderation</span>
+                        <span class="nav-badge" id="moderation-badge" style="display:none;">0</span>
                     </div>
                     <div class="nav-item" id="support">
                         <div class="nav-icon support-icon"></div>
@@ -217,6 +223,14 @@
                         <div class="friends-list" id="cb-friends-list"></div>
                         <div class="friends-empty" id="cb-friends-empty" style="display: none;">Your CB friends will appear here.</div>
                     </div>
+                </div>
+
+                <div class="page-section" id="moderation-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="nav.moderation">Moderation</div>
+                        <div class="page-subtitle" data-i18n="cb.moderationSubtitle">Reports, mutes and the audit trail.</div>
+                    </div>
+                    <div id="moderation-body"></div>
                 </div>
 
                 <div class="page-section" id="community-page" style="display: none;">

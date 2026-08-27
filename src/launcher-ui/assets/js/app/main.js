@@ -318,6 +318,10 @@ async function initialize() {
                 window.CommunityManager.startBadgePolling();
             }
 
+            if (!window.IS_OFFLINE && window.ModerationManager) {
+                window.ModerationManager.start();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });
@@ -481,6 +485,12 @@ async function initializeNavigation() {
         communityElement.addEventListener("click", handleCommunityClick);
     }
 
+    // Handle moderation navigation
+    const moderationElement = document.querySelector("#moderation");
+    if (moderationElement) {
+        moderationElement.addEventListener("click", handleModerationClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -609,6 +619,17 @@ function handleCommunityClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("community");
+}
+
+function handleModerationClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("moderation");
 }
 
 function handleSupportClick(e) {
@@ -1391,6 +1412,7 @@ function loadNavigationPage(page) {
 
     // The community board only polls while its tab is open.
     if (window.CommunityManager) window.CommunityManager.setActive(page === 'community');
+    if (window.ModerationManager) window.ModerationManager.setActive(page === 'moderation');
 
     // Initialize page-specific functionality
     if (page === 'settings') {

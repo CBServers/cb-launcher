@@ -77,6 +77,39 @@ namespace social
         std::string match_id;
     };
 
+    // A queued report, with both sides resolved so the queue reads without extra lookups.
+    struct mod_report
+    {
+        std::string id;
+        std::string reason;
+        std::string context;
+        std::string status;
+        int64_t at{0};
+        cb_person reporter;
+        cb_person target;
+    };
+
+    // One moderator action, for the audit trail.
+    struct mod_log_entry
+    {
+        std::string action;
+        std::string detail;
+        int64_t at{0};
+        cb_person by;
+        cb_person target;
+    };
+
+    // A moderator's view of one account.
+    struct mod_account
+    {
+        cb_person person;
+        std::string role;
+        std::string mute_reason;
+        int64_t muted_until{0};
+        int64_t created_at{0};
+        int device_count{0};
+    };
+
     struct friends_snapshot
     {
         std::vector<cb_person> friends;
@@ -178,6 +211,17 @@ namespace social
 
         // The board is only polled while the Community tab is open.
         void set_community_active(bool active);
+        // Moderation. The role is decided server-side on every call; this is only what to show.
+        std::string get_mod_role() const;
+        void set_mod_active(bool active);
+        std::vector<mod_report> get_mod_reports() const;
+        std::vector<mod_log_entry> get_mod_log() const;
+        std::optional<mod_account> get_mod_lookup() const;
+        void mod_lookup(const std::string& handle);
+        void mod_resolve(const std::string& report_id);
+        void mod_mute(const std::string& cb_id, int minutes, const std::string& reason);
+        void mod_set_role(const std::string& cb_id, const std::string& role);
+
         void set_lfg_filter(const std::string& game); // "" = all games
         std::vector<cb_person> get_lfg() const;
         void post_lfg(const std::string& game, const std::string& mode, const std::string& note, int slots);
@@ -229,6 +273,8 @@ namespace social
         void stop_chat_worker();
         void refresh_blocked();
         void refresh_security();
+        void refresh_mod_role();
+        void refresh_mod_queue();
         void process_message(const rapidjson::Value& message);
         void send_reply(const std::string& to, const std::string& reply_to, const std::string& game,
                         const std::string& match, const std::string& secret);
@@ -273,6 +319,11 @@ namespace social
         std::vector<cb_person> blocked_;
         std::vector<security_event> security_;
 
+        std::string mod_role_;
+        std::vector<mod_report> mod_reports_;
+        std::vector<mod_log_entry> mod_log_;
+        std::optional<mod_account> mod_lookup_;
+
         std::optional<cb_person> viewed_profile_;
 
         std::thread worker_;
@@ -280,6 +331,7 @@ namespace social
         std::atomic<bool> running_{false};
         std::atomic<bool> chat_running_{false};
         std::atomic<bool> community_active_{false};
+        std::atomic<bool> mod_active_{false};
         std::atomic<bool> broadcasting_{false};
         std::atomic<int64_t> last_presence_{0};
         std::atomic<int64_t> last_slow_{0};

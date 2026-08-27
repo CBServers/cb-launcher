@@ -558,12 +558,17 @@ namespace social
                     last_slow_ = now;
                     refresh_blocked();
                     refresh_security();
+                    refresh_mod_role();
                     // Keeps the Community badge honest while its tab is closed.
                     if (!community_active_) refresh_lfg();
                 }
                 if (community_active_)
                 {
                     refresh_lfg();
+                }
+                if (mod_active_)
+                {
+                    refresh_mod_queue();
                 }
             }
 
@@ -1364,6 +1369,162 @@ namespace social
     {
         std::lock_guard lock(mutex_);
         return security_;
+    }
+
+    // Moderation. Every endpoint re-checks authority server-side; nothing here is a permission.
+
+    std::string cbfriends_service::get_mod_role() const
+    {
+        std::lock_guard lock(mutex_);
+        return mod_role_;
+    }
+
+    void cbfriends_service::set_mod_active(const bool active)
+    {
+        mod_active_ = active;
+        if (active && get_state() == profile_state::ready)
+        {
+            std::thread(&cbfriends_service::refresh_mod_queue, this).detach();
+        }
+    }
+
+    std::vector<mod_report> cbfriends_service::get_mod_reports() const
+    {
+        std::lock_guard lock(mutex_);
+        return mod_reports_;
+    }
+
+    std::vector<mod_log_entry> cbfriends_service::get_mod_log() const
+    {
+        std::lock_guard lock(mutex_);
+        return mod_log_;
+    }
+
+    std::optional<mod_account> cbfriends_service::get_mod_lookup() const
+    {
+        std::lock_guard lock(mutex_);
+        return mod_lookup_;
+    }
+
+    void cbfriends_service::refresh_mod_role()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/mod/status", ts_body());
+        if (!doc) return;
+
+        std::lock_guard lock(mutex_);
+        mod_role_ = json_get(*doc, "role");
+    }
+
+    void cbfriends_service::refresh_mod_queue()
+    {
+        if (get_state() != profile_state::ready) return;
+
+        std::vector<mod_report> reports;
+        if (auto doc = post_json(base_url() + "/v1/mod/reports", ts_body());
+            doc && doc->HasMember("reports") && (*doc)["reports"].IsArray())
+        {
+            for (const auto& r : (*doc)["reports"].GetArray())
+            {
+                mod_report rep;
+                rep.id = json_get(r, "id");
+                rep.reason = json_get(r, "reason");
+                rep.context = json_get(r, "context");
+                rep.status = json_get(r, "status");
+                rep.at = (r.IsObject() && r.HasMember("at") && r["at"].IsInt64()) ? r["at"].GetInt64() : 0;
+                if (r.IsObject() && r.HasMember("reporterProfile")) rep.reporter = parse_person(r["reporterProfile"]);
+                if (r.IsObject() && r.HasMember("targetProfile")) rep.target = parse_person(r["targetProfile"]);
+                reports.push_back(std::move(rep));
+            }
+        }
+
+        std::vector<mod_log_entry> log;
+        if (auto doc = post_json(base_url() + "/v1/mod/log", ts_body());
+            doc && doc->HasMember("entries") && (*doc)["entries"].IsArray())
+        {
+            for (const auto& e : (*doc)["entries"].GetArray())
+            {
+                mod_log_entry entry;
+                entry.action = json_get(e, "action");
+                entry.detail = json_get(e, "detail");
+                entry.at = (e.IsObject() && e.HasMember("at") && e["at"].IsInt64()) ? e["at"].GetInt64() : 0;
+                if (e.IsObject() && e.HasMember("byProfile")) entry.by = parse_person(e["byProfile"]);
+                if (e.IsObject() && e.HasMember("targetProfile")) entry.target = parse_person(e["targetProfile"]);
+                log.push_back(std::move(entry));
+            }
+        }
+
+        std::lock_guard lock(mutex_);
+        mod_reports_ = std::move(reports);
+        mod_log_ = std::move(log);
+    }
+
+    void cbfriends_service::mod_lookup(const std::string& handle)
+    {
+        {
+            std::lock_guard lock(mutex_);
+            mod_lookup_.reset();
+        }
+        if (handle.empty() || get_state() != profile_state::ready) return;
+
+        std::thread([this, handle]
+        {
+            rapidjson::Document body;
+            body.SetObject();
+            body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+            add_string(body, "handle", handle);
+
+            auto doc = post_json(base_url() + "/v1/mod/lookup", serialize(body));
+            if (!doc) return;
+
+            mod_account account;
+            if (doc->HasMember("person")) account.person = parse_person((*doc)["person"]);
+            account.role = json_get(*doc, "role");
+            account.created_at = (doc->HasMember("createdAt") && (*doc)["createdAt"].IsInt64())
+                ? (*doc)["createdAt"].GetInt64() : 0;
+            account.device_count = (doc->HasMember("deviceCount") && (*doc)["deviceCount"].IsInt())
+                ? (*doc)["deviceCount"].GetInt() : 0;
+            if (doc->HasMember("mute") && (*doc)["mute"].IsObject())
+            {
+                const auto& mute = (*doc)["mute"];
+                account.mute_reason = json_get(mute, "reason");
+                account.muted_until = (mute.HasMember("until") && mute["until"].IsInt64())
+                    ? mute["until"].GetInt64() : 0;
+            }
+
+            std::lock_guard lock(mutex_);
+            mod_lookup_ = std::move(account);
+        }).detach();
+    }
+
+    void cbfriends_service::mod_resolve(const std::string& report_id)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "id", report_id);
+        post_action("/v1/mod/resolve", serialize(body), [this] { refresh_mod_queue(); });
+    }
+
+    void cbfriends_service::mod_mute(const std::string& cb_id, const int minutes, const std::string& reason)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "cbId", cb_id);
+        body.AddMember("minutes", minutes, body.GetAllocator());
+        add_string(body, "reason", reason);
+        post_action("/v1/mod/mute", serialize(body), [this] { refresh_mod_queue(); });
+    }
+
+    void cbfriends_service::mod_set_role(const std::string& cb_id, const std::string& role)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "cbId", cb_id);
+        add_string(body, "role", role);
+        post_action("/v1/mod/set-role", serialize(body), [this] { refresh_mod_queue(); });
     }
 
     void cbfriends_service::refresh_security()
