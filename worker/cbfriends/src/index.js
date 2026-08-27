@@ -9,6 +9,19 @@ const HANDLE_RE = /^[a-z0-9_]{2,32}$/i;
 const HWID_RE = /^[0-9a-f]{64}$/i; // sha256 hex from the launcher
 const ACCENT_RE = /^#[0-9a-f]{6}$/i;
 const AVATAR_URL_RE = /^https?:\/\/[^\s]+$/i;
+// Avatars are fetched by every viewer's launcher, so an arbitrary host would be an IP grabber.
+const AVATAR_HOSTS = new Set([
+    'cdn.discordapp.com', 'media.discordapp.net',
+    'i.imgur.com', 'imgur.com',
+    'avatars.githubusercontent.com',
+    'steamcdn-a.akamaihd.net', 'avatars.steamstatic.com',
+    'cdn.cbservers.xyz',
+]);
+const RATE_PER_MINUTE = 60;        // per device key, across the CB endpoints
+const RECOVER_PER_HOUR = 5;        // per anchor; HWID is a weak secret
+const RECOVER_BLOCK_IF_ACTIVE_MS = 5 * 60_000; // an account in active use does not need recovery
+const SECURITY_EVENTS = 20;
+const CHAT_PAGE = 50;         // scrollback page size
 const TS_SKEW_SECONDS = 300;
 
 function json(status, body) {
@@ -106,6 +119,26 @@ async function authenticate(request) {
     }
 
     return { fpr: await sha256Hex(pub), body };
+}
+
+const rateBuckets = new Map(); // `${key}:${minute}` -> count
+
+// Fixed windows of windowMs. Each isolate counts separately, so the effective limit is a multiple
+// of this; it exists to stop scripted abuse, not to be exact.
+function withinRate(key, limit, windowMs = 60_000) {
+    const bucket = Math.floor(Date.now() / windowMs);
+    if (rateBuckets.size > 10000) {
+        const cutoff = Date.now() - 3600_000;
+        for (const [k, v] of rateBuckets) {
+            if (v.seen < cutoff) rateBuckets.delete(k);
+        }
+    }
+    const id = `${key}:${windowMs}:${bucket}`;
+    const entry = rateBuckets.get(id) || { count: 0, seen: 0 };
+    entry.count += 1;
+    entry.seen = Date.now();
+    rateBuckets.set(id, entry);
+    return entry.count <= limit;
 }
 
 function newCbId() {
@@ -262,11 +295,14 @@ async function handleProfileUpdate(env, cbId, body) {
         if (!url) {
             account.profile.avatarUrl = '';
             account.profile.avatarCustom = false;
-        } else if (AVATAR_URL_RE.test(url)) {
+        } else if (!AVATAR_URL_RE.test(url)) {
+            return json(400, { error: 'avatar must be an http(s) URL' });
+        } else if (!AVATAR_HOSTS.has(new URL(url).hostname.toLowerCase())) {
+            // Every viewer's launcher fetches this URL, so an arbitrary host would see their IP.
+            return json(400, { error: 'avatar host not allowed', allowed: [...AVATAR_HOSTS] });
+        } else {
             account.profile.avatarUrl = url;
             account.profile.avatarCustom = true;
-        } else {
-            return json(400, { error: 'avatar must be an http(s) URL' });
         }
     }
     if (typeof body.bio === 'string') {
@@ -297,12 +333,106 @@ async function handleProfileUpdate(env, cbId, body) {
 }
 
 // Attaches the signing key to the account found via the anchor. HWID is a weak anchor: rate-limit it.
-async function handleRecover(env, fpr, body, anchorKey) {
+async function handleRecover(env, fpr, body, anchorKey, via) {
+    // Rate limited on the anchor, not the caller, so a fresh key per attempt buys nothing.
+    if (!withinRate(`rec:${anchorKey}`, RECOVER_PER_HOUR, 3600_000)) {
+        return json(429, { error: 'too many recovery attempts' });
+    }
+
     const cbId = await env.CB.get(anchorKey);
     if (!cbId) return json(404, { error: 'no account for this anchor' });
     const account = await getAccount(env, cbId);
     if (!account) return json(404, { error: 'account not found' });
-    return json(200, await attachDeviceKey(env, account, fpr));
+
+    // HWID is a weak secret: anyone who learns the hash could bind their own key. An account that is
+    // actively online does not need recovering, so refuse rather than hand it over. Discord and the
+    // recovery code both prove possession of a real secret, so they are exempt.
+    if (via === 'hwid' && !account.deviceKeys.includes(fpr)) {
+        const pres = await presenceFor(env, cbId);
+        if (pres.lastSeen && Date.now() - pres.lastSeen < RECOVER_BLOCK_IF_ACTIVE_MS) {
+            await pushSecurityEvent(env, cbId, { kind: 'recover-blocked', via: 'hwid' });
+            return json(409, { error: 'account is in use; sign in on the active device or use Discord or a recovery code' });
+        }
+    }
+
+    const isNewKey = !account.deviceKeys.includes(fpr);
+    const view = await attachDeviceKey(env, account, fpr);
+    if (isNewKey) {
+        await pushSecurityEvent(env, cbId, { kind: 'device-added', via });
+    }
+    return json(200, view);
+}
+
+// The owner polls this to see device binds and blocked attempts on their account.
+async function handleSecurityEvents(env, cbId) {
+    return json(200, { events: await readArray(env, `sec:${cbId}`) });
+}
+
+// Records something the account's owner should know about, such as a new device being bound.
+async function pushSecurityEvent(env, cbId, event) {
+    const events = await readArray(env, `sec:${cbId}`);
+    events.push({ ...event, at: Date.now() });
+    await env.CB.put(`sec:${cbId}`, JSON.stringify(events.slice(-SECURITY_EVENTS)));
+}
+
+// Blocks are one-way and enforced server-side: a blocked account cannot reach you and you do not
+// see them. Kept out of the public profile view so blocking stays private.
+async function isBlocked(env, ownerCbId, otherCbId) {
+    return (await readArray(env, `blk:${ownerCbId}`)).includes(otherCbId);
+}
+
+// True if either side blocked the other, so neither can reach the other.
+async function eitherBlocked(env, a, b) {
+    const [aBlocks, bBlocks] = await Promise.all([
+        readArray(env, `blk:${a}`),
+        readArray(env, `blk:${b}`),
+    ]);
+    return aBlocks.includes(b) || bBlocks.includes(a);
+}
+
+async function handleBlockAdd(env, cbId, body) {
+    const target = String(body.cbId || '');
+    if (!target || target === cbId) return json(400, { error: 'bad target' });
+    if (!(await getAccount(env, target))) return json(404, { error: 'no such profile' });
+
+    const blocks = await readArray(env, `blk:${cbId}`);
+    if (!blocks.includes(target)) await writeArray(env, `blk:${cbId}`, [...blocks, target]);
+
+    // Blocking also severs any existing relationship, in both directions.
+    await writeArray(env, `fr:${cbId}`, without(await readArray(env, `fr:${cbId}`), target));
+    await writeArray(env, `fr:${target}`, without(await readArray(env, `fr:${target}`), cbId));
+    await writeArray(env, `rin:${cbId}`, without(await readArray(env, `rin:${cbId}`), target));
+    await writeArray(env, `rout:${target}`, without(await readArray(env, `rout:${target}`), cbId));
+    await writeArray(env, `rout:${cbId}`, without(await readArray(env, `rout:${cbId}`), target));
+    await writeArray(env, `rin:${target}`, without(await readArray(env, `rin:${target}`), cbId));
+    return json(200, { ok: true });
+}
+
+async function handleBlockRemove(env, cbId, body) {
+    const target = String(body.cbId || '');
+    await writeArray(env, `blk:${cbId}`, without(await readArray(env, `blk:${cbId}`), target));
+    return json(200, { ok: true });
+}
+
+async function handleBlockList(env, cbId) {
+    const ids = await readArray(env, `blk:${cbId}`);
+    return json(200, { blocked: await Promise.all(ids.map(id => personView(env, id))) });
+}
+
+// Reports are stored for an operator to review; there is no automated action.
+async function handleReport(env, cbId, body) {
+    const target = String(body.cbId || '');
+    if (!target || target === cbId) return json(400, { error: 'bad target' });
+    const id = 'rep_' + crypto.randomUUID().replace(/-/g, '');
+    await env.CB.put(`report:${id}`, JSON.stringify({
+        id,
+        reporter: cbId,
+        target,
+        reason: typeof body.reason === 'string' ? body.reason.slice(0, 300) : '',
+        context: typeof body.context === 'string' ? body.context.slice(0, 300) : '',
+        at: Date.now(),
+    }));
+    return json(200, { ok: true, id });
 }
 
 // Friends, presence and LFG. Edges are JSON arrays of cbIds: fr: accepted, rin: incoming requests,
@@ -351,6 +481,7 @@ async function presenceFor(env, cbId) {
         const online = (Date.now() - (p.at || 0)) < PRESENCE_FRESH_MS;
         return {
             online,
+            lastSeen: p.at || 0,
             status: p.status || '',
             game: p.game || '',
             mode: p.mode || '',
@@ -425,6 +556,8 @@ async function handleFriendAdd(env, cbId, body) {
     const targetId = await env.CB.get(`handle:${handle.toLowerCase()}`);
     if (!targetId) return json(404, { error: 'no such handle' });
     if (targetId === cbId) return json(400, { error: 'cannot add yourself' });
+    // Same 404 as a missing handle, so blocking is not observable.
+    if (await eitherBlocked(env, cbId, targetId)) return json(404, { error: 'no such handle' });
 
     return json(200, { status: await sendFriendRequest(env, cbId, targetId) });
 }
@@ -500,6 +633,7 @@ async function handleInviteSend(env, cbId, body) {
     const to = String(body.to || '');
     if (!to || to === cbId) return json(400, { error: 'bad target' });
     if (!(await readArray(env, `fr:${cbId}`)).includes(to)) return json(403, { error: 'not friends' });
+    if (await eitherBlocked(env, cbId, to)) return json(403, { error: 'not friends' });
 
     const message = {
         id: 'inv_' + crypto.randomUUID().replace(/-/g, ''),
@@ -591,6 +725,9 @@ async function handleChatSend(env, cbId, body) {
     const text = typeof body.text === 'string' ? body.text.trim().slice(0, CHAT_MAX_LENGTH) : '';
     if (!text) return json(400, { error: 'empty message' });
 
+    // Operator mute, set by hand in KV; there is no in-app moderator tooling yet.
+    if (await env.CB.get(`muted:${cbId}`)) return json(403, { error: 'you are muted' });
+
     const account = await getAccount(env, cbId);
     const profile = (account && account.profile) || {};
     return toChatRoom(env, room, 'send', {
@@ -605,7 +742,14 @@ async function handleChatSend(env, cbId, body) {
 async function handleChatPoll(env, cbId, body) {
     const room = chatRoomName(body.room);
     if (!room) return json(400, { error: 'bad room' });
-    return toChatRoom(env, room, 'poll', { after: body.after });
+
+    const res = await toChatRoom(env, room, 'poll', { after: body.after, before: body.before });
+    const blocks = await readArray(env, `blk:${cbId}`);
+    if (!blocks.length) return res;
+
+    // Blocked authors are filtered here rather than in the room, which has no idea who is reading.
+    const data = await res.json();
+    return json(200, { ...data, messages: (data.messages || []).filter(m => !blocks.includes(m.cbId)) });
 }
 
 // Deliver-once: returns pending messages and clears the mailbox.
@@ -670,6 +814,7 @@ async function handleLfgList(env, cbId, body) {
     const wantGame = typeof body.game === 'string' ? body.game : '';
     const friends = new Set(await readArray(env, `fr:${cbId}`));
     const outgoing = new Set(await readArray(env, `rout:${cbId}`));
+    const blocked = new Set(await readArray(env, `blk:${cbId}`));
 
     const posts = [];
     let cursor;
@@ -684,6 +829,7 @@ async function handleLfgList(env, cbId, body) {
             if (Date.now() - (rec.at || 0) > LFG_FRESH_MS) continue;
             if (wantGame && rec.game !== wantGame) continue;
 
+            if (blocked.has(id)) continue;
             const joiners = Array.isArray(rec.joiners) ? rec.joiners : [];
             const person = await personView(env, id);
             posts.push({
@@ -790,6 +936,10 @@ export default {
         if (auth.error) return auth.error;
         const { fpr, body } = auth;
 
+        if (!withinRate(`req:${fpr}`, RATE_PER_MINUTE)) {
+            return json(429, { error: 'rate limited' });
+        }
+
         switch (pathname) {
             case '/v1/account/bootstrap':
                 return handleBootstrap(env, fpr, body);
@@ -799,18 +949,18 @@ export default {
                 if (!HWID_RE.test(String(body.hwidHash || ''))) {
                     return json(400, { error: 'hwidHash must be a sha256 hex string' });
                 }
-                return handleRecover(env, fpr, body, `hwid:${body.hwidHash}`);
+                return handleRecover(env, fpr, body, `hwid:${body.hwidHash}`, 'hwid');
             case '/v1/recover/discord': {
                 const discordId = await resolveDiscordId(body.discordToken);
                 if (!discordId) return json(401, { error: 'invalid discord token' });
-                return handleRecover(env, fpr, body, `discord:${discordId}`);
+                return handleRecover(env, fpr, body, `discord:${discordId}`, 'discord');
             }
             case '/v1/recover/code': {
                 if (typeof body.recoveryCode !== 'string' || !body.recoveryCode) {
                     return json(400, { error: 'recoveryCode required' });
                 }
                 const hash = await sha256Hex(new TextEncoder().encode(body.recoveryCode));
-                return handleRecover(env, fpr, body, `rec:${hash}`);
+                return handleRecover(env, fpr, body, `rec:${hash}`, 'code');
             }
         }
 
@@ -825,6 +975,16 @@ export default {
                 return handleProfileUpdate(env, cbId, body);
             case '/v1/profile/get':
                 return handleProfileGet(env, cbId, body);
+            case '/v1/security/events':
+                return handleSecurityEvents(env, cbId);
+            case '/v1/block/add':
+                return handleBlockAdd(env, cbId, body);
+            case '/v1/block/remove':
+                return handleBlockRemove(env, cbId, body);
+            case '/v1/block/list':
+                return handleBlockList(env, cbId);
+            case '/v1/report':
+                return handleReport(env, cbId, body);
             case '/v1/account/sync-discord':
                 return handleDiscordSync(env, cbId, body);
             case '/v1/friends/add':
@@ -935,6 +1095,14 @@ export class ChatRoom {
         }
 
         if (pathname === '/poll') {
+            // `before` walks backwards through storage for scrollback; `after` is the live tail.
+            if (body.before) {
+                const before = Number(body.before);
+                const older = await this.state.storage.list({
+                    prefix: 'msg:', end: msgKey(before), limit: CHAT_PAGE, reverse: true,
+                });
+                return json(200, { messages: [...older.values()].reverse(), history: true });
+            }
             const after = Number(body.after) || 0;
             return json(200, { messages: this.messages.filter(m => m.id > after) });
         }
