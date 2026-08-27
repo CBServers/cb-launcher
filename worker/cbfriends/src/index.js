@@ -670,6 +670,8 @@ function dirCall(env, path, payload) {
 
 const PRESENCE_FRESH_MS = 90_000;
 const LFG_FRESH_MS = 15 * 60_000;
+const PLAYED_WITH_MS = 6 * 3600_000;  // how long a match roster is worth suggesting from
+const PLAYED_WITH_MATCHES = 5;        // recent matches kept per person
 const CHAT_MAX_LENGTH = 300;
 const CHAT_HISTORY = 200;
 const CHAT_PER_MINUTE = 12;
@@ -1134,6 +1136,23 @@ async function handleLfgJoin(env, cbId, body) {
     return json(200, { ok: true });
 }
 
+// People seen in the same match recently, minus anyone already connected to or blocked. Derived on
+// read from the directory's match rosters, so nothing is written per player per match.
+async function handlePlayedWith(env, cbId) {
+    const [found, edges] = await Promise.all([
+        dirCall(env, 'played-with', { cbId }),
+        graphGet(env, cbId),
+    ]);
+    const known = new Set([...edges.friends, ...edges.incoming, ...edges.outgoing, ...edges.blocked, cbId]);
+    const rows = (found.people || []).filter(p => !known.has(p.cbId));
+    const people = Object.fromEntries((await peopleViews(env, rows.map(p => p.cbId))).map(p => [p.cbId, p]));
+    return json(200, {
+        people: rows
+            .map(r => ({ ...people[r.cbId], game: r.game || '', at: r.at }))
+            .sort((a, b) => b.at - a.at),
+    });
+}
+
 async function handleLfgList(env, cbId, body) {
     const [board, edges] = await Promise.all([
         dirCall(env, 'lfg/list', { game: typeof body.game === 'string' ? body.game : '' }),
@@ -1346,6 +1365,8 @@ export default {
                 return handleChatPoll(env, cbId, body);
             case '/v1/lfg/list':
                 return handleLfgList(env, cbId, body);
+            case '/v1/played-with':
+                return handlePlayedWith(env, cbId);
             default:
                 return json(404, { error: 'not found' });
         }
@@ -1618,6 +1639,7 @@ export class SocialGraph {
 export class Directory {
     constructor() {
         this.people = new Map();
+        this.matches = new Map(); // matchId -> Map(cbId -> { at, game })
     }
 
     entry(cbId) {
@@ -1635,8 +1657,27 @@ export class Directory {
         for (const [cbId, it] of this.people) {
             const livePres = it.pres && now - it.pres.at < PRESENCE_FRESH_MS;
             const livePost = it.post && now - it.post.at < LFG_FRESH_MS;
-            if (!livePres && !livePost) this.people.delete(cbId);
+            const recent = (it.matches || []).some(m => now - m.at < PLAYED_WITH_MS);
+            if (!livePres && !livePost && !recent) this.people.delete(cbId);
         }
+        for (const [matchId, roster] of this.matches) {
+            for (const [cbId, seen] of roster) {
+                if (now - seen.at > PLAYED_WITH_MS) roster.delete(cbId);
+            }
+            if (!roster.size) this.matches.delete(matchId);
+        }
+    }
+
+    // Remembers the match a beat named, on both the person and the match roster.
+    noteMatch(cbId, entry, matchId, game, now) {
+        if (!matchId) return;
+        entry.matches = (entry.matches || []).filter(m => m.id !== matchId);
+        entry.matches.push({ id: matchId, at: now });
+        if (entry.matches.length > PLAYED_WITH_MATCHES) entry.matches.shift();
+
+        let roster = this.matches.get(matchId);
+        if (!roster) { roster = new Map(); this.matches.set(matchId, roster); }
+        roster.set(cbId, { at: now, game: game || '' });
     }
 
     async fetch(request) {
@@ -1649,8 +1690,23 @@ export class Directory {
             it.profile = body.profile || it.profile;
             it.createdAt = body.createdAt || it.createdAt;
             it.pres = { ...(body.pres || {}), at: now };
+            this.noteMatch(body.cbId, it, it.pres.matchId, it.pres.game, now);
             this.prune();
             return json(200, { ok: true });
+        }
+
+        if (pathname === '/played-with') {
+            const it = this.people.get(body.cbId);
+            const seen = new Map();
+            for (const mine of ((it && it.matches) || [])) {
+                if (now - mine.at > PLAYED_WITH_MS) continue;
+                for (const [other, info] of (this.matches.get(mine.id) || new Map())) {
+                    if (other === body.cbId) continue;
+                    const prev = seen.get(other);
+                    if (!prev || info.at > prev.at) seen.set(other, { cbId: other, at: info.at, game: info.game });
+                }
+            }
+            return json(200, { people: [...seen.values()] });
         }
 
         if (pathname === '/people') {

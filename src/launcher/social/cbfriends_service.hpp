@@ -220,6 +220,9 @@ namespace social
 
         // The board is only polled while the Community tab is open.
         void set_community_active(bool active);
+        // People seen in the same match recently and not already connected to.
+        std::vector<cb_person> get_played_with() const;
+
         // Anyone we already hold a profile for, so a toast can resolve art without the UI naming a URL.
         std::optional<cb_person> find_person(const std::string& cb_id) const;
 
@@ -297,6 +300,7 @@ namespace social
         void refresh_dm_list();
         void refresh_blocked();
         void refresh_security();
+        void refresh_played_with();
         void refresh_mod_role();
         void refresh_mod_queue();
         void process_message(const rapidjson::Value& message);
@@ -346,6 +350,7 @@ namespace social
         int64_t chat_oldest_{0};
         bool chat_more_{true};
 
+        std::vector<cb_person> played_with_;
         std::vector<cb_person> blocked_;
         std::vector<security_event> security_;
 

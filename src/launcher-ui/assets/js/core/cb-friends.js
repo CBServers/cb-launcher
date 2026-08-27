@@ -16,6 +16,7 @@
     let editingProfile = false;
     let myJoinable = false; // we're hosting a joinable match => can invite
     let friends = { friends: [], incoming: [], outgoing: [] };
+    let playedWith = [];
     const shownCbInvites = new Set();
     const announcedRequests = new Set();
     let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
@@ -270,6 +271,14 @@
             sections += `<div class="cb-section-head">${escapeHtml(t('sent'))}</div>${rows}`;
         }
 
+        if (playedWith.length) {
+            const rows = playedWith.map(p => personRow(p, `
+                <div class="friend-actions">
+                    <button class="friend-invite-btn" data-cb-add-handle="${escapeHtml(p.handle)}">${escapeHtml(t('add'))}</button>
+                </div>`)).join('');
+            sections += `<div class="cb-section-head">${escapeHtml(t('playedWith'))} <span class="friends-group-count">${playedWith.length}</span></div>${rows}`;
+        }
+
         return addRow + sections;
     }
 
@@ -413,6 +422,10 @@
             const res = await window.executeCommand('cbfriends-get-friends');
             if (res) {
                 friends = { friends: res.friends || [], incoming: res.incoming || [], outgoing: res.outgoing || [] };
+                try {
+                    const seen = await window.executeCommand('cbfriends-get-played-with');
+                    playedWith = (seen && seen.people) || [];
+                } catch (error) { playedWith = []; }
                 if (activeSource === 'cb' && lastState === 'ready' && !editingProfile && !interacting()) {
                     const list = document.getElementById('cb-friends-list');
                     if (list) list.innerHTML = renderFriendsSection();
@@ -570,6 +583,8 @@
                     if (join) return friendAction('cbfriends-request-join', join.getAttribute('data-cb-join'));
                     const invite = t.closest('[data-cb-invite]');
                     if (invite) return friendAction('cbfriends-invite-friend', invite.getAttribute('data-cb-invite'));
+                    const byHandle = t.closest('[data-cb-add-handle]');
+                    if (byHandle) return friendAction('cbfriends-add-friend', byHandle.getAttribute('data-cb-add-handle'));
                 });
                 panel.addEventListener('contextmenu', (event) => {
                     const el = event.target.closest('[data-person-id]');

@@ -561,6 +561,7 @@ namespace social
                     refresh_security();
                     refresh_mod_role();
                     refresh_dm_list();
+                    refresh_played_with();
                     // Keeps the Community badge honest while its tab is closed.
                     if (!community_active_) refresh_lfg();
                 }
@@ -1389,6 +1390,23 @@ namespace social
     {
         std::lock_guard lock(mutex_);
         return security_;
+    }
+
+    std::vector<cb_person> cbfriends_service::get_played_with() const
+    {
+        std::lock_guard lock(mutex_);
+        return played_with_;
+    }
+
+    void cbfriends_service::refresh_played_with()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/played-with", ts_body());
+        if (!doc || !doc->HasMember("people") || !(*doc)["people"].IsArray()) return;
+
+        auto people = parse_people((*doc)["people"]);
+        std::lock_guard lock(mutex_);
+        played_with_ = std::move(people);
     }
 
     // Direct messages. One held poll per open conversation, mirroring the room chat above.

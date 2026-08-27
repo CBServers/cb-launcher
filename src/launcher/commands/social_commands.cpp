@@ -326,6 +326,19 @@ namespace commands::social_commands
             }
         });
 
+        cef_ui.add_command("cbfriends-get-played-with", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value people(rapidjson::kArrayType);
+            for (const auto& p : social::cbfriends_service::instance().get_played_with())
+            {
+                add_person(people, p, allocator);
+            }
+            response.AddMember("people", people, allocator);
+        });
+
         // Toast for a friend request or an unread message. As with invites, the frontend supplies
         // only the id and the localized strings; the sender's art is resolved here from our state.
         cef_ui.add_command("cbfriends-show-person-notification", [&cef_ui](const rapidjson::Value& value,
