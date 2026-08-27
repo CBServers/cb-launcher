@@ -24,6 +24,20 @@ namespace property_keys
     constexpr const char* DISCORD_USER_ID = "launcher-discord-user-id";
     constexpr const char* DISCORD_DISPLAY_NAME = "launcher-discord-display-name";
 
+    // CB social device identity (ECC private key, DPAPI-encrypted + base64)
+    constexpr const char* CB_DEVICE_PRIVATE_KEY = "launcher-cb-device-key";
+
+    // CB social account (profile cached as JSON; recovery code is DPAPI-encrypted + base64)
+    constexpr const char* CB_ACCOUNT_ID = "launcher-cb-account-id";
+    constexpr const char* CB_PROFILE = "launcher-cb-profile";
+    constexpr const char* CB_RECOVERY_CODE = "launcher-cb-recovery-code";
+
+    // CB community broadcast toggle (opt-in discovery by non-friends) + its details
+    constexpr const char* CB_BROADCAST = "launcher-cb-broadcast";
+    constexpr const char* CB_BROADCAST_GAME = "launcher-cb-broadcast-game";
+    constexpr const char* CB_BROADCAST_NOTE = "launcher-cb-broadcast-note";
+    constexpr const char* CB_BROADCAST_SLOTS = "launcher-cb-broadcast-slots";
+
     // Game property suffixes (used with game_config_t::get/set)
     constexpr const char* INSTALL = "install";
     constexpr const char* IS_INSTALLED = "is-installed";

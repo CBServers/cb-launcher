@@ -1,0 +1,255 @@
+#pragma once
+
+#include <atomic>
+#include <functional>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include <rapidjson/document.h>
+
+namespace social
+{
+    enum class profile_state
+    {
+        none,     // no CB profile on this install yet
+        creating, // a create/recover request is in flight
+        ready,
+        error,
+    };
+
+    std::string profile_state_to_string(profile_state state);
+
+    struct cb_profile
+    {
+        std::string cb_id;
+        std::string handle;
+        std::string display_name;
+        std::string avatar_url;
+        std::string bio;
+        std::string accent;        // "#rrggbb", empty = launcher default
+        std::string favorite_game;
+    };
+
+    // A friend, request, or LFG poster, with live presence folded in.
+    struct cb_person
+    {
+        std::string cb_id;
+        std::string handle;
+        std::string display_name;
+        std::string avatar_url;
+        bool online{false};
+        std::string game;
+        std::string mode;
+        std::string status;
+        std::string bio;
+        std::string accent;
+        std::string favorite_game;
+        int64_t created_at{0};
+        std::string relation; // "self" | "friend" | "requested" | "incoming" | "none"
+        std::string note;     // LFG only
+        int slots{0};         // LFG only
+        int joined{0};        // LFG only
+        bool i_joined{false}; // LFG only
+
+        // In-game join state, mirroring discord::friend_entry.
+        bool joinable{false};
+        bool direct_join{false}; // public/dedicated server => join without host approval
+        bool openable{false};    // closed private match we can knock on
+        bool same_match{false};
+        std::string match_id;
+    };
+
+    // A pending CB game invite or join-request, mirroring discord::invite_entry.
+    struct cb_invite
+    {
+        std::string id;
+        std::string sender_cb_id;
+        std::string sender_name;
+        std::string sender_avatar;
+        std::string game;
+        bool is_request{false};  // a friend asked to join us
+        bool is_approval{false}; // a host approved our join request
+        bool needs_open{false};  // approving requires opening our match first
+        std::string join_secret;
+        std::string match_id;
+    };
+
+    struct friends_snapshot
+    {
+        std::vector<cb_person> friends;
+        std::vector<cb_person> incoming;
+        std::vector<cb_person> outgoing;
+    };
+
+    struct chat_message
+    {
+        int64_t id{0};
+        std::string cb_id;
+        std::string handle;
+        std::string display_name;
+        std::string accent;
+        std::string text;
+    };
+
+    // Opt-in discovery: while on, we publish what we're playing so non-friends can find us.
+    struct broadcast_state
+    {
+        bool on{false};
+        std::string game;
+        std::string note;
+        int slots{0};
+    };
+
+    // Launcher-native CB account keyed off social::identity. Independent of Discord, which is optional.
+    class cbfriends_service
+    {
+    public:
+        static cbfriends_service& instance();
+
+        cbfriends_service(const cbfriends_service&) = delete;
+        cbfriends_service& operator=(const cbfriends_service&) = delete;
+
+        // Loads the cached profile from disk, if the user already created one.
+        void start();
+
+        // The game we're currently in, or "" when idle. Published on the presence heartbeat.
+        void set_activity(const std::string& game);
+
+        // Fired when the friends snapshot changes, so the IPC layer can re-push it to a fork.
+        void set_friends_changed_callback(std::function<void()> callback);
+
+        // Publishes the join flags on presence and holds the secret locally for outgoing invites.
+        void set_rich_activity(const std::string& game, const std::string& join_secret, bool direct_join,
+                               bool openable, const std::string& match_id);
+        void clear_rich_activity();
+        bool is_joinable() const;
+        bool is_same_match(const std::string& game, const std::string& match_id) const;
+
+        void send_invite(const std::string& cb_id);
+        void request_join(const std::string& cb_id);
+        std::vector<cb_invite> get_invites() const;
+        // Routes their secret for an invite, or approves and replies with ours for a request.
+        void accept_invite(const std::string& id);
+        void decline_invite(const std::string& id);
+        void set_join_secret_callback(std::function<void(std::string)> callback);
+        // Fired when approving a join-request needs the game to open its private match first.
+        void set_open_match_callback(std::function<void()> callback);
+
+        profile_state get_state() const;
+        std::optional<cb_profile> get_profile() const;
+        std::string get_last_error() const;
+        bool has_recovery_code() const;
+        std::string get_recovery_code() const;
+
+        // Opt-in creation, seeded from the linked Discord account if there is one. Non-blocking.
+        void begin_create_profile(const std::string& handle, const std::string& display_name);
+        // Any field may be empty to leave it unchanged; a handle collision lands in get_last_error().
+        void begin_update_profile(const std::string& display_name, const std::string& handle,
+                                  const std::string& bio, const std::string& accent,
+                                  const std::string& favorite_game, const std::string& avatar_url);
+
+        // Pulls the avatar (and a missing display name) from the linked Discord account.
+        void sync_discord();
+
+        // Looks up anyone's public profile for the right-click card; poll get_viewed_profile().
+        void request_profile(const std::string& cb_id);
+        std::optional<cb_person> get_viewed_profile() const;
+
+        void stop();
+
+        // Actions are fire-and-forget then refresh; read the cache with get_friends().
+        friends_snapshot get_friends() const;
+        void add_friend(const std::string& handle);
+        void accept_friend(const std::string& cb_id);
+        void decline_friend(const std::string& cb_id);
+        void cancel_request(const std::string& cb_id);
+        void remove_friend(const std::string& cb_id);
+
+        // The board is only polled while the Community tab is open.
+        void set_community_active(bool active);
+        void set_lfg_filter(const std::string& game); // "" = all games
+        std::vector<cb_person> get_lfg() const;
+        void post_lfg(const std::string& game, const std::string& mode, const std::string& note, int slots);
+        void clear_lfg();
+        void lfg_join(const std::string& poster_cb_id); // express interest + send a friend request
+
+        broadcast_state get_broadcast() const;
+        // on=true publishes for non-friend discovery and keeps it alive; off clears it. Persisted.
+        void set_broadcast(bool on, const std::string& game, const std::string& note, int slots);
+
+        // Chat rooms are "all" or a game id; only the open room is polled.
+        void set_chat_room(const std::string& room);
+        std::vector<chat_message> get_chat() const;
+        void send_chat(const std::string& room, const std::string& text);
+
+    private:
+        cbfriends_service() = default;
+
+        std::string base_url() const;
+        void do_create_profile(std::string handle, std::string display_name);
+        void do_update_profile(std::string display_name, std::string handle, std::string bio,
+                               std::string accent, std::string favorite_game, std::string avatar_url);
+        void do_request_profile(std::string cb_id);
+        void recover_and_store(const std::string& via, const std::string& hwid, const std::string& token);
+        void store_from_response(const rapidjson::Value& doc);
+
+        void ensure_worker();
+        void worker_loop();
+        void refresh_friends();
+        void refresh_lfg();
+        void send_presence();
+        void send_broadcast_keepalive();
+        void load_broadcast();
+        void poll_invites();
+        void poll_chat();
+        void process_message(const rapidjson::Value& message);
+        void send_reply(const std::string& to, const std::string& reply_to, const std::string& game,
+                        const std::string& match, const std::string& secret);
+        std::optional<cb_person> find_friend(const std::string& cb_id) const;
+        // Fire-and-forget signed POST on a detached thread, then run `after`.
+        void post_action(std::string endpoint, std::string body, std::function<void()> after);
+
+        mutable std::mutex mutex_;
+        profile_state state_{profile_state::none};
+        std::optional<cb_profile> profile_;
+        std::string last_error_;
+
+        friends_snapshot friends_;
+        std::vector<cb_person> lfg_;
+        std::string lfg_filter_game_;
+
+        std::string current_game_;
+        std::function<void()> friends_changed_cb_;
+
+        bool broadcast_on_{false};
+        std::string broadcast_game_;
+        std::string broadcast_note_;
+        int broadcast_slots_{0};
+
+        // Local join state fed by the fork's rich presence.
+        std::string activity_game_;
+        std::string activity_secret_;
+        bool activity_direct_{false};
+        bool activity_openable_{false};
+        std::string activity_match_;
+
+        std::vector<cb_invite> invites_;
+        std::function<void(std::string)> join_secret_cb_;
+        std::function<void()> open_match_cb_;
+
+        std::string chat_room_;
+        std::vector<chat_message> chat_;
+        int64_t chat_after_{0};
+
+        std::optional<cb_person> viewed_profile_;
+
+        std::thread worker_;
+        std::atomic<bool> running_{false};
+        std::atomic<bool> community_active_{false};
+        std::atomic<bool> broadcasting_{false};
+        std::atomic<int64_t> last_presence_{0};
+    };
+}
