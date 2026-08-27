@@ -1,0 +1,20 @@
+name = "cbfriends"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+# Account + recovery-index store. Create real namespaces before deploying:
+#   wrangler kv namespace create CB
+#   wrangler kv namespace create CB --preview
+# then paste the returned ids below. Local `wrangler dev` simulates KV and ignores the ids.
+kv_namespaces = [
+  { binding = "CB", id = "REPLACE_WITH_KV_ID", preview_id = "REPLACE_WITH_PREVIEW_KV_ID" },
+]
+
+# One Durable Object per chat room; KV can't serialise appends safely.
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatRoom"]
