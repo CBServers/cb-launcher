@@ -84,6 +84,17 @@ Two classes, because KV can neither hold a request open nor serialise appends:
   Deliberately **not** persisted: invites are short-lived, and anything undelivered falls back to the
   Discord SDK, so surviving a redeploy would buy nothing.
 
+## Tests
+
+```
+node test/run.mjs          # every suite
+node test/chat.test.mjs    # one suite
+```
+
+Each suite imports the real `src/index.js` and drives it through signed requests against a fake KV
+and Durable Object storage, so no wrangler, deploy or Cloudflare account is needed. `test/harness.mjs`
+holds the shared rig; Discord is stubbed where a suite needs it.
+
 ## Deploy
 
 ```
