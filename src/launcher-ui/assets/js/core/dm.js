@@ -12,6 +12,8 @@
     let unread = 0;
     let timer = null;
     let bound = false;
+    const announced = new Map(); // cbId -> last announced message id
+    let primed = false;          // the first pass only records, so a cold start stays quiet
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -102,9 +104,26 @@
             conversations = (list && list.conversations) || [];
             unread = (list && list.unread) || 0;
             if (thread) messages = thread.messages || [];
+            announce();
+            primed = true;
         } catch (error) { /* offline / preview */ }
         if (window.CbFriendsManager && window.CbFriendsManager.refreshBadge) {
             window.CbFriendsManager.refreshBadge();
+        }
+    }
+
+    // One toast per conversation per new message, and never for the one already on screen.
+    function announce() {
+        for (const c of conversations) {
+            if (!c.unread || c.cbId === peer) { announced.set(c.cbId, c.lastId); continue; }
+            if (announced.get(c.cbId) === c.lastId) continue;
+            announced.set(c.cbId, c.lastId);
+            if (!primed) continue;
+            window.executeCommand('cbfriends-show-person-notification', {
+                cbId: c.cbId,
+                title: name(c),
+                body: c.preview || '',
+            }).catch(() => {});
         }
     }
 

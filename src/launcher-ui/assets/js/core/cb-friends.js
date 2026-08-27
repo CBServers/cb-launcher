@@ -17,6 +17,8 @@
     let myJoinable = false; // we're hosting a joinable match => can invite
     let friends = { friends: [], incoming: [], outgoing: [] };
     const shownCbInvites = new Set();
+    const announcedRequests = new Set();
+    let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -492,6 +494,7 @@
         }
 
         if (status.state === 'ready') await fetchFriends();
+        announceRequests();
         refreshBadge();
 
         // Don't rebuild the panel while the user is editing their profile or typing in a field.
@@ -504,6 +507,24 @@
         if (!badge) return;
         badge.textContent = String(count);
         badge.style.display = count > 0 ? '' : 'none';
+    }
+
+    // Announces each incoming request once, so a minimised launcher still surfaces it.
+    function announceRequests() {
+        const ids = new Set(friends.incoming.map(p => p.cbId));
+        for (const id of [...announcedRequests]) if (!ids.has(id)) announcedRequests.delete(id);
+        for (const person of friends.incoming) {
+            if (announcedRequests.has(person.cbId)) continue;
+            announcedRequests.add(person.cbId);
+            if (!requestsPrimed) continue;
+            const who = person.handle ? '@' + person.handle : (person.displayName || t('aFriend'));
+            window.executeCommand('cbfriends-show-person-notification', {
+                cbId: person.cbId,
+                title: t('requestTitle'),
+                body: t('requestBody', { name: who }),
+            }).catch(() => {});
+        }
+        requestsPrimed = true;
     }
 
     // Pending requests and unread messages both want the user's attention, so they share a badge.

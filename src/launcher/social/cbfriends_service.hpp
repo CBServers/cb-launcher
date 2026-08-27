@@ -220,6 +220,9 @@ namespace social
 
         // The board is only polled while the Community tab is open.
         void set_community_active(bool active);
+        // Anyone we already hold a profile for, so a toast can resolve art without the UI naming a URL.
+        std::optional<cb_person> find_person(const std::string& cb_id) const;
+
         // Direct messages. Friends only; the worker checks that on every call.
         void set_dm_peer(const std::string& cb_id); // "" closes the conversation
         std::string get_dm_peer() const;

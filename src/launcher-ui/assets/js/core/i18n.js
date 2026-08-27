@@ -54,6 +54,8 @@
                 playing: 'Playing {{game}}',
                 online: 'Online',
                 offline: 'Offline',
+                requestTitle: 'Friend request',
+                requestBody: '{{name}} wants to be friends.',
                 message: 'Message',
                 send: 'Send',
                 messagePlaceholder: 'Write a message',

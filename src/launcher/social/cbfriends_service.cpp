@@ -673,6 +673,24 @@ namespace social
             game == activity_game_;
     }
 
+    // Searches every list we already hold, so a notification never needs the UI to supply an avatar.
+    std::optional<cb_person> cbfriends_service::find_person(const std::string& cb_id) const
+    {
+        std::lock_guard lock(mutex_);
+        for (const auto* list : { &friends_.friends, &friends_.incoming, &friends_.outgoing, &lfg_ })
+        {
+            for (const auto& p : *list)
+            {
+                if (p.cb_id == cb_id) return p;
+            }
+        }
+        for (const auto& c : dm_list_)
+        {
+            if (c.person.cb_id == cb_id) return c.person;
+        }
+        return std::nullopt;
+    }
+
     std::optional<cb_person> cbfriends_service::find_friend(const std::string& cb_id) const
     {
         std::lock_guard lock(mutex_);

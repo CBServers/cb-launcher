@@ -326,6 +326,31 @@ namespace commands::social_commands
             }
         });
 
+        // Toast for a friend request or an unread message. As with invites, the frontend supplies
+        // only the id and the localized strings; the sender's art is resolved here from our state.
+        cef_ui.add_command("cbfriends-show-person-notification", [&cef_ui](const rapidjson::Value& value,
+                                                                          rapidjson::Document& response)
+        {
+            response.SetObject();
+
+            if (!invite_notification::wanted(cef_ui))
+            {
+                return;
+            }
+
+            const auto cb_id = read_string(value, "cbId");
+            const auto title = read_string(value, "title");
+            const auto body = read_string(value, "body");
+            if (cb_id.empty() || title.empty())
+            {
+                return;
+            }
+
+            const auto person = social::cbfriends_service::instance().find_person(cb_id);
+            invite_notification::show(cef_ui, cb_id, title, body,
+                                      person ? person->avatar_url : std::string{}, {});
+        });
+
         // Direct messages.
         cef_ui.add_command("cbfriends-set-dm-peer", [](const rapidjson::Value& value, rapidjson::Document& response)
         {

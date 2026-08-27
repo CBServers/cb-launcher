@@ -162,6 +162,7 @@ function mockCommand(command, data) {
         case 'cbfriends-set-activity':
         case 'cbfriends-load-older-chat':
         case 'cbfriends-report':
+        case 'cbfriends-show-person-notification':
         case 'cbfriends-show-invite-notification':
         case 'cbfriends-dismiss-invite-notification':
             return { ok: true };
