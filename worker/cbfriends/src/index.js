@@ -78,6 +78,17 @@ function derToRaw(der, size = 32) {
     return raw;
 }
 
+// A raw P-256 signature is exactly 64 bytes and DER is a 0x30-tagged sequence, but a raw r can also
+// start with 0x30, so offer both readings instead of sniffing the first byte.
+function signatureForms(sig) {
+    const forms = [];
+    if (sig.length === 64) forms.push(sig);
+    if (sig[0] === 0x30) {
+        try { forms.push(derToRaw(sig)); } catch { /* not DER after all */ }
+    }
+    return forms;
+}
+
 // Verifies the signature, returning { fpr, body } or an error Response the caller propagates.
 async function authenticate(request) {
     const keyB64 = request.headers.get('X-CB-Key');
@@ -99,8 +110,10 @@ async function authenticate(request) {
     try {
         const key = await crypto.subtle.importKey(
             'raw', pub, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-        const raw = sig[0] === 0x30 ? derToRaw(sig) : sig;
-        ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, raw, bodyBytes);
+        for (const raw of signatureForms(sig)) {
+            ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, raw, bodyBytes);
+            if (ok) break;
+        }
     } catch {
         ok = false;
     }
