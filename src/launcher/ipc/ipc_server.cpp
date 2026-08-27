@@ -3,6 +3,7 @@
 
 #include "commands/game_commands.hpp"
 #include "discord/discord_service.hpp"
+#include "social/cbfriends_service.hpp"
 #include "game_config.hpp"
 #include "join_secret.hpp"
 #include "pipe_listener.hpp"
@@ -169,6 +170,7 @@ namespace ipc
                         w.Key("name");       w.String(entry.display_name.data());
                         w.Key("status");     w.String(entry.status.data());
                         w.Key("inLauncher"); w.Bool(entry.in_launcher);
+                        w.Key("source");     w.String("discord");
 
                         if (!entry.game_id.empty())
                         {
@@ -187,6 +189,34 @@ namespace ipc
 
                         w.EndObject();
                     }
+                }
+
+                // CB-native friends alongside the Discord ones, tagged so the fork can group them.
+                for (const auto& f : social::cbfriends_service::instance().get_friends().friends)
+                {
+                    w.StartObject();
+                    w.Key("id");         w.String(f.cb_id.data());
+                    w.Key("name");       w.String(f.display_name.data());
+                    w.Key("handle");     w.String(f.handle.data());
+                    w.Key("status");     w.String(f.online ? (f.game.empty() ? "idle" : "online") : "offline");
+                    w.Key("inLauncher"); w.Bool(f.online);
+                    w.Key("source");     w.String("cb");
+
+                    if (!f.game.empty())
+                    {
+                        w.Key("game");
+                        w.StartObject();
+                        w.Key("id");         w.String(f.game.data());
+                        w.Key("mode");       w.String(f.mode.data());
+                        // Mirrors the Discord entry so the fork's game.joinable gate works unchanged.
+                        w.Key("joinable");   w.Bool(f.joinable);
+                        w.Key("directJoin"); w.Bool(f.direct_join);
+                        w.Key("openable");   w.Bool(f.openable);
+                        w.Key("sameMatch");  w.Bool(f.same_match);
+                        w.EndObject();
+                    }
+
+                    w.EndObject();
                 }
 
                 w.EndArray();
@@ -394,7 +424,15 @@ namespace ipc
                 utils::logger::write("[cbl-join] <- join-friend {}", friend_id);
                 if (!friend_id.empty())
                 {
-                    discord::discord_service::instance().request_join(friend_id);
+                    // CB friends carry an opaque cb_ id and route over the CB rails.
+                    if (friend_id.starts_with("cb_"))
+                    {
+                        social::cbfriends_service::instance().request_join(friend_id);
+                    }
+                    else
+                    {
+                        discord::discord_service::instance().request_join(friend_id);
+                    }
                 }
             }
             else if (type == "invite")
@@ -403,7 +441,14 @@ namespace ipc
                 utils::logger::write("[cbl-invite] <- invite {}", friend_id);
                 if (!friend_id.empty())
                 {
-                    discord::discord_service::instance().send_invite(friend_id);
+                    if (friend_id.starts_with("cb_"))
+                    {
+                        social::cbfriends_service::instance().send_invite(friend_id);
+                    }
+                    else
+                    {
+                        discord::discord_service::instance().send_invite(friend_id);
+                    }
                 }
             }
             return true; // unknown types ignored (forward-compat)
@@ -558,6 +603,10 @@ namespace ipc
 
             discord::discord_service::instance().set_rich_game_activity(
                 this->connection_game_id, config->display_name, mode, info);
+
+            // The CB service publishes only the flags and keeps the secret for outgoing invites.
+            social::cbfriends_service::instance().set_rich_activity(
+                this->connection_game_id, info.join_secret, info.direct_join, info.openable, info.match_id);
         }
 
         // Accept flow: route a join secret to a running fork, or cold-launch then connect.
