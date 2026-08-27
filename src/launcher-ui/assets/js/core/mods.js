@@ -149,7 +149,18 @@
             return { success: true };
         }
 
-        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0 });
+        // Required items install alongside the item, like Steam's subscribe flow.
+        // An unreachable worker degrades to installing the item alone.
+        let children = [];
+        try {
+            const detail = await getDetails(game, item.id);
+            children = (Array.isArray(detail.children) ? detail.children : [])
+                .map(child => ({ id: String(child.id), size: Number(child.size) || 0 }));
+        } catch (error) {
+            console.warn('Could not resolve required items', error);
+        }
+
+        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0, children });
         if (!started || !started.success) {
             throw new Error((started && started.error) || 'Failed to start the install.');
         }
@@ -194,6 +205,10 @@
             if (!item) throw new Error('Unknown item');
             return Object.assign(clone(item), {
                 description: '[h1]Preview[/h1]\nThis is placeholder detail text shown in UI preview mode.\n[b]Bold[/b], [i]italic[/i] and a [url=https://cbservers.xyz]link[/url].',
+                children: item.id === '2967301155' ? [
+                    { id: '2750100123', title: 'Perk Overhaul', kind: 'mod', size: 212 * MB },
+                    { id: '2840561120', title: 'Chaos Perks', kind: 'mod', size: 88 * MB }
+                ] : [],
                 screenshots: [],
                 views: item.subscribers * 4,
                 createdAt: Math.floor(new Date(item.updatedAt).getTime() / 1000) - 86400 * 200,

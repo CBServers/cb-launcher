@@ -426,6 +426,28 @@ namespace mods
             return {false, std::move(error), std::nullopt};
         }
 
+        bool is_workshop_id(const std::string& id)
+        {
+            return !id.empty() && std::all_of(id.begin(), id.end(), [](const unsigned char c) { return std::isdigit(c); });
+        }
+
+        bool workshop_item_installed(const game_layout& layout, const std::filesystem::path& root, const std::string& workshop_id)
+        {
+            for (const auto& folder : layout.folders)
+            {
+                for (const auto& directory : subdirectories(root / folder))
+                {
+                    const auto info = read_workshop_json(directory);
+                    if (info && info->publisher_id == workshop_id)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         bool is_safe_archive_entry(const std::string& name)
         {
             if (name.empty() || name.front() == '/' || name.front() == '\\' || name.find(':') != std::string::npos)
@@ -833,7 +855,8 @@ namespace mods
         return import_folder(config, source, progress, "import");
     }
 
-    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size, const progress_callback& progress)
+    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size,
+                                        const std::vector<workshop_download>& children, const progress_callback& progress)
     {
         const auto layout = layout_for(config);
         const auto root = content_root(config);
@@ -842,15 +865,44 @@ namespace mods
             return fail("This game does not support Workshop downloads or is not installed.");
         }
 
-        if (workshop_id.empty() || !std::all_of(workshop_id.begin(), workshop_id.end(), [](const unsigned char c) { return std::isdigit(c); }))
+        if (!is_workshop_id(workshop_id))
         {
             return fail("Invalid Workshop item id.");
         }
 
+        // Children first: on a cancel or failure the parent only appears once its
+        // dependencies are present, and a retry skips the finished ones.
+        std::vector<workshop_download> items{};
+        for (const auto& child : children)
+        {
+            const auto duplicate = child.id == workshop_id
+                || std::any_of(items.begin(), items.end(), [&child](const workshop_download& entry) { return entry.id == child.id; });
+            if (items.size() < MAX_WORKSHOP_CHILDREN && !duplicate && is_workshop_id(child.id)
+                && !workshop_item_installed(*layout, *root, child.id))
+            {
+                items.push_back(child);
+            }
+        }
+        items.push_back({workshop_id, expected_size});
+
+        uint64_t total_size = 0, largest_size = 0;
+        for (const auto& item : items)
+        {
+            total_size += item.size;
+            largest_size = std::max(largest_size, item.size);
+        }
+
+        // SteamCMD stages one item at a time; the target volume holds them all.
         std::error_code code{};
         const auto steamcmd_space = std::filesystem::space(utils::properties::get_appdata_path(), code);
+        if (!code && largest_size && steamcmd_space.available < largest_size)
+        {
+            return fail("Not enough free disk space for this item.");
+        }
+
+        code.clear();
         const auto target_space = std::filesystem::space(*root, code);
-        if (!code && expected_size && (steamcmd_space.available < expected_size || target_space.available < expected_size))
+        if (!code && total_size && target_space.available < total_size)
         {
             return fail("Not enough free disk space for this item.");
         }
@@ -861,21 +913,66 @@ namespace mods
             return fail(error);
         }
 
-        const auto item = steamcmd::download_item(layout->steam_appid, workshop_id, expected_size, progress, error);
-        if (!item)
+        // Combined progress weighted by size; equal weights when any size is unknown.
+        // The high-water mark keeps the bar monotonic across items and log rotations.
+        const auto all_sized = std::all_of(items.begin(), items.end(), [](const workshop_download& item) { return item.size > 0; });
+        const auto weight_of = [all_sized](const workshop_download& item) { return all_sized ? item.size : 1ull; };
+        const uint64_t total_weight = all_sized ? total_size : items.size();
+
+        uint64_t completed_weight = 0;
+        auto high_water = 0;
+        auto parent_result = fail("The install failed.");
+
+        for (const auto& item : items)
         {
-            return fail(error);
+            const auto is_parent = item.id == workshop_id;
+            if (progress && !progress("downloading", item.id, high_water))
+            {
+                return fail("cancelled");
+            }
+
+            const auto item_weight = weight_of(item);
+            const auto scaled = [&](const std::string& phase, const std::string& name, const int percent)
+            {
+                const auto clamped = static_cast<uint64_t>(std::clamp(percent, 0, 100));
+                const auto combined = static_cast<int>((completed_weight * 100 + item_weight * clamped) / total_weight);
+                high_water = std::max(high_water, std::min(combined, 99));
+                return !progress || progress(phase, name, high_water);
+            };
+
+            const auto staged = steamcmd::download_item(layout->steam_appid, item.id, item.size, scaled, error);
+            if (!staged)
+            {
+                if (error == "cancelled" || is_parent)
+                {
+                    return fail(error);
+                }
+
+                // A dependency Steam no longer serves must not block the item itself.
+                utils::logger::write("[cbl-mods] skipping dependency {}: {}", item.id, error);
+                completed_weight += item_weight;
+                continue;
+            }
+
+            // The copy into place is unmeasured, so hold the bar where the download left it.
+            scaled("installing", item.id, 99);
+
+            auto result = import_folder(config, *staged, {}, "workshop");
+            steamcmd::cleanup_downloads(layout->steam_appid, item.id);
+
+            if (is_parent)
+            {
+                parent_result = std::move(result);
+            }
+            else if (!result.success)
+            {
+                utils::logger::write("[cbl-mods] failed to install dependency {}: {}", item.id, result.error);
+            }
+
+            completed_weight += item_weight;
         }
 
-        if (progress)
-        {
-            // The copy into the game folder is unmeasured, so hold the bar where the download left it.
-            progress("installing", workshop_id, 99);
-        }
-
-        auto result = import_folder(config, *item, {}, "workshop");
-        steamcmd::cleanup_downloads(layout->steam_appid, workshop_id);
-        return result;
+        return parent_result;
     }
 
     std::optional<std::filesystem::path> mod_path(const game_config::game_config_t& config, const std::string& id)

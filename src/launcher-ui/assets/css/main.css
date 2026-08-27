@@ -4126,6 +4126,22 @@ button { font-family: inherit; cursor: pointer; }
 
 .mod-detail-rating { color: #7EE8A8; }
 
+.mod-detail-required {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.mod-detail-required strong { color: var(--text); font-size: 12px; }
+.mod-detail-required span { color: var(--text-muted); }
+.mod-detail-required small { color: var(--text-dim); font-size: 11px; }
+
 .mod-detail-desc {
     max-height: 260px;
     overflow-y: auto;

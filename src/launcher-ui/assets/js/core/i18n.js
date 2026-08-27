@@ -360,7 +360,9 @@
                 viewOnSteam: 'View on Steam',
                 detailsFailed: 'Could not load the item details. Try again later.',
                 comingSoon: 'Coming soon',
-                foldersHint: 'Content folders used by this client:'
+                foldersHint: 'Content folders used by this client:',
+                requiredItems: 'Required items',
+                requiredItemsNote: 'These are installed automatically with this item ({{size}} extra).'
             },
             popup: {
                 gameMode: {
@@ -953,7 +955,9 @@
                 viewOnSteam: 'Voir sur Steam',
                 detailsFailed: "Impossible de charger les details de l'element. Reessayez plus tard.",
                 comingSoon: 'Bientot disponible',
-                foldersHint: 'Dossiers de contenu utilises par ce client :'
+                foldersHint: 'Dossiers de contenu utilises par ce client :',
+                requiredItems: 'Elements requis',
+                requiredItemsNote: 'Ils sont installes automatiquement avec cet element ({{size}} en plus).'
             },
             popup: {
                 gameMode: {
@@ -1546,7 +1550,9 @@
                 viewOnSteam: 'Ver en Steam',
                 detailsFailed: 'No se pudieron cargar los detalles del elemento. Intentalo mas tarde.',
                 comingSoon: 'Proximamente',
-                foldersHint: 'Carpetas de contenido que usa este cliente:'
+                foldersHint: 'Carpetas de contenido que usa este cliente:',
+                requiredItems: 'Elementos requeridos',
+                requiredItemsNote: 'Se instalan automaticamente junto con este elemento ({{size}} adicionales).'
             },
             popup: {
                 gameMode: {
@@ -2137,7 +2143,9 @@
                 viewOnSteam: 'Открыть в Steam',
                 detailsFailed: 'Не удалось загрузить сведения об элементе. Попробуйте позже.',
                 comingSoon: 'Скоро',
-                foldersHint: 'Папки контента этого клиента:'
+                foldersHint: 'Папки контента этого клиента:',
+                requiredItems: 'Обязательные элементы',
+                requiredItemsNote: 'Они устанавливаются автоматически вместе с этим элементом (еще {{size}}).'
             },
             popup: {
                 gameMode: {
