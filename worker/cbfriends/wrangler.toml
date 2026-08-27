@@ -20,6 +20,20 @@ class_name = "ChatRoom"
 name = "MAILBOX"
 class_name = "Mailbox"
 
+# One Durable Object per account holds its friend edges, so concurrent updates serialise.
+[[durable_objects.bindings]]
+name = "GRAPH"
+class_name = "SocialGraph"
+
+# A single Durable Object holds live presence and the LFG board for everyone.
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "Directory"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["ChatRoom", "Mailbox"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["SocialGraph", "Directory"]

@@ -57,7 +57,7 @@ function doStorage(disk, prefix) {
 // Builds an env plus a disk and a drop() that discards instances without touching their storage.
 export function makeEnv() {
     const disk = new Map();
-    const made = { CHAT: new Map(), MAILBOX: new Map() };
+    const made = { CHAT: new Map(), MAILBOX: new Map(), GRAPH: new Map(), DIRECTORY: new Map() };
     const bind = (kind, Cls) => ({
         idFromName: n => n,
         get(n) {
@@ -70,6 +70,8 @@ export function makeEnv() {
     const env = { CB: fakeKV() };
     if (mod.ChatRoom) env.CHAT = bind('CHAT', mod.ChatRoom);
     if (mod.Mailbox) env.MAILBOX = bind('MAILBOX', mod.Mailbox);
+    if (mod.SocialGraph) env.GRAPH = bind('GRAPH', mod.SocialGraph);
+    if (mod.Directory) env.DIRECTORY = bind('DIRECTORY', mod.Directory);
     const drop = kind => made[kind].clear();
     return { env, disk, drop };
 }

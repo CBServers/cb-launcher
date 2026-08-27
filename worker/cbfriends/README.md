@@ -46,8 +46,19 @@ one, returning `409 recoverable` so the client recovers instead of duplicating.
 
 `acct:<cbId>` holds the account JSON. Reverse indices `dev:<fpr>`, `hwid:<hash>`, `discord:<id>`,
 `rec:<codeHash>`, `handle:<folded>` each map to a `cbId`. Handles are globally unique and
-case-insensitive (the folded form is the key). Phase 1 moves the friend graph to D1; Phase 0 needs
-only these key→value lookups.
+case-insensitive (the folded form is the key). `sec:<cbId>` holds the security event log and
+`inv:<cbId>` the game-invite mailbox.
+
+KV holds **only cold records**. Everything the poll loop touches lives in a Durable Object instead,
+for two reasons: KV is eventually consistent (a read can serve a value up to a minute stale, so an
+accepted friend request could appear not to have landed), and a KV read-modify-write has no
+atomicity, so two edits to one friend list could lose each other. Both problems disappear inside an
+object, which serialises its own requests and reads its own writes.
+
+It is also what makes the service affordable. The board used to be listed by scanning the `lfg:`
+prefix and reading each poster's account and presence, on every client's five-second tick;
+`test/kv-budget.test.mjs` now pins a poll cycle at a flat five KV reads no matter how many friends
+or broadcasters exist.
 
 ## Discord invite relay
 
@@ -74,7 +85,8 @@ device-key authed and route between CB friends by `cbId`.
 
 ## Durable Objects
 
-Two classes, because KV can neither hold a request open nor serialise appends:
+Four classes, because KV can neither hold a request open, serialise appends, nor be read back
+immediately after a write:
 
 - `ChatRoom` (binding `CHAT`) — one per chat room. History is kept in Durable Object **storage**
   (`msg:<zero-padded id>` plus a `seq` counter), so it survives evictions and redeploys. The
@@ -83,6 +95,20 @@ Two classes, because KV can neither hold a request open nor serialise appends:
 - `Mailbox` (binding `MAILBOX`) — one per Discord user, holds their relay long-poll and mailbox.
   Deliberately **not** persisted: invites are short-lived, and anything undelivered falls back to the
   Discord SDK, so surviving a redeploy would buy nothing.
+- `SocialGraph` (binding `GRAPH`) — one per account, holding its `friends`, `incoming`, `outgoing`
+  and `blocked` lists in Durable Object storage. Edits arrive as a batch and apply atomically, so
+  accepting a request (three edits a side) cannot half-land. An account whose edges still live in the
+  old `fr:`/`rin:`/`rout:`/`blk:` KV arrays is migrated across the first time it is read, once.
+- `Directory` (binding `DIRECTORY`) — a single instance holding live presence, the LFG board, and a
+  profile snapshot per account, so a friend list or a board listing is one call rather than two KV
+  reads per person. **Not** persisted, on the same reasoning as `Mailbox`: presence expires after 90s
+  and a post after 15 minutes, and the next 30-second beat repopulates both. A redeploy therefore
+  shows an empty board for up to one beat.
+
+  Being a single object, it serialises the whole population's presence traffic. At the launcher's
+  cadence that is a couple of calls per user per minute plus one per poll, which is comfortable, but
+  it is the first thing that would need sharding by game if the population grew by an order of
+  magnitude.
 
 ## Tests
 

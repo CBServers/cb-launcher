@@ -390,19 +390,11 @@ async function pushSecurityEvent(env, cbId, event) {
     await env.CB.put(`sec:${cbId}`, JSON.stringify(events.slice(-SECURITY_EVENTS)));
 }
 
-// Blocks are one-way and enforced server-side: a blocked account cannot reach you and you do not
-// see them. Kept out of the public profile view so blocking stays private.
-async function isBlocked(env, ownerCbId, otherCbId) {
-    return (await readArray(env, `blk:${ownerCbId}`)).includes(otherCbId);
-}
-
-// True if either side blocked the other, so neither can reach the other.
+// True if either side blocked the other, so neither can reach the other. Blocks stay out of the
+// public profile view, so being blocked is not observable.
 async function eitherBlocked(env, a, b) {
-    const [aBlocks, bBlocks] = await Promise.all([
-        readArray(env, `blk:${a}`),
-        readArray(env, `blk:${b}`),
-    ]);
-    return aBlocks.includes(b) || bBlocks.includes(a);
+    const [ga, gb] = await Promise.all([graphGet(env, a), graphGet(env, b)]);
+    return ga.blocked.includes(b) || gb.blocked.includes(a);
 }
 
 async function handleBlockAdd(env, cbId, body) {
@@ -410,28 +402,30 @@ async function handleBlockAdd(env, cbId, body) {
     if (!target || target === cbId) return json(400, { error: 'bad target' });
     if (!(await getAccount(env, target))) return json(404, { error: 'no such profile' });
 
-    const blocks = await readArray(env, `blk:${cbId}`);
-    if (!blocks.includes(target)) await writeArray(env, `blk:${cbId}`, [...blocks, target]);
-
     // Blocking also severs any existing relationship, in both directions.
-    await writeArray(env, `fr:${cbId}`, without(await readArray(env, `fr:${cbId}`), target));
-    await writeArray(env, `fr:${target}`, without(await readArray(env, `fr:${target}`), cbId));
-    await writeArray(env, `rin:${cbId}`, without(await readArray(env, `rin:${cbId}`), target));
-    await writeArray(env, `rout:${target}`, without(await readArray(env, `rout:${target}`), cbId));
-    await writeArray(env, `rout:${cbId}`, without(await readArray(env, `rout:${cbId}`), target));
-    await writeArray(env, `rin:${target}`, without(await readArray(env, `rin:${target}`), cbId));
+    await Promise.all([
+        graphApply(env, cbId, [
+            { op: 'add', list: 'blocked', cbId: target },
+            { op: 'remove', list: 'friends', cbId: target },
+            { op: 'remove', list: 'incoming', cbId: target },
+            { op: 'remove', list: 'outgoing', cbId: target },
+        ]),
+        graphApply(env, target, [
+            { op: 'remove', list: 'friends', cbId },
+            { op: 'remove', list: 'incoming', cbId },
+            { op: 'remove', list: 'outgoing', cbId },
+        ]),
+    ]);
     return json(200, { ok: true });
 }
 
 async function handleBlockRemove(env, cbId, body) {
-    const target = String(body.cbId || '');
-    await writeArray(env, `blk:${cbId}`, without(await readArray(env, `blk:${cbId}`), target));
+    await graphApply(env, cbId, [{ op: 'remove', list: 'blocked', cbId: String(body.cbId || '') }]);
     return json(200, { ok: true });
 }
 
 async function handleBlockList(env, cbId) {
-    const ids = await readArray(env, `blk:${cbId}`);
-    return json(200, { blocked: await Promise.all(ids.map(id => personView(env, id))) });
+    return json(200, { blocked: await peopleViews(env, (await graphGet(env, cbId)).blocked) });
 }
 
 // Reports are stored for an operator to review; there is no automated action.
@@ -450,8 +444,48 @@ async function handleReport(env, cbId, body) {
     return json(200, { ok: true, id });
 }
 
-// Friends, presence and LFG. Edges are JSON arrays of cbIds: fr: accepted, rin: incoming requests,
-// rout: outgoing. Presence and LFG posts are timestamped and judged fresh on read, not by KV TTL.
+// Friends, presence and LFG. Edges live in a SocialGraph object per account; presence and LFG posts
+// live in the single Directory object. KV holds only the cold account records.
+
+// Posts one request at an account's own graph object.
+function graphCall(env, cbId, path, payload) {
+    const stub = env.GRAPH.get(env.GRAPH.idFromName(cbId));
+    return stub.fetch(new Request(`https://graph/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+    })).then(r => r.json());
+}
+
+// Reads an account's edges, migrating them off the old KV arrays the first time it is asked.
+async function graphGet(env, cbId) {
+    const res = await graphCall(env, cbId, 'get', {});
+    if (res.seeded) return res;
+    return graphCall(env, cbId, 'seed', {
+        friends: await readArray(env, `fr:${cbId}`),
+        incoming: await readArray(env, `rin:${cbId}`),
+        outgoing: await readArray(env, `rout:${cbId}`),
+        blocked: await readArray(env, `blk:${cbId}`),
+    });
+}
+
+// Applies a batch of edge changes atomically, seeding first if this account has never been read.
+async function graphApply(env, cbId, ops) {
+    const res = await graphCall(env, cbId, 'apply', { ops });
+    if (res.seeded) return res;
+    await graphGet(env, cbId);
+    return graphCall(env, cbId, 'apply', { ops });
+}
+
+// Posts one request at the single directory object holding presence and the LFG board.
+function dirCall(env, path, payload) {
+    const stub = env.DIRECTORY.get(env.DIRECTORY.idFromName('main'));
+    return stub.fetch(new Request(`https://dir/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+    })).then(r => r.json());
+}
 
 const PRESENCE_FRESH_MS = 90_000;
 const LFG_FRESH_MS = 15 * 60_000;
@@ -475,47 +509,36 @@ async function readArray(env, key) {
     }
 }
 
-async function writeArray(env, key, arr) {
-    await env.CB.put(key, JSON.stringify([...new Set(arr)]));
-}
-
-function without(arr, value) {
-    return arr.filter(x => x !== value);
-}
-
 // Resolves the signing device key to its account id, or null.
 async function requireAccount(env, fpr) {
     return (await env.CB.get(`dev:${fpr}`)) || null;
 }
 
 async function presenceFor(env, cbId) {
-    const raw = await env.CB.get(`pres:${cbId}`);
-    if (!raw) return { online: false };
-    try {
-        const p = JSON.parse(raw);
-        const online = (Date.now() - (p.at || 0)) < PRESENCE_FRESH_MS;
-        return {
-            online,
-            lastSeen: p.at || 0,
-            status: p.status || '',
-            game: p.game || '',
-            mode: p.mode || '',
-            // Join flags only mean anything while online.
-            joinable: online && !!p.joinable,
-            directJoin: online && !!p.directJoin,
-            openable: online && !!p.openable,
-            matchId: p.matchId || '',
-        };
-    } catch {
-        return { online: false };
-    }
+    const known = await dirCall(env, 'people', { ids: [cbId] });
+    return livePresence((known[cbId] || {}).pres);
+}
+
+// Join flags and the game only mean anything while the beat behind them is still fresh.
+function livePresence(pres) {
+    if (!pres) return { online: false };
+    const online = (Date.now() - (pres.at || 0)) < PRESENCE_FRESH_MS;
+    return {
+        online,
+        lastSeen: pres.at || 0,
+        status: pres.status || '',
+        game: pres.game || '',
+        mode: pres.mode || '',
+        joinable: online && !!pres.joinable,
+        directJoin: online && !!pres.directJoin,
+        openable: online && !!pres.openable,
+        matchId: pres.matchId || '',
+    };
 }
 
 // Public shape of a friend, request, or LFG poster: profile plus live presence.
-async function personView(env, cbId) {
-    const account = await getAccount(env, cbId);
-    const profile = (account && account.profile) || { handle: '', displayName: '', avatarUrl: '' };
-    const pres = await presenceFor(env, cbId);
+function personFrom(cbId, profile, createdAt, pres) {
+    const live = livePresence(pres);
     return {
         cbId,
         handle: profile.handle || '',
@@ -525,42 +548,65 @@ async function personView(env, cbId) {
         accent: profile.accent || '',
         avatarCustom: !!profile.avatarCustom,
         favoriteGame: profile.favoriteGame || '',
-        createdAt: (account && account.createdAt) || 0,
-        online: !!pres.online,
-        game: pres.game || '',
-        mode: pres.mode || '',
-        status: pres.status || '',
-        joinable: !!pres.joinable,
-        directJoin: !!pres.directJoin,
-        openable: !!pres.openable,
-        matchId: pres.matchId || '',
+        createdAt: createdAt || 0,
+        online: live.online,
+        game: live.game,
+        mode: live.mode,
+        status: live.status,
+        joinable: live.joinable,
+        directJoin: live.directJoin,
+        openable: live.openable,
+        matchId: live.matchId,
     };
 }
 
+// Resolves a batch through the directory in one call, reading KV only for accounts it has not seen.
+async function peopleViews(env, ids) {
+    if (!ids.length) return [];
+    const known = await dirCall(env, 'people', { ids });
+    return Promise.all(ids.map(async id => {
+        const hit = known[id];
+        if (hit) return personFrom(id, hit.profile || {}, hit.createdAt, hit.pres);
+        const account = await getAccount(env, id);
+        return personFrom(id, (account && account.profile) || {}, account && account.createdAt, null);
+    }));
+}
+
+async function personView(env, cbId) {
+    return (await peopleViews(env, [cbId]))[0];
+}
+
+// Each side is one atomic batch on its own graph, so a concurrent edit cannot drop half of it.
 async function acceptPair(env, meId, otherId) {
-    await writeArray(env, `rin:${meId}`, without(await readArray(env, `rin:${meId}`), otherId));
-    await writeArray(env, `rout:${otherId}`, without(await readArray(env, `rout:${otherId}`), meId));
-    await writeArray(env, `rout:${meId}`, without(await readArray(env, `rout:${meId}`), otherId));
-    await writeArray(env, `rin:${otherId}`, without(await readArray(env, `rin:${otherId}`), meId));
-    await writeArray(env, `fr:${meId}`, [...await readArray(env, `fr:${meId}`), otherId]);
-    await writeArray(env, `fr:${otherId}`, [...await readArray(env, `fr:${otherId}`), meId]);
+    await Promise.all([
+        graphApply(env, meId, [
+            { op: 'remove', list: 'incoming', cbId: otherId },
+            { op: 'remove', list: 'outgoing', cbId: otherId },
+            { op: 'add', list: 'friends', cbId: otherId },
+        ]),
+        graphApply(env, otherId, [
+            { op: 'remove', list: 'outgoing', cbId: meId },
+            { op: 'remove', list: 'incoming', cbId: meId },
+            { op: 'add', list: 'friends', cbId: meId },
+        ]),
+    ]);
 }
 
 // Returns 'friends' when it completes a mutual add, otherwise 'requested'.
 async function sendFriendRequest(env, cbId, targetId) {
-    if ((await readArray(env, `fr:${cbId}`)).includes(targetId)) {
+    const me = await graphGet(env, cbId);
+    if (me.friends.includes(targetId)) {
         return 'friends';
     }
     // They already asked us, so accept immediately.
-    if ((await readArray(env, `rin:${cbId}`)).includes(targetId)) {
+    if (me.incoming.includes(targetId)) {
         await acceptPair(env, cbId, targetId);
         return 'friends';
     }
-    const myOutgoing = await readArray(env, `rout:${cbId}`);
-    if (!myOutgoing.includes(targetId)) {
-        await writeArray(env, `rout:${cbId}`, [...myOutgoing, targetId]);
-        await writeArray(env, `rin:${targetId}`, [...await readArray(env, `rin:${targetId}`), cbId]);
-    }
+    await Promise.all([
+        graphApply(env, cbId, [{ op: 'add', list: 'outgoing', cbId: targetId }]),
+        graphApply(env, targetId, [{ op: 'add', list: 'incoming', cbId }]),
+    ]);
     return 'requested';
 }
 
@@ -579,54 +625,53 @@ async function handleFriendAdd(env, cbId, body) {
 
 async function handleFriendAccept(env, cbId, body) {
     const other = String(body.cbId || '');
-    if (!(await readArray(env, `rin:${cbId}`)).includes(other)) {
+    if (!(await graphGet(env, cbId)).incoming.includes(other)) {
         return json(404, { error: 'no such request' });
     }
     await acceptPair(env, cbId, other);
     return json(200, { status: 'friends' });
 }
 
+// decline drops their request to us, cancel drops ours to them, remove drops an accepted friendship.
 async function handleFriendDrop(env, cbId, body, kind) {
     const other = String(body.cbId || '');
-    if (kind === 'decline') {
-        await writeArray(env, `rin:${cbId}`, without(await readArray(env, `rin:${cbId}`), other));
-        await writeArray(env, `rout:${other}`, without(await readArray(env, `rout:${other}`), cbId));
-    } else if (kind === 'cancel') {
-        await writeArray(env, `rout:${cbId}`, without(await readArray(env, `rout:${cbId}`), other));
-        await writeArray(env, `rin:${other}`, without(await readArray(env, `rin:${other}`), cbId));
-    } else {
-        await writeArray(env, `fr:${cbId}`, without(await readArray(env, `fr:${cbId}`), other));
-        await writeArray(env, `fr:${other}`, without(await readArray(env, `fr:${other}`), cbId));
-    }
+    const mine = kind === 'decline' ? 'incoming' : (kind === 'cancel' ? 'outgoing' : 'friends');
+    const theirs = kind === 'decline' ? 'outgoing' : (kind === 'cancel' ? 'incoming' : 'friends');
+    await Promise.all([
+        graphApply(env, cbId, [{ op: 'remove', list: mine, cbId: other }]),
+        graphApply(env, other, [{ op: 'remove', list: theirs, cbId }]),
+    ]);
     return json(200, { status: 'ok' });
 }
 
 async function handleFriendList(env, cbId) {
-    const [friends, incoming, outgoing] = await Promise.all([
-        readArray(env, `fr:${cbId}`),
-        readArray(env, `rin:${cbId}`),
-        readArray(env, `rout:${cbId}`),
-    ]);
+    const edges = await graphGet(env, cbId);
     const [f, i, o] = await Promise.all([
-        Promise.all(friends.map(id => personView(env, id))),
-        Promise.all(incoming.map(id => personView(env, id))),
-        Promise.all(outgoing.map(id => personView(env, id))),
+        peopleViews(env, edges.friends),
+        peopleViews(env, edges.incoming),
+        peopleViews(env, edges.outgoing),
     ]);
     return json(200, { friends: f, incoming: i, outgoing: o });
 }
 
+// The beat carries the profile too, so the directory can serve friend lists without touching KV.
 async function handlePresence(env, cbId, body) {
-    await env.CB.put(`pres:${cbId}`, JSON.stringify({
-        at: Date.now(),
-        status: typeof body.status === 'string' ? body.status.slice(0, 64) : '',
-        game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
-        mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
-        // Flags only; the secret is exchanged over the invite mailbox.
-        joinable: !!body.joinable,
-        directJoin: !!body.directJoin,
-        openable: !!body.openable,
-        matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
-    }));
+    const account = await getAccount(env, cbId);
+    await dirCall(env, 'beat', {
+        cbId,
+        profile: (account && account.profile) || {},
+        createdAt: (account && account.createdAt) || 0,
+        pres: {
+            status: typeof body.status === 'string' ? body.status.slice(0, 64) : '',
+            game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
+            mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
+            // Flags only; the secret is exchanged over the invite mailbox.
+            joinable: !!body.joinable,
+            directJoin: !!body.directJoin,
+            openable: !!body.openable,
+            matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
+        },
+    });
     return json(200, { ok: true });
 }
 
@@ -647,7 +692,7 @@ async function readMailbox(env, cbId) {
 async function handleInviteSend(env, cbId, body) {
     const to = String(body.to || '');
     if (!to || to === cbId) return json(400, { error: 'bad target' });
-    if (!(await readArray(env, `fr:${cbId}`)).includes(to)) return json(403, { error: 'not friends' });
+    if (!(await graphGet(env, cbId)).friends.includes(to)) return json(403, { error: 'not friends' });
     if (await eitherBlocked(env, cbId, to)) return json(403, { error: 'not friends' });
 
     const message = {
@@ -701,18 +746,13 @@ async function handleProfileGet(env, cbId, body) {
     if (!target) return json(400, { error: 'cbId required' });
     if (!(await getAccount(env, target))) return json(404, { error: 'no such profile' });
 
-    const person = await personView(env, target);
-    const [friends, outgoing, incoming] = await Promise.all([
-        readArray(env, `fr:${cbId}`),
-        readArray(env, `rout:${cbId}`),
-        readArray(env, `rin:${cbId}`),
-    ]);
+    const [person, edges] = await Promise.all([personView(env, target), graphGet(env, cbId)]);
 
     let relation = 'none';
     if (target === cbId) relation = 'self';
-    else if (friends.includes(target)) relation = 'friend';
-    else if (outgoing.includes(target)) relation = 'requested';
-    else if (incoming.includes(target)) relation = 'incoming';
+    else if (edges.friends.includes(target)) relation = 'friend';
+    else if (edges.outgoing.includes(target)) relation = 'requested';
+    else if (edges.incoming.includes(target)) relation = 'incoming';
 
     return json(200, { ...person, relation });
 }
@@ -759,7 +799,7 @@ async function handleChatPoll(env, cbId, body) {
     if (!room) return json(400, { error: 'bad room' });
 
     const res = await toChatRoom(env, room, 'poll', { after: body.after, before: body.before });
-    const blocks = await readArray(env, `blk:${cbId}`);
+    const blocks = (await graphGet(env, cbId)).blocked;
     if (!blocks.length) return res;
 
     // Blocked authors are filtered here rather than in the room, which has no idea who is reading.
@@ -775,35 +815,35 @@ async function handleInvitePoll(env, cbId) {
     return json(200, { messages: fresh });
 }
 
+// A post carries a profile snapshot so the board can be listed without a KV read per poster.
 async function handleLfgPost(env, cbId, body) {
     const game = typeof body.game === 'string' ? body.game.slice(0, 32) : '';
     if (!game) return json(400, { error: 'game required' });
-    const slots = Number.isFinite(body.slots) ? Math.max(0, Math.min(16, Math.trunc(body.slots))) : 0;
-    await env.CB.put(`lfg:${cbId}`, JSON.stringify({
-        at: Date.now(),
-        game,
-        mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
-        note: typeof body.note === 'string' ? body.note.slice(0, 200) : '',
-        slots,
-        joiners: [],
-    }));
+
+    const account = await getAccount(env, cbId);
+    await dirCall(env, 'lfg/set', {
+        cbId,
+        profile: (account && account.profile) || {},
+        createdAt: (account && account.createdAt) || 0,
+        post: {
+            game,
+            mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
+            note: typeof body.note === 'string' ? body.note.slice(0, 200) : '',
+            slots: Number.isFinite(body.slots) ? Math.max(0, Math.min(16, Math.trunc(body.slots))) : 0,
+        },
+    });
     return json(200, { ok: true });
 }
 
 async function handleLfgClear(env, cbId) {
-    await env.CB.delete(`lfg:${cbId}`);
+    await dirCall(env, 'lfg/clear', { cbId });
     return json(200, { ok: true });
 }
 
 // Bumps a broadcast's freshness without disturbing its roster, keeping it live.
 async function handleLfgRefresh(env, cbId) {
-    const raw = await env.CB.get(`lfg:${cbId}`);
-    if (!raw) return json(404, { error: 'no broadcast' });
-    let rec;
-    try { rec = JSON.parse(raw); } catch { return json(404, { error: 'no broadcast' }); }
-    rec.at = Date.now();
-    await env.CB.put(`lfg:${cbId}`, JSON.stringify(rec));
-    return json(200, { ok: true });
+    const res = await dirCall(env, 'lfg/refresh', { cbId });
+    return res.ok ? json(200, { ok: true }) : json(404, { error: 'no broadcast' });
 }
 
 // Adds you to a poster's roster and sends a friend request so you can connect. Idempotent.
@@ -811,58 +851,34 @@ async function handleLfgJoin(env, cbId, body) {
     const poster = String(body.cbId || '');
     if (!poster || poster === cbId) return json(400, { error: 'bad target' });
 
-    const raw = await env.CB.get(`lfg:${poster}`);
-    if (!raw) return json(404, { error: 'post not found' });
-    let rec;
-    try { rec = JSON.parse(raw); } catch { return json(404, { error: 'post not found' }); }
-    if (Date.now() - (rec.at || 0) > LFG_FRESH_MS) return json(404, { error: 'post expired' });
-
-    rec.joiners = Array.isArray(rec.joiners) ? rec.joiners : [];
-    if (!rec.joiners.includes(cbId)) rec.joiners.push(cbId);
-    await env.CB.put(`lfg:${poster}`, JSON.stringify(rec));
+    const res = await dirCall(env, 'lfg/join', { cbId, poster });
+    if (!res.ok) return json(404, { error: 'post not found' });
 
     await sendFriendRequest(env, cbId, poster);
     return json(200, { ok: true });
 }
 
 async function handleLfgList(env, cbId, body) {
-    const wantGame = typeof body.game === 'string' ? body.game : '';
-    const friends = new Set(await readArray(env, `fr:${cbId}`));
-    const outgoing = new Set(await readArray(env, `rout:${cbId}`));
-    const blocked = new Set(await readArray(env, `blk:${cbId}`));
+    const [board, edges] = await Promise.all([
+        dirCall(env, 'lfg/list', { game: typeof body.game === 'string' ? body.game : '' }),
+        graphGet(env, cbId),
+    ]);
+    const friends = new Set(edges.friends);
+    const outgoing = new Set(edges.outgoing);
+    const blocked = new Set(edges.blocked);
 
-    const posts = [];
-    let cursor;
-    do {
-        const page = await env.CB.list({ prefix: 'lfg:', cursor });
-        for (const entry of page.keys) {
-            const id = entry.name.slice('lfg:'.length);
-            const raw = await env.CB.get(entry.name);
-            if (!raw) continue;
-            let rec;
-            try { rec = JSON.parse(raw); } catch { continue; }
-            if (Date.now() - (rec.at || 0) > LFG_FRESH_MS) continue;
-            if (wantGame && rec.game !== wantGame) continue;
-
-            if (blocked.has(id)) continue;
-            const joiners = Array.isArray(rec.joiners) ? rec.joiners : [];
-            const person = await personView(env, id);
-            posts.push({
-                ...person,
-                game: rec.game,
-                mode: rec.mode || '',
-                note: rec.note || '',
-                slots: rec.slots || 0,
-                joined: joiners.length,
-                iJoined: joiners.includes(cbId),
-                // Your own broadcast is listed too, so you can see the lobby you're advertising.
-                relation: id === cbId ? 'self'
-                    : (friends.has(id) ? 'friend' : (outgoing.has(id) ? 'requested' : 'none')),
-            });
-        }
-        cursor = page.list_complete ? undefined : page.cursor;
-    } while (cursor);
-
+    const posts = (board.posts || []).filter(p => !blocked.has(p.cbId)).map(p => ({
+        ...personFrom(p.cbId, p.profile || {}, p.createdAt, p.pres),
+        game: p.game,
+        mode: p.mode || '',
+        note: p.note || '',
+        slots: p.slots || 0,
+        joined: p.joined || 0,
+        iJoined: (p.joiners || []).includes(cbId),
+        // Your own broadcast is listed too, so you can see the lobby you're advertising.
+        relation: p.cbId === cbId ? 'self'
+            : (friends.has(p.cbId) ? 'friend' : (outgoing.has(p.cbId) ? 'requested' : 'none')),
+    }));
     return json(200, { posts });
 }
 
@@ -1189,6 +1205,172 @@ export class Mailbox {
                 this.waiters.push(finish);
             });
             return json(200, { invites: this.messages });
+        }
+
+        return json(404, { error: 'not found' });
+    }
+}
+
+// One per account: its friend edges and block list. A Durable Object serialises its own requests,
+// so a batch here cannot lose half an update the way a KV read-modify-write can.
+export class SocialGraph {
+    constructor(state) {
+        this.state = state;
+        this.edges = null;
+        if (state && state.blockConcurrencyWhile) {
+            state.blockConcurrencyWhile(async () => { await this.load(); });
+        }
+    }
+
+    async load() {
+        this.edges = (await this.state.storage.get('edges')) || null;
+    }
+
+    // Loading is normally done in the constructor; this covers runtimes without it.
+    async ensureLoaded() {
+        if (this.state && this.state.blockConcurrencyWhile) return;
+        if (!this.ready) this.ready = this.load();
+        await this.ready;
+    }
+
+    view() {
+        return { seeded: true, ...this.edges };
+    }
+
+    async fetch(request) {
+        await this.ensureLoaded();
+        const { pathname } = new URL(request.url);
+        const body = await request.json().catch(() => ({}));
+
+        // An unseeded graph reports it so the worker can migrate this account's KV arrays across.
+        if (!this.edges) {
+            if (pathname !== '/seed') return json(200, { seeded: false });
+            this.edges = {
+                friends: [...new Set(body.friends || [])],
+                incoming: [...new Set(body.incoming || [])],
+                outgoing: [...new Set(body.outgoing || [])],
+                blocked: [...new Set(body.blocked || [])],
+            };
+            await this.state.storage.put('edges', this.edges);
+            return json(200, this.view());
+        }
+
+        if (pathname === '/apply') {
+            let dirty = false;
+            for (const { op, list, cbId } of (body.ops || [])) {
+                const current = this.edges[list];
+                if (!current || !cbId) continue;
+                if (op === 'add' && !current.includes(cbId)) { current.push(cbId); dirty = true; }
+                if (op === 'remove' && current.includes(cbId)) {
+                    this.edges[list] = current.filter(x => x !== cbId);
+                    dirty = true;
+                }
+            }
+            if (dirty) await this.state.storage.put('edges', this.edges);
+        }
+
+        return json(200, this.view());
+    }
+}
+
+// One instance for the whole population: live presence, the LFG board, and a profile snapshot for
+// each. Held in memory only - every field is short-lived and the next beat repopulates it, the same
+// bargain Mailbox makes.
+export class Directory {
+    constructor() {
+        this.people = new Map();
+    }
+
+    entry(cbId) {
+        let it = this.people.get(cbId);
+        if (!it) {
+            it = { profile: {}, createdAt: 0, pres: null, post: null };
+            this.people.set(cbId, it);
+        }
+        return it;
+    }
+
+    // Drops anyone whose presence and broadcast have both gone stale, so the map cannot grow forever.
+    prune() {
+        const now = Date.now();
+        for (const [cbId, it] of this.people) {
+            const livePres = it.pres && now - it.pres.at < PRESENCE_FRESH_MS;
+            const livePost = it.post && now - it.post.at < LFG_FRESH_MS;
+            if (!livePres && !livePost) this.people.delete(cbId);
+        }
+    }
+
+    async fetch(request) {
+        const { pathname } = new URL(request.url);
+        const body = await request.json().catch(() => ({}));
+        const now = Date.now();
+
+        if (pathname === '/beat') {
+            const it = this.entry(body.cbId);
+            it.profile = body.profile || it.profile;
+            it.createdAt = body.createdAt || it.createdAt;
+            it.pres = { ...(body.pres || {}), at: now };
+            this.prune();
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/people') {
+            const out = {};
+            for (const cbId of (body.ids || [])) {
+                const it = this.people.get(cbId);
+                if (it) out[cbId] = { profile: it.profile, createdAt: it.createdAt, pres: it.pres };
+            }
+            return json(200, out);
+        }
+
+        if (pathname === '/lfg/set') {
+            const it = this.entry(body.cbId);
+            it.profile = body.profile || it.profile;
+            it.createdAt = body.createdAt || it.createdAt;
+            it.post = { ...(body.post || {}), at: now, joiners: [] };
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/lfg/clear') {
+            const it = this.people.get(body.cbId);
+            if (it) it.post = null;
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/lfg/refresh') {
+            const it = this.people.get(body.cbId);
+            if (!it || !it.post) return json(200, { ok: false });
+            it.post.at = now;
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/lfg/join') {
+            const it = this.people.get(body.poster);
+            if (!it || !it.post || now - it.post.at > LFG_FRESH_MS) return json(200, { ok: false });
+            if (!it.post.joiners.includes(body.cbId)) it.post.joiners.push(body.cbId);
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/lfg/list') {
+            this.prune();
+            const posts = [];
+            for (const [cbId, it] of this.people) {
+                if (!it.post || now - it.post.at > LFG_FRESH_MS) continue;
+                if (body.game && it.post.game !== body.game) continue;
+                posts.push({
+                    cbId,
+                    profile: it.profile,
+                    createdAt: it.createdAt,
+                    pres: it.pres,
+                    game: it.post.game,
+                    mode: it.post.mode,
+                    note: it.post.note,
+                    slots: it.post.slots,
+                    joined: it.post.joiners.length,
+                    joiners: it.post.joiners,
+                });
+            }
+            return json(200, { posts });
         }
 
         return json(404, { error: 'not found' });

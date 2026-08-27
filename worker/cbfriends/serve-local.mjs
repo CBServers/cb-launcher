@@ -82,6 +82,8 @@ const env = {
     },
     CHAT: doBinding(module.ChatRoom, 'chat'),
     MAILBOX: doBinding(module.Mailbox, 'mailbox'),
+    GRAPH: doBinding(module.SocialGraph, 'graph'),
+    DIRECTORY: doBinding(module.Directory, 'directory'),
 };
 
 const server = createServer(async (req, res) => {
