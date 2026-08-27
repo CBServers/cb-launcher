@@ -355,6 +355,7 @@ namespace commands::social_commands
                 messages.PushBack(obj, allocator);
             }
             response.AddMember("messages", messages, allocator);
+            response.AddMember("hasMore", social::cbfriends_service::instance().has_more_chat(), allocator);
         });
 
         cef_ui.add_command("cbfriends-send-chat", [](const rapidjson::Value& value, rapidjson::Document& response)
@@ -370,6 +371,59 @@ namespace commands::social_commands
                 social::cbfriends_service::instance().send_chat(room, text);
             }
             response.AddMember("ok", ok, allocator);
+        });
+
+        friend_action("cbfriends-block", &social::cbfriends_service::block_user);
+        friend_action("cbfriends-unblock", &social::cbfriends_service::unblock_user);
+
+        cef_ui.add_command("cbfriends-get-blocked", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value blocked(rapidjson::kArrayType);
+            for (const auto& p : social::cbfriends_service::instance().get_blocked())
+            {
+                add_person(blocked, p, allocator);
+            }
+            response.AddMember("blocked", blocked, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-report", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto cb_id = read_string(value, "cbId");
+            const bool ok = !cb_id.empty();
+            if (ok)
+            {
+                social::cbfriends_service::instance().report_user(cb_id, read_string(value, "reason"));
+            }
+            response.AddMember("ok", ok, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-get-security-events", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value events(rapidjson::kArrayType);
+            for (const auto& e : social::cbfriends_service::instance().get_security_events())
+            {
+                rapidjson::Value obj(rapidjson::kObjectType);
+                add_string(obj, "kind", e.kind, allocator);
+                add_string(obj, "via", e.via, allocator);
+                obj.AddMember("at", e.at, allocator);
+                events.PushBack(obj, allocator);
+            }
+            response.AddMember("events", events, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-load-older-chat", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().load_older_chat();
         });
 
         cef_ui.add_command("cbfriends-get-broadcast", [](const rapidjson::Value&, rapidjson::Document& response)

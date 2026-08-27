@@ -33,6 +33,9 @@ namespace property_keys
     constexpr const char* CB_RECOVERY_CODE = "launcher-cb-recovery-code";
 
     // CB community broadcast toggle (opt-in discovery by non-friends) + its details
+    // Hides the Community tab entirely
+    constexpr const char* CB_COMMUNITY_ENABLED = "launcher-cb-community-enabled";
+
     constexpr const char* CB_BROADCAST = "launcher-cb-broadcast";
     constexpr const char* CB_BROADCAST_GAME = "launcher-cb-broadcast-game";
     constexpr const char* CB_BROADCAST_NOTE = "launcher-cb-broadcast-note";

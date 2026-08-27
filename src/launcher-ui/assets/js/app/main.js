@@ -1355,6 +1355,17 @@ window.addEventListener('cb-progress-tick', (event) => {
     }
 });
 
+// Hides the Community nav item, and leaves it if the user is standing on it.
+function applyCommunityVisible(visible) {
+    const nav = document.getElementById('community');
+    if (!nav) return;
+    nav.style.display = visible ? '' : 'none';
+    if (!visible && nav.classList.contains('active')) {
+        const home = document.getElementById('home');
+        if (home) home.click();
+    }
+}
+
 function loadNavigationPage(page) {
     console.log(`Loading page: ${page}`);
 
@@ -2007,6 +2018,17 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Community tab" setting
+        const communityEnabled = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.CB_COMMUNITY_ENABLED);
+        const communityToggle = document.getElementById('cb-community-toggle');
+        if (communityToggle) {
+            communityToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const target = (communityEnabled === 'false') ? 'false' : 'true';
+            const btn = communityToggle.querySelector(`[data-value="${target}"]`);
+            if (btn) btn.classList.add('active');
+        }
+        applyCommunityVisible(communityEnabled !== 'false');
+
         // Load "Desktop Notifications" setting
         const desktopNotifications = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS);
         const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
@@ -2430,6 +2452,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: clickedValue
                         });
                         console.log(`Reduce motion set to: ${clickedValue}`);
+                    } else if (settingId === 'cb-community-toggle') {
+                        applyCommunityVisible(clickedValue === 'true');
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.CB_COMMUNITY_ENABLED]: clickedValue
+                        });
                     } else if (settingId === 'desktop-notifications-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS]: clickedValue

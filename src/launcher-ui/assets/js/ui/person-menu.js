@@ -2,6 +2,8 @@
 // friends list. Reuses the library card menu styling so it matches the rest of the launcher.
 
 (function () {
+
+    function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
     let menu = null;
     let card = null;
 
@@ -97,20 +99,20 @@
 
     function relationAction(p) {
         switch (p.relation) {
-            case 'self': return `<span class="cb-pending-label">This is you</span>`;
-            case 'friend': return `<span class="cb-pending-label">Friends</span>`;
-            case 'requested': return `<span class="cb-pending-label">Request sent</span>`;
-            case 'incoming': return `<button class="cb-add-btn" data-person-accept="${escapeHtml(p.cbId)}">Accept request</button>`;
-            default: return `<button class="cb-add-btn" data-person-add="${escapeHtml(p.handle)}">Add friend</button>`;
+            case 'self': return `<span class="cb-pending-label">${escapeHtml(t('thisIsYou'))}</span>`;
+            case 'friend': return `<span class="cb-pending-label">${escapeHtml(t('friendsAlready'))}</span>`;
+            case 'requested': return `<span class="cb-pending-label">${escapeHtml(t('requested'))}</span>`;
+            case 'incoming': return `<button class="cb-add-btn" data-person-accept="${escapeHtml(p.cbId)}">${escapeHtml(t('acceptRequest'))}</button>`;
+            default: return `<button class="cb-add-btn" data-person-add="${escapeHtml(p.handle)}">${escapeHtml(t('addFriend'))}</button>`;
         }
     }
 
     function cardHtml(p, loading) {
         if (loading) {
-            return `<div class="cb-person-card"><div class="cb-person-loading">Loading profile…</div></div>`;
+            return `<div class="cb-person-card"><div class="cb-person-loading">${escapeHtml(t('loading'))}</div></div>`;
         }
         if (!p) {
-            return `<div class="cb-person-card"><div class="cb-person-loading">Profile unavailable.</div></div>`;
+            return `<div class="cb-person-card"><div class="cb-person-loading">${escapeHtml(t('profileUnavailable'))}</div></div>`;
         }
 
         const accent = /^#[0-9a-f]{6}$/i.test(p.accent || '') ? p.accent : '';
@@ -119,13 +121,13 @@
             ? `<img class="cb-person-avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" />`
             : `<span class="cb-person-avatar-initials">${escapeHtml(initials(p.displayName || p.handle))}</span>`;
         const presence = p.online
-            ? (p.game ? `Playing ${escapeHtml(gameName(p.game))}` : 'Online')
-            : 'Offline';
+            ? (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('online'))
+            : t('offline');
         const since = memberSince(p.createdAt);
         const rows = [
             p.bio ? `<div class="cb-person-bio">${escapeHtml(p.bio)}</div>` : '',
-            p.favoriteGame ? `<div class="cb-person-field"><span>Favourite game</span>${escapeHtml(gameName(p.favoriteGame))}</div>` : '',
-            since ? `<div class="cb-person-field"><span>Member since</span>${escapeHtml(since)}</div>` : '',
+            p.favoriteGame ? `<div class="cb-person-field"><span>${escapeHtml(t('favouriteGame'))}</span>${escapeHtml(gameName(p.favoriteGame))}</div>` : '',
+            since ? `<div class="cb-person-field"><span>${escapeHtml(t('memberSince'))}</span>${escapeHtml(since)}</div>` : '',
         ].filter(Boolean).join('');
 
         return `
@@ -176,7 +178,7 @@
                 const handle = add.getAttribute('data-person-add');
                 try {
                     await window.executeCommand('cbfriends-add-friend', { handle });
-                    if (window.showToast) window.showToast(`Friend request sent to @${handle}.`, 'success');
+                    if (window.showToast) window.showToast(t('requestSent', { handle }), 'success');
                 } catch (error) { console.warn('Add friend failed:', error); }
                 hideCard();
                 return;
@@ -185,18 +187,46 @@
             if (accept) {
                 try {
                     await window.executeCommand('cbfriends-accept', { cbId: accept.getAttribute('data-person-accept') });
-                    if (window.showToast) window.showToast('Friend request accepted.', 'success');
+                    if (window.showToast) window.showToast(t('acceptRequest'), 'success');
                 } catch (error) { console.warn('Accept failed:', error); }
                 hideCard();
             }
         });
     }
 
+    // Blocking is destructive to an existing friendship, so it is confirmed first.
+    async function blockUser(person) {
+        try {
+            const idx = await window.showMessageBox(
+                t('blockTitle', { handle: person.handle }), t('blockBody'),
+                [{ label: t('blockConfirm'), danger: true }, t('cancel')]);
+            if (idx !== 0) return;
+            await window.executeCommand('cbfriends-block', { cbId: person.cbId });
+            if (window.showToast) window.showToast(t('blockedToast', { handle: person.handle }), 'info');
+            hideCard();
+        } catch (error) {
+            console.warn('Block failed:', error);
+        }
+    }
+
+    async function reportUser(person) {
+        try {
+            const idx = await window.showMessageBox(
+                t('reportTitle', { handle: person.handle }), t('reportBody'),
+                [{ label: t('reportConfirm'), danger: true }, t('cancel')]);
+            if (idx !== 0) return;
+            await window.executeCommand('cbfriends-report', { cbId: person.cbId, reason: '' });
+            if (window.showToast) window.showToast(t('reportedToast'), 'success');
+        } catch (error) {
+            console.warn('Report failed:', error);
+        }
+    }
+
     async function addFriend(handle) {
         if (!handle) return;
         try {
             await window.executeCommand('cbfriends-add-friend', { handle });
-            if (window.showToast) window.showToast(`Friend request sent to @${handle}.`, 'success');
+            if (window.showToast) window.showToast(t('requestSent', { handle }), 'success');
         } catch (error) {
             console.warn('Add friend failed:', error);
         }
@@ -212,8 +242,10 @@
             const isSelf = person.relation === 'self';
             const known = person.relation === 'friend' || person.relation === 'requested';
             const items = [
-                { label: 'View profile', action: () => showCard(person) },
-                { label: 'Add friend', hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
+                { label: t('viewProfile'), action: () => showCard(person) },
+                { label: t('addFriend'), hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
+                { label: t('block'), hidden: isSelf, danger: true, action: () => blockUser(person) },
+                { label: t('report'), hidden: isSelf, danger: true, action: () => reportUser(person) },
             ].concat(extra || []);
             showMenu(event.clientX, event.clientY, items);
         },

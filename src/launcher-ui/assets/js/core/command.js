@@ -34,7 +34,9 @@ const mockCb = {
         all: [{ id: 1, cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', accent: '#F3751B', text: 'anyone on tonight?' }],
         boiii: [{ id: 1, cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', accent: '', text: 'running EE in 10' }]
     },
-    viewedProfile: null
+    viewedProfile: null,
+    blocked: [],
+    securityEvents: []
 };
 function mockPerson(handle, name, extra) {
     return Object.assign({ cbId: 'cb_' + handle, handle, displayName: name || handle, avatarUrl: '', online: false, game: '', mode: '', status: '', relation: '', note: '' }, extra || {});
@@ -129,7 +131,19 @@ function mockCommand(command, data) {
         case 'cbfriends-get-viewed-profile':
             return { profile: mockCb.viewedProfile || null };
         case 'cbfriends-set-activity':
+        case 'cbfriends-load-older-chat':
+        case 'cbfriends-report':
             return { ok: true };
+        case 'cbfriends-block':
+            mockCb.blocked.push(mockPerson('blocked' + mockCb.blocked.length, 'Blocked user'));
+            return { ok: true };
+        case 'cbfriends-unblock':
+            mockCb.blocked = mockCb.blocked.filter(p => p.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-get-blocked':
+            return { blocked: mockCb.blocked };
+        case 'cbfriends-get-security-events':
+            return { events: mockCb.securityEvents };
         case 'cbfriends-get-invites':
             return { invites: mockCb.invites || [] };
         case 'cbfriends-invite-friend':
@@ -170,7 +184,7 @@ function mockCommand(command, data) {
             mockCb.chatRoom = (data && data.room) || '';
             return { ok: true };
         case 'cbfriends-get-chat':
-            return { messages: mockCb.chat[mockCb.chatRoom] || [] };
+            return { messages: mockCb.chat[mockCb.chatRoom] || [], hasMore: false };
         case 'cbfriends-send-chat': {
             const list = mockCb.chat[data.room] || (mockCb.chat[data.room] = []);
             list.push({ id: list.length + 1, cbId: 'cb_preview', handle: 'divity', displayName: 'Divity', text: data.text });

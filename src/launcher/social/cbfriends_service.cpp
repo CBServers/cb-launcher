@@ -546,6 +546,12 @@ namespace social
                 }
                 refresh_friends();
                 poll_invites();
+                if (now - last_slow_.load() >= 60)
+                {
+                    last_slow_ = now;
+                    refresh_blocked();
+                    refresh_security();
+                }
                 if (community_active_)
                 {
                     refresh_lfg();
@@ -1127,6 +1133,8 @@ namespace social
             chat_room_ = room;
             chat_.clear();
             chat_after_ = 0;
+            chat_oldest_ = 0;
+            chat_more_ = true;
         }
         if (!room.empty() && get_state() == profile_state::ready)
         {
@@ -1197,11 +1205,137 @@ namespace social
             message.text = json_get(m, "text");
             chat_.push_back(std::move(message));
             chat_after_ = (std::max)(chat_after_, chat_.back().id);
+            if (chat_oldest_ == 0) chat_oldest_ = chat_.front().id;
         }
         if (chat_.size() > 200)
         {
             chat_.erase(chat_.begin(), chat_.begin() + (chat_.size() - 200));
         }
+    }
+
+    void cbfriends_service::load_older_chat()
+    {
+        if (get_state() != profile_state::ready)
+        {
+            return;
+        }
+
+        std::string room;
+        int64_t before;
+        {
+            std::lock_guard lock(mutex_);
+            room = chat_room_;
+            before = chat_oldest_;
+            if (room.empty() || !chat_more_ || before <= 1) return;
+        }
+
+        std::thread([this, room, before]
+        {
+            rapidjson::Document body;
+            body.SetObject();
+            body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+            add_string(body, "room", room);
+            body.AddMember("before", before, body.GetAllocator());
+
+            auto doc = post_json(base_url() + "/v1/chat/poll", serialize(body));
+            if (!doc || !doc->HasMember("messages") || !(*doc)["messages"].IsArray()) return;
+
+            std::vector<chat_message> older;
+            for (const auto& m : (*doc)["messages"].GetArray())
+            {
+                chat_message msg;
+                msg.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
+                msg.cb_id = json_get(m, "cbId");
+                msg.handle = json_get(m, "handle");
+                msg.display_name = json_get(m, "displayName");
+                msg.accent = json_get(m, "accent");
+                msg.text = json_get(m, "text");
+                older.push_back(std::move(msg));
+            }
+
+            std::lock_guard lock(mutex_);
+            if (chat_room_ != room) return;
+            if (older.empty())
+            {
+                chat_more_ = false;
+                return;
+            }
+            chat_oldest_ = older.front().id;
+            chat_.insert(chat_.begin(), older.begin(), older.end());
+        }).detach();
+    }
+
+    bool cbfriends_service::has_more_chat() const
+    {
+        std::lock_guard lock(mutex_);
+        return chat_more_ && chat_oldest_ > 1;
+    }
+
+    void cbfriends_service::block_user(const std::string& cb_id)
+    {
+        post_action("/v1/block/add", cbid_body(cb_id), [this]
+        {
+            refresh_blocked();
+            refresh_friends();
+        });
+    }
+
+    void cbfriends_service::unblock_user(const std::string& cb_id)
+    {
+        post_action("/v1/block/remove", cbid_body(cb_id), [this] { refresh_blocked(); });
+    }
+
+    std::vector<cb_person> cbfriends_service::get_blocked() const
+    {
+        std::lock_guard lock(mutex_);
+        return blocked_;
+    }
+
+    void cbfriends_service::report_user(const std::string& cb_id, const std::string& reason)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "cbId", cb_id);
+        add_string(body, "reason", reason);
+        post_action("/v1/report", serialize(body), {});
+    }
+
+    void cbfriends_service::refresh_blocked()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/block/list", ts_body());
+        if (!doc || !doc->HasMember("blocked")) return;
+
+        auto people = parse_people((*doc)["blocked"]);
+        std::lock_guard lock(mutex_);
+        blocked_ = std::move(people);
+    }
+
+    std::vector<security_event> cbfriends_service::get_security_events() const
+    {
+        std::lock_guard lock(mutex_);
+        return security_;
+    }
+
+    void cbfriends_service::refresh_security()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/security/events", ts_body());
+        if (!doc || !doc->HasMember("events") || !(*doc)["events"].IsArray()) return;
+
+        std::vector<security_event> events;
+        for (const auto& e : (*doc)["events"].GetArray())
+        {
+            security_event ev;
+            ev.kind = json_get(e, "kind");
+            ev.via = json_get(e, "via");
+            ev.at = (e.IsObject() && e.HasMember("at") && e["at"].IsInt64()) ? e["at"].GetInt64() : 0;
+            events.push_back(std::move(ev));
+        }
+
+        std::lock_guard lock(mutex_);
+        security_ = std::move(events);
     }
 
     broadcast_state cbfriends_service::get_broadcast() const

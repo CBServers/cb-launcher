@@ -6,6 +6,8 @@
     const CREATING_POLL_MS = 1500;
     const HANDLE_RE = /^[a-z0-9_]{2,32}$/i;
 
+    function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
+
     let started = false;
     let activeSource = 'discord';
     let creatingTimer = null;
@@ -81,7 +83,7 @@
         const handle = profile.handle ? '@' + escapeHtml(profile.handle) : '';
         const game = currentGameId();
         const activity = game
-            ? `<div class="cb-profile-activity"><span class="friend-status-dot" data-status="online"></span>Playing ${escapeHtml(gameName(game))}</div>`
+            ? `<div class="cb-profile-activity"><span class="friend-status-dot" data-status="online"></span>${escapeHtml(t("playing", { game: gameName(game) }))}</div>`
             : '';
         return `
             <div class="cb-profile-card">
@@ -90,13 +92,13 @@
                     ${game ? '<span class="friend-status-dot cb-profile-dot" data-status="online"></span>' : ''}
                 </div>
                 <div class="cb-profile-body">
-                    <div class="cb-profile-name">${escapeHtml(profile.displayName || profile.handle || 'CB user')}</div>
+                    <div class="cb-profile-name">${escapeHtml(profile.displayName || profile.handle || t('displayName'))}</div>
                     <div class="cb-profile-handle">${handle}</div>
                     ${activity}
                 </div>
                 <div class="cb-profile-actions">
-                    <button class="cb-ghost-btn" id="cb-edit-btn" type="button">Edit</button>
-                    <button class="cb-profile-recovery-btn" id="cb-recovery-btn" type="button">Recovery code</button>
+                    <button class="cb-ghost-btn" id="cb-edit-btn" type="button">${escapeHtml(t('edit'))}</button>
+                    <button class="cb-profile-recovery-btn" id="cb-recovery-btn" type="button">${escapeHtml(t('recoveryCode'))}</button>
                 </div>
             </div>
         `;
@@ -113,36 +115,36 @@
         return `
             <div class="cb-profile-card cb-profile-edit">
                 <div class="cb-edit-fields">
-                    <label class="cb-create-label">Display name</label>
+                    <label class="cb-create-label">${escapeHtml(t('displayName'))}</label>
                     <input id="cb-edit-name" class="cb-create-input" type="text" maxlength="64"
                         value="${escapeHtml(profile.displayName || '')}" autocomplete="off" />
-                    <label class="cb-create-label">Handle</label>
+                    <label class="cb-create-label">${escapeHtml(t('handle'))}</label>
                     <div class="cb-create-handle">
                         <span class="cb-create-at">@</span>
                         <input id="cb-edit-handle" class="cb-create-input" type="text" maxlength="32"
                             value="${escapeHtml(profile.handle || '')}" spellcheck="false" autocomplete="off" />
                     </div>
-                    <label class="cb-create-label">Avatar URL</label>
+                    <label class="cb-create-label">${escapeHtml(t('avatarUrl'))}</label>
                     <input id="cb-edit-avatar" class="cb-create-input" type="text" maxlength="512"
                         value="${escapeHtml(profile.avatarUrl || '')}" placeholder="https://..." spellcheck="false" autocomplete="off" />
-                    <div class="cb-create-hint">Direct link to an image. Leave blank to use your Discord avatar.</div>
-                    <label class="cb-create-label">About me</label>
+                    <div class="cb-create-hint">${escapeHtml(t('avatarHint'))}</div>
+                    <label class="cb-create-label">${escapeHtml(t('aboutMe'))}</label>
                     <input id="cb-edit-bio" class="cb-create-input" type="text" maxlength="200"
-                        value="${escapeHtml(profile.bio || '')}" placeholder="A line about you" autocomplete="off" />
-                    <label class="cb-create-label">Favourite game</label>
+                        value="${escapeHtml(profile.bio || '')}" placeholder="${escapeHtml(t('aboutMePlaceholder'))}" autocomplete="off" />
+                    <label class="cb-create-label">${escapeHtml(t('favouriteGame'))}</label>
                     <select id="cb-edit-game" class="cb-create-input">
-                        <option value="">None</option>
+                        <option value="">${escapeHtml(t('none'))}</option>
                         ${gameOptions(profile.favoriteGame || '')}
                     </select>
-                    <label class="cb-create-label">Profile colour</label>
+                    <label class="cb-create-label">${escapeHtml(t('profileColour'))}</label>
                     <div class="cb-accent-row">
                         <input id="cb-edit-accent" type="color" value="${escapeHtml(accent)}" />
-                        <span class="cb-create-hint" style="margin:0">Shown on your profile card and your name in chat.</span>
+                        <span class="cb-create-hint" style="margin:0">${escapeHtml(t('profileColourHint'))}</span>
                     </div>
                 </div>
                 <div class="cb-edit-actions">
-                    <button id="cb-edit-save" class="cb-add-btn" type="button">Save</button>
-                    <button id="cb-edit-cancel" class="cb-ghost-btn" type="button">Cancel</button>
+                    <button id="cb-edit-save" class="cb-add-btn" type="button">${escapeHtml(t('save'))}</button>
+                    <button id="cb-edit-cancel" class="cb-ghost-btn" type="button">${escapeHtml(t('cancel'))}</button>
                 </div>
             </div>
         `;
@@ -152,26 +154,26 @@
         const dp = discordProfile();
         const suggestedName = dp ? dp.displayName : '';
         const linkedNote = dp
-            ? `Your CB profile will link to your Discord account so you can recover it anywhere.`
-            : `No Discord linked — you'll get a recovery code to save. You can link Discord later.`;
+            ? t('linkedNote')
+            : t('unlinkedNote');
         const errorHtml = error ? `<div class="cb-create-error">${escapeHtml(error)}</div>` : '';
         return `
             <div class="cb-create">
                 <div class="cb-create-title">Create your CB profile</div>
                 <div class="cb-create-sub">A launcher-native identity so friends work even without Discord open.</div>
                 ${errorHtml}
-                <label class="cb-create-label">Handle</label>
+                <label class="cb-create-label">${escapeHtml(t('handle'))}</label>
                 <div class="cb-create-handle">
                     <span class="cb-create-at">@</span>
                     <input id="cb-handle-input" class="cb-create-input" type="text" maxlength="32"
                         placeholder="yourname" autocomplete="off" spellcheck="false" />
                 </div>
-                <div class="cb-create-hint">2–32 characters: letters, numbers, underscores. Must be unique.</div>
-                <label class="cb-create-label">Display name</label>
+                <div class="cb-create-hint">${escapeHtml(t('handleHint'))}</div>
+                <label class="cb-create-label">${escapeHtml(t('displayName'))}</label>
                 <input id="cb-name-input" class="cb-create-input" type="text" maxlength="64"
                     placeholder="Display name" value="${escapeHtml(suggestedName)}" autocomplete="off" />
                 <div class="cb-create-note">${escapeHtml(linkedNote)}</div>
-                <button id="cb-create-btn" class="cb-create-btn" type="button">Create profile</button>
+                <button id="cb-create-btn" class="cb-create-btn" type="button">${escapeHtml(t('createBtn'))}</button>
             </div>
         `;
     }
@@ -180,10 +182,10 @@
 
     function presenceLabel(p) {
         if (p.online) {
-            if (p.game) return 'Playing ' + escapeHtml(gameName(p.game));
-            return 'Online';
+            if (p.game) return escapeHtml(t('playing', { game: gameName(p.game) }));
+            return t('online');
         }
-        return 'Offline';
+        return t('offline');
     }
 
     function personRow(p, actionsHtml) {
@@ -209,18 +211,18 @@
     // Row actions, mirroring the Discord friends list.
     function friendActions(p) {
         if (p.sameMatch) {
-            return `<div class="friend-actions"><span class="cb-pending-label">In your match</span>
-                <button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">Remove</button></div>`;
+            return `<div class="friend-actions"><span class="cb-pending-label">${escapeHtml(t('inYourMatch'))}</span>
+                <button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">${escapeHtml(t('remove'))}</button></div>`;
         }
         const btns = [];
         if (p.joinable || p.openable) {
-            const label = p.joinable ? 'Join' : 'Ask to Join';
+            const label = p.joinable ? t('join') : t('askToJoin');
             btns.push(`<button class="friend-join-btn" data-cb-join="${escapeHtml(p.cbId)}">${label}</button>`);
         }
         if (myJoinable && p.online) {
-            btns.push(`<button class="friend-invite-btn" data-cb-invite="${escapeHtml(p.cbId)}">Invite</button>`);
+            btns.push(`<button class="friend-invite-btn" data-cb-invite="${escapeHtml(p.cbId)}">${escapeHtml(t('invite'))}</button>`);
         }
-        btns.push(`<button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">Remove</button>`);
+        btns.push(`<button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">${escapeHtml(t('remove'))}</button>`);
         return `<div class="friend-actions">${btns.join('')}</div>`;
     }
 
@@ -232,7 +234,7 @@
                     <input id="cb-add-input" class="cb-create-input" type="text" maxlength="32"
                         placeholder="add a friend by handle" autocomplete="off" spellcheck="false" />
                 </div>
-                <button id="cb-add-btn" class="cb-add-btn" type="button">Add</button>
+                <button id="cb-add-btn" class="cb-add-btn" type="button">${escapeHtml(t('add'))}</button>
             </div>
         `;
 
@@ -241,29 +243,29 @@
         if (friends.incoming.length) {
             const rows = friends.incoming.map(p => personRow(p, `
                 <div class="friend-actions">
-                    <button class="friend-invite-btn" data-cb-accept="${escapeHtml(p.cbId)}">Accept</button>
-                    <button class="cb-ghost-btn" data-cb-decline="${escapeHtml(p.cbId)}">Decline</button>
+                    <button class="friend-invite-btn" data-cb-accept="${escapeHtml(p.cbId)}">${escapeHtml(t('accept'))}</button>
+                    <button class="cb-ghost-btn" data-cb-decline="${escapeHtml(p.cbId)}">${escapeHtml(t('decline'))}</button>
                 </div>`)).join('');
-            sections += `<div class="cb-section-head">Requests <span class="friends-group-count">${friends.incoming.length}</span></div>${rows}`;
+            sections += `<div class="cb-section-head">${escapeHtml(t('requests'))} <span class="friends-group-count">${friends.incoming.length}</span></div>${rows}`;
         }
 
         const online = friends.friends.filter(p => p.online);
         const offline = friends.friends.filter(p => !p.online);
         if (friends.friends.length) {
             const rowFor = p => personRow(p, friendActions(p));
-            sections += `<div class="cb-section-head">Friends <span class="friends-group-count">${friends.friends.length}</span></div>`;
+            sections += `<div class="cb-section-head">${escapeHtml(t('friends'))} <span class="friends-group-count">${friends.friends.length}</span></div>`;
             sections += online.map(rowFor).join('') + offline.map(rowFor).join('');
         } else if (!friends.incoming.length && !friends.outgoing.length) {
-            sections += `<div class="friends-empty" style="display:block">No CB friends yet. Add someone by their handle.</div>`;
+            sections += `<div class="friends-empty" style="display:block">${escapeHtml(t('noFriends'))}</div>`;
         }
 
         if (friends.outgoing.length) {
             const rows = friends.outgoing.map(p => personRow(p, `
                 <div class="friend-actions">
-                    <span class="cb-pending-label">Pending</span>
-                    <button class="cb-ghost-btn" data-cb-cancel="${escapeHtml(p.cbId)}">Cancel</button>
+                    <span class="cb-pending-label">${escapeHtml(t('pending'))}</span>
+                    <button class="cb-ghost-btn" data-cb-cancel="${escapeHtml(p.cbId)}">${escapeHtml(t('cancel'))}</button>
                 </div>`)).join('');
-            sections += `<div class="cb-section-head">Sent</div>${rows}`;
+            sections += `<div class="cb-section-head">${escapeHtml(t('sent'))}</div>${rows}`;
         }
 
         return addRow + sections;
@@ -297,12 +299,12 @@
             const res = await window.executeCommand('cbfriends-get-recovery-code');
             const code = res && res.code;
             if (!code) {
-                if (window.showToast) window.showToast('No recovery code stored for this profile.', 'info');
+                if (window.showToast) window.showToast(t('noRecoveryCode'), 'info');
                 return;
             }
-            await window.showMessageBox('Your recovery code',
+            await window.showMessageBox(t('recoveryTitle'),
                 `Save this somewhere safe. You'll need it to recover your CB profile on a new PC if you haven't linked Discord.\n\n${code}`,
-                ['Done']);
+                [t('done')]);
         } catch (error) {
             console.warn('Failed to read recovery code:', error);
         }
@@ -315,7 +317,7 @@
         const handle = handleInput.value.trim();
         const displayName = (nameInput ? nameInput.value.trim() : '') || handle;
         if (!HANDLE_RE.test(handle)) {
-            render({ state: 'error', error: 'Handle must be 2–32 characters: letters, numbers, underscores.' });
+            render({ state: 'error', error: t('handleInvalid') });
             return;
         }
         try {
@@ -342,11 +344,11 @@
         const avatarEl = document.getElementById('cb-edit-avatar');
         const avatarUrl = avatarEl ? avatarEl.value.trim() : '';
         if (avatarUrl && !/^https?:\/\//i.test(avatarUrl)) {
-            if (window.showToast) window.showToast('Avatar must be a http(s) image link.', 'error');
+            if (window.showToast) window.showToast(t('avatarInvalid'), 'error');
             return;
         }
         if (handle && !HANDLE_RE.test(handle)) {
-            if (window.showToast) window.showToast('Handle must be 2–32 chars: letters, numbers, underscores.', 'error');
+            if (window.showToast) window.showToast(t('handleInvalid'), 'error');
             return;
         }
         try {
@@ -361,7 +363,7 @@
                     editingProfile = true;
                     render(lastStatus);
                 } else if (window.showToast) {
-                    window.showToast('Profile updated.', 'success');
+                    window.showToast(t('profileUpdated'), 'success');
                 }
             }, 700);
         } catch (error) {
@@ -374,13 +376,13 @@
         if (!input) return;
         const handle = input.value.trim();
         if (!HANDLE_RE.test(handle)) {
-            if (window.showToast) window.showToast('Enter a valid handle (letters, numbers, underscores).', 'error');
+            if (window.showToast) window.showToast(t('addInvalid'), 'error');
             return;
         }
         input.value = '';
         try {
             await window.executeCommand('cbfriends-add-friend', { handle });
-            if (window.showToast) window.showToast(`Friend request sent to @${handle}.`, 'success');
+            if (window.showToast) window.showToast(t('requestSent', { handle }), 'success');
             setTimeout(fetchFriends, 400);
         } catch (error) {
             console.warn('Add friend failed:', error);
@@ -439,17 +441,17 @@
         const game = gameName(inv.gameId);
         let title, body, acceptLabel;
         if (inv.isRequest) {
-            title = 'Join request';
+            title = t('joinRequestTitle');
             body = `${name} wants to join your ${game || 'game'}.` + (inv.needsOpen ? ' Accepting opens your match to them.' : '');
-            acceptLabel = 'Approve';
+            acceptLabel = t('approve');
         } else {
-            title = 'Game invite';
+            title = t('inviteTitle');
             body = `${name} invited you to join their ${game || 'game'}.`;
-            acceptLabel = 'Join';
+            acceptLabel = t('join');
         }
         let accepted = false;
         try {
-            const idx = await window.showMessageBox(title, body, [acceptLabel, { label: 'Decline', danger: true }]);
+            const idx = await window.showMessageBox(title, body, [acceptLabel, { label: t('decline'), danger: true }]);
             accepted = idx === 0;
         } catch (error) { return; }
         try {
@@ -473,10 +475,10 @@
         if (status.state !== 'creating') stopCreatingPoll();
 
         if (previous === 'creating' && status.state === 'ready' && window.showToast) {
-            window.showToast('CB profile created.', 'success');
+            window.showToast(t('created'), 'success');
             showRecoveryCode();
         } else if (previous === 'creating' && status.state === 'error' && window.showToast) {
-            window.showToast('Could not create CB profile' + (status.error ? ` (${status.error})` : ''), 'error');
+            window.showToast(t('createFailed') + (status.error ? ` (${status.error})` : ''), 'error');
         }
 
         if (status.state === 'ready') await fetchFriends();

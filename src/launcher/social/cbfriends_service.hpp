@@ -84,6 +84,14 @@ namespace social
         std::vector<cb_person> outgoing;
     };
 
+    // Something the account owner should see, such as a new device being bound.
+    struct security_event
+    {
+        std::string kind; // "device-added" | "recover-blocked"
+        std::string via;  // "hwid" | "discord" | "code"
+        int64_t at{0};
+    };
+
     struct chat_message
     {
         int64_t id{0};
@@ -184,6 +192,18 @@ namespace social
         void set_chat_room(const std::string& room);
         std::vector<chat_message> get_chat() const;
         void send_chat(const std::string& room, const std::string& text);
+        // Pulls an older page of the open room and prepends it to the cache.
+        void load_older_chat();
+        bool has_more_chat() const;
+
+        // Moderation. Blocking is one-way, enforced server-side, and severs any friendship.
+        void block_user(const std::string& cb_id);
+        void unblock_user(const std::string& cb_id);
+        std::vector<cb_person> get_blocked() const;
+        void report_user(const std::string& cb_id, const std::string& reason);
+
+        // Device binds and blocked recovery attempts on this account.
+        std::vector<security_event> get_security_events() const;
 
     private:
         cbfriends_service() = default;
@@ -205,6 +225,8 @@ namespace social
         void load_broadcast();
         void poll_invites();
         void poll_chat();
+        void refresh_blocked();
+        void refresh_security();
         void process_message(const rapidjson::Value& message);
         void send_reply(const std::string& to, const std::string& reply_to, const std::string& game,
                         const std::string& match, const std::string& secret);
@@ -243,6 +265,11 @@ namespace social
         std::string chat_room_;
         std::vector<chat_message> chat_;
         int64_t chat_after_{0};
+        int64_t chat_oldest_{0};
+        bool chat_more_{true};
+
+        std::vector<cb_person> blocked_;
+        std::vector<security_event> security_;
 
         std::optional<cb_person> viewed_profile_;
 
@@ -251,5 +278,6 @@ namespace social
         std::atomic<bool> community_active_{false};
         std::atomic<bool> broadcasting_{false};
         std::atomic<int64_t> last_presence_{0};
+        std::atomic<int64_t> last_slow_{0};
     };
 }

@@ -5,6 +5,8 @@
     const POLL_MS = 6 * 1000;
     const ALL = 'all';
 
+    function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
+
     let active = false;
     let timer = null;
     let bound = false;
@@ -15,6 +17,7 @@
     let broadcast = { on: false, game: '', note: '', slots: 0 };
     let profileReady = false;
     let atChatBottom = true;
+    let chatHasMore = false;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -34,7 +37,7 @@
     }
 
     function gameName(id) {
-        if (id === ALL) return 'All games';
+        if (id === ALL) return t('allGames');
         const cfg = gameConfig(id);
         return (cfg && cfg.displayName) || id || '';
     }
@@ -55,9 +58,9 @@
     function renderNoProfile() {
         return `
             <div class="cb-create" style="max-width:460px">
-                <div class="cb-create-title">Join the community</div>
-                <div class="cb-create-sub">Create a CB profile to post in game rooms, find a group and chat.</div>
-                <button id="community-goto-profile" class="cb-create-btn" type="button">Create a CB profile</button>
+                <div class="cb-create-title">${escapeHtml(t('communityJoin'))}</div>
+                <div class="cb-create-sub">${escapeHtml(t('communityJoinSub'))}</div>
+                <button id="community-goto-profile" class="cb-create-btn" type="button">${escapeHtml(t('communityJoin'))}</button>
             </div>
         `;
     }
@@ -72,7 +75,7 @@
         const cfg = gameConfig(id);
         const count = countFor(id);
         const badge = count
-            ? `<span class="community-room-badge">${count} looking</span>`
+            ? `<span class="community-room-badge">${escapeHtml(t('looking', { count }))}</span>`
             : '';
         const art = cfg && cfg.capsulePath
             ? `<img class="library-card-art" src="${escapeHtml(cfg.capsulePath)}" alt="${escapeHtml(gameName(id))}" loading="lazy">`
@@ -94,13 +97,13 @@
         const allCard = `
             <article class="library-card community-room-card community-room-all" data-room="${ALL}">
                 <div class="community-all-art"><span class="community-all-glyph">CB</span></div>
-                ${total ? `<span class="community-room-badge">${total} looking</span>` : ''}
+                ${total ? `<span class="community-room-badge">${escapeHtml(t('looking', { count: total }))}</span>` : ''}
                 <div class="library-card-body">
-                    <div class="library-card-title">All games</div>
+                    <div class="library-card-title">${escapeHtml(t('allGames'))}</div>
                 </div>
             </article>`;
         return `
-            <div class="community-hub-lead">Pick a room to find a group or chat.</div>
+            <div class="community-hub-lead">${escapeHtml(t('pickRoom'))}</div>
             <div class="library-grid community-room-grid">${allCard}${ids.map(hubCard).join('')}</div>
         `;
     }
@@ -110,21 +113,21 @@
     function slotBadge(p) {
         if (!p.slots) return '';
         const full = p.joined >= p.slots;
-        return `<span class="community-slot-badge${full ? ' is-full' : ''}">${full ? 'Full' : p.joined + '/' + p.slots}</span>`;
+        return `<span class="community-slot-badge${full ? ' is-full' : ''}">${full ? t('full') : p.joined + '/' + p.slots}</span>`;
     }
 
     function postRow(p) {
         const isSelf = p.relation === 'self';
-        const line = p.note ? escapeHtml(p.note) : (p.game ? 'Playing ' + escapeHtml(gameName(p.game)) : 'Looking for a group');
+        const line = p.note ? escapeHtml(p.note) : (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('lookingForGroupHead'));
         let action;
-        if (isSelf) action = `<button class="cb-ghost-btn" id="community-bc-stop" type="button">Stop</button>`;
-        else if (p.iJoined) action = `<span class="cb-pending-label">Joined</span>`;
-        else if (p.relation === 'requested') action = `<span class="cb-pending-label">Requested</span>`;
-        else action = `<button class="friend-invite-btn" data-community-join="${escapeHtml(p.cbId)}">Join</button>`;
+        if (isSelf) action = `<button class="cb-ghost-btn" id="community-bc-stop" type="button">${escapeHtml(t('stop'))}</button>`;
+        else if (p.iJoined) action = `<span class="cb-pending-label">${escapeHtml(t('joined'))}</span>`;
+        else if (p.relation === 'requested') action = `<span class="cb-pending-label">${escapeHtml(t('requested'))}</span>`;
+        else action = `<button class="friend-invite-btn" data-community-join="${escapeHtml(p.cbId)}">${escapeHtml(t('join'))}</button>`;
 
         // The all-games room mixes titles, so tag each row with its game.
         const gameTag = (room === ALL && p.game) ? `<span class="community-game-tag">${escapeHtml(gameName(p.game))}</span>` : '';
-        const youTag = isSelf ? `<span class="community-you-tag">You</span>` : '';
+        const youTag = isSelf ? `<span class="community-you-tag">${escapeHtml(t('you'))}</span>` : '';
         const status = p.online ? (p.game ? 'online' : 'idle') : 'offline';
         return `
             <div class="friend-row${isSelf ? ' is-self' : ''}" data-status="${status}" data-person-id="${escapeHtml(p.cbId)}" data-person-handle="${escapeHtml(p.handle)}" data-person-name="${escapeHtml(p.displayName || p.handle)}" data-person-relation="${escapeHtml(p.relation || '')}">
@@ -140,7 +143,7 @@
 
     function lfgListHtml() {
         if (!posts.length) {
-            return `<div class="friends-empty" style="display:block">No one is looking for a group in ${escapeHtml(gameName(room))} right now.</div>`;
+            return `<div class="friends-empty" style="display:block">${escapeHtml(t('noOneLooking', { game: gameName(room) }))}</div>`;
         }
         // Your own lobby sits at the top of the room you're broadcasting to.
         const ordered = posts.slice().sort((a, b) => (b.relation === 'self') - (a.relation === 'self'));
@@ -148,10 +151,13 @@
     }
 
     function chatListHtml() {
+        const more = chatHasMore
+            ? `<button class="cb-ghost-btn community-chat-more" id="community-chat-more" type="button">${escapeHtml(t('loadOlder'))}</button>`
+            : '';
         if (!chat.length) {
-            return `<div class="community-chat-empty">No messages yet. Say hello.</div>`;
+            return more + `<div class="community-chat-empty">${escapeHtml(t('noMessages'))}</div>`;
         }
-        return chat.map(m => {
+        return more + chat.map(m => {
             const accent = /^#[0-9a-f]{6}$/i.test(m.accent || '') ? ` style="color:${m.accent}"` : '';
             return `
             <div class="community-chat-line" data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}" data-person-name="${escapeHtml(m.displayName || m.handle)}">
@@ -164,7 +170,7 @@
     // The all-games room aggregates posts, so it has no post form of its own.
     function postFormHtml() {
         if (room === ALL) {
-            return `<div class="community-hub-lead">Open a game room to post that you're looking for a group.</div>`;
+            return `<div class="community-hub-lead">${escapeHtml(t('postFromGameRoom'))}</div>`;
         }
         const on = broadcast.on && broadcast.game === room;
         const toggle = `
@@ -173,23 +179,23 @@
                 <span class="cb-switch-slider"></span>
             </label>`;
         const sub = on
-            ? `Non-friends in this room can see you and add you. Turn off to go private.`
-            : `Off — you're private. Turn on to let others in this room find you.`;
+            ? t('discoverableSub')
+            : t('privateSub');
         return `
             <div class="community-broadcast-card${on ? ' is-on' : ''}">
                 <div class="community-broadcast-head">
                     <div>
-                        <div class="community-broadcast-title">${on ? `You're discoverable <span class="community-live-dot"></span>` : 'Looking for a group?'}</div>
+                        <div class="community-broadcast-title">${on ? `${escapeHtml(t('discoverable'))} <span class="community-live-dot"></span>` : t('lookingForGroup')}</div>
                         <div class="community-broadcast-sub">${escapeHtml(sub)}</div>
                     </div>
                     ${toggle}
                 </div>
                 <div class="community-post-row">
                     <input id="community-bc-slots" class="cb-create-input community-slots" type="number" min="1" max="16"
-                        value="${broadcast.slots || ''}" placeholder="Need" title="How many players you want" />
+                        value="${broadcast.slots || ''}" placeholder="${escapeHtml(t('need'))}" title="How many players you want" />
                     <input id="community-bc-note" class="cb-create-input" type="text" maxlength="120"
-                        value="${escapeHtml(broadcast.note || '')}" placeholder="Optional note (e.g. EE run)" />
-                    ${on ? `<button id="community-bc-update" class="cb-add-btn" type="button">Update</button>` : ''}
+                        value="${escapeHtml(broadcast.note || '')}" placeholder="${escapeHtml(t('notePlaceholder'))}" />
+                    ${on ? `<button id="community-bc-update" class="cb-add-btn" type="button">${escapeHtml(t('update'))}</button>` : ''}
                 </div>
             </div>
         `;
@@ -203,21 +209,21 @@
         return `
             <div class="community-room-header">
                 ${hero}
-                <button class="cb-ghost-btn community-back" id="community-back" type="button">Back</button>
+                <button class="cb-ghost-btn community-back" id="community-back" type="button">${escapeHtml(t('back'))}</button>
                 <div class="community-room-title">${escapeHtml(gameName(room))}</div>
             </div>
             <div class="community-room-body">
                 <div class="community-room-main">
                     ${postFormHtml()}
-                    <div class="cb-section-head">Looking for a group <span class="friends-group-count" id="community-lfg-count">${posts.length}</span></div>
+                    <div class="cb-section-head">${escapeHtml(t('lookingForGroupHead'))} <span class="friends-group-count" id="community-lfg-count">${posts.length}</span></div>
                     <div class="friends-list" id="community-lfg">${lfgListHtml()}</div>
                 </div>
                 <div class="community-chat">
-                    <div class="cb-section-head">${escapeHtml(gameName(room))} chat</div>
+                    <div class="cb-section-head">${escapeHtml(t('chat', { game: gameName(room) }))}</div>
                     <div class="community-chat-log" id="community-chat-log">${chatListHtml()}</div>
                     <div class="community-chat-input">
-                        <input id="community-chat-text" class="cb-create-input" type="text" maxlength="300" placeholder="Message ${escapeHtml(gameName(room))}…" />
-                        <button id="community-chat-send" class="cb-add-btn" type="button">Send</button>
+                        <input id="community-chat-text" class="cb-create-input" type="text" maxlength="300" placeholder="${escapeHtml(t('chatPlaceholder', { game: gameName(room) }))}" />
+                        <button id="community-chat-send" class="cb-add-btn" type="button">${escapeHtml(t('send'))}</button>
                     </div>
                 </div>
             </div>
@@ -259,7 +265,7 @@
             allPosts = ((lfgRes && lfgRes.posts) || []).filter(p => p.relation !== 'friend');
             posts = (room && room !== ALL) ? allPosts.filter(p => p.game === room) : allPosts;
             broadcast = bcRes || broadcast;
-            if (chatRes) chat = chatRes.messages || [];
+            if (chatRes) { chat = chatRes.messages || []; chatHasMore = !!chatRes.hasMore; }
         } catch (error) {
             allPosts = []; posts = [];
         }
@@ -327,7 +333,7 @@
         try {
             await window.executeCommand('cbfriends-set-broadcast', { on, game: room, note, slots });
             if (window.showToast) {
-                window.showToast(on ? `You're listed in ${gameName(room)}.` : 'Broadcast turned off.', on ? 'success' : 'info');
+                window.showToast(on ? t('listedIn', { game: gameName(room) }) : t('broadcastOff'), on ? 'success' : 'info');
             }
             setTimeout(refresh, 400);
         } catch (error) {
@@ -356,7 +362,7 @@
     async function joinLfg(cbId) {
         try {
             await window.executeCommand('cbfriends-lfg-join', { cbId });
-            if (window.showToast) window.showToast('Joined — a friend request was sent so you can connect.', 'success');
+            if (window.showToast) window.showToast(t('joinedLfg'), 'success');
             setTimeout(refresh, 400);
         } catch (error) {
             console.warn('Join failed:', error);
@@ -380,6 +386,13 @@
             if (t.closest('#community-bc-update')) return applyBroadcast(true);
             if (t.closest('#community-bc-stop')) return applyBroadcast(false);
             if (t.closest('#community-chat-send')) return sendChat();
+            if (t.closest('#community-chat-more')) {
+                // Keep the scroll anchored to what the user was reading, not the newly prepended page.
+                atChatBottom = false;
+                window.executeCommand('cbfriends-load-older-chat').catch(() => {});
+                setTimeout(pollTick, 500);
+                return;
+            }
             const join = t.closest('[data-community-join]');
             if (join) return joinLfg(join.getAttribute('data-community-join'));
             const card = t.closest('[data-room]');
