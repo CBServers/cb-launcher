@@ -15,6 +15,9 @@
     <script src="./assets/js/core/mods.js"></script>
     <script src="./assets/js/core/player-counts.js"></script>
     <script src="./assets/js/core/discord-friends.js"></script>
+    <script src="./assets/js/core/cb-friends.js"></script>
+    <script src="./assets/js/core/community.js"></script>
+    <script src="./assets/js/ui/person-menu.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
     <script src="./assets/js/ui/toast.js"></script>
     <script src="./assets/js/ui/launch-redist-modal.js"></script>
@@ -70,6 +73,10 @@
                     <div class="nav-item" id="friends">
                         <div class="nav-icon friends-icon"></div>
                         <span class="nav-label" data-i18n="nav.friends">Friends</span>
+                    </div>
+                    <div class="nav-item" id="community">
+                        <div class="nav-icon friends-icon"></div>
+                        <span class="nav-label">Community</span>
                     </div>
                     <div class="nav-item" id="support">
                         <div class="nav-icon support-icon"></div>
@@ -190,13 +197,32 @@
                         <div class="page-title" data-i18n="friends.title">Friends</div>
                         <div class="page-subtitle" data-i18n="friends.subtitle">See who's online and what they're playing.</div>
                     </div>
-                    <div class="friends-link-cta" id="friends-link-cta" style="display: none;">
-                        <p data-i18n="friends.linkBody">Link the launcher to your Discord account to play with friends using CB Launcher. Requires a Discord account (13+).</p>
-                        <button class="friends-link-btn" id="friends-link-btn" data-i18n="friends.linkCta">Link launcher to Discord account</button>
+                    <div class="friends-source-tabs" id="friends-source-tabs">
+                        <button class="friends-source-tab active" type="button" data-source="discord">Discord</button>
+                        <button class="friends-source-tab" type="button" data-source="cb">CB Friends</button>
                     </div>
-                    <div class="friends-notice" id="friends-notice" style="display: none;"></div>
-                    <div class="friends-list" id="friends-list"></div>
-                    <div class="friends-empty" id="friends-empty" style="display: none;" data-i18n="friends.empty">No friends to show yet.</div>
+                    <div class="friends-source-panel" id="friends-discord-panel">
+                        <div class="friends-link-cta" id="friends-link-cta" style="display: none;">
+                            <p data-i18n="friends.linkBody">Link the launcher to your Discord account to play with friends using CB Launcher. Requires a Discord account (13+).</p>
+                            <button class="friends-link-btn" id="friends-link-btn" data-i18n="friends.linkCta">Link launcher to Discord account</button>
+                        </div>
+                        <div class="friends-notice" id="friends-notice" style="display: none;"></div>
+                        <div class="friends-list" id="friends-list"></div>
+                        <div class="friends-empty" id="friends-empty" style="display: none;" data-i18n="friends.empty">No friends to show yet.</div>
+                    </div>
+                    <div class="friends-source-panel" id="friends-cb-panel" style="display: none;">
+                        <div id="cb-profile"></div>
+                        <div class="friends-list" id="cb-friends-list"></div>
+                        <div class="friends-empty" id="cb-friends-empty" style="display: none;">Your CB friends will appear here.</div>
+                    </div>
+                </div>
+
+                <div class="page-section" id="community-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title">Community</div>
+                        <div class="page-subtitle">Find people looking for a group right now.</div>
+                    </div>
+                    <div id="community-body"></div>
                 </div>
 
                 <div class="page-section" id="support-page" style="display: none;">

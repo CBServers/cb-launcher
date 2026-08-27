@@ -310,6 +310,10 @@ async function initialize() {
                 window.DiscordFriendsManager.start();
             }
 
+            if (!window.IS_OFFLINE && window.CbFriendsManager) {
+                window.CbFriendsManager.start();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });
@@ -467,6 +471,12 @@ async function initializeNavigation() {
         friendsElement.addEventListener("click", handleFriendsClick);
     }
 
+    // Handle community navigation
+    const communityElement = document.querySelector("#community");
+    if (communityElement) {
+        communityElement.addEventListener("click", handleCommunityClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -584,6 +594,17 @@ function handleSettingsClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("settings");
+}
+
+function handleCommunityClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("community");
 }
 
 function handleSupportClick(e) {
@@ -793,6 +814,15 @@ window.GameStateManager = {
 
         if (cardsNeedRefresh && window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
             window.AppViews.refreshActionButtons();
+        }
+
+        // Tell the CB social service what we're playing, only when it changes.
+        const activity = this.runningGameId || '';
+        if (activity !== this._lastCbActivity) {
+            this._lastCbActivity = activity;
+            if (!window.IS_OFFLINE && typeof window.executeCommand === 'function') {
+                window.executeCommand('cbfriends-set-activity', { game: activity }).catch(() => {});
+            }
         }
     },
 
@@ -1343,6 +1373,9 @@ function loadNavigationPage(page) {
 
     // Use flex layout for settings page to anchor footer to bottom
     targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
+
+    // The community board only polls while its tab is open.
+    if (window.CommunityManager) window.CommunityManager.setActive(page === 'community');
 
     // Initialize page-specific functionality
     if (page === 'settings') {
