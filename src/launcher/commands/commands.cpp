@@ -13,6 +13,7 @@
 #include "cdn_commands.hpp"
 #include "discord_commands.hpp"
 #include "mod_commands.hpp"
+#include "social_commands.hpp"
 
 namespace commands
 {
@@ -115,5 +116,6 @@ namespace commands
         cdn_commands::register_commands(cef_ui, ctx);
         discord_commands::register_commands(cef_ui, ctx);
     mod_commands::register_commands(cef_ui, ctx);
+        social_commands::register_commands(cef_ui, ctx);
     }
 }

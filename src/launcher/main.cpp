@@ -6,6 +6,8 @@
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "redist/redist_worker.hpp"
+#include "social/cbfriends_service.hpp"
+#include "social/selftest.hpp"
 #include "updater/detection_service.hpp"
 #include "updater/updater.hpp"
 #include "uri_scheme.hpp"
@@ -147,6 +149,20 @@ namespace
             {
                 ipc::ipc_server::instance().request_open_match();
             });
+            // Launcher-native CB social identity/profile, alongside the Discord bridge above.
+            social::cbfriends_service::instance().set_friends_changed_callback([]
+            {
+                ipc::ipc_server::instance().notify_friends_changed();
+            });
+            social::cbfriends_service::instance().set_join_secret_callback([](const std::string& secret)
+            {
+                ipc::ipc_server::instance().handle_join_secret(secret);
+            });
+            social::cbfriends_service::instance().set_open_match_callback([]
+            {
+                ipc::ipc_server::instance().request_open_match();
+            });
+            social::cbfriends_service::instance().start();
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
 
@@ -167,6 +183,7 @@ namespace
         detection_service::shutdown();
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
+        social::cbfriends_service::instance().stop();
     }
 
     bool same_path(const std::filesystem::path& a, const std::filesystem::path& b)
@@ -269,6 +286,18 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         if (const auto redist_ids = utils::flags::get_flag_value("redist-worker"))
         {
             return redist::run_worker(*redist_ids);
+        }
+
+        // Headless identity check: no singleton, no updater, no CEF.
+        if (utils::flags::has_flag("social-selftest"))
+        {
+            return social::run_selftest();
+        }
+
+        // Dumps the public key and a signed challenge for cross-verifying the worker.
+        if (utils::flags::has_flag("social-dump"))
+        {
+            return social::run_dump();
         }
 
         enable_dpi_awareness();
