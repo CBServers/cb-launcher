@@ -554,13 +554,18 @@ namespace social
                 }
                 refresh_friends();
                 poll_invites();
+                // Faster than the slow tick: a minute is too long to learn you have a message.
+                if (now - last_dm_.load() >= 15)
+                {
+                    last_dm_ = now;
+                    refresh_dm_list();
+                }
                 if (now - last_slow_.load() >= 60)
                 {
                     last_slow_ = now;
                     refresh_blocked();
                     refresh_security();
                     refresh_mod_role();
-                    refresh_dm_list();
                     refresh_played_with();
                     // Keeps the Community badge honest while its tab is closed.
                     if (!community_active_) refresh_lfg();

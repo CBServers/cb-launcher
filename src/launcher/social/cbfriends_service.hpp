@@ -372,5 +372,6 @@ namespace social
         std::atomic<bool> broadcasting_{false};
         std::atomic<int64_t> last_presence_{0};
         std::atomic<int64_t> last_slow_{0};
+        std::atomic<int64_t> last_dm_{0};
     };
 }
