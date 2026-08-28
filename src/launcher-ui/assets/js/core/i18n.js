@@ -70,6 +70,7 @@
                 requestBody: '{{name}} wants to be friends.',
                 message: 'Message',
                 messages: 'Messages',
+                minimise: 'Minimise',
                 send: 'Send',
                 messagePlaceholder: 'Write a message',
                 noConversations: 'No messages yet. Right-click a friend to start one.',

@@ -7173,36 +7173,123 @@ html:not([data-theme]) .toast {
     color: var(--text-dim);
 }
 
-/* ---- Direct messages ---- */
+/* ---- Direct messages: a dock, not a page ---- */
 
-/* While a thread is open it is the only thing in the panel, so it takes the height. */
-#cb-dm.is-thread {
+/* Collapsed it is a small bar; toasts sit at bottom 88px so the two never collide. */
+#dm-dock {
+    position: fixed;
+    right: 16px;
+    bottom: 0;
+    z-index: 9000;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    height: calc(100vh - 260px);
+    justify-content: flex-end;
 }
 
-.dm-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 18px;
+#dm-dock:empty {
+    display: none;
 }
 
-.dm-row {
+.dm-tab {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 9px 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
     background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--chamfer-sm) var(--chamfer-sm) 0 0;
+    cursor: pointer;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.dm-tab:hover {
+    color: var(--text-bright);
+    border-color: var(--border-hi);
+}
+
+.dm-panel {
+    display: flex;
+    flex-direction: column;
+    width: 340px;
+    height: min(460px, calc(100vh - 120px));
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -4px 28px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.dm-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-hi);
+}
+
+.dm-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.dm-title-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-bright);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-back,
+.dm-min {
+    flex: 0 0 auto;
+    padding: 2px 9px;
+    font-size: 14px;
+    line-height: 1.3;
+    color: var(--text);
+    background: transparent;
     border: 1px solid var(--border);
     border-radius: var(--chamfer-sm);
     cursor: pointer;
 }
 
-.dm-row:hover {
+.dm-back:hover,
+.dm-min:hover {
+    color: var(--text-bright);
     border-color: var(--border-hi);
+}
+
+.dm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    overflow-y: auto;
+}
+
+.dm-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--chamfer-sm);
+    cursor: pointer;
+}
+
+.dm-row:hover {
+    background: var(--surface-hi);
+    border-color: var(--border);
 }
 
 .dm-row-main {
@@ -7211,13 +7298,13 @@ html:not([data-theme]) .toast {
 }
 
 .dm-row-name {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text-bright);
 }
 
 .dm-row-preview {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-dim);
     white-space: nowrap;
     overflow: hidden;
@@ -7226,53 +7313,15 @@ html:not([data-theme]) .toast {
 
 .dm-unread {
     flex: 0 0 auto;
-    min-width: 20px;
-    padding: 0 6px;
-    font-size: 11px;
+    min-width: 18px;
+    padding: 0 5px;
+    font-size: 10.5px;
     font-weight: 700;
-    line-height: 20px;
+    line-height: 18px;
     text-align: center;
     color: #fff;
     background: var(--accent-grad);
-    border-radius: 10px;
-}
-
-.dm-thread {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-}
-
-.dm-thread-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-}
-
-.dm-back {
-    padding: 3px 12px;
-    font-size: 15px;
-    color: var(--text);
-    background: var(--surface-hi);
-    border: 1px solid var(--border);
-    border-radius: var(--chamfer-sm);
-    cursor: pointer;
-}
-
-.dm-back:hover {
-    border-color: var(--border-hi);
-}
-
-.dm-thread-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-bright);
+    border-radius: 9px;
 }
 
 .dm-log {
@@ -7280,13 +7329,13 @@ html:not([data-theme]) .toast {
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    gap: 10px;
-    padding: 14px;
+    gap: 9px;
+    padding: 12px;
     overflow-y: auto;
 }
 
 .dm-msg {
-    font-size: 13px;
+    font-size: 12.5px;
     line-height: 1.45;
     overflow-wrap: anywhere;
     padding: 2px 6px;
@@ -7295,7 +7344,7 @@ html:not([data-theme]) .toast {
 }
 
 .dm-msg.is-grouped {
-    margin-top: -8px;
+    margin-top: -7px;
 }
 
 .dm-msg.is-mention {
@@ -7306,7 +7355,7 @@ html:not([data-theme]) .toast {
 .dm-msg-head {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 7px;
 }
 
 .dm-msg-who {
@@ -7315,7 +7364,7 @@ html:not([data-theme]) .toast {
 }
 
 .dm-msg-when {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--text-muted);
 }
 
@@ -7325,15 +7374,16 @@ html:not([data-theme]) .toast {
 
 .dm-compose {
     display: flex;
-    gap: 8px;
-    padding: 12px 14px;
+    gap: 6px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border);
 }
 
 .dm-compose input {
     flex: 1;
-    padding: 9px 12px;
-    font-size: 13px;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 12.5px;
     color: var(--text-bright);
     background: var(--surface-lo);
     border: 1px solid var(--border);
@@ -7343,6 +7393,25 @@ html:not([data-theme]) .toast {
 .dm-compose input:focus {
     outline: none;
     border-color: var(--accent);
+}
+
+.dm-send {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent-contrast);
+    background: var(--accent-grad);
+    border: none;
+    border-radius: var(--chamfer-sm);
+    cursor: pointer;
+}
+
+.dm-empty {
+    padding: 28px 20px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-dim);
 }
 
 /* ---- Community: labelled broadcast fields, unread, counter ---- */

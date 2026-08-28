@@ -1,20 +1,22 @@
-// Direct messages, shown inside the CB friends panel. Opening a conversation hides the profile card
-// and friends list, so the thread owns the panel rather than stacking a second scroll region on it.
+// Direct messages, as a dock in the bottom-right corner rather than a page. It stays collapsed to a
+// small bar until you need it, so messaging never takes over whatever you were doing.
 
 (function () {
     const POLL_MS = 4 * 1000;
 
     function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
 
-    let peer = null;          // the open conversation, or null for the list
+    let peer = null;        // the open conversation, or null for the list
+    let expanded = false;   // dock open rather than collapsed to its bar
+    let ready = false;      // no CB profile means no dock at all
     let messages = [];
     let conversations = [];
     let unread = 0;
+    let myHandle = '';
     let timer = null;
     let bound = false;
-    let myHandle = '';
-    const announced = new Map(); // cbId -> last announced message id
-    let primed = false;          // the first pass only records, so a cold start stays quiet
+    const announced = new Map();
+    let primed = false;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -24,18 +26,6 @@
 
     function name(p) {
         return p.handle ? '@' + p.handle : (p.displayName || t('unknownAccount'));
-    }
-
-    function conversationHtml(c) {
-        return `
-            <div class="dm-row" data-open="${escapeHtml(c.cbId)}">
-                <span class="friend-status-dot" data-status="${c.online ? 'online' : 'offline'}"></span>
-                <div class="dm-row-main">
-                    <div class="dm-row-name">${escapeHtml(name(c))}</div>
-                    <div class="dm-row-preview">${escapeHtml(c.preview || '')}</div>
-                </div>
-                ${c.unread ? `<span class="dm-unread">${c.unread}</span>` : ''}
-            </div>`;
     }
 
     function when(ms) {
@@ -51,6 +41,20 @@
     function mentionsMe(text) {
         if (!myHandle) return false;
         return new RegExp('@' + myHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text || '');
+    }
+
+    function host() { return document.getElementById('dm-dock'); }
+
+    function conversationHtml(c) {
+        return `
+            <div class="dm-row" data-open="${escapeHtml(c.cbId)}">
+                <span class="friend-status-dot" data-status="${c.online ? 'online' : 'offline'}"></span>
+                <div class="dm-row-main">
+                    <div class="dm-row-name">${escapeHtml(name(c))}</div>
+                    <div class="dm-row-preview">${escapeHtml(c.preview || '')}</div>
+                </div>
+                ${c.unread ? `<span class="dm-unread">${c.unread}</span>` : ''}
+            </div>`;
     }
 
     function messageHtml(m, i) {
@@ -72,49 +76,68 @@
     }
 
     function listHtml() {
-        if (!conversations.length) return '';
-        return `
-            <div class="cb-section-head">${escapeHtml(t('messages'))}</div>
-            <div class="dm-list">${conversations.map(conversationHtml).join('')}</div>`;
+        return conversations.length
+            ? `<div class="dm-list">${conversations.map(conversationHtml).join('')}</div>`
+            : `<div class="dm-empty">${escapeHtml(t('noConversations'))}</div>`;
     }
 
-    function threadHtml() {
-        const who = conversations.find(c => c.cbId === peer);
+    function bodyHtml() {
+        if (!peer) return listHtml();
         return `
-            <div class="dm-thread">
-                <div class="dm-thread-head">
-                    <button class="dm-back" id="dm-back">&larr;</button>
-                    <span class="dm-thread-name">${escapeHtml(who ? name(who) : '')}</span>
-                </div>
-                <div class="dm-log" id="dm-log">${messages.map(messageHtml).join('')}</div>
-                <div class="dm-compose">
-                    <input type="text" id="dm-text" maxlength="300" placeholder="${escapeHtml(t('messagePlaceholder'))}" />
-                    <button class="mod-btn is-primary" id="dm-send">${escapeHtml(t('send'))}</button>
-                </div>
+            <div class="dm-log" id="dm-log">${messages.map(messageHtml).join('')}</div>
+            <div class="dm-compose">
+                <input type="text" id="dm-text" maxlength="300" placeholder="${escapeHtml(t('messagePlaceholder'))}" />
+                <button class="dm-send" id="dm-send" type="button">${escapeHtml(t('send'))}</button>
             </div>`;
     }
 
-    function host() { return document.getElementById('cb-dm'); }
+    function titleHtml() {
+        if (!peer) return `<span class="dm-title-name">${escapeHtml(t('messages'))}</span>`;
+        const who = conversations.find(c => c.cbId === peer);
+        return `<button class="dm-back" id="dm-back" type="button">&larr;</button>
+                <span class="dm-title-name">${escapeHtml(who ? name(who) : '')}</span>`;
+    }
 
     function render() {
         const el = host();
         if (!el) return;
-        applyPanelMode();
-        el.innerHTML = peer ? threadHtml() : listHtml();
+
+        if (!ready) { el.innerHTML = ''; el.className = ''; return; }
+
+        el.className = expanded ? 'is-open' : '';
+        if (!expanded) {
+            el.innerHTML = `
+                <button class="dm-tab" id="dm-tab" type="button">
+                    <span class="dm-tab-label">${escapeHtml(t('messages'))}</span>
+                    ${unread ? `<span class="dm-unread">${unread}</span>` : ''}
+                </button>`;
+            return;
+        }
+
+        el.innerHTML = `
+            <div class="dm-panel">
+                <div class="dm-panel-head">
+                    <div class="dm-title">${titleHtml()}</div>
+                    <button class="dm-min" id="dm-min" type="button" title="${escapeHtml(t('minimise'))}">&minus;</button>
+                </div>
+                ${bodyHtml()}
+            </div>`;
         scrollLog();
     }
 
-    // Patches only the log and the list, so the compose box keeps focus and text while polling.
+    // Patches only the moving parts, so the compose box keeps focus and text on the timer.
     function patch() {
         const el = host();
-        if (!el) return;
-        if (!peer) {
-            const list = el.querySelector('.dm-list, .dm-empty');
-            if (list) list.outerHTML = listHtml();
+        if (!el || !ready) return;
+        if (!expanded) return render();
+
+        if (peer) {
+            const log = document.getElementById('dm-log');
+            if (log) { log.innerHTML = messages.map(messageHtml).join(''); scrollLog(); }
             return;
         }
-        const log = document.getElementById('dm-log');
-        if (log) { log.innerHTML = messages.map(messageHtml).join(''); scrollLog(); }
+        const list = el.querySelector('.dm-list, .dm-empty');
+        if (list) list.outerHTML = listHtml();
     }
 
     function scrollLog() {
@@ -124,17 +147,16 @@
 
     async function fetchAll() {
         try {
+            const status = await window.executeCommand('cbfriends-get-status');
+            ready = !!(status && status.state === 'ready');
+            myHandle = (status && status.profile && status.profile.handle) || myHandle;
+            if (!ready) { conversations = []; unread = 0; return; }
+
             const [list, thread] = await Promise.all([
                 window.executeCommand('cbfriends-get-dm-list'),
                 peer ? window.executeCommand('cbfriends-get-dm') : Promise.resolve(null),
             ]);
             conversations = (list && list.conversations) || [];
-            if (!myHandle) {
-                try {
-                    const status = await window.executeCommand('cbfriends-get-status');
-                    myHandle = (status && status.profile && status.profile.handle) || '';
-                } catch (error) { /* preview */ }
-            }
             unread = (list && list.unread) || 0;
             if (thread) messages = thread.messages || [];
             announce();
@@ -148,36 +170,23 @@
     // One toast per conversation per new message, and never for the one already on screen.
     function announce() {
         for (const c of conversations) {
-            if (!c.unread || c.cbId === peer) { announced.set(c.cbId, c.lastId); continue; }
+            const showing = expanded && c.cbId === peer;
+            if (!c.unread || showing) { announced.set(c.cbId, c.lastId); continue; }
             if (announced.get(c.cbId) === c.lastId) continue;
             announced.set(c.cbId, c.lastId);
             if (!primed) continue;
             window.executeCommand('cbfriends-show-person-notification', {
-                cbId: c.cbId,
-                title: name(c),
-                body: c.preview || '',
+                cbId: c.cbId, title: name(c), body: c.preview || '',
             }).catch(() => {});
         }
     }
 
-    // The thread owns the panel while it is open; the profile card and friends list step aside.
-    function applyPanelMode() {
-        const profile = document.getElementById('cb-profile');
-        const list = document.getElementById('cb-friends-list');
-        for (const el of [profile, list]) {
-            if (el) el.style.display = peer ? 'none' : '';
-        }
-        const hostEl = host();
-        if (hostEl) hostEl.classList.toggle('is-thread', !!peer);
-    }
-
-    async function open(cbId) {
+    async function openPeer(cbId) {
         peer = cbId || null;
         messages = [];
         try { await window.executeCommand('cbfriends-set-dm-peer', { cbId: peer || '' }); } catch (error) { /* preview */ }
-        applyPanelMode();
         render();
-        // The launcher fetches history asynchronously, so catch it as soon as it lands.
+        // History lands asynchronously, so catch it as soon as it arrives.
         setTimeout(async () => { await fetchAll(); patch(); }, 350);
         setTimeout(async () => { await fetchAll(); patch(); }, 1000);
     }
@@ -198,14 +207,17 @@
         bound = true;
 
         el.addEventListener('click', (event) => {
-            const row = event.target.closest('[data-open]');
-            if (row) return open(row.getAttribute('data-open'));
-            if (event.target.closest('#dm-back')) return open(null);
+            if (event.target.closest('#dm-tab')) { expanded = true; return render(); }
+            if (event.target.closest('#dm-min')) { expanded = false; return render(); }
+            if (event.target.closest('#dm-back')) return openPeer(null);
             if (event.target.closest('#dm-send')) return send();
+            const row = event.target.closest('[data-open]');
+            if (row) return openPeer(row.getAttribute('data-open'));
         });
 
         el.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && event.target.id === 'dm-text') send();
+            if (event.key === 'Escape') { expanded = false; render(); }
         });
 
         el.addEventListener('contextmenu', (event) => {
@@ -222,15 +234,16 @@
 
     window.DirectMessages = {
         getUnread() { return unread; },
-        open(cbId) { bind(); open(cbId); },
+        open(cbId) {
+            bind();
+            expanded = true;
+            openPeer(cbId);
+        },
         start() {
             if (timer) return;
-            fetchAll();
-            timer = setInterval(async () => {
-                await fetchAll();
-                if (document.getElementById('cb-dm')) { bind(); patch(); }
-            }, POLL_MS);
-        },
-        render() { bind(); render(); }
+            bind();
+            fetchAll().then(render);
+            timer = setInterval(async () => { await fetchAll(); patch(); }, POLL_MS);
+        }
     };
 })();
