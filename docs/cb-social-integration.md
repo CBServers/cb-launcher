@@ -54,6 +54,10 @@ wrangler deploy
 Then point a hostname at it. The launcher reads `social.cbservers.xyz` for CB endpoints
 (`src/launcher/social/social_constants.hpp`), overridable with `-cbfriends-url`.
 
+Releasing also means publishing `src/launcher-ui/` through the updater, not just the executable —
+the launcher loads its frontend from `%LOCALAPPDATA%\cbservers\data\launcher-ui`, which the
+updater owns. An exe-only release ships the new commands with the old UI, so none of this appears.
+
 ### Retiring the standalone relay
 
 The invite relay currently runs as its own service at `relay.cbservers.xyz`, outside this repo. The
@@ -90,20 +94,6 @@ cb-launcher.exe -cbfriends-url http://127.0.0.1:8787
 
 `kv.json` is the dev store and is gitignored — it holds real Discord ids and HWID hashes, so it must
 never be committed.
-
-### The UI does not come from this repo
-
-The launcher loads its frontend from `%LOCALAPPDATA%\cbservers\data\launcher-ui`, which the
-**launcher updater** populates from `github.com/CBServers/updater`. Building the exe does not deploy
-`src/launcher-ui/`, so a UI change looks like it did nothing until that directory is refreshed:
-
-```powershell
-Copy-Item -Path "<repo>\src\launcher-ui\*" -Destination "$env:LOCALAPPDATA\cbservers\data\launcher-ui" -Recurse -Force
-```
-
-Then run with `-noupdate` so the updater does not put the shipped copy back. Running without it
-restores the shipped UI, so this is reversible. Worth knowing at release time too: shipping this
-work means publishing the UI through the updater, not only the executable.
 
 The suite drives the real `src/index.js` through signed requests, no wrangler or account needed:
 
