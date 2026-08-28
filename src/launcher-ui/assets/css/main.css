@@ -5844,9 +5844,13 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .community-room-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
     gap: 20px;
-    align-items: start;
+    align-items: stretch;
+    /* Takes the remaining height of the page rather than guessing at a viewport offset, so the chat
+       column is not a short box in a sea of empty page. */
+    flex: 1 1 auto;
+    min-height: 340px;
 }
 
 @media (max-width: 1100px) {
@@ -5869,13 +5873,12 @@ html[data-theme="dark"] .secondary-action:hover {
 }
 
 .community-chat-log {
-    flex: 1;
-    min-height: 260px;
-    max-height: 420px;
+    flex: 1 1 auto;
+    min-height: 0;   /* lets the log scroll instead of stretching its parent */
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 10px;
     padding-right: 4px;
 }
 
@@ -5889,12 +5892,35 @@ html[data-theme="dark"] .secondary-action:hover {
     font-size: 13px;
     line-height: 1.45;
     word-break: break-word;
+    padding: 2px 6px;
+    margin: 0 -6px;
+    border-radius: var(--chamfer-sm);
+}
+
+/* A run from one author reads as a block, so only the first line carries a name. */
+.community-chat-line.is-grouped {
+    margin-top: -8px;
+}
+
+.community-chat-line.is-mention {
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.community-chat-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
 }
 
 .community-chat-author {
     font-weight: 700;
     color: var(--accent);
-    margin-right: 6px;
+}
+
+.community-chat-when {
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .community-chat-text {
@@ -7302,4 +7328,80 @@ html:not([data-theme]) .toast {
     text-align: center;
     font-size: 13px;
     color: var(--text-dim);
+}
+
+/* ---- Community: labelled broadcast fields, unread, counter ---- */
+
+.community-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.community-field-note {
+    flex: 1;
+}
+
+.community-field-slots {
+    flex: 0 0 96px;
+}
+
+.community-field-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.community-broadcast-expiry {
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+}
+
+/* Sits on the room card so a lively room is visible from the hub. */
+.community-unread-dot {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-grad);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.nav-item.has-unread .nav-label::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    vertical-align: middle;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.community-chat-count {
+    align-self: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 22px;
+    text-align: right;
+}
+
+/* The community page is a column so its room body can claim the leftover height. */
+#community-page {
+    flex-direction: column;
+    min-height: 100%;
+}
+
+#community-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0 36px 24px 36px;
 }

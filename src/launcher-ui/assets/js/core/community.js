@@ -20,6 +20,9 @@
     let profileReady = false;
     let atChatBottom = true;
     let chatHasMore = false;
+    let myHandle = '';
+    let chatHeads = {};   // room -> newest message id on the server
+    let chatSeen = {};    // room -> newest id we have shown the user
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -73,12 +76,18 @@
         return id === ALL ? allPosts.length : allPosts.filter(p => p.game === id).length;
     }
 
+    function unreadIn(id) {
+        const head = chatHeads[id] || 0;
+        return head > (chatSeen[id] || 0);
+    }
+
     function hubCard(id) {
         const cfg = gameConfig(id);
         const count = countFor(id);
         const badge = count
             ? `<span class="community-room-badge">${escapeHtml(t('looking', { count }))}</span>`
             : '';
+        const unread = unreadIn(id) ? `<span class="community-unread-dot" title="${escapeHtml(t('newMessages'))}"></span>` : '';
         const art = cfg && cfg.capsulePath
             ? `<img class="library-card-art" src="${escapeHtml(cfg.capsulePath)}" alt="${escapeHtml(gameName(id))}" loading="lazy">`
             : '';
@@ -86,6 +95,7 @@
             <article class="library-card community-room-card" data-room="${escapeHtml(id)}">
                 ${art}
                 ${badge}
+                ${unread}
                 <div class="library-card-body">
                     <div class="library-card-title">${escapeHtml(gameName(id))}</div>
                 </div>
@@ -100,6 +110,7 @@
             <article class="library-card community-room-card community-room-all" data-room="${ALL}">
                 <div class="community-all-art"><span class="community-all-glyph">CB</span></div>
                 ${total ? `<span class="community-room-badge">${escapeHtml(t('looking', { count: total }))}</span>` : ''}
+                ${unreadIn(ALL) ? `<span class="community-unread-dot" title="${escapeHtml(t('newMessages'))}"></span>` : ''}
                 <div class="library-card-body">
                     <div class="library-card-title">${escapeHtml(t('allGames'))}</div>
                 </div>
@@ -152,6 +163,22 @@
         return ordered.map(postRow).join('');
     }
 
+    function chatTime(ms) {
+        if (!ms) return '';
+        const mins = Math.round((Date.now() - ms) / 60000);
+        if (mins < 1) return t('justNow');
+        if (mins < 60) return t('minutesAgo', { n: mins });
+        const hours = Math.round(mins / 60);
+        if (hours < 24) return t('hoursAgo', { n: hours });
+        return t('daysAgo', { n: Math.round(hours / 24) });
+    }
+
+    // Matches @handle on a word boundary, so "@div" does not light up for "@divity".
+    function mentionsMe(text) {
+        if (!myHandle) return false;
+        return new RegExp('@' + myHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text || '');
+    }
+
     function chatListHtml() {
         const more = chatHasMore
             ? `<button class="cb-ghost-btn community-chat-more" id="community-chat-more" type="button">${escapeHtml(t('loadOlder'))}</button>`
@@ -159,12 +186,21 @@
         if (!chat.length) {
             return more + `<div class="community-chat-empty">${escapeHtml(t('noMessages'))}</div>`;
         }
-        return more + chat.map(m => {
+        return more + chat.map((m, i) => {
+            const prev = chat[i - 1];
+            // Group runs from one author within a few minutes, so a conversation reads as one block.
+            const grouped = prev && prev.cbId === m.cbId && Math.abs((m.at || 0) - (prev.at || 0)) < 5 * 60000;
             const accent = /^#[0-9a-f]{6}$/i.test(m.accent || '') ? ` style="color:${m.accent}"` : '';
+            const head = grouped ? '' : `
+                <div class="community-chat-head">
+                    <span class="community-chat-author"${accent}>${escapeHtml(m.displayName || m.handle)}</span>
+                    <span class="community-chat-when">${escapeHtml(chatTime(m.at))}</span>
+                </div>`;
             return `
-            <div class="community-chat-line" data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}" data-person-name="${escapeHtml(m.displayName || m.handle)}">
-                <span class="community-chat-author"${accent}>${escapeHtml(m.displayName || m.handle)}</span>
-                <span class="community-chat-text">${escapeHtml(m.text)}</span>
+            <div class="community-chat-line${grouped ? ' is-grouped' : ''}${mentionsMe(m.text) ? ' is-mention' : ''}"
+                 data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}" data-person-name="${escapeHtml(m.displayName || m.handle)}">
+                ${head}
+                <div class="community-chat-text">${escapeHtml(m.text)}</div>
             </div>`;
         }).join('');
     }
@@ -193,12 +229,19 @@
                     ${toggle}
                 </div>
                 <div class="community-post-row">
-                    <input id="community-bc-slots" class="cb-create-input community-slots" type="number" min="1" max="16"
-                        value="${broadcast.slots || ''}" placeholder="${escapeHtml(t('need'))}" title="How many players you want" />
-                    <input id="community-bc-note" class="cb-create-input" type="text" maxlength="120"
-                        value="${escapeHtml(broadcast.note || '')}" placeholder="${escapeHtml(t('notePlaceholder'))}" />
+                    <label class="community-field community-field-slots">
+                        <span class="community-field-label">${escapeHtml(t('need'))}</span>
+                        <input id="community-bc-slots" class="cb-create-input community-slots" type="number" min="1" max="16"
+                            value="${broadcast.slots || ''}" placeholder="2" />
+                    </label>
+                    <label class="community-field community-field-note">
+                        <span class="community-field-label">${escapeHtml(t('noteLabel'))}</span>
+                        <input id="community-bc-note" class="cb-create-input" type="text" maxlength="120"
+                            value="${escapeHtml(broadcast.note || '')}" placeholder="${escapeHtml(t('notePlaceholder'))}" />
+                    </label>
                     ${on ? `<button id="community-bc-update" class="cb-add-btn" type="button">${escapeHtml(t('update'))}</button>` : ''}
                 </div>
+                ${on ? `<div class="community-broadcast-expiry">${escapeHtml(t('broadcastExpiry'))}</div>` : ''}
             </div>
         `;
     }
@@ -225,6 +268,7 @@
                     <div class="community-chat-log" id="community-chat-log">${chatListHtml()}</div>
                     <div class="community-chat-input">
                         <input id="community-chat-text" class="cb-create-input" type="text" maxlength="300" placeholder="${escapeHtml(t('chatPlaceholder', { game: gameName(room) }))}" />
+                        <span class="community-chat-count" id="community-chat-count"></span>
                         <button id="community-chat-send" class="cb-add-btn" type="button">${escapeHtml(t('send'))}</button>
                     </div>
                 </div>
@@ -251,23 +295,57 @@
         try {
             const status = await window.executeCommand('cbfriends-get-status');
             profileReady = !!(status && status.state === 'ready');
+            myHandle = (status && status.profile && status.profile.handle) || myHandle;
         } catch (error) {
             profileReady = false;
         }
     }
 
+    // Last-seen ids live in launcher properties, so unread survives a restart.
+    async function loadSeen() {
+        try {
+            const raw = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.CB_CHAT_SEEN);
+            chatSeen = raw ? JSON.parse(raw) : {};
+        } catch (error) { chatSeen = {}; }
+    }
+
+    function saveSeen() {
+        window.executeCommand('set-property', {
+            [PROPERTY_KEYS.LAUNCHER.CB_CHAT_SEEN]: JSON.stringify(chatSeen),
+        }).catch(() => {});
+    }
+
+    // Standing in a room is what marks it read.
+    function markRead() {
+        if (!room) return;
+        const head = chatHeads[room] || 0;
+        const newest = chat.length ? chat[chat.length - 1].id : 0;
+        const seen = Math.max(head, newest);
+        if (seen && chatSeen[room] !== seen) {
+            chatSeen[room] = seen;
+            saveSeen();
+        }
+    }
+
+    function anyUnread() {
+        return Object.keys(chatHeads).some(id => (chatHeads[id] || 0) > (chatSeen[id] || 0));
+    }
+
     async function fetchData() {
         if (!profileReady) return;
         try {
-            const [lfgRes, bcRes, chatRes] = await Promise.all([
+            const [lfgRes, bcRes, chatRes, headRes] = await Promise.all([
                 window.executeCommand('cbfriends-get-lfg'),
                 window.executeCommand('cbfriends-get-broadcast'),
                 room ? window.executeCommand('cbfriends-get-chat') : Promise.resolve(null),
+                window.executeCommand('cbfriends-get-chat-heads'),
             ]);
-            allPosts = ((lfgRes && lfgRes.posts) || []).filter(p => p.relation !== 'friend');
+            chatHeads = (headRes && headRes.rooms) || chatHeads;
+            allPosts = (lfgRes && lfgRes.posts) || [];
             posts = (room && room !== ALL) ? allPosts.filter(p => p.game === room) : allPosts;
             broadcast = bcRes || broadcast;
             if (chatRes) { chat = chatRes.messages || []; chatHasMore = !!chatRes.hasMore; }
+            markRead();
         } catch (error) {
             allPosts = []; posts = [];
         }
@@ -419,6 +497,14 @@
         body.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && event.target.id === 'community-chat-text') sendChat();
         });
+
+        body.addEventListener('input', (event) => {
+            if (event.target.id !== 'community-chat-text') return;
+            const count = document.getElementById('community-chat-count');
+            const left = 300 - event.target.value.length;
+            // Only worth showing as the cap approaches; a counter on an empty box is clutter.
+            if (count) count.textContent = left <= 60 ? String(left) : '';
+        });
     }
 
     // Counts the board while the tab is closed, so the sidebar can say someone is looking.
@@ -432,18 +518,23 @@
         let count = 0;
         if (profileReady) {
             try {
-                const res = await window.executeCommand('cbfriends-get-lfg');
-                count = ((res && res.posts) || []).filter(p => p.relation !== 'friend').length;
+                const [res, headRes] = await Promise.all([
+                    window.executeCommand('cbfriends-get-lfg'),
+                    window.executeCommand('cbfriends-get-chat-heads'),
+                ]);
+                count = ((res && res.posts) || []).length;
+                chatHeads = (headRes && headRes.rooms) || chatHeads;
             } catch (error) { count = 0; }
         }
         badge.textContent = String(count);
         badge.style.display = count > 0 ? '' : 'none';
+        nav.classList.toggle('has-unread', anyUnread());
     }
 
     window.CommunityManager = {
         startBadgePolling() {
             if (badgeTimer) return;
-            pollBadge();
+            loadSeen().then(pollBadge);
             badgeTimer = setInterval(pollBadge, BADGE_POLL_MS);
         },
         setActive(on) {

@@ -36,6 +36,9 @@ namespace property_keys
     // Hides the Community tab entirely
     constexpr const char* CB_COMMUNITY_ENABLED = "launcher-cb-community-enabled";
 
+    // Newest chat id seen per room, as JSON, so unread survives a restart.
+    constexpr const char* CB_CHAT_SEEN = "launcher-cb-chat-seen";
+
     constexpr const char* CB_BROADCAST = "launcher-cb-broadcast";
     constexpr const char* CB_BROADCAST_GAME = "launcher-cb-broadcast-game";
     constexpr const char* CB_BROADCAST_NOTE = "launcher-cb-broadcast-note";

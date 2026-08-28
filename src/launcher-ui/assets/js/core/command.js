@@ -37,6 +37,7 @@ const mockCb = {
     viewedProfile: null,
     blocked: [],
     securityEvents: [],
+    chatHeads: {},
     playedWith: [],
     dmConversations: [],
     dmMessages: [],
@@ -138,6 +139,8 @@ function mockCommand(command, data) {
         }
         case 'cbfriends-get-viewed-profile':
             return { profile: mockCb.viewedProfile || null };
+        case 'cbfriends-get-chat-heads':
+            return { rooms: mockCb.chatHeads };
         case 'cbfriends-get-played-with':
             return { people: mockCb.playedWith };
         case 'cbfriends-get-dm-list':

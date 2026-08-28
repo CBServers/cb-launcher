@@ -1076,13 +1076,22 @@ async function handleChatSend(env, cbId, body) {
 
     const account = await getAccount(env, cbId);
     const profile = (account && account.profile) || {};
-    return toChatRoom(env, room, 'send', {
+    const res = await toChatRoom(env, room, 'send', {
         cbId,
         handle: profile.handle || '',
         displayName: profile.displayName || profile.handle || '',
         accent: profile.accent || '',
         text,
     });
+
+    const sent = await res.json();
+    if (sent.ok) await dirCall(env, 'chat-head', { room, id: sent.id });
+    return json(res.status, sent);
+}
+
+// What each room's newest message is, so a client can tell which rooms it has not caught up on.
+async function handleChatHeads(env) {
+    return json(200, await dirCall(env, 'chat-heads', {}));
 }
 
 async function handleChatPoll(env, cbId, body) {
@@ -1385,6 +1394,8 @@ export default {
                 return handleChatSend(env, cbId, body);
             case '/v1/chat/poll':
                 return handleChatPoll(env, cbId, body);
+            case '/v1/chat/heads':
+                return handleChatHeads(env);
             case '/v1/lfg/list':
                 return handleLfgList(env, cbId, body);
             case '/v1/played-with':
@@ -1661,7 +1672,8 @@ export class SocialGraph {
 export class Directory {
     constructor() {
         this.people = new Map();
-        this.matches = new Map(); // matchId -> Map(cbId -> { at, game })
+        this.matches = new Map();   // matchId -> Map(cbId -> { at, game })
+        this.chatHeads = new Map(); // room -> { id, at } of the newest message
     }
 
     entry(cbId) {
@@ -1758,6 +1770,18 @@ export class Directory {
                 it.createdAt = body.createdAt || it.createdAt;
             }
             return json(200, { ok: true });
+        }
+
+        // Latest message per room. Held here rather than asked of each room object, so checking for
+        // unread chat is one call instead of one per room.
+        if (pathname === '/chat-head') {
+            const head = this.chatHeads.get(body.room) || {};
+            if (!head.id || body.id > head.id) this.chatHeads.set(body.room, { id: body.id, at: now });
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/chat-heads') {
+            return json(200, { rooms: Object.fromEntries(this.chatHeads) });
         }
 
         if (pathname === '/people') {

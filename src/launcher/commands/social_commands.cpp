@@ -403,6 +403,7 @@ namespace commands::social_commands
             {
                 rapidjson::Value obj(rapidjson::kObjectType);
                 obj.AddMember("id", m.id, allocator);
+                obj.AddMember("at", m.at, allocator);
                 add_string(obj, "cbId", m.cb_id, allocator);
                 add_string(obj, "handle", m.handle, allocator);
                 add_string(obj, "displayName", m.display_name, allocator);
@@ -411,6 +412,21 @@ namespace commands::social_commands
                 messages.PushBack(obj, allocator);
             }
             response.AddMember("messages", messages, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-get-chat-heads", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value rooms(rapidjson::kObjectType);
+            for (const auto& [room, id] : social::cbfriends_service::instance().get_chat_heads())
+            {
+                rapidjson::Value key;
+                key.SetString(room.data(), static_cast<rapidjson::SizeType>(room.size()), allocator);
+                rooms.AddMember(key, id, allocator);
+            }
+            response.AddMember("rooms", rooms, allocator);
         });
 
         cef_ui.add_command("cbfriends-get-dm-list", [](const rapidjson::Value&, rapidjson::Document& response)
@@ -606,6 +622,7 @@ namespace commands::social_commands
             {
                 rapidjson::Value obj(rapidjson::kObjectType);
                 obj.AddMember("id", m.id, allocator);
+                obj.AddMember("at", m.at, allocator);
                 add_string(obj, "cbId", m.cb_id, allocator);
                 add_string(obj, "handle", m.handle, allocator);
                 add_string(obj, "displayName", m.display_name, allocator);

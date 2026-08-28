@@ -1411,8 +1411,8 @@ function loadNavigationPage(page) {
         return Promise.reject(`Page not found: ${page}-page`);
     }
 
-    // Use flex layout for settings page to anchor footer to bottom
-    targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
+    // Flex for settings (footer anchored to the bottom) and community (chat column fills the height)
+    targetPage.style.display = (page === 'settings' || page === 'community') ? 'flex' : 'block';
 
     // The community board only polls while its tab is open.
     if (window.CommunityManager) window.CommunityManager.setActive(page === 'community');

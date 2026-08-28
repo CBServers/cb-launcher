@@ -140,6 +140,7 @@ namespace social
     struct chat_message
     {
         int64_t id{0};
+        int64_t at{0};
         std::string cb_id;
         std::string handle;
         std::string display_name;
@@ -240,6 +241,9 @@ namespace social
         // Moderation. The role is decided server-side on every call; this is only what to show.
         std::string get_mod_role() const;
         void set_mod_active(bool active);
+        // Newest message id per chat room, for spotting rooms with unread messages.
+        std::vector<std::pair<std::string, int64_t>> get_chat_heads() const;
+
         std::vector<mod_report> get_mod_reports() const;
         std::vector<mod_log_entry> get_mod_log() const;
         std::optional<mod_account> get_mod_lookup() const;
@@ -304,6 +308,7 @@ namespace social
         void refresh_blocked();
         void refresh_security();
         void refresh_played_with();
+        void refresh_chat_heads();
         void refresh_mod_role();
         void refresh_mod_queue();
         void process_message(const rapidjson::Value& message);
@@ -353,6 +358,7 @@ namespace social
         int64_t chat_oldest_{0};
         bool chat_more_{true};
 
+        std::vector<std::pair<std::string, int64_t>> chat_heads_;
         std::vector<cb_person> played_with_;
         std::vector<cb_person> blocked_;
         std::vector<security_event> security_;

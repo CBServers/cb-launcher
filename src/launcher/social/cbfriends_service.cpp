@@ -573,6 +573,7 @@ namespace social
                 {
                     last_dm_ = now;
                     refresh_dm_list();
+                    refresh_chat_heads();
                 }
                 if (now - last_slow_.load() >= 60)
                 {
@@ -1291,6 +1292,7 @@ namespace social
         {
             chat_message message;
             message.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
+            message.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
             message.cb_id = json_get(m, "cbId");
             message.handle = json_get(m, "handle");
             message.display_name = json_get(m, "displayName");
@@ -1338,6 +1340,7 @@ namespace social
             {
                 chat_message msg;
                 msg.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
+            msg.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
                 msg.cb_id = json_get(m, "cbId");
                 msg.handle = json_get(m, "handle");
                 msg.display_name = json_get(m, "displayName");
@@ -1409,6 +1412,32 @@ namespace social
     {
         std::lock_guard lock(mutex_);
         return security_;
+    }
+
+    std::vector<std::pair<std::string, int64_t>> cbfriends_service::get_chat_heads() const
+    {
+        std::lock_guard lock(mutex_);
+        return chat_heads_;
+    }
+
+    void cbfriends_service::refresh_chat_heads()
+    {
+        if (get_state() != profile_state::ready) return;
+        auto doc = post_json(base_url() + "/v1/chat/heads", ts_body());
+        if (!doc || !doc->HasMember("rooms") || !(*doc)["rooms"].IsObject()) return;
+
+        std::vector<std::pair<std::string, int64_t>> heads;
+        const auto& rooms = (*doc)["rooms"];
+        for (auto it = rooms.MemberBegin(); it != rooms.MemberEnd(); ++it)
+        {
+            if (it->value.IsObject() && it->value.HasMember("id") && it->value["id"].IsInt64())
+            {
+                heads.emplace_back(it->name.GetString(), it->value["id"].GetInt64());
+            }
+        }
+
+        std::lock_guard lock(mutex_);
+        chat_heads_ = std::move(heads);
     }
 
     std::vector<cb_person> cbfriends_service::get_played_with() const
@@ -1538,6 +1567,7 @@ namespace social
         {
             chat_message message;
             message.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
+            message.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
             message.cb_id = json_get(m, "cbId");
             message.handle = json_get(m, "handle");
             message.display_name = json_get(m, "displayName");

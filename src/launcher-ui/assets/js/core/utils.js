@@ -13,7 +13,8 @@ const PROPERTY_KEYS = {
         CDN_CUSTOM_URL: 'launcher-cdn-custom-url',
         PINNED_GAMES: 'launcher-pinned-games',
         CB_COMMUNITY_ENABLED: 'launcher-cb-community-enabled',
-            DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
+        CB_CHAT_SEEN: 'launcher-cb-chat-seen',
+        DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
         REDUCE_MOTION: 'launcher-reduce-motion'
     },
     GAME: {
