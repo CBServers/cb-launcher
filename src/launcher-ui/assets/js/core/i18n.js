@@ -147,7 +147,6 @@
                 postFromGameRoom: "Open a game room to post that you're looking for a group.",
                 chat: '{{game}} chat',
                 chatPlaceholder: 'Message {{game}}...',
-                send: 'Send',
                 noMessages: 'No messages yet. Say hello.',
                 loadOlder: 'Load older messages',
                 back: 'Back',
