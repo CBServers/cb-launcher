@@ -19,6 +19,38 @@ namespace game_updater
     namespace
     {
         // Steam copies keep these manifest prefixes at the install root instead
+        // Blizzard CASC storage (Data/data/<name>.idx and the numbered archives) plus .build.info
+        // are repacked per install, so two equally complete copies disagree on both sizes and index
+        // names. Counting them made a finished Black Ops 4 read as 42% present.
+        bool is_repacked_content(const std::string& name)
+        {
+            const auto lower = utils::string::to_lower(name);
+            if (lower == ".build.info" || lower.ends_with("/.build.info"))
+            {
+                return true;
+            }
+
+            const auto marker = lower.find("data/data/");
+            if (marker == std::string::npos || (marker != 0 && lower[marker - 1] != '/'))
+            {
+                return false;
+            }
+
+            if (lower.ends_with(".idx"))
+            {
+                return true;
+            }
+
+            // A numbered CASC archive, e.g. Data/data/0000000042.014
+            const auto dot = lower.find_last_of('.');
+            if (dot == std::string::npos || lower.size() - dot != 4)
+            {
+                return false;
+            }
+            return std::all_of(lower.begin() + static_cast<long long>(dot) + 1, lower.end(),
+                               [](const unsigned char c) { return std::isdigit(c) != 0; });
+        }
+
         constexpr std::string_view zone_prefix = "zone/";
         constexpr std::string_view video_prefix = "raw/video/";
 
@@ -1232,22 +1264,27 @@ namespace game_updater
             // Check for cancellation
             check_cancelled();
 
-            const auto& component = file.component;
-            auto& stats = file.localized ? localized_stats[component] : component_stats[component];
-            stats.second++; // Increment total
-
-            // First candidate present on disk decides, mirroring resolve_existing
-            for (const auto& candidate : this->get_candidate_paths(file))
+            // Repacked content cannot testify either way, so it is left out of the tally entirely
+            // rather than counted as missing.
+            if (!is_repacked_content(file.name))
             {
-                const auto it = file_stats.find(candidate);
-                if (it != file_stats.end() && it->second.exists)
-                {
-                    if (it->second.size == file.size)
-                    {
-                        stats.first++;
-                    }
+                const auto& component = file.component;
+                auto& stats = file.localized ? localized_stats[component] : component_stats[component];
+                stats.second++; // Increment total
 
-                    break;
+                // First candidate present on disk decides, mirroring resolve_existing
+                for (const auto& candidate : this->get_candidate_paths(file))
+                {
+                    const auto it = file_stats.find(candidate);
+                    if (it != file_stats.end() && it->second.exists)
+                    {
+                        if (it->second.size == file.size)
+                        {
+                            stats.first++;
+                        }
+
+                        break;
+                    }
                 }
             }
 
