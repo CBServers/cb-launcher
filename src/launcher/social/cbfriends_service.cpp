@@ -540,7 +540,10 @@ namespace social
 
     void cbfriends_service::stop()
     {
-        stop_chat_worker();
+        {
+            std::lock_guard lifecycle(chat_worker_mutex_);
+            stop_chat_worker();
+        }
         {
             std::lock_guard lifecycle(dm_worker_mutex_);
             stop_dm_worker();
@@ -1195,12 +1198,28 @@ namespace social
             chat_more_ = true;
         }
 
+        // Stopping the old poll waits on a held request, and this runs on the UI thread, so the
+        // swap is handed off; doing it here froze the UI on every room change.
+        std::thread(&cbfriends_service::restart_chat_worker, this).detach();
+    }
+
+    void cbfriends_service::restart_chat_worker()
+    {
+        std::lock_guard lifecycle(chat_worker_mutex_);
         stop_chat_worker();
-        if (!room.empty() && get_state() == profile_state::ready)
+
+        std::string room;
         {
-            chat_running_ = true;
-            chat_worker_ = std::thread(&cbfriends_service::chat_loop, this);
+            std::lock_guard lock(mutex_);
+            room = chat_room_;
         }
+        if (room.empty() || !running_ || get_state() != profile_state::ready) return;
+
+        // Unheld first, so a room's history is on screen as soon as the network allows.
+        poll_chat(false);
+
+        chat_running_ = true;
+        chat_worker_ = std::thread(&cbfriends_service::chat_loop, this);
     }
 
     void cbfriends_service::stop_chat_worker()

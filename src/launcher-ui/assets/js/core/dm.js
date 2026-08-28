@@ -129,7 +129,17 @@
     function patch() {
         const el = host();
         if (!el || !ready) return;
-        if (!expanded) return render();
+
+        // Collapsed, only the count can change; rewriting the bar every tick churns the DOM and
+        // drops hover state for nothing.
+        if (!expanded) {
+            const tab = document.getElementById('dm-tab');
+            if (!tab) return render();
+            const badge = tab.querySelector('.dm-unread');
+            if (unread && badge) badge.textContent = String(unread);
+            else if (unread !== (badge ? Number(badge.textContent) : 0)) render();
+            return;
+        }
 
         if (peer) {
             const log = document.getElementById('dm-log');

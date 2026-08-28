@@ -301,6 +301,7 @@ namespace social
         void chat_loop();
         void poll_chat(bool hold);
         void stop_chat_worker();
+        void restart_chat_worker();
         void dm_loop();
         void poll_dm(bool hold);
         void stop_dm_worker();
@@ -373,6 +374,8 @@ namespace social
 
         std::thread worker_;
         std::thread chat_worker_;
+        // Guards the chat worker handle, since the swap happens off the UI thread.
+        std::mutex chat_worker_mutex_;
         std::thread dm_worker_;
         // Guards the dm worker handle, since the swap happens off the UI thread.
         std::mutex dm_worker_mutex_;
