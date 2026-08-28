@@ -71,6 +71,10 @@
                     ${caps.import ? subtab('import', escapeHtml(t('mods.import'))) : ''}
                 </div>
                 <div class="mods-folder-actions">
+                    <button class="secondary-action mods-refresh"${s.view === 'installed' ? '' : ' hidden'} title="${escapeHtml(t('mods.refreshHint'))}">
+                        <span class="secondary-action-icon reload-icon"></span>
+                        ${escapeHtml(t('mods.refresh'))}
+                    </button>
                     ${(caps.folders || []).map(folder => `
                     <button class="secondary-action mods-open-folder" data-folder="${escapeHtml(folder)}">
                         <span class="secondary-action-icon folder-icon"></span>
@@ -89,6 +93,7 @@
         panel.querySelectorAll('.mods-open-folder').forEach(button => {
             button.addEventListener('click', () => openFolder(gameId, button.dataset.folder));
         });
+        panel.querySelector('.mods-refresh').addEventListener('click', () => refreshInstalled(gameId));
 
         renderInstalled(gameId);
         if (caps.workshop) renderWorkshop(gameId);
@@ -104,6 +109,32 @@
         getState(gameId).view = view;
         panel.querySelectorAll('.mods-subtab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
         panel.querySelectorAll('.mods-view').forEach(v => v.classList.toggle('active', v.dataset.view === view));
+        const refresh = panel.querySelector('.mods-refresh');
+        if (refresh) refresh.hidden = view !== 'installed';
+    }
+
+    // Re-enumerates the content folders, so mods added or deleted outside the launcher show up.
+    async function refreshInstalled(gameId) {
+        const s = getState(gameId);
+        const button = query(gameId, '.mods-refresh');
+        if (!button || button.disabled) return;
+
+        button.disabled = true;
+        button.classList.add('is-spinning');
+        // A pending install owns its row's progress; blanking the list would drop it.
+        if (!Object.keys(s.busy).length) {
+            s.installed = null;
+            renderInstalled(gameId);
+        }
+        try {
+            await loadInstalled(gameId);
+        } finally {
+            const current = query(gameId, '.mods-refresh');
+            if (current) {
+                current.disabled = false;
+                current.classList.remove('is-spinning');
+            }
+        }
     }
 
     // Search results arrive with installed/updateAvailable cleared; re-mark them from the installed list.
