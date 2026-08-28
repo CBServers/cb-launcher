@@ -154,9 +154,22 @@
         `;
     }
 
+    // An empty room is the moment to offer the action, not just report the absence.
+    function lfgEmptyHtml() {
+        const listed = broadcast.on && broadcast.game === room;
+        const line = listed ? t('waitingForOthers') : t('noOneLooking', { game: gameName(room) });
+        const cta = (listed || room === ALL) ? '' :
+            `<button class="cb-add-btn" id="community-be-first" type="button">${escapeHtml(t('beFirst'))}</button>`;
+        return `
+            <div class="community-empty">
+                <div class="community-empty-line">${escapeHtml(line)}</div>
+                ${cta}
+            </div>`;
+    }
+
     function lfgListHtml() {
         if (!posts.length) {
-            return `<div class="friends-empty" style="display:block">${escapeHtml(t('noOneLooking', { game: gameName(room) }))}</div>`;
+            return lfgEmptyHtml();
         }
         // Your own lobby sits at the top of the room you're broadcasting to.
         const ordered = posts.slice().sort((a, b) => (b.relation === 'self') - (a.relation === 'self'));
@@ -210,38 +223,51 @@
         if (room === ALL) {
             return `<div class="community-hub-lead">${escapeHtml(t('postFromGameRoom'))}</div>`;
         }
+
         const on = broadcast.on && broadcast.game === room;
         const toggle = `
-            <label class="cb-switch" title="Broadcast on/off">
+            <label class="cb-switch" title="${escapeHtml(t('lookingForGroup'))}">
                 <input type="checkbox" id="community-broadcast-toggle" ${on ? 'checked' : ''}>
                 <span class="cb-switch-slider"></span>
             </label>`;
-        const sub = on
-            ? t('discoverableSub')
-            : t('privateSub');
+
+        // Details only mean anything once you are listed, so they stay out of the way until then.
+        // Two labelled rows rather than one crowded line, with the action on its own row.
+        const details = on ? `
+            <div class="community-listing">
+                <div class="community-listing-row">
+                    <span class="community-listing-label">${escapeHtml(t('needLead'))}</span>
+                    <div class="community-select">
+                        <select id="community-bc-slots">
+                            ${[0, 2, 3, 4, 5, 6, 8, 12].map(n =>
+                                `<option value="${n}"${(broadcast.slots || 0) === n ? ' selected' : ''}>${
+                                    n ? escapeHtml(t('nPlayers', { n })) : escapeHtml(t('anyNumber'))}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="community-listing-row">
+                    <span class="community-listing-label">${escapeHtml(t('noteLabel'))}</span>
+                    <input id="community-bc-note" class="community-listing-note" type="text" maxlength="120"
+                        value="${escapeHtml(broadcast.note || '')}" placeholder="${escapeHtml(t('notePlaceholder'))}" />
+                </div>
+                <div class="community-listing-foot">
+                    <span class="community-broadcast-expiry">${escapeHtml(t('broadcastExpiry'))}</span>
+                    <button id="community-bc-update" class="cb-ghost-btn" type="button">${escapeHtml(t('update'))}</button>
+                </div>
+            </div>` : '';
+
         return `
             <div class="community-broadcast-card${on ? ' is-on' : ''}">
                 <div class="community-broadcast-head">
                     <div>
-                        <div class="community-broadcast-title">${on ? `${escapeHtml(t('discoverable'))} <span class="community-live-dot"></span>` : t('lookingForGroup')}</div>
-                        <div class="community-broadcast-sub">${escapeHtml(sub)}</div>
+                        <div class="community-broadcast-title">
+                            ${on ? `<span class="community-live-dot"></span>${escapeHtml(t('listedIn', { game: gameName(room) }))}` : escapeHtml(t('lookingForGroup'))}
+                        </div>
+                        <div class="community-broadcast-sub">${escapeHtml(on ? t('discoverableSub') : t('privateSub'))}</div>
                     </div>
                     ${toggle}
                 </div>
-                <div class="community-post-row">
-                    <label class="community-field community-field-slots">
-                        <span class="community-field-label">${escapeHtml(t('need'))}</span>
-                        <input id="community-bc-slots" class="cb-create-input community-slots" type="number" min="1" max="16"
-                            value="${broadcast.slots || ''}" placeholder="2" />
-                    </label>
-                    <label class="community-field community-field-note">
-                        <span class="community-field-label">${escapeHtml(t('noteLabel'))}</span>
-                        <input id="community-bc-note" class="cb-create-input" type="text" maxlength="120"
-                            value="${escapeHtml(broadcast.note || '')}" placeholder="${escapeHtml(t('notePlaceholder'))}" />
-                    </label>
-                    ${on ? `<button id="community-bc-update" class="cb-add-btn" type="button">${escapeHtml(t('update'))}</button>` : ''}
-                </div>
-                ${on ? `<div class="community-broadcast-expiry">${escapeHtml(t('broadcastExpiry'))}</div>` : ''}
+                ${details}
             </div>
         `;
     }
@@ -260,7 +286,8 @@
             <div class="community-room-body">
                 <div class="community-room-main">
                     ${postFormHtml()}
-                    <div class="cb-section-head">${escapeHtml(t('lookingForGroupHead'))} <span class="friends-group-count" id="community-lfg-count">${posts.length}</span></div>
+                    <div class="cb-section-head">${escapeHtml(t('lookingForGroupHead'))}
+                        <span class="friends-group-count" id="community-lfg-count"${posts.length ? '' : ' style="display:none"'}>${posts.length}</span></div>
                     <div class="friends-list" id="community-lfg">${lfgListHtml()}</div>
                 </div>
                 <div class="community-chat">
@@ -376,7 +403,10 @@
 
         list.innerHTML = lfgListHtml();
         const count = document.getElementById('community-lfg-count');
-        if (count) count.textContent = posts.length;
+        if (count) {
+            count.textContent = posts.length;
+            count.style.display = posts.length ? '' : 'none';
+        }
 
         if (log) {
             atChatBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -463,6 +493,7 @@
                 return;
             }
             if (t.closest('#community-back')) return openRoom(null);
+            if (t.closest('#community-be-first')) return applyBroadcast(true);
             if (t.closest('#community-bc-update')) return applyBroadcast(true);
             if (t.closest('#community-bc-stop')) return applyBroadcast(false);
             if (t.closest('#community-chat-send')) return sendChat();

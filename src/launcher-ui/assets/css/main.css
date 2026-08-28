@@ -7332,35 +7332,6 @@ html:not([data-theme]) .toast {
 
 /* ---- Community: labelled broadcast fields, unread, counter ---- */
 
-.community-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-}
-
-.community-field-note {
-    flex: 1;
-}
-
-.community-field-slots {
-    flex: 0 0 96px;
-}
-
-.community-field-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-.community-broadcast-expiry {
-    margin-top: 8px;
-    font-size: 11.5px;
-    color: var(--text-dim);
-}
-
 /* Sits on the room card so a lively room is visible from the hub. */
 .community-unread-dot {
     position: absolute;
@@ -7404,4 +7375,131 @@ html:not([data-theme]) .toast {
     flex: 1 1 auto;
     min-height: 0;
     padding: 0 36px 24px 36px;
+}
+
+/* The room's left column claims the full height, so its list must fill rather than sit at the top. */
+.community-room-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.community-room-main #community-lfg {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.community-empty {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+}
+
+.community-empty-line {
+    font-size: 13px;
+    color: var(--text-dim);
+    max-width: 320px;
+}
+
+/* Two labelled rows with the action on its own line, rather than one crowded row of controls. */
+.community-listing {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.community-listing-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.community-listing-label {
+    flex: 0 0 64px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Wraps the native select so it can carry the launcher's own chevron instead of the OS one. */
+.community-select {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.community-select::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    width: 7px;
+    height: 7px;
+    margin-top: -5px;
+    border-right: 1.6px solid var(--text-muted);
+    border-bottom: 1.6px solid var(--text-muted);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.community-select select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 8px 34px 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+    cursor: pointer;
+}
+
+.community-select select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.community-listing-note {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-bright);
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+}
+
+.community-listing-note:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.community-listing-note::placeholder {
+    color: var(--text-muted);
+}
+
+.community-listing-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.community-broadcast-expiry {
+    font-size: 11.5px;
+    color: var(--text-dim);
+}
+
+.community-broadcast-title .community-live-dot {
+    margin-right: 8px;
 }
