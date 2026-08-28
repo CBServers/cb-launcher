@@ -1,5 +1,5 @@
-// Direct messages, shown inside the CB friends panel. Opening a conversation replaces the friends
-// list until you go back, so the page never grows a second scroll region.
+// Direct messages, shown inside the CB friends panel. Opening a conversation hides the profile card
+// and friends list, so the thread owns the panel rather than stacking a second scroll region on it.
 
 (function () {
     const POLL_MS = 4 * 1000;
@@ -12,6 +12,7 @@
     let unread = 0;
     let timer = null;
     let bound = false;
+    let myHandle = '';
     const announced = new Map(); // cbId -> last announced message id
     let primed = false;          // the first pass only records, so a cold start stays quiet
 
@@ -37,19 +38,44 @@
             </div>`;
     }
 
-    function messageHtml(m) {
+    function when(ms) {
+        if (!ms) return '';
+        const mins = Math.round((Date.now() - ms) / 60000);
+        if (mins < 1) return t('justNow');
+        if (mins < 60) return t('minutesAgo', { n: mins });
+        const hours = Math.round(mins / 60);
+        if (hours < 24) return t('hoursAgo', { n: hours });
+        return t('daysAgo', { n: Math.round(hours / 24) });
+    }
+
+    function mentionsMe(text) {
+        if (!myHandle) return false;
+        return new RegExp('@' + myHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text || '');
+    }
+
+    function messageHtml(m, i) {
+        const prev = messages[i - 1];
+        const grouped = prev && prev.cbId === m.cbId && Math.abs((m.at || 0) - (prev.at || 0)) < 5 * 60000;
         const style = m.accent ? ` style="color:${escapeHtml(m.accent)}"` : '';
+        const head = grouped ? '' : `
+                <div class="dm-msg-head">
+                    <span class="dm-msg-who"${style}>${escapeHtml(m.displayName || m.handle)}</span>
+                    <span class="dm-msg-when">${escapeHtml(when(m.at))}</span>
+                </div>`;
         return `
-            <div class="dm-msg" data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}"
+            <div class="dm-msg${grouped ? ' is-grouped' : ''}${mentionsMe(m.text) ? ' is-mention' : ''}"
+                 data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}"
                  data-person-name="${escapeHtml(m.displayName)}">
-                <span class="dm-msg-who"${style}>${escapeHtml(m.displayName || m.handle)}</span>
-                <span class="dm-msg-text">${escapeHtml(m.text)}</span>
+                ${head}
+                <div class="dm-msg-text">${escapeHtml(m.text)}</div>
             </div>`;
     }
 
     function listHtml() {
-        if (!conversations.length) return `<div class="dm-empty">${escapeHtml(t('noConversations'))}</div>`;
-        return `<div class="dm-list">${conversations.map(conversationHtml).join('')}</div>`;
+        if (!conversations.length) return '';
+        return `
+            <div class="cb-section-head">${escapeHtml(t('messages'))}</div>
+            <div class="dm-list">${conversations.map(conversationHtml).join('')}</div>`;
     }
 
     function threadHtml() {
@@ -73,6 +99,7 @@
     function render() {
         const el = host();
         if (!el) return;
+        applyPanelMode();
         el.innerHTML = peer ? threadHtml() : listHtml();
         scrollLog();
     }
@@ -102,6 +129,12 @@
                 peer ? window.executeCommand('cbfriends-get-dm') : Promise.resolve(null),
             ]);
             conversations = (list && list.conversations) || [];
+            if (!myHandle) {
+                try {
+                    const status = await window.executeCommand('cbfriends-get-status');
+                    myHandle = (status && status.profile && status.profile.handle) || '';
+                } catch (error) { /* preview */ }
+            }
             unread = (list && list.unread) || 0;
             if (thread) messages = thread.messages || [];
             announce();
@@ -127,10 +160,22 @@
         }
     }
 
+    // The thread owns the panel while it is open; the profile card and friends list step aside.
+    function applyPanelMode() {
+        const profile = document.getElementById('cb-profile');
+        const list = document.getElementById('cb-friends-list');
+        for (const el of [profile, list]) {
+            if (el) el.style.display = peer ? 'none' : '';
+        }
+        const hostEl = host();
+        if (hostEl) hostEl.classList.toggle('is-thread', !!peer);
+    }
+
     async function open(cbId) {
         peer = cbId || null;
         messages = [];
         try { await window.executeCommand('cbfriends-set-dm-peer', { cbId: peer || '' }); } catch (error) { /* preview */ }
+        applyPanelMode();
         render();
         // The launcher fetches history asynchronously, so catch it as soon as it lands.
         setTimeout(async () => { await fetchAll(); patch(); }, 350);
