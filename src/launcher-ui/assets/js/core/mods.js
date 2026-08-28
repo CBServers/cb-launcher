@@ -181,6 +181,20 @@
         }
     }
 
+    // CDN-hosted overrides ({ workshopId: { version, size } }): these ids install
+    // from our CDN instead of steamCMD, and their update state is version equality
+    // against the hosted release rather than Steam's updated time.
+    async function getOverrides(game) {
+        const caps = supports(game);
+        if (!caps || !caps.workshop || PREVIEW_MODE) return {};
+        try {
+            const data = await window.executeCommand('get-mod-overrides', { game: backendId(game) });
+            return data && typeof data === 'object' ? data : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
     async function uninstall(game, id) {
         const result = await window.executeCommand('uninstall-mod', { game: backendId(game), id });
         if (!result || !result.success) {
@@ -238,6 +252,7 @@
         update: install,
         cancelInstall,
         getUpdatedTimes,
+        getOverrides,
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
         importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),

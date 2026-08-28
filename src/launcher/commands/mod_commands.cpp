@@ -2,6 +2,7 @@
 #include "mod_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "mods/mod_store.hpp"
+#include "mods/mod_updater.hpp"
 
 #include <utils/com.hpp>
 #include <utils/io.hpp>
@@ -172,6 +173,28 @@ namespace commands::mod_commands
             for (const auto& mod : mods::list_installed(*config))
             {
                 response.PushBack(mods::to_json(mod, allocator), allocator);
+            }
+        });
+
+        // CDN-hosted overrides: { "<workshopId>": { version, size } }. The frontend
+        // compares version against the installed mod instead of Steam's updated time.
+        cef_ui.add_command("get-mod-overrides", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config || !mods::supports(*config))
+            {
+                return;
+            }
+
+            for (const auto& entry : mod_updater::get_overrides(*config))
+            {
+                rapidjson::Value item(rapidjson::kObjectType);
+                item.AddMember("version", make_string(entry.version, allocator), allocator);
+                item.AddMember("size", entry.size, allocator);
+                response.AddMember(make_string(entry.id, allocator), item, allocator);
             }
         });
 

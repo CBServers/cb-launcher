@@ -119,10 +119,19 @@
     async function loadInstalled(gameId) {
         const s = getState(gameId);
         try {
-            s.installed = await window.ModsService.getInstalled(gameId);
-            const times = await window.ModsService.getUpdatedTimes(gameId, s.installed.filter(mod => mod.workshopId).map(mod => mod.workshopId));
+            const [installed, overrides] = await Promise.all([
+                window.ModsService.getInstalled(gameId),
+                window.ModsService.getOverrides(gameId)
+            ]);
+            s.installed = installed;
+            // Overridden ids compare against the hosted version; Steam's updated time is irrelevant for them.
+            const steamIds = installed.filter(mod => mod.workshopId && !overrides[mod.workshopId]).map(mod => mod.workshopId);
+            const times = await window.ModsService.getUpdatedTimes(gameId, steamIds);
             s.installed.forEach(mod => {
-                mod.updateAvailable = !!(times[mod.workshopId] && times[mod.workshopId] > Date.parse(mod.installedAt) / 1000);
+                const override = overrides[mod.workshopId];
+                mod.updateAvailable = override
+                    ? override.version !== (mod.version || '')
+                    : !!(times[mod.workshopId] && times[mod.workshopId] > Date.parse(mod.installedAt) / 1000);
             });
         } catch (error) {
             console.error(error);

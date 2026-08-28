@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "mod_store.hpp"
+#include "mod_updater.hpp"
 #include "steamcmd.hpp"
 #include "updater/client_store.hpp"
 
@@ -378,9 +379,9 @@ namespace mods
             return {};
         }
 
-        // An item is renamed to its workshop FolderName on install, so a copy that was
-        // installed under a different name (its numeric id, say) would linger on disk and
-        // keep claiming the same update.
+        // An item installs under its numeric workshop id, so a copy installed under a
+        // different name (its FolderName, from older launcher versions) would linger on
+        // disk and keep claiming the same update.
         void remove_stale_copies(const game_config::game_config_t& config, const game_layout& layout,
             const std::filesystem::path& root, const std::string& workshop_id,
             const std::string& keep_folder, const std::string& keep_dirname)
@@ -754,12 +755,12 @@ namespace mods
             return fail("The selected folder does not exist.");
         }
 
-        // Prefer the workshop.json folder name: steamcmd item dirs are named by
-        // numeric id, but the game expects the map's own folder name.
+        // Workshop items install under their numeric id, like Steam does: FolderName
+        // is author-chosen and two items can share one, silently clobbering each other.
         auto dirname = utils::string::path_to_utf8(source.filename());
-        if (const auto info = read_workshop_json(source); info && is_safe_dirname(info->folder_name))
+        if (const auto info = read_workshop_json(source); info && is_workshop_id(info->publisher_id))
         {
-            dirname = info->folder_name;
+            dirname = info->publisher_id;
         }
 
         if (!is_safe_dirname(dirname))
@@ -855,6 +856,83 @@ namespace mods
         return import_folder(config, source, progress, "import");
     }
 
+    namespace
+    {
+        // Adopt an existing copy of the item (installed under any name) as the sync
+        // target, so converging to the hosted version reuses its unchanged files.
+        void adopt_existing_copy(const game_config::game_config_t& config, const game_layout& layout,
+            const std::filesystem::path& root, const std::string& workshop_id,
+            const std::string& target_folder, const std::string& target_dirname)
+        {
+            const auto target = root / target_folder / target_dirname;
+            if (utils::io::directory_exists(target))
+            {
+                return;
+            }
+
+            for (const auto& folder : layout.folders)
+            {
+                for (const auto& directory : subdirectories(root / folder))
+                {
+                    const auto info = read_workshop_json(directory);
+                    if (!info || info->publisher_id != workshop_id)
+                    {
+                        continue;
+                    }
+
+                    utils::io::create_directory(root / target_folder);
+                    std::error_code code{};
+                    std::filesystem::rename(directory, target, code);
+                    if (!code)
+                    {
+                        erase_index(config, make_id(folder, utils::string::path_to_utf8(directory.filename())));
+                        utils::logger::write("[cbl-mods] adopted {} as {}", utils::string::path_to_utf8(directory), utils::string::path_to_utf8(target));
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        import_result install_override(const game_config::game_config_t& config, const game_layout& layout,
+            const std::filesystem::path& root, const mod_updater::override_entry& entry, const progress_callback& progress)
+        {
+            const std::string folder = entry.kind == KIND_MAP ? FOLDER_USERMAPS : FOLDER_MODS;
+            if (!has_folder(layout, folder))
+            {
+                return fail("This game does not support custom " + std::string(entry.kind == KIND_MAP ? "maps." : "mods."));
+            }
+
+            // Installs are named by workshop id; renaming an old-style copy into place
+            // both migrates it and lets the converge reuse its unchanged files.
+            adopt_existing_copy(config, layout, root, entry.id, folder, entry.id);
+
+            const auto target = root / folder / entry.id;
+            if (const auto error = mod_updater::sync_item(config, entry, target, progress); !error.empty())
+            {
+                return fail(error);
+            }
+
+            installed_mod mod{};
+            mod.id = make_id(folder, entry.id);
+            mod.name = entry.id;
+            mod.kind = entry.kind == KIND_MAP ? KIND_MAP : KIND_MOD;
+            mod.folder = folder;
+            mod.source = "workshop";
+            mod.version = entry.version;
+            mod.installed_at = now_iso8601();
+            apply_workshop_info(mod, target);
+            // The override id is what update checks key on, whatever the packed json says.
+            mod.workshop_id = entry.id;
+            remove_stale_copies(config, layout, root, entry.id, folder, entry.id);
+            mod.size = directory_size(target);
+            upsert_index(config, mod);
+
+            utils::logger::write("[cbl-mods] installed override {} v{} into {}", entry.id, entry.version, utils::string::path_to_utf8(target));
+            return {true, {}, mod};
+        }
+    }
+
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size,
                                         const std::vector<workshop_download>& children, const progress_callback& progress)
     {
@@ -870,10 +948,15 @@ namespace mods
             return fail("Invalid Workshop item id.");
         }
 
+        // Overridden parents pin their own dependency list; the live Steam data
+        // may not match the hosted release.
+        const auto parent_override = mod_updater::find_override(config, workshop_id);
+        const auto& requested_children = parent_override ? parent_override->children : children;
+
         // Children first: on a cancel or failure the parent only appears once its
         // dependencies are present, and a retry skips the finished ones.
         std::vector<workshop_download> items{};
-        for (const auto& child : children)
+        for (const auto& child : requested_children)
         {
             const auto duplicate = child.id == workshop_id
                 || std::any_of(items.begin(), items.end(), [&child](const workshop_download& entry) { return entry.id == child.id; });
@@ -883,13 +966,24 @@ namespace mods
                 items.push_back(child);
             }
         }
-        items.push_back({workshop_id, expected_size});
+        items.push_back({workshop_id, parent_override ? parent_override->size : expected_size});
 
-        uint64_t total_size = 0, largest_size = 0;
+        std::vector<std::optional<mod_updater::override_entry>> item_overrides{};
+        item_overrides.reserve(items.size());
         for (const auto& item : items)
         {
-            total_size += item.size;
-            largest_size = std::max(largest_size, item.size);
+            item_overrides.push_back(item.id == workshop_id ? parent_override : mod_updater::find_override(config, item.id));
+        }
+
+        uint64_t total_size = 0, largest_size = 0;
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            total_size += items[i].size;
+            // Overrides download straight into the target, without steamcmd staging.
+            if (!item_overrides[i])
+            {
+                largest_size = std::max(largest_size, items[i].size);
+            }
         }
 
         // SteamCMD stages one item at a time; the target volume holds them all.
@@ -908,7 +1002,9 @@ namespace mods
         }
 
         std::string error{};
-        if (!steamcmd::ensure_installed(progress, error))
+        const auto any_steamcmd = std::any_of(item_overrides.begin(), item_overrides.end(),
+            [](const auto& entry) { return !entry.has_value(); });
+        if (any_steamcmd && !steamcmd::ensure_installed(progress, error))
         {
             return fail(error);
         }
@@ -923,8 +1019,9 @@ namespace mods
         auto high_water = 0;
         auto parent_result = fail("The install failed.");
 
-        for (const auto& item : items)
+        for (size_t i = 0; i < items.size(); ++i)
         {
+            const auto& item = items[i];
             const auto is_parent = item.id == workshop_id;
             if (progress && !progress("downloading", item.id, high_water))
             {
@@ -939,6 +1036,27 @@ namespace mods
                 high_water = std::max(high_water, std::min(combined, 99));
                 return !progress || progress(phase, name, high_water);
             };
+
+            if (item_overrides[i])
+            {
+                auto result = install_override(config, *layout, *root, *item_overrides[i], scaled);
+                if (!result.success && (result.error == "cancelled" || is_parent))
+                {
+                    return result;
+                }
+
+                if (is_parent)
+                {
+                    parent_result = std::move(result);
+                }
+                else if (!result.success)
+                {
+                    utils::logger::write("[cbl-mods] failed to install overridden dependency {}: {}", item.id, result.error);
+                }
+
+                completed_weight += item_weight;
+                continue;
+            }
 
             const auto staged = steamcmd::download_item(layout->steam_appid, item.id, item.size, scaled, error);
             if (!staged)
