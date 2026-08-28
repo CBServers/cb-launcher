@@ -19,9 +19,9 @@ namespace game_updater
     namespace
     {
         // Steam copies keep these manifest prefixes at the install root instead
-        // Blizzard CASC storage (Data/data/<name>.idx and the numbered archives) plus .build.info
-        // are repacked per install, so two equally complete copies disagree on both sizes and index
-        // names. Counting them made a finished Black Ops 4 read as 42% present.
+        // Blizzard CASC storage: everything under the game's Data tree is repacked per install, so
+        // two equally complete copies disagree on both file sizes and index names. Counting it made
+        // a finished Black Ops 4 read as 42% present, which no install could ever pass.
         bool is_repacked_content(const std::string& name)
         {
             const auto lower = utils::string::to_lower(name);
@@ -30,25 +30,22 @@ namespace game_updater
                 return true;
             }
 
-            const auto marker = lower.find("data/data/");
-            if (marker == std::string::npos || (marker != 0 && lower[marker - 1] != '/'))
+            constexpr std::string_view data_root = "data/";
+            if (!lower.starts_with(data_root))
             {
                 return false;
             }
 
-            if (lower.ends_with(".idx"))
+            const std::string_view rest = std::string_view(lower).substr(data_root.size());
+            for (const auto* store : {"data/", "ecache/", "viper/", "indices/", "config/"})
             {
-                return true;
+                if (rest.starts_with(store))
+                {
+                    return true;
+                }
             }
 
-            // A numbered CASC archive, e.g. Data/data/0000000042.014
-            const auto dot = lower.find_last_of('.');
-            if (dot == std::string::npos || lower.size() - dot != 4)
-            {
-                return false;
-            }
-            return std::all_of(lower.begin() + static_cast<long long>(dot) + 1, lower.end(),
-                               [](const unsigned char c) { return std::isdigit(c) != 0; });
+            return false;
         }
 
         constexpr std::string_view zone_prefix = "zone/";
@@ -298,6 +295,7 @@ namespace game_updater
         }
 
         this->probe_layout();
+        this->probe_casc_store();
         this->base_url = game_config::get_resolved_base_url(config);
 
         const auto manifest_json = game_config::read_manifest(config);
@@ -934,6 +932,14 @@ namespace game_updater
 
     bool game_updater::is_outdated_file(const updater::file_info& file) const
     {
+        // The local CASC store is a valid packing of the same content, just not the manifest's one,
+        // so every archive in it mismatches on size and hash. Verifying it asked this user to
+        // re-download 120 GB of a game they already had complete.
+        if (this->casc_store_present_ && is_repacked_content(file.name))
+        {
+            return false;
+        }
+
         printf("Verifying file: %s\n", get_filename(file.name).data());
         const auto existing = this->resolve_existing(file);
         if (!existing.has_value())
@@ -953,6 +959,33 @@ namespace game_updater
         }
 
         return false;
+    }
+
+    // A Blizzard title keeps its content in Data/data, repacked per install. Its presence decides
+    // whether we trust the local store or fetch the manifest's, and that is an install-wide call:
+    // mixing our index files into someone else's archives would corrupt a working game.
+    void game_updater::probe_casc_store()
+    {
+        if (this->install_path.empty())
+        {
+            return;
+        }
+
+        std::error_code ec;
+        const auto store = this->install_path / "Data" / "data";
+        if (!std::filesystem::is_directory(store, ec))
+        {
+            return;
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(store, ec))
+        {
+            if (!ec && entry.is_regular_file(ec))
+            {
+                this->casc_store_present_ = true;
+                return;
+            }
+        }
     }
 
     void game_updater::probe_layout()

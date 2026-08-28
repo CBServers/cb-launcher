@@ -47,6 +47,9 @@ namespace game_updater
         std::string base_url;
         update_manifest manifest_;
         // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
+        // True when this install already carries its own CASC store, so the manifest's copy of it
+        // must not be verified or re-fetched. A fresh install has none and downloads normally.
+        bool casc_store_present_{false};
         bool remap_zone_{false};
         bool remap_video_{false};
         bool skip_hash_check_;
@@ -80,6 +83,7 @@ namespace game_updater
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
         // Probes the install's layout from disk; the persisted steam flag only breaks ties
         void probe_layout();
+        void probe_casc_store();
         // Canonical path first, then the steam-remapped one where the prefix applies
         [[nodiscard]] std::vector<std::filesystem::path> get_candidate_paths(const updater::file_info& file) const;
         // First candidate present on disk; presence checks accept either layout
