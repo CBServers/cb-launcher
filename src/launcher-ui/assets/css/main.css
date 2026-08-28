@@ -5508,22 +5508,8 @@ html[data-theme="dark"] .secondary-action:hover {
     margin-bottom: 12px;
 }
 
-.community-post-row {
-    display: flex;
-    gap: 8px;
-}
-
 .community-select {
     flex: 0 0 180px;
-}
-
-.community-post-row .cb-create-input {
-    flex: 1;
-}
-
-.community-post-row .cb-create-btn {
-    margin-top: 0;
-    flex: 0 0 auto;
 }
 
 .community-post-live {
@@ -5554,11 +5540,6 @@ html[data-theme="dark"] .secondary-action:hover {
     border: 1px solid var(--border);
     border-radius: 999px;
     vertical-align: middle;
-}
-
-.community-slots {
-    flex: 0 0 80px;
-    text-align: center;
 }
 
 .community-filter-row {
@@ -7429,42 +7410,11 @@ html:not([data-theme]) .toast {
     color: var(--text-muted);
 }
 
-/* Wraps the native select so it can carry the launcher's own chevron instead of the OS one. */
-.community-select {
-    position: relative;
+/* The shared .cdn-select already styles the closed control and, importantly, its option list;
+   this only narrows it, since 200px is wider than a player count needs. */
+.community-slots-select {
     flex: 0 0 auto;
-}
-
-.community-select::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    width: 7px;
-    height: 7px;
-    margin-top: -5px;
-    border-right: 1.6px solid var(--text-muted);
-    border-bottom: 1.6px solid var(--text-muted);
-    transform: rotate(45deg);
-    pointer-events: none;
-}
-
-.community-select select {
-    appearance: none;
-    -webkit-appearance: none;
-    padding: 8px 34px 8px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-bright);
-    background: var(--surface-hi);
-    border: 1px solid var(--border);
-    border-radius: var(--chamfer-sm);
-    cursor: pointer;
-}
-
-.community-select select:focus {
-    outline: none;
-    border-color: var(--accent);
+    min-width: 140px;
 }
 
 .community-listing-note {

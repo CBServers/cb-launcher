@@ -237,13 +237,11 @@
             <div class="community-listing">
                 <div class="community-listing-row">
                     <span class="community-listing-label">${escapeHtml(t('needLead'))}</span>
-                    <div class="community-select">
-                        <select id="community-bc-slots">
-                            ${[0, 2, 3, 4, 5, 6, 8, 12].map(n =>
-                                `<option value="${n}"${(broadcast.slots || 0) === n ? ' selected' : ''}>${
-                                    n ? escapeHtml(t('nPlayers', { n })) : escapeHtml(t('anyNumber'))}</option>`).join('')}
-                        </select>
-                    </div>
+                    <select id="community-bc-slots" class="cdn-select community-slots-select">
+                        ${[0, 2, 3, 4, 5, 6, 8, 12].map(n =>
+                            `<option value="${n}"${(broadcast.slots || 0) === n ? ' selected' : ''}>${
+                                n ? escapeHtml(t('nPlayers', { n })) : escapeHtml(t('anyNumber'))}</option>`).join('')}
+                    </select>
                 </div>
                 <div class="community-listing-row">
                     <span class="community-listing-label">${escapeHtml(t('noteLabel'))}</span>
