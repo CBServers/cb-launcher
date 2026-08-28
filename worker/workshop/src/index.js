@@ -11,7 +11,8 @@
 //       -> { items: [{id,title,author,kind,preview,subscribers,size,updatedAt}], total, scrapedAt }
 //   /v1/meta?game=bo3 -> { scrapedAt, count }
 //   /v1/item?game=bo3&id=<publishedfileid>
-//       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes }
+//       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes,
+//            children: [{id,title,kind,size}] }  (required items, one level deep)
 //   /v1/updated?game=bo3&ids=<comma list> -> { "<id>": <updatedAt unix>, ... }
 //
 // KV cost model: see README. The free plan allows 50 subrequests per
@@ -90,8 +91,12 @@ function kindFromTags(details) {
     return tags.includes('mod') ? 'mod' : 'map';
 }
 
+function usableDetails(details) {
+    return !!(details && details.title && !details.banned && Number(details.result || 1) === 1);
+}
+
 export function toItemDetail(details) {
-    if (!details || !details.title || details.banned || Number(details.result || 1) !== 1) {
+    if (!usableDetails(details)) {
         return null;
     }
 
@@ -169,13 +174,58 @@ function handleUpdated(url, catalog) {
     return json(200, result, { 'Cache-Control': 'max-age=300' });
 }
 
+// Required items of a workshop item, resolved to displayable entries. Catalog
+// first (no extra Steam call in the common case), one batched GetDetails for
+// the rest. Ids Steam cannot describe are shipped bare so the launcher can
+// still download them.
+async function resolveChildren(env, game, ids) {
+    const catalog = await getCatalog(env, game);
+    const byId = new Map(((catalog && catalog.items) || []).map(item => [item.id, item]));
+    const resolved = [];
+    const missing = [];
+    for (const id of ids) {
+        const item = byId.get(id);
+        if (item) {
+            resolved.push({ id, title: item.title, kind: item.kind, size: item.size });
+        } else {
+            missing.push(id);
+        }
+    }
+
+    if (missing.length) {
+        try {
+            const params = { key: env.STEAM_API_KEY, appid: GAMES[game].appid, includetags: true };
+            missing.forEach((id, index) => { params[`publishedfileids[${index}]`] = id; });
+            const response = await steamGet('/IPublishedFileService/GetDetails/v1/', params);
+            for (const details of response.publishedfiledetails || []) {
+                if (usableDetails(details)) {
+                    resolved.push({
+                        id: String(details.publishedfileid),
+                        title: details.title,
+                        kind: kindFromTags(details),
+                        size: Number(details.file_size || 0),
+                    });
+                }
+            }
+        } catch (error) {
+            console.log(`child lookup failed: ${error}`);
+            for (const id of missing) {
+                resolved.push({ id, title: '', kind: '', size: 0 });
+            }
+        }
+    }
+
+    return resolved;
+}
+
 async function handleItem(request, env, url, game) {
     const id = url.searchParams.get('id') || '';
     if (!/^\d{1,20}$/.test(id)) {
         return json(400, { error: 'invalid id' });
     }
 
-    const cacheKey = new Request(`https://cache/${game}/${id}`);
+    // v2: payload gained `children`; the bump keeps stale edge entries out.
+    const cacheKey = new Request(`https://cache/v2/${game}/${id}`);
     const cached = await caches.default.match(cacheKey);
     if (cached) {
         return cached;
@@ -188,12 +238,19 @@ async function handleItem(request, env, url, game) {
         includetags: true,
         includeadditionalpreviews: true,
         includevotes: true,
+        includechildren: true,
     });
 
-    const detail = toItemDetail((response.publishedfiledetails || [])[0]);
+    const raw = (response.publishedfiledetails || [])[0];
+    const detail = toItemDetail(raw);
     if (!detail) {
         return json(404, { error: 'not found' });
     }
+
+    const childIds = [...new Set((raw.children || [])
+        .map(child => String(child.publishedfileid))
+        .filter(childId => /^\d{1,20}$/.test(childId) && childId !== id))].slice(0, 20);
+    detail.children = childIds.length ? await resolveChildren(env, game, childIds) : [];
 
     const result = json(200, detail, { 'Cache-Control': 'max-age=3600' });
     await caches.default.put(cacheKey, result.clone());

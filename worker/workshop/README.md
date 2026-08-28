@@ -11,7 +11,7 @@ authentication of any kind.
 |---|---|---|
 | `GET /v1/search` | `game=bo3&query=&kind=all\|map\|mod&sort=popular\|recent\|name&page=1` | `{ items: [...], total, scrapedAt }` (60 per page) |
 | `GET /v1/meta` | `game=bo3` | `{ scrapedAt, count }` |
-| `GET /v1/item` | `game=bo3&id=<publishedfileid>` | full detail: description, screenshots, votes, dates (1 Steam call, edge-cached 1h) |
+| `GET /v1/item` | `game=bo3&id=<publishedfileid>` | full detail: description, screenshots, votes, dates, `children` (required items, one level; 1-2 Steam calls, edge-cached 1h) |
 | `GET /v1/updated` | `game=bo3&ids=<comma list, max 100>` | `{ "<id>": <updatedAt unix> }` for installed-mod update badges |
 
 ## Cost model
