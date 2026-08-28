@@ -13,6 +13,7 @@
 #endif
 
 #include <string>
+#include <vector>
 #include <functional>
 #include <filesystem>
 
@@ -125,6 +126,10 @@ namespace utils::nt
     bool is_process_elevated(unsigned long pid);
     std::filesystem::path get_process_path(unsigned long pid);
     bool is_process_running(const std::string& processName);
+    // One process-table snapshot for the whole set; per-name calls take a snapshot each.
+    // max_age_ms lets a polling caller reuse a recent snapshot; 0 always takes a fresh one.
+    bool is_any_process_running(const std::vector<std::string>& process_names,
+                                unsigned int max_age_ms = 0);
     // First matching pid, or 0 when the process isn't running.
     unsigned long find_process_id(const std::string& processName);
     bool stop_process(const std::string& processName);

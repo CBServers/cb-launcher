@@ -1161,7 +1161,7 @@ namespace game_config
         return false;
     }
 
-    bool is_game_process_running(const std::string& game)
+    bool is_game_process_running(const std::string& game, const unsigned int max_age_ms)
     {
         const auto config = get_game_config_by_id(game);
         if (!config)
@@ -1169,14 +1169,7 @@ namespace game_config
             return false;
         }
 
-        for (const auto& exe : config->collect_exes())
-        {
-            if (!exe.empty() && utils::nt::is_process_running(exe))
-            {
-                return true;
-            }
-        }
-        return false;
+        return utils::nt::is_any_process_running(config->collect_exes(), max_age_ms);
     }
 
     void reset_all_games()
