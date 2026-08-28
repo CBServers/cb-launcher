@@ -33,6 +33,14 @@ namespace commands::component_commands
                 detect_existing = value["detectExisting"].GetBool();
             }
 
+            // Cosmetic callers (the library size badge) want whatever is already known and must not
+            // kick off a scan; browsing games otherwise starts one detection per game visited.
+            bool cache_only = false;
+            if (value.HasMember("cacheOnly") && value["cacheOnly"].IsBool())
+            {
+                cache_only = value["cacheOnly"].GetBool();
+            }
+
             // Check if caller wants to force refresh (clear cache)
             bool force_refresh = false;
             if (value.HasMember("forceRefresh") && value["forceRefresh"].IsBool())
@@ -84,7 +92,7 @@ namespace commands::component_commands
                     // Already detecting for this game; just report in-progress.
                     detection_in_progress = true;
                 }
-                else
+                else if (!cache_only)
                 {
                     // Property-only worker; results land in the cache and the popup polls for them
                     detection_in_progress = detection_service::start_detection(*config);
