@@ -304,6 +304,7 @@ namespace social
         void dm_loop();
         void poll_dm(bool hold);
         void stop_dm_worker();
+        void restart_dm_worker();
         void refresh_dm_list();
         void refresh_blocked();
         void refresh_security();
@@ -373,6 +374,8 @@ namespace social
         std::thread worker_;
         std::thread chat_worker_;
         std::thread dm_worker_;
+        // Guards the dm worker handle, since the swap happens off the UI thread.
+        std::mutex dm_worker_mutex_;
         std::atomic<bool> running_{false};
         std::atomic<bool> chat_running_{false};
         std::atomic<bool> dm_running_{false};

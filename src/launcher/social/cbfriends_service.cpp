@@ -541,7 +541,10 @@ namespace social
     void cbfriends_service::stop()
     {
         stop_chat_worker();
-        stop_dm_worker();
+        {
+            std::lock_guard lifecycle(dm_worker_mutex_);
+            stop_dm_worker();
+        }
         running_ = false;
         if (worker_.joinable())
         {
@@ -568,11 +571,12 @@ namespace social
                 }
                 refresh_friends();
                 poll_invites();
-                // Faster than the slow tick: a minute is too long to learn you have a message.
+                // An incoming message on a 15s tick reads as arriving late, so this is on the
+                // main tick; room chat heads only drive a dot, so they stay slower.
+                refresh_dm_list();
                 if (now - last_dm_.load() >= 15)
                 {
                     last_dm_ = now;
-                    refresh_dm_list();
                     refresh_chat_heads();
                 }
                 if (now - last_slow_.load() >= 60)
@@ -1469,12 +1473,29 @@ namespace social
             dm_after_ = 0;
         }
 
+        // Stopping the old poll waits on a request that may still be in flight, and this runs on
+        // the UI thread, so hand the swap off.
+        std::thread(&cbfriends_service::restart_dm_worker, this).detach();
+    }
+
+    void cbfriends_service::restart_dm_worker()
+    {
+        std::lock_guard lifecycle(dm_worker_mutex_);
         stop_dm_worker();
-        if (!cb_id.empty() && get_state() == profile_state::ready)
+
+        std::string peer;
         {
-            dm_running_ = true;
-            dm_worker_ = std::thread(&cbfriends_service::dm_loop, this);
+            std::lock_guard lock(mutex_);
+            peer = dm_peer_;
         }
+        if (peer.empty() || !running_ || get_state() != profile_state::ready) return;
+
+        // One unheld poll first, so history is on screen as soon as the network allows rather than
+        // after the UI's next tick.
+        poll_dm(false);
+
+        dm_running_ = true;
+        dm_worker_ = std::thread(&cbfriends_service::dm_loop, this);
     }
 
     void cbfriends_service::stop_dm_worker()
@@ -1530,8 +1551,9 @@ namespace social
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
         add_string(body, "to", cb_id);
         add_string(body, "text", text);
-        // The room wakes our own held poll on delivery, so there is nothing to chase here.
-        post_action("/v1/dm/send", serialize(body), {});
+        // The room wakes our own held poll for the message itself; the conversation list is separate
+        // state, so refresh it or a brand new conversation waits for the next tick to show up.
+        post_action("/v1/dm/send", serialize(body), [this] { refresh_dm_list(); });
     }
 
     void cbfriends_service::poll_dm(const bool hold)

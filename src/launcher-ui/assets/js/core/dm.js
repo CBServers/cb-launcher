@@ -186,9 +186,23 @@
         messages = [];
         try { await window.executeCommand('cbfriends-set-dm-peer', { cbId: peer || '' }); } catch (error) { /* preview */ }
         render();
-        // History lands asynchronously, so catch it as soon as it arrives.
-        setTimeout(async () => { await fetchAll(); patch(); }, 350);
-        setTimeout(async () => { await fetchAll(); patch(); }, 1000);
+        // Fetch once straight away: the launcher usually already has the history by now, and this
+        // avoids paying a timer hop before anything is on screen.
+        await fetchAll();
+        patch();
+        if (!messages.length) chase();
+    }
+
+    // History is fetched by the launcher in the background, so poll quickly for a moment rather than
+    // waiting on the next tick. Stops the instant anything lands.
+    function chase(attempts = 12) {
+        if (attempts <= 0) return;
+        setTimeout(async () => {
+            const had = messages.length;
+            await fetchAll();
+            patch();
+            if (messages.length === had) chase(attempts - 1);
+        }, 120);
     }
 
     async function send() {
@@ -197,7 +211,7 @@
         if (!text || !peer) return;
         input.value = '';
         try { await window.executeCommand('cbfriends-send-dm', { cbId: peer, text }); } catch (error) { return; }
-        setTimeout(async () => { await fetchAll(); patch(); }, 300);
+        chase();
     }
 
     function bind() {
