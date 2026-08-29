@@ -6,7 +6,7 @@
 // Launcher-defined join secret grammar (trailing key=value flags optional; unknown flags ignored):
 //   cbl:1:<game-id>:<mode>:<transport>[:pw=1][:mid=<match-id>]   mode = mp/zm/sv/... or "-"
 //   transport = direct:<ip>:<port> | nat:<token>:<rhost>:<rport>:<fip>:<fport>
-//             | session:<host>:<key>:<id>
+//             | session:<host>:<key>:<id>:<map>:<gametype>:<maxplayers>
 namespace ipc::join_secret
 {
     constexpr int SECRET_VERSION = 1;
@@ -34,6 +34,9 @@ namespace ipc::join_secret
         std::string session_host; // session: opaque engine address, key and match identity
         std::string session_key;
         std::string session_id;
+        std::string session_map; // session: arguments the fork's connect command needs
+        std::string session_gametype;
+        int session_max_players{0};
     };
 
     struct parsed

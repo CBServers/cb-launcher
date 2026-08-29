@@ -83,6 +83,10 @@ namespace ipc
                 out.session_host = json_string(t, "host");
                 out.session_key = json_string(t, "key");
                 out.session_id = json_string(t, "id");
+                // The fork's connect command takes these as arguments, so they ride the secret too.
+                out.session_map = json_string(t, "map");
+                out.session_gametype = json_string(t, "gametype");
+                out.session_max_players = json_int(t, "maxPlayers");
                 return !out.session_host.empty() && !out.session_key.empty() && !out.session_id.empty();
             }
             if (kind == "nat")
@@ -286,10 +290,13 @@ namespace ipc
                 w.StartObject();
                 if (t.kind == join_secret::transport::kind_t::session)
                 {
-                    w.Key("kind"); w.String("session");
-                    w.Key("host"); w.String(t.session_host.data());
-                    w.Key("key");  w.String(t.session_key.data());
-                    w.Key("id");   w.String(t.session_id.data());
+                    w.Key("kind");       w.String("session");
+                    w.Key("host");       w.String(t.session_host.data());
+                    w.Key("key");        w.String(t.session_key.data());
+                    w.Key("id");         w.String(t.session_id.data());
+                    w.Key("map");        w.String(t.session_map.data());
+                    w.Key("gametype");   w.String(t.session_gametype.data());
+                    w.Key("maxPlayers"); w.Int(t.session_max_players);
                 }
                 else if (t.kind == join_secret::transport::kind_t::nat)
                 {

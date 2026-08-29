@@ -52,6 +52,22 @@ namespace ipc::join_secret
             }
             return true;
         }
+
+        // Map and gametype ids additionally allow '_' (mp_carentan_s2); is_safe_field stays as-is
+        // so direct/nat validation is bit-for-bit what it was.
+        bool is_safe_name(const std::string& value)
+        {
+            for (const char c : value)
+            {
+                const bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z') || c == '.' || c == '-' || c == '_';
+                if (!ok)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     std::string build(const std::string& game_id, const transport& t, const std::string& mode,
@@ -82,7 +98,12 @@ namespace ipc::join_secret
             {
                 return {};
             }
-            secret += "session:" + t.session_host + ":" + t.session_key + ":" + t.session_id;
+            if (!is_safe_name(t.session_map) || !is_safe_name(t.session_gametype) || t.session_max_players < 0)
+            {
+                return {};
+            }
+            secret += "session:" + t.session_host + ":" + t.session_key + ":" + t.session_id
+                + ":" + t.session_map + ":" + t.session_gametype + ":" + std::to_string(t.session_max_players);
         }
         else
         {
@@ -177,6 +198,28 @@ namespace ipc::join_secret
             {
                 return std::nullopt;
             }
+
+            // Optional positionals: an older secret still parses and the fork reports the gap itself.
+            if (parts.size() > 8 && parts[8].find('=') == std::string::npos)
+            {
+                if (!is_safe_name(parts[8]))
+                {
+                    return std::nullopt;
+                }
+                result.t.session_map = parts[8];
+            }
+            if (parts.size() > 9 && parts[9].find('=') == std::string::npos)
+            {
+                if (!is_safe_name(parts[9]))
+                {
+                    return std::nullopt;
+                }
+                result.t.session_gametype = parts[9];
+            }
+            if (parts.size() > 10 && parts[10].find('=') == std::string::npos)
+            {
+                result.t.session_max_players = to_port(parts[10]);
+            }
         }
         else
         {
@@ -184,7 +227,15 @@ namespace ipc::join_secret
         }
 
         // Any extra trailing parts are optional key=value flags; unknown ones are ignored (forward-compat).
-        const size_t flags_at = (kind == "direct") ? 7 : (kind == "session" ? 8 : 10);
+        // Session positionals are optional, so flags start at the first key=value part after them.
+        size_t flags_at = (kind == "direct") ? 7 : (kind == "session" ? 8 : 10);
+        if (kind == "session")
+        {
+            while (flags_at < parts.size() && flags_at < 11 && parts[flags_at].find('=') == std::string::npos)
+            {
+                ++flags_at;
+            }
+        }
         for (size_t i = flags_at; i < parts.size(); ++i)
         {
             if (parts[i].rfind("mid=", 0) == 0)
