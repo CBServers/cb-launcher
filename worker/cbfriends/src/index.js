@@ -1200,7 +1200,8 @@ async function handleLfgList(env, cbId, body) {
         note: p.note || '',
         slots: p.slots || 0,
         joined: p.joined || 0,
-        iJoined: (p.joiners || []).includes(cbId),
+        joiners: (p.joiners || []).filter(j => !blocked.has(j.cbId)),
+        iJoined: (p.joiners || []).some(j => j.cbId === cbId),
         // Your own broadcast is listed too, so you can see the lobby you're advertising.
         relation: p.cbId === cbId ? 'self'
             : (friends.has(p.cbId) ? 'friend' : (outgoing.has(p.cbId) ? 'requested' : 'none')),
@@ -1837,7 +1838,16 @@ export class Directory {
                     note: it.post.note,
                     slots: it.post.slots,
                     joined: it.post.joiners.length,
-                    joiners: it.post.joiners,
+                    joiners: it.post.joiners.map(id => {
+                        const p = (this.people.get(id) || {}).profile || {};
+                        return {
+                            cbId: id,
+                            handle: p.handle || '',
+                            displayName: p.displayName || '',
+                            avatarUrl: p.avatarUrl || '',
+                            accent: p.accent || '',
+                        };
+                    }),
                 });
             }
             return json(200, { posts });

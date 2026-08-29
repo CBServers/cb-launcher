@@ -129,6 +129,19 @@
         return `<span class="community-slot-badge${full ? ' is-full' : ''}">${full ? t('full') : p.joined + '/' + p.slots}</span>`;
     }
 
+    // Who joined a post, so it reads as a group rather than a counter.
+    function joinersHtml(p) {
+        if (!p.joiners || !p.joiners.length) return '';
+        const chips = p.joiners.map(j => {
+            const name = j.displayName || j.handle || '';
+            return `<span class="community-joiner" title="${escapeHtml(name)}"
+                          data-person-id="${escapeHtml(j.cbId)}"
+                          data-person-handle="${escapeHtml(j.handle || '')}"
+                          data-person-name="${escapeHtml(name)}">${avatarHtml(j)}</span>`;
+        }).join('');
+        return `<div class="community-joiners">${chips}</div>`;
+    }
+
     function postRow(p) {
         const isSelf = p.relation === 'self';
         const line = p.note ? escapeHtml(p.note) : (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('lookingForGroupHead'));
@@ -148,6 +161,7 @@
                 <div class="friend-row-body">
                     <div class="friend-name">${escapeHtml(p.displayName || p.handle)} <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span> ${gameTag}${youTag}</div>
                     <div class="friend-activity">${line}</div>
+                    ${joinersHtml(p)}
                 </div>
                 <div class="friend-actions">${slotBadge(p)}${action}</div>
             </div>

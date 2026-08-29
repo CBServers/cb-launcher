@@ -77,3 +77,17 @@ check('remove drops friend both sides',
 check('device key with no account is 401 on friends/list', (await call(await mk(), '/v1/friends/list')).s === 401);
 
 check.done();
+
+// The board has to name who joined, not just count them.
+await call(B, '/v1/lfg/post', { game: 'boiii', mode: 'zm', note: 'ee run', slots: 3 });
+await call(C, '/v1/lfg/join', { cbId: (await call(A, '/v1/lfg/list', { game: 'boiii' }))
+    .b.posts.find(p => p.handle === 'bravo').cbId });
+const board = await call(A, '/v1/lfg/list', { game: 'boiii' });
+const joined = board.b.posts.find(p => p.handle === 'bravo');
+check('post reports who joined, not just how many',
+      joined.joined === 1 && (joined.joiners || []).some(j => j.handle === 'charlie'));
+check('joiner carries enough to draw a row',
+      (joined.joiners[0].displayName || joined.joiners[0].handle) !== '' && 'avatarUrl' in joined.joiners[0]);
+check('joiner sees their own post membership',
+      (await call(C, '/v1/lfg/list', { game: 'boiii' })).b.posts.find(p => p.handle === 'bravo').iJoined === true);
+check('a non-joiner does not', joined.iJoined === false);

@@ -33,6 +33,16 @@ namespace social
         std::string favorite_game;
     };
 
+    // Someone who joined an LFG post; enough to draw a face and a name.
+    struct cb_joiner
+    {
+        std::string cb_id;
+        std::string handle;
+        std::string display_name;
+        std::string avatar_url;
+        std::string accent;
+    };
+
     // A friend, request, or LFG poster, with live presence folded in.
     struct cb_person
     {
@@ -56,6 +66,7 @@ namespace social
         int slots{0};         // LFG only
         int joined{0};        // LFG only
         bool i_joined{false}; // LFG only
+        std::vector<cb_joiner> joiners; // LFG only
 
         // In-game join state, mirroring discord::friend_entry.
         bool joinable{false};

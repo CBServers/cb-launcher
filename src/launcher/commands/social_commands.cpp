@@ -56,6 +56,18 @@ namespace commands::social_commands
             obj.AddMember("slots", person.slots, allocator);
             obj.AddMember("joined", person.joined, allocator);
             obj.AddMember("iJoined", person.i_joined, allocator);
+            rapidjson::Value joiners(rapidjson::kArrayType);
+            for (const auto& j : person.joiners)
+            {
+                rapidjson::Value row(rapidjson::kObjectType);
+                add_string(row, "cbId", j.cb_id, allocator);
+                add_string(row, "handle", j.handle, allocator);
+                add_string(row, "displayName", j.display_name, allocator);
+                add_string(row, "avatarUrl", j.avatar_url, allocator);
+                add_string(row, "accent", j.accent, allocator);
+                joiners.PushBack(row, allocator);
+            }
+            obj.AddMember("joiners", joiners, allocator);
             obj.AddMember("joinable", person.joinable, allocator);
             obj.AddMember("directJoin", person.direct_join, allocator);
             obj.AddMember("openable", person.openable, allocator);

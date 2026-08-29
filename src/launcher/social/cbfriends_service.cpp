@@ -132,6 +132,16 @@ namespace social
             p.slots = (v.IsObject() && v.HasMember("slots") && v["slots"].IsInt()) ? v["slots"].GetInt() : 0;
             p.joined = (v.IsObject() && v.HasMember("joined") && v["joined"].IsInt()) ? v["joined"].GetInt() : 0;
             p.i_joined = v.IsObject() && v.HasMember("iJoined") && v["iJoined"].IsBool() && v["iJoined"].GetBool();
+            if (v.IsObject() && v.HasMember("joiners") && v["joiners"].IsArray())
+            {
+                for (const auto& j : v["joiners"].GetArray())
+                {
+                    if (!j.IsObject()) continue;
+                    p.joiners.push_back({ json_get(j, "cbId"), json_get(j, "handle"),
+                                          json_get(j, "displayName"), json_get(j, "avatarUrl"),
+                                          json_get(j, "accent") });
+                }
+            }
             p.joinable = v.IsObject() && v.HasMember("joinable") && v["joinable"].IsBool() && v["joinable"].GetBool();
             p.direct_join = v.IsObject() && v.HasMember("directJoin") && v["directJoin"].IsBool() && v["directJoin"].GetBool();
             p.openable = v.IsObject() && v.HasMember("openable") && v["openable"].IsBool() && v["openable"].GetBool();
