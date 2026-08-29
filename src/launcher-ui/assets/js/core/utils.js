@@ -53,6 +53,7 @@ class GameUtils {
         'h1-mod': 'mwr',
         'iw7-mod': 'iw',
         'bo4': 'bo4',
+        's2x': 'ww2',
         'mw2r': 'mw2r',
         'hmw-mod': 'hmw'
     };
@@ -62,7 +63,7 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
+    static GAME_ORDER = ['cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 's2x', 'bo4', 'mw2r', 'hmw-mod'];
 
     // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
     // Covers common CoD names that don't already match a UI ID or backend key.
@@ -327,6 +328,28 @@ class GameUtils {
             capsulePath: './assets/img/games/iw7-mod/capsule.jpg',
             heroImagePath: './assets/img/games/iw7-mod/hero.jpg',
             logoPath: './assets/img/games/iw7-mod/logo.png'
+        },
+        'ww2': {
+            displayName: 'World War II',
+            shortName: 'WWII',
+            defaultInstallPath: 'ww2_game_files',
+            uiId: 's2x',
+            client: 'S2x',
+            provider: 'CB Servers',
+            clientKey: 'others',
+            hasMultipleModes: true,
+            supportedModes: ['mp', 'sp', 'zm'],
+            supportsName: false,
+            specialSettings: [],
+            version: 'S2',
+            description: 'Call of Duty: WWII with the S2x client for multiplayer and zombies.',
+            credits: 'This is a <a href="https://github.com/Brentdevent/S2x" target="_blank">fork</a> of the original S2x client developed by Brentdevent, with added CB patches.',
+            accent: '#8C7A4B',
+            assetBase: './assets/img/games/s2x',
+            iconPath: './assets/img/games/s2x/ww2logo.jfif',
+            capsulePath: './assets/img/games/s2x/coverart.jpg',
+            heroImagePath: './assets/img/games/s2x/banner.jfif',
+            logoPath: './assets/img/games/s2x/logo-transparent.png'
         },
         'bo4': {
             displayName: 'Black Ops 4',

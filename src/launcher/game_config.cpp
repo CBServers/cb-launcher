@@ -815,6 +815,37 @@ namespace game_config
             }
         },
         {
+            "ww2",
+            {
+                .game_key = "ww2",
+                .display_name = "World War II",
+                .id = "s2x",
+                .exe_name = "s2x.exe",
+                // Placeholder until an S2x payload is published; these 404 today.
+                .update_manifest_url = CLIENT_UPDATE_SERVER "s2x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "s2x/",
+                .manifest_path = "manifest/ww2.json",
+                .required_updater_files = {},
+                .valid_game_files = {"s2_mp64_ship.exe", "s2_sp64_ship.exe"},
+                // Without a mode flag s2x.exe opens its own picker and waits, so always pass one.
+                .mode_arguments = {
+                    {"mp", "-multiplayer"},
+                    {"sp", "-singleplayer"},
+                    {"zm", "-zombies"}
+                },
+                // S2x reads the player name from its own config, not argv.
+                .name_argument = "",
+                .base_folder = "ww2_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .client_default_path = utils::properties::get_appdata_folder_path("s2x"),
+                .client_install_path_files = {"s2x.exe"},
+                .client_data_folders = {"data"},
+                // From the ship exe's imports: MSVCP140/VCRUNTIME140_1, and no d3dx, so no June 2010 DX.
+                .required_redists = {"vcr2022"}
+            }
+        },
+        {
             "mw2r",
             {
                 .game_key = "mw2r",
@@ -911,6 +942,7 @@ namespace game_config
         {"h1-mod", "mwr"},
         {"iw7-mod", "iw"},
         {"bo4", "bo4"},
+        {"s2x", "ww2"},
         {"mw2r", "mw2r"},
         {"hmw-mod", "hmw"}
     };
