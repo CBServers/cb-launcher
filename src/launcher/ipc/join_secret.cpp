@@ -7,7 +7,8 @@ namespace ipc::join_secret
 {
     namespace
     {
-        constexpr size_t MAX_SECRET_LEN = 127; // stay within the SDK secret length limit
+        constexpr size_t MAX_SECRET_LEN = 127;         // direct/nat stay inside the SDK secret length limit
+        constexpr size_t MAX_SESSION_SECRET_LEN = 255; // session carries 128 hex chars, so CB-only
 
         std::vector<std::string> split(const std::string& value, const char delimiter)
         {
@@ -65,7 +66,7 @@ namespace ipc::join_secret
         auto secret = "cbl:" + std::to_string(SECRET_VERSION) + ":" + game_id + ":"
             + (mode.empty() ? "-" : mode) + ":";
 
-        if (t.is_nat)
+        if (t.kind == transport::kind_t::nat)
         {
             if (t.token.empty() || t.rendezvous_host.empty() || t.rendezvous_port <= 0)
             {
@@ -73,6 +74,15 @@ namespace ipc::join_secret
             }
             secret += "nat:" + t.token + ":" + t.rendezvous_host + ":" + std::to_string(t.rendezvous_port)
                 + ":" + t.fallback_ip + ":" + std::to_string(t.fallback_port);
+        }
+        else if (t.kind == transport::kind_t::session)
+        {
+            if (t.session_host.empty() || t.session_key.empty() || t.session_id.empty()
+                || !is_safe_field(t.session_host) || !is_safe_field(t.session_key) || !is_safe_field(t.session_id))
+            {
+                return {};
+            }
+            secret += "session:" + t.session_host + ":" + t.session_key + ":" + t.session_id;
         }
         else
         {
@@ -89,7 +99,8 @@ namespace ipc::join_secret
             secret += ":mid=" + match_id;
         }
 
-        if (secret.size() > MAX_SECRET_LEN)
+        const auto limit = (t.kind == transport::kind_t::session) ? MAX_SESSION_SECRET_LEN : MAX_SECRET_LEN;
+        if (secret.size() > limit)
         {
             return {};
         }
@@ -122,7 +133,7 @@ namespace ipc::join_secret
             {
                 return std::nullopt;
             }
-            result.t.is_nat = false;
+            result.t.kind = transport::kind_t::direct;
             result.t.ip = parts[5];
             result.t.port = to_port(parts[6]);
             if (result.t.ip.empty() || result.t.port == 0 || !is_safe_field(result.t.ip))
@@ -137,7 +148,7 @@ namespace ipc::join_secret
             {
                 return std::nullopt;
             }
-            result.t.is_nat = true;
+            result.t.kind = transport::kind_t::nat;
             result.t.token = parts[5];
             result.t.rendezvous_host = parts[6];
             result.t.rendezvous_port = to_port(parts[7]);
@@ -149,13 +160,32 @@ namespace ipc::join_secret
                 return std::nullopt;
             }
         }
+        else if (kind == "session")
+        {
+            // cbl:1:<game>:<mode>:session:<host>:<key>:<id>
+            if (parts.size() < 8)
+            {
+                return std::nullopt;
+            }
+            result.t.kind = transport::kind_t::session;
+            result.t.session_host = parts[5];
+            result.t.session_key = parts[6];
+            result.t.session_id = parts[7];
+            if (result.t.session_host.empty() || result.t.session_key.empty() || result.t.session_id.empty()
+                || !is_safe_field(result.t.session_host) || !is_safe_field(result.t.session_key)
+                || !is_safe_field(result.t.session_id))
+            {
+                return std::nullopt;
+            }
+        }
         else
         {
             return std::nullopt;
         }
 
         // Any extra trailing parts are optional key=value flags; unknown ones are ignored (forward-compat).
-        for (size_t i = (kind == "direct") ? 7 : 10; i < parts.size(); ++i)
+        const size_t flags_at = (kind == "direct") ? 7 : (kind == "session" ? 8 : 10);
+        for (size_t i = flags_at; i < parts.size(); ++i)
         {
             if (parts[i].rfind("mid=", 0) == 0)
             {

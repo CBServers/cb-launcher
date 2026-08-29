@@ -72,14 +72,22 @@ namespace ipc
             const auto kind = json_string(t, "kind");
             if (kind == "direct")
             {
-                out.is_nat = false;
+                out.kind = join_secret::transport::kind_t::direct;
                 out.ip = json_string(t, "ip");
                 out.port = json_int(t, "port");
                 return !out.ip.empty() && out.port > 0;
             }
+            if (kind == "session")
+            {
+                out.kind = join_secret::transport::kind_t::session;
+                out.session_host = json_string(t, "host");
+                out.session_key = json_string(t, "key");
+                out.session_id = json_string(t, "id");
+                return !out.session_host.empty() && !out.session_key.empty() && !out.session_id.empty();
+            }
             if (kind == "nat")
             {
-                out.is_nat = true;
+                out.kind = join_secret::transport::kind_t::nat;
                 out.token = json_string(t, "token");
                 if (t.HasMember("rendezvous") && t["rendezvous"].IsObject())
                 {
@@ -276,7 +284,14 @@ namespace ipc
                 w.Key("id");   w.String(id.data());
                 w.Key("transport");
                 w.StartObject();
-                if (t.is_nat)
+                if (t.kind == join_secret::transport::kind_t::session)
+                {
+                    w.Key("kind"); w.String("session");
+                    w.Key("host"); w.String(t.session_host.data());
+                    w.Key("key");  w.String(t.session_key.data());
+                    w.Key("id");   w.String(t.session_id.data());
+                }
+                else if (t.kind == join_secret::transport::kind_t::nat)
                 {
                     w.Key("kind");  w.String("nat");
                     w.Key("token"); w.String(t.token.data());
@@ -300,7 +315,9 @@ namespace ipc
                 w.EndObject();
             });
 
-            utils::logger::write("[cbl-join] -> connect {} ({})", id, t.is_nat ? "nat" : "direct");
+            const auto* kind_name = t.kind == join_secret::transport::kind_t::session ? "session"
+                : (t.kind == join_secret::transport::kind_t::nat ? "nat" : "direct");
+            utils::logger::write("[cbl-join] -> connect {} ({})", id, kind_name);
             this->push_outbound(line + "\n");
         }
 
@@ -598,11 +615,19 @@ namespace ipc
             if (join_secret::transport transport{}; parse_transport(doc, transport))
             {
                 info.join_secret = join_secret::build(this->connection_game_id, transport, mode, info.match_id);
-                info.direct_join = !transport.is_nat; // direct => public/dedicated server, joinable without approval
+                // A session invite names one lobby and is only sent deliberately, so no approval step.
+                info.direct_join = transport.kind != join_secret::transport::kind_t::nat;
             }
 
+            // Discord caps the join secret, so an oversized one is dropped there but kept for CB.
+            auto discord_info = info;
+            if (discord_info.join_secret.size() > join_secret::DISCORD_MAX_SECRET_LEN)
+            {
+                discord_info.join_secret.clear();
+                discord_info.direct_join = false;
+            }
             discord::discord_service::instance().set_rich_game_activity(
-                this->connection_game_id, config->display_name, mode, info);
+                this->connection_game_id, config->display_name, mode, discord_info);
 
             // The CB service publishes only the flags and keeps the secret for outgoing invites.
             social::cbfriends_service::instance().set_rich_activity(

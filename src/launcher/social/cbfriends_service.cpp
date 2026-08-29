@@ -9,6 +9,7 @@
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
 #include <utils/http.hpp>
+#include <utils/logger.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 
@@ -750,7 +751,9 @@ namespace social
         }
         if (secret.empty())
         {
-            return; // not hosting a joinable match; nothing to invite to
+            // Silent until now, which hid a fork publishing a transport the launcher couldn't read.
+            utils::logger::write("[cbl-invite] -> drop invite to {}: no join secret for '{}'", cb_id, game);
+            return;
         }
 
         rapidjson::Document body;
@@ -761,6 +764,7 @@ namespace social
         add_string(body, "game", game);
         if (!match.empty()) add_string(body, "matchId", match);
         add_string(body, "joinSecret", secret);
+        utils::logger::write("[cbl-invite] -> invite {} ({})", cb_id, game);
         post_action("/v1/invite/send", serialize(body), {});
     }
 
