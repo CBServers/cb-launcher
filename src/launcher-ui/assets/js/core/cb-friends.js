@@ -100,6 +100,7 @@
                     ${activity}
                 </div>
                 <div class="cb-profile-actions">
+                    <button class="cb-ghost-btn" id="cb-view-btn" type="button">${escapeHtml(t('viewProfile'))}</button>
                     <button class="cb-ghost-btn" id="cb-edit-btn" type="button">${escapeHtml(t('edit'))}</button>
                     <button class="cb-profile-recovery-btn" id="cb-recovery-btn" type="button">${escapeHtml(t('recoveryCode'))}</button>
                 </div>
@@ -567,6 +568,13 @@
                     const t = event.target;
                     if (t.closest('#cb-create-btn')) return submitCreate();
                     if (t.closest('#cb-recovery-btn')) return showRecoveryCode();
+                    if (t.closest('#cb-view-btn')) {
+                        const me = lastStatus && lastStatus.profile;
+                        if (me && me.cbId && window.PersonMenu) {
+                            window.PersonMenu.showCard({ cbId: me.cbId, handle: me.handle, displayName: me.displayName });
+                        }
+                        return;
+                    }
                     if (t.closest('#cb-edit-btn')) { editingProfile = true; return render(lastStatus); }
                     if (t.closest('#cb-edit-save')) return submitEdit();
                     if (t.closest('#cb-edit-cancel')) { editingProfile = false; return render(lastStatus); }

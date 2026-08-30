@@ -127,6 +127,7 @@
                 requested: 'Request sent',
                 acceptRequest: 'Accept request',
                 memberSince: 'Member since',
+                playtime: 'Playtime',
                 loading: 'Loading profile...',
                 profileUnavailable: 'Profile unavailable.',
                 securityTitle: 'Recent account activity',

@@ -140,7 +140,8 @@
         }
 
         const accent = /^#[0-9a-f]{6}$/i.test(p.accent || '') ? p.accent : '';
-        const banner = accent ? `style="background:${accent}"` : '';
+        // A custom property, not the background shorthand, or the inline value wipes the overlay.
+        const banner = accent ? `style="--card-accent:${accent}"` : '';
         const avatar = p.avatarUrl
             ? `<img class="cb-person-avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" />`
             : `<span class="cb-person-avatar-initials">${escapeHtml(initials(p.displayName || p.handle))}</span>`;
@@ -148,13 +149,12 @@
             ? (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('online'))
             : t('offline');
         const since = memberSince(p.createdAt);
-        const rows = [
-            p.bio ? `<div class="cb-person-bio">${escapeHtml(p.bio)}</div>` : '',
+        const meta = [
             p.favoriteGame ? `<div class="cb-person-field"><span>${escapeHtml(t('favouriteGame'))}</span>${escapeHtml(gameName(p.favoriteGame))}</div>` : '',
             since ? `<div class="cb-person-field"><span>${escapeHtml(t('memberSince'))}</span>${escapeHtml(since)}</div>` : '',
             !p.online && p.lastSeen ? `<div class="cb-person-field"><span>${escapeHtml(t('lastSeen'))}</span>${escapeHtml(ago(p.lastSeen))}</div>` : '',
-            playedRows(p.playtime),
         ].filter(Boolean).join('');
+        const played = playedRows(p.playtime);
 
         return `
             <div class="cb-person-card">
@@ -166,9 +166,14 @@
                     <div class="cb-person-presence" data-status="${p.online ? 'online' : 'offline'}">
                         <span class="friend-status-dot" data-status="${p.online ? (p.game ? 'online' : 'idle') : 'offline'}"></span>${presence}
                     </div>
-                    ${rows}
-                    <div class="cb-person-actions">${relationAction(p)}</div>
+                    ${p.bio ? `<div class="cb-person-bio">${escapeHtml(p.bio)}</div>` : ''}
+                    ${meta ? `<div class="cb-person-meta">${meta}</div>` : ''}
+                    ${played ? `<div class="cb-person-section">
+                        <div class="cb-person-section-title">${escapeHtml(t('playtime'))}</div>
+                        <div class="cb-person-meta">${played}</div>
+                    </div>` : ''}
                 </div>
+                <div class="cb-person-actions">${relationAction(p)}</div>
             </div>
         `;
     }
