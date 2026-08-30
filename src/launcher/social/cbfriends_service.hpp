@@ -268,6 +268,7 @@ namespace social
         void post_lfg(const std::string& game, const std::string& mode, const std::string& note, int slots);
         void clear_lfg();
         void lfg_join(const std::string& poster_cb_id); // express interest + send a friend request
+        void lfg_leave();                               // give up a seat in someone else's group
 
         broadcast_state get_broadcast() const;
         // on=true publishes for non-friend discovery and keeps it alive; off clears it. Persisted.

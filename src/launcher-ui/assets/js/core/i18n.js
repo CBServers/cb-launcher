@@ -151,6 +151,7 @@
                 you: 'You',
                 full: 'Full',
                 joined: 'Joined',
+                leave: 'Leave',
                 listedIn: "You're listed in {{game}}.",
                 broadcastOff: 'Broadcast turned off.',
                 noOneLooking: 'No one is looking for a group in {{game}} right now.',

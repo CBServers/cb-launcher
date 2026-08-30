@@ -5399,6 +5399,19 @@ html[data-theme="dark"] .secondary-action:hover {
     transition: border-color 0.2s var(--ease);
 }
 
+/* Selects here get the same treatment as .cdn-select: our chevron, and a readable native list. */
+select.cb-create-input {
+    appearance: none;
+    padding-right: 32px;
+    cursor: pointer;
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%238A8A9A" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+}
+
+select.cb-create-input option { background: #222222; color: #fff; padding: 8px; }
+
 .cb-create-input:focus {
     border-color: var(--focus-border);
 }
@@ -7279,7 +7292,8 @@ html:not([data-theme]) .toast {
     flex-direction: column;
     width: 340px;
     height: min(460px, calc(100vh - 120px));
-    background: var(--surface);
+    /* --surface is translucent in every theme but dark, which let the page show through. */
+    background: var(--surface-popup);
     border: 1px solid var(--border-hi);
     border-bottom: none;
     border-radius: var(--radius) var(--radius) 0 0;

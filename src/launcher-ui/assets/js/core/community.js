@@ -147,7 +147,7 @@
         const line = p.note ? escapeHtml(p.note) : (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('lookingForGroupHead'));
         let action;
         if (isSelf) action = `<button class="cb-ghost-btn" id="community-bc-stop" type="button">${escapeHtml(t('stop'))}</button>`;
-        else if (p.iJoined) action = `<span class="cb-pending-label">${escapeHtml(t('joined'))}</span>`;
+        else if (p.iJoined) action = `<button class="cb-ghost-btn" type="button" data-community-leave="1">${escapeHtml(t('leave'))}</button>`;
         else if (p.relation === 'requested') action = `<span class="cb-pending-label">${escapeHtml(t('requested'))}</span>`;
         else action = `<button class="friend-invite-btn" data-community-join="${escapeHtml(p.cbId)}">${escapeHtml(t('join'))}</button>`;
 
@@ -491,6 +491,15 @@
         }
     }
 
+    async function leaveLfg() {
+        try {
+            await window.executeCommand('cbfriends-lfg-leave', {});
+            setTimeout(refresh, 400);
+        } catch (error) {
+            console.warn('Leave failed:', error);
+        }
+    }
+
     function bind() {
         if (bound) return;
         const body = document.getElementById('community-body');
@@ -518,6 +527,7 @@
             }
             const join = t.closest('[data-community-join]');
             if (join) return joinLfg(join.getAttribute('data-community-join'));
+            if (t.closest('[data-community-leave]')) return leaveLfg();
             const card = t.closest('[data-room]');
             if (card) return openRoom(card.getAttribute('data-room'));
         });

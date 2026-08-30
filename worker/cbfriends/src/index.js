@@ -1149,6 +1149,12 @@ async function handleLfgClear(env, cbId) {
     return json(200, { ok: true });
 }
 
+// Gives up a seat in someone else's group without touching your own broadcast.
+async function handleLfgLeave(env, cbId) {
+    const res = await dirCall(env, 'lfg/leave', { cbId });
+    return json(200, { ok: !!res.ok });
+}
+
 // Bumps a broadcast's freshness without disturbing its roster, keeping it live.
 async function handleLfgRefresh(env, cbId) {
     const res = await dirCall(env, 'lfg/refresh', { cbId });
@@ -1379,6 +1385,8 @@ export default {
                 return handleLfgClear(env, cbId);
             case '/v1/lfg/join':
                 return handleLfgJoin(env, cbId, body);
+            case '/v1/lfg/leave':
+                return handleLfgLeave(env, cbId);
             case '/v1/lfg/refresh':
                 return handleLfgRefresh(env, cbId);
             case '/v1/invite/send':
@@ -1686,6 +1694,17 @@ export class Directory {
         return it;
     }
 
+    // Removes a member from whatever group holds them; a person occupies one seat at a time.
+    dropJoiner(cbId) {
+        let removed = false;
+        for (const it of this.people.values()) {
+            if (!it.post || !it.post.joiners.includes(cbId)) continue;
+            it.post.joiners = it.post.joiners.filter(id => id !== cbId);
+            removed = true;
+        }
+        return removed;
+    }
+
     // Drops anyone whose presence and broadcast have both gone stale, so the map cannot grow forever.
     prune() {
         const now = Date.now();
@@ -1805,6 +1824,7 @@ export class Directory {
         if (pathname === '/lfg/clear') {
             const it = this.people.get(body.cbId);
             if (it) it.post = null;
+            this.dropJoiner(body.cbId);
             return json(200, { ok: true });
         }
 
@@ -1818,8 +1838,13 @@ export class Directory {
         if (pathname === '/lfg/join') {
             const it = this.people.get(body.poster);
             if (!it || !it.post || now - it.post.at > LFG_FRESH_MS) return json(200, { ok: false });
+            this.dropJoiner(body.cbId);
             if (!it.post.joiners.includes(body.cbId)) it.post.joiners.push(body.cbId);
             return json(200, { ok: true });
+        }
+
+        if (pathname === '/lfg/leave') {
+            return json(200, { ok: this.dropJoiner(body.cbId) });
         }
 
         if (pathname === '/lfg/list') {

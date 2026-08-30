@@ -91,3 +91,18 @@ check('joiner carries enough to draw a row',
 check('joiner sees their own post membership',
       (await call(C, '/v1/lfg/list', { game: 'boiii' })).b.posts.find(p => p.handle === 'bravo').iJoined === true);
 check('a non-joiner does not', joined.iJoined === false);
+
+// One seat at a time: joining elsewhere, leaving, or quitting all release the previous group.
+await call(A, '/v1/lfg/post', { game: 'boiii', note: 'second lobby' });
+await call(C, '/v1/lfg/join', { cbId: (await call(C, '/v1/lfg/list', { game: 'boiii' }))
+    .b.posts.find(p => p.handle === 'divity').cbId });
+const after = (await call(A, '/v1/lfg/list', { game: 'boiii' })).b.posts;
+check('joining another group vacates the first',
+      !(after.find(p => p.handle === 'bravo').joiners || []).some(j => j.handle === 'charlie'));
+check('and seats them in the new one',
+      (after.find(p => p.handle === 'divity').joiners || []).some(j => j.handle === 'charlie'));
+
+check('leave releases the seat', (await call(C, '/v1/lfg/leave', {})).b.ok === true);
+check('and the board shows it', !(await call(A, '/v1/lfg/list', { game: 'boiii' }))
+    .b.posts.some(p => (p.joiners || []).some(j => j.handle === 'charlie')));
+check('leaving nothing is not an error', (await call(C, '/v1/lfg/leave', {})).b.ok === false);

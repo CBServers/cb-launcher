@@ -754,5 +754,11 @@ namespace commands::social_commands
             }
             response.AddMember("ok", ok, allocator);
         });
+
+        cef_ui.add_command("cbfriends-lfg-leave", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().lfg_leave();
+        });
     }
 }

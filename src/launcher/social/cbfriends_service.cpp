@@ -551,6 +551,25 @@ namespace social
 
     void cbfriends_service::stop()
     {
+        // Synchronous and short: a detached post would die with the process, and the board would
+        // keep advertising a lobby nobody is in until it went stale 15 minutes later.
+        if (get_state() == profile_state::ready)
+        {
+            post_signed(base_url() + "/v1/lfg/clear", ts_body(), 3);
+        }
+
+        // A listing lasts the session. Without this, load_broadcast() re-posts it on next launch
+        // and closing the app only ever looks like it cleared.
+        broadcasting_ = false;
+        {
+            std::lock_guard lock(mutex_);
+            broadcast_on_ = false;
+        }
+        {
+            const auto guard = utils::properties::lock();
+            utils::properties::store(property_keys::CB_BROADCAST, "false");
+        }
+
         {
             std::lock_guard lifecycle(chat_worker_mutex_);
             stop_chat_worker();
@@ -1137,6 +1156,11 @@ namespace social
             refresh_lfg();
             refresh_friends();
         });
+    }
+
+    void cbfriends_service::lfg_leave()
+    {
+        post_action("/v1/lfg/leave", ts_body(), [this] { refresh_lfg(); });
     }
 
     void cbfriends_service::sync_discord()
