@@ -77,9 +77,15 @@
         return res.json();
     }
 
+    // Titles reach us exactly as the author wrote them, colour codes included; strip them for display.
+    function clean(value) {
+        return GameUtils.stripColorCodes(value);
+    }
+
     async function getInstalled(game) {
         const mods = await window.executeCommand('get-installed-mods', { game: backendId(game) });
-        return Array.isArray(mods) ? mods : [];
+        if (!Array.isArray(mods)) return [];
+        return mods.map(mod => Object.assign(mod, { name: clean(mod.name) }));
     }
 
     function searchMock({ query, kind, sort }) {
@@ -92,7 +98,7 @@
                 if (sort === 'name') return a.title.localeCompare(b.title);
                 return b.subscribers - a.subscribers;
             })
-            .map(item => Object.assign(clone(item), { installed: false, updateAvailable: false }));
+            .map(item => Object.assign(clone(item), { title: clean(item.title), installed: false, updateAvailable: false }));
 
         return { items, total: items.length };
     }
@@ -117,7 +123,7 @@
             const params = { game: backendId(game), ...opts };
             const data = await workshopFetch('/v1/search', params);
             const items = (Array.isArray(data.items) ? data.items : [])
-                .map(item => Object.assign(item, { installed: false, updateAvailable: false }));
+                .map(item => Object.assign(item, { title: clean(item.title), installed: false, updateAvailable: false }));
             return { items, total: Number(data.total) || items.length };
         } catch (error) {
             console.warn('Workshop search failed', error);
@@ -149,7 +155,18 @@
             return { success: true };
         }
 
-        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0 });
+        // Required items install alongside the item, like Steam's subscribe flow.
+        // An unreachable worker degrades to installing the item alone.
+        let children = [];
+        try {
+            const detail = await getDetails(game, item.id);
+            children = (Array.isArray(detail.children) ? detail.children : [])
+                .map(child => ({ id: String(child.id), size: Number(child.size) || 0 }));
+        } catch (error) {
+            console.warn('Could not resolve required items', error);
+        }
+
+        const started = await window.executeCommand('install-workshop-mod', { game: backendId(game), id: item.id, size: item.size || 0, children });
         if (!started || !started.success) {
             throw new Error((started && started.error) || 'Failed to start the install.');
         }
@@ -165,6 +182,20 @@
         if (PREVIEW_MODE || !ids.length) return {};
         try {
             return await workshopFetch('/v1/updated', { game: backendId(game), ids: ids.join(',') });
+        } catch (error) {
+            return {};
+        }
+    }
+
+    // CDN-hosted overrides ({ workshopId: { version, size } }): these ids install
+    // from our CDN instead of steamCMD, and their update state is version equality
+    // against the hosted release rather than Steam's updated time.
+    async function getOverrides(game) {
+        const caps = supports(game);
+        if (!caps || !caps.workshop || PREVIEW_MODE) return {};
+        try {
+            const data = await window.executeCommand('get-mod-overrides', { game: backendId(game) });
+            return data && typeof data === 'object' ? data : {};
         } catch (error) {
             return {};
         }
@@ -187,22 +218,34 @@
         return pollJob(game, job => onPhase && onPhase(job.phase, job.name));
     }
 
+    function cleanDetail(detail) {
+        detail.title = clean(detail.title);
+        if (Array.isArray(detail.children)) {
+            detail.children.forEach(child => child.title = clean(child.title));
+        }
+        return detail;
+    }
+
     async function getDetails(game, id) {
         if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
             await delay();
             const item = WORKSHOP.find(entry => entry.id === id);
             if (!item) throw new Error('Unknown item');
-            return Object.assign(clone(item), {
+            return cleanDetail(Object.assign(clone(item), {
                 description: '[h1]Preview[/h1]\nThis is placeholder detail text shown in UI preview mode.\n[b]Bold[/b], [i]italic[/i] and a [url=https://cbservers.xyz]link[/url].',
+                children: item.id === '2967301155' ? [
+                    { id: '2750100123', title: 'Perk Overhaul', kind: 'mod', size: 212 * MB },
+                    { id: '2840561120', title: 'Chaos Perks', kind: 'mod', size: 88 * MB }
+                ] : [],
                 screenshots: [],
                 views: item.subscribers * 4,
                 createdAt: Math.floor(new Date(item.updatedAt).getTime() / 1000) - 86400 * 200,
                 updatedAt: Math.floor(new Date(item.updatedAt).getTime() / 1000),
                 votes: { score: 0.93, up: 1200, down: 90 }
-            });
+            }));
         }
 
-        return workshopFetch('/v1/item', { game: backendId(game), id });
+        return cleanDetail(await workshopFetch('/v1/item', { game: backendId(game), id }));
     }
 
     function getModsFolder(game, folder) {
@@ -223,6 +266,7 @@
         update: install,
         cancelInstall,
         getUpdatedTimes,
+        getOverrides,
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),
         importZip: (game, path, onPhase) => importFromPath(game, path, 'zip', onPhase),
