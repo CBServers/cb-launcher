@@ -14,21 +14,36 @@
 
     function getState(gameId) {
         if (!state[gameId]) {
+            const caps = window.ServersService.supports(gameId) || {};
+            const prefs = window.ServersService.getViewPrefs(gameId);
             state[gameId] = {
                 query: '',
-                mode: 'all',
-                sort: 'players',
-                hideEmpty: false,
-                hideFull: false,
-                favoritesOnly: false,
+                mode: (caps.modes || []).includes(prefs.mode) ? prefs.mode : 'all',
+                sort: prefs.sort || 'players',
+                region: prefs.region || 'all',
+                hideEmpty: !!prefs.hideEmpty,
+                hideFull: !!prefs.hideFull,
+                favoritesOnly: !!prefs.favoritesOnly,
                 servers: null,
                 loading: false,
                 error: null,
                 lastUpdated: 0,
-                caps: window.ServersService.supports(gameId) || {}
+                caps
             };
         }
         return state[gameId];
+    }
+
+    function saveView(gameId) {
+        const s = getState(gameId);
+        window.ServersService.saveViewPrefs(gameId, {
+            mode: s.mode,
+            sort: s.sort,
+            region: s.region,
+            hideEmpty: s.hideEmpty,
+            hideFull: s.hideFull,
+            favoritesOnly: s.favoritesOnly
+        });
     }
 
     function query(gameId, selector) {
@@ -53,7 +68,7 @@
         if (!panel) return;
         const s = getState(gameId);
         const chip = (attrs, active, label) => `<button class="chip${active ? ' active' : ''}" ${attrs}>${escapeHtml(label)}</button>`;
-        const option = (value, label) => `<option value="${value}"${s.sort === value ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+        const option = (current, value, label) => `<option value="${value}"${current === value ? ' selected' : ''}>${escapeHtml(label)}</option>`;
         const modeInfo = GameUtils.getModeInfo();
         const modes = s.caps.modes || [];
 
@@ -70,10 +85,14 @@
                     ${chip('data-toggle="hideEmpty"', s.hideEmpty, t('servers.hideEmpty'))}
                     ${chip('data-toggle="hideFull"', s.hideFull, t('servers.hideFull'))}
                 </div>
+                <select class="cdn-select servers-region">
+                    ${option(s.region, 'all', t('servers.allRegions'))}
+                    ${window.ServersService.REGIONS.map(region => option(s.region, region, region)).join('')}
+                </select>
                 <select class="cdn-select servers-sort">
-                    ${option('players', t('servers.sortPlayers'))}
-                    ${option('ping', t('servers.sortPing'))}
-                    ${option('name', t('servers.sortName'))}
+                    ${option(s.sort, 'players', t('servers.sortPlayers'))}
+                    ${option(s.sort, 'ping', t('servers.sortPing'))}
+                    ${option(s.sort, 'name', t('servers.sortName'))}
                 </select>
                 <button class="mods-btn servers-refresh-btn">${escapeHtml(t('servers.refresh'))}</button>
                 <span class="servers-updated"></span>
@@ -102,6 +121,7 @@
             button.addEventListener('click', () => {
                 s.mode = button.dataset.mode;
                 panel.querySelectorAll('.chip[data-mode]').forEach(b => b.classList.toggle('active', b === button));
+                saveView(gameId);
                 renderList(gameId);
             });
         });
@@ -109,11 +129,18 @@
             button.addEventListener('click', () => {
                 s[button.dataset.toggle] = !s[button.dataset.toggle];
                 button.classList.toggle('active', s[button.dataset.toggle]);
+                saveView(gameId);
                 renderList(gameId);
             });
         });
+        panel.querySelector('.servers-region').addEventListener('change', event => {
+            s.region = event.target.value;
+            saveView(gameId);
+            renderList(gameId);
+        });
         panel.querySelector('.servers-sort').addEventListener('change', event => {
             s.sort = event.target.value;
+            saveView(gameId);
             renderList(gameId);
         });
         panel.querySelector('.servers-refresh-btn').addEventListener('click', () => loadServers(gameId));
@@ -153,6 +180,7 @@
         const needle = s.query.trim().toLowerCase();
         return s.servers
             .filter(server => (s.mode === 'all' || server.mode === s.mode)
+                && (s.region === 'all' || server.region === s.region)
                 && (!needle || server.name.toLowerCase().includes(needle) || server.map.toLowerCase().includes(needle))
                 && (!s.hideEmpty || server.players > 0)
                 && (!s.hideFull || server.players < server.maxPlayers)
@@ -174,6 +202,7 @@
                 <div class="server-name">${server.locked ? `<span title="${escapeHtml(t('servers.passworded'))}">${LOCK_SVG}</span>` : ''}<span>${escapeHtml(server.name)}</span></div>
                 <span class="server-map">${escapeHtml(server.map)}</span>
                 <span class="server-mode"><span class="badge server-mode-badge">${escapeHtml(`${server.mode.toUpperCase()} · ${server.gametype.toUpperCase()}`)}</span></span>
+                <span class="server-region">${escapeHtml(server.region)}</span>
                 <span class="server-players"${playersTitle}>${server.players}/${server.maxPlayers}</span>
                 <span class="server-ping ${pingClass}">${server.ping}ms</span>
                 <button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>
@@ -203,18 +232,21 @@
 
         const shown = applyFilters(gameId, s);
         if (!shown.length) {
-            host.innerHTML = emptyHTML('servers.noMatches');
+            const noFavorites = s.favoritesOnly && !window.ServersService.getFavorites(gameId).length;
+            host.innerHTML = emptyHTML(noFavorites ? 'servers.noFavorites' : 'servers.noMatches');
             return;
         }
 
+        const totalPlayers = shown.reduce((sum, server) => sum + server.players, 0);
         host.innerHTML = `
-            <div class="servers-count">${escapeHtml(t('servers.count', { shown: shown.length, total: s.servers.length }))}</div>
+            <div class="servers-count">${escapeHtml(`${t('servers.count', { shown: shown.length, total: s.servers.length })} · ${t('servers.countPlayers', { count: totalPlayers })}`)}</div>
             <div class="servers-list">
                 <div class="servers-head">
                     <span></span>
                     <span>${escapeHtml(t('servers.colName'))}</span>
                     <span>${escapeHtml(t('servers.colMap'))}</span>
                     <span>${escapeHtml(t('servers.colMode'))}</span>
+                    <span>${escapeHtml(t('servers.colRegion'))}</span>
                     <span>${escapeHtml(t('servers.colPlayers'))}</span>
                     <span>${escapeHtml(t('servers.colPing'))}</span>
                     <span></span>
@@ -248,8 +280,14 @@
             label.textContent = '—';
             return;
         }
-        const seconds = Math.max(0, Math.round((Date.now() - s.lastUpdated) / 1000));
-        label.textContent = seconds < 5 ? t('servers.updatedJustNow') : t('servers.updatedAgo', { seconds });
+        const seconds = Math.max(0, Math.floor((Date.now() - s.lastUpdated) / 1000));
+        if (seconds < 60) {
+            label.textContent = t('servers.updatedSecondsAgo');
+        } else if (seconds < 3600) {
+            label.textContent = t('servers.updatedMinutesAgo', { minutes: Math.floor(seconds / 60) });
+        } else {
+            label.textContent = t('servers.updatedHoursAgo', { hours: Math.floor(seconds / 3600) });
+        }
     }
 
     // Refresh only while a servers panel is the visible tab of the visible page;
@@ -270,7 +308,7 @@
         setInterval(() => {
             const gameId = activeServersGame();
             if (gameId && state[gameId]) renderUpdated(gameId);
-        }, 5000);
+        }, 10000);
     }
 
     window.ServersView = {

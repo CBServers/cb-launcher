@@ -23,6 +23,7 @@
     };
 
     const FAVORITES_KEY = 'cb_server_favorites';
+    const VIEW_KEY = 'cb_server_view';
 
     window.__serversMock = window.__serversMock || { latency: 600 };
 
@@ -47,7 +48,8 @@
 
     const NAME_HEADS = ['Frontline', 'Overwatch', 'Night Ops', 'Iron Sights', 'Warzone', 'Bulletworks', 'Ghost Division', 'Task Force', 'Vanguard', 'Redline', 'Sandbox', 'Old School'];
     const NAME_TAILS = ['24/7', 'EU Mix', 'NA Central', 'Hardcore', 'Vanilla', 'No Rules', 'Community', 'Ranked', 'Casual Nights', 'Sniper Lobby', 'FFA Madness', 'Stock Maps'];
-    const REGIONS = ['NA', 'NA', 'EU', 'EU', 'AS', 'OCE'];
+    const REGIONS = ['NA', 'EU', 'AS', 'OCE'];
+    const REGION_POOL = ['NA', 'NA', 'EU', 'EU', 'AS', 'OCE'];
     const MAX_PLAYERS = [8, 12, 16, 18, 18, 24, 32];
 
     function delay() {
@@ -99,7 +101,7 @@
             gametype: mode === 'zm' ? pick(rng, GAMETYPES.zm) : pick(rng, GAMETYPES.mp),
             maxPlayers,
             locked: index === 5 || rng() < 0.08,
-            region: pick(rng, REGIONS),
+            region: pick(rng, REGION_POOL),
             players: Math.floor(Math.random() * (maxPlayers + 1)),
             bots: 0,
             ping: 15 + Math.floor(Math.random() * 120)
@@ -128,25 +130,25 @@
         return servers;
     }
 
-    function readFavorites() {
+    function readStore(key) {
         try {
-            const stored = JSON.parse(localStorage.getItem(FAVORITES_KEY));
+            const stored = JSON.parse(localStorage.getItem(key));
             return stored && typeof stored === 'object' ? stored : {};
         } catch (error) {
             return {};
         }
     }
 
-    function writeFavorites(favorites) {
+    function writeStore(key, value) {
         try {
-            localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+            localStorage.setItem(key, JSON.stringify(value));
         } catch (error) {
-            // Storage can be unavailable; favorites just stop persisting.
+            // Storage can be unavailable; favorites and view preferences just stop persisting.
         }
     }
 
     function getFavorites(game) {
-        const list = readFavorites()[game];
+        const list = readStore(FAVORITES_KEY)[game];
         return Array.isArray(list) ? list : [];
     }
 
@@ -155,20 +157,34 @@
     }
 
     function toggleFavorite(game, id) {
-        const favorites = readFavorites();
+        const favorites = readStore(FAVORITES_KEY);
         const list = Array.isArray(favorites[game]) ? favorites[game] : [];
         const added = !list.includes(id);
         favorites[game] = added ? list.concat(id) : list.filter(entry => entry !== id);
-        writeFavorites(favorites);
+        writeStore(FAVORITES_KEY, favorites);
         return added;
+    }
+
+    function getViewPrefs(game) {
+        const prefs = readStore(VIEW_KEY)[game];
+        return prefs && typeof prefs === 'object' ? prefs : {};
+    }
+
+    function saveViewPrefs(game, prefs) {
+        const store = readStore(VIEW_KEY);
+        store[game] = prefs;
+        writeStore(VIEW_KEY, store);
     }
 
     window.ServersService = {
         CAPABILITIES,
+        REGIONS,
         supports,
         getServers,
         getFavorites,
         isFavorite,
-        toggleFavorite
+        toggleFavorite,
+        getViewPrefs,
+        saveViewPrefs
     };
 })();

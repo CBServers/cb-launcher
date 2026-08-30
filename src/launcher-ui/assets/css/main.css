@@ -4394,7 +4394,7 @@ html[data-theme="dark"] .secondary-action:hover {
 .servers-head,
 .server-row {
     display: grid;
-    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 70px 64px auto;
+    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px auto;
     align-items: center;
     column-gap: 12px;
     padding: 8px 14px;
@@ -4461,6 +4461,7 @@ html[data-theme="dark"] .secondary-action:hover {
 }
 
 .server-map,
+.server-region,
 .server-players {
     font-size: 12px;
     color: var(--text-muted);
@@ -5668,6 +5669,7 @@ html:not([data-theme]) .servers-head,
 html:not([data-theme]) .servers-count,
 html:not([data-theme]) .servers-updated,
 html:not([data-theme]) .server-map,
+html:not([data-theme]) .server-region,
 html:not([data-theme]) .server-players,
 html:not([data-theme]) .server-ping {
     font-family: var(--font-mono);
