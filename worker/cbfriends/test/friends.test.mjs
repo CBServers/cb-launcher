@@ -76,8 +76,6 @@ check('remove drops friend both sides',
 
 check('device key with no account is 401 on friends/list', (await call(await mk(), '/v1/friends/list')).s === 401);
 
-check.done();
-
 // The board has to name who joined, not just count them.
 await call(B, '/v1/lfg/post', { game: 'boiii', mode: 'zm', note: 'ee run', slots: 3 });
 await call(C, '/v1/lfg/join', { cbId: (await call(A, '/v1/lfg/list', { game: 'boiii' }))
@@ -106,3 +104,5 @@ check('leave releases the seat', (await call(C, '/v1/lfg/leave', {})).b.ok === t
 check('and the board shows it', !(await call(A, '/v1/lfg/list', { game: 'boiii' }))
     .b.posts.some(p => (p.joiners || []).some(j => j.handle === 'charlie')));
 check('leaving nothing is not an error', (await call(C, '/v1/lfg/leave', {})).b.ok === false);
+
+check.done();

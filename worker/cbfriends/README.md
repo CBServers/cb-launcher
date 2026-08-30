@@ -128,6 +128,12 @@ holds the shared rig; Discord is stubbed where a suite needs it.
 
 ## Deploy
 
+Production runs on a VPS, not Cloudflare: `serve.mjs` hosts the unmodified `src/index.js` on
+`node:http` with a SQLite store (`store-sqlite.mjs`), behind Caddy and Cloudflare's proxy.
+It must run as a **single process** — `Mailbox` and `Directory` are in-process memory by design.
+
+The Worker deployment remains as a dormant rollback path:
+
 ```
 wrangler kv namespace create CB
 wrangler kv namespace create CB --preview
@@ -135,4 +141,4 @@ wrangler kv namespace create CB --preview
 wrangler deploy
 ```
 
-Local dev (simulated KV, no account needed): `wrangler dev`.
+Local dev: `node serve-local.mjs` (Map-backed, no account needed), or `wrangler dev`.

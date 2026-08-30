@@ -2,6 +2,13 @@ name = "cbfriends"
 main = "src/index.js"
 compatibility_date = "2024-09-01"
 
+# EMERGENCY ROLLBACK ONLY: production runs on a VPS (see the README's Deploy section).
+# Uncomment before `wrangler deploy` to pull social.cbservers.xyz back onto a Worker —
+# deploying with this active steals the hostname from the VPS.
+# routes = [
+#   { pattern = "social.cbservers.xyz", custom_domain = true },
+# ]
+
 # Account + recovery-index store. Create real namespaces before deploying:
 #   wrangler kv namespace create CB
 #   wrangler kv namespace create CB --preview
@@ -32,8 +39,8 @@ class_name = "Directory"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom", "Mailbox"]
+new_sqlite_classes = ["ChatRoom", "Mailbox"]
 
 [[migrations]]
 tag = "v2"
-new_classes = ["SocialGraph", "Directory"]
+new_sqlite_classes = ["SocialGraph", "Directory"]
