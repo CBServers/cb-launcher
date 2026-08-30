@@ -76,8 +76,6 @@ check('remove drops friend both sides',
 
 check('device key with no account is 401 on friends/list', (await call(await mk(), '/v1/friends/list')).s === 401);
 
-check.done();
-
 // The board has to name who joined, not just count them.
 await call(B, '/v1/lfg/post', { game: 'boiii', mode: 'zm', note: 'ee run', slots: 3 });
 await call(C, '/v1/lfg/join', { cbId: (await call(A, '/v1/lfg/list', { game: 'boiii' }))
@@ -91,3 +89,5 @@ check('joiner carries enough to draw a row',
 check('joiner sees their own post membership',
       (await call(C, '/v1/lfg/list', { game: 'boiii' })).b.posts.find(p => p.handle === 'bravo').iJoined === true);
 check('a non-joiner does not', joined.iJoined === false);
+
+check.done();
