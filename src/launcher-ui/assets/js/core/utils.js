@@ -12,6 +12,8 @@ const PROPERTY_KEYS = {
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name',
         CDN_CUSTOM_URL: 'launcher-cdn-custom-url',
         PINNED_GAMES: 'launcher-pinned-games',
+        CB_COMMUNITY_ENABLED: 'launcher-cb-community-enabled',
+        CB_CHAT_SEEN: 'launcher-cb-chat-seen',
         DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
         REDUCE_MOTION: 'launcher-reduce-motion'
     },
@@ -51,6 +53,7 @@ class GameUtils {
         'h1-mod': 'mwr',
         'iw7-mod': 'iw',
         'bo4': 'bo4',
+        's2x': 'ww2',
         'mw2r': 'mw2r',
         'hmw-mod': 'hmw'
     };
@@ -60,7 +63,7 @@ class GameUtils {
         Object.entries(GameUtils.UI_TO_BACKEND_MAP).map(([ui, backend]) => [backend, ui])
     );
 
-    static GAME_ORDER = ['cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod'];
+    static GAME_ORDER = ['cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6', 'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 's2x', 'bo4', 'mw2r', 'hmw-mod'];
 
     // Friendly aliases accepted by the -launch CLI arg (alias -> UI ID).
     // Covers common CoD names that don't already match a UI ID or backend key.
@@ -325,6 +328,29 @@ class GameUtils {
             capsulePath: './assets/img/games/iw7-mod/capsule.jpg',
             heroImagePath: './assets/img/games/iw7-mod/hero.jpg',
             logoPath: './assets/img/games/iw7-mod/logo.png'
+        },
+        'ww2': {
+            displayName: 'World War II',
+            shortName: 'WWII',
+            defaultInstallPath: 'ww2_game_files',
+            uiId: 's2x',
+            client: 'S2x',
+            provider: '',
+            clientKey: 'others',
+            comingSoon: true,
+            hasMultipleModes: true,
+            supportedModes: ['mp', 'sp', 'zm'],
+            supportsName: false,
+            specialSettings: [],
+            version: 'S2',
+            description: 'Call of Duty: WWII (2017). Client integration is in the works.',
+            credits: '',
+            accent: '#8C7A4B',
+            assetBase: './assets/img/games/s2x',
+            iconPath: './assets/img/games/s2x/ww2logo.jfif',
+            capsulePath: './assets/img/games/s2x/coverart.jpg',
+            heroImagePath: './assets/img/games/s2x/banner.jfif',
+            logoPath: './assets/img/games/s2x/logo-transparent.png'
         },
         'bo4': {
             displayName: 'Black Ops 4',

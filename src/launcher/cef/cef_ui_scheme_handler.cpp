@@ -127,6 +127,7 @@ namespace cef
                 {"iso", "application/octet-stream"},
                 {"jade", "text/jade"},
                 {"jar", "application/java-archive"},
+                {"jfif", "image/jpeg"},
                 {"jls", "image/jls"},
                 {"jp2", "image/jp2"},
                 {"jpe", "image/jpeg"},

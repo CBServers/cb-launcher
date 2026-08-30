@@ -879,44 +879,23 @@
 
     const sizeBadgeFetched = new Set();
 
-    function waitForComponentDetection(backendId, timeoutMs = 30000) {
-        return new Promise(resolve => {
-            const start = Date.now();
-            const poll = setInterval(async () => {
-                if (Date.now() - start > timeoutMs) {
-                    clearInterval(poll);
-                    resolve();
-                    return;
-                }
-                try {
-                    const status = await window.executeCommand('get-component-detection-status', { game: backendId });
-                    if (!status || !status.active) {
-                        clearInterval(poll);
-                        resolve();
-                    }
-                } catch (e) {
-                    clearInterval(poll);
-                    resolve();
-                }
-            }, 300);
-        });
-    }
-
-    async function getDetectedComponentInfo(backendId) {
-        const info = await window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
-        if (!info || !info.detectionInProgress) return info;
-        await waitForComponentDetection(backendId);
-        return window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
-    }
-
     async function fetchLibraryCardSize(card, gameId) {
         try {
-            const info = await getDetectedComponentInfo(GameUtils.getGameMapping(gameId));
+            // A size badge is not worth a scan of the whole install; take what detection already
+            // knows and let the background sweep fill the rest in.
+            const info = await window.executeCommand('get-game-component-info', {
+                game: GameUtils.getGameMapping(gameId),
+                detectExisting: true,
+                cacheOnly: true
+            });
             if (!info) return;
             const installed = info.installed || [];
             const sizes = info.sizes || {};
             const total = installed.reduce((sum, id) => sum + (sizes[id] || 0), 0);
-            if (total <= 0) return;
+            if (total <= 0) {
+                sizeBadgeFetched.delete(gameId); // nothing cached yet; try again after the sweep
+                return;
+            }
             const sizeEl = card.querySelector('[data-size-badge]');
             if (sizeEl) {
                 sizeEl.textContent = GameUtils.formatBytes(total);

@@ -1070,7 +1070,9 @@ namespace commands::game_commands
                 return;
             }
 
-            response.SetBool(game_config::is_game_process_running(config->id));
+            // Polled constantly by the UI; a snapshot up to a second old is plenty and keeps the
+            // process-table walk off the critical path for every game on screen.
+            response.SetBool(game_config::is_game_process_running(config->id, 1000));
         });
 
         cef_ui.add_command("stop-game", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)

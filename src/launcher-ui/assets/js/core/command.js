@@ -20,6 +20,37 @@ const mockMods = {
     job: null
 };
 
+// Static-preview state for the CB Friends sub-tab and Community board.
+const mockCb = {
+    state: 'none', profile: null, recoveryCode: null,
+    friends: { friends: [], incoming: [], outgoing: [] },
+    lfg: [
+        { cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', avatarUrl: '', online: true, game: 'boiii', mode: 'zm', status: '', relation: 'none', note: 'need 2 for EE', slots: 3, joined: 1, iJoined: false },
+        { cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', avatarUrl: '', online: true, game: 'iw4x', mode: '', status: '', relation: 'none', note: '', slots: 0, joined: 0, iJoined: false }
+    ],
+    broadcast: { on: false, game: '', note: '', slots: 0 },
+    chatRoom: '',
+    chat: {
+        all: [{ id: 1, cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', accent: '#F3751B', text: 'anyone on tonight?' }],
+        boiii: [{ id: 1, cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', accent: '', text: 'running EE in 10' }]
+    },
+    viewedProfile: null,
+    blocked: [],
+    securityEvents: [],
+    chatHeads: {},
+    playedWith: [],
+    dmConversations: [],
+    dmMessages: [],
+    dmPeer: '',
+    modRole: '',
+    modReports: [],
+    modLog: [],
+    modLookup: null
+};
+function mockPerson(handle, name, extra) {
+    return Object.assign({ cbId: 'cb_' + handle, handle, displayName: name || handle, avatarUrl: '', online: false, game: '', mode: '', status: '', relation: '', note: '' }, extra || {});
+}
+
 function mockModImport(data) {
     const name = String(data.path).replace(/[\\/]+$/, '').split(/[\\/]/).pop().replace(/\.zip$/i, '');
     const kind = /^(zm_|mp_|nazi_zombie_)/i.test(name) ? 'map' : 'mod';
@@ -77,6 +108,145 @@ function mockCommand(command, data) {
         case 'discord-link':
         case 'discord-unlink':
             return { started: false };
+        case 'cbfriends-get-status':
+            return { state: mockCb.state, profile: mockCb.profile, error: null, hasRecoveryCode: !!mockCb.recoveryCode, joinable: false };
+        case 'cbfriends-create-profile':
+            mockCb.state = 'ready';
+            mockCb.profile = { cbId: 'cb_preview', handle: data.handle, displayName: data.displayName || data.handle, avatarUrl: '' };
+            mockCb.recoveryCode = 'AB12-CD34-EF56-7890';
+            mockCb.friends.incoming = [mockPerson('reaper', 'Reaper', { online: false })];
+            mockCb.friends.friends = [mockPerson('nova', 'Nova', { online: true, game: 'boiii', joinable: true, matchId: 'm1' })];
+            return { started: true };
+        case 'cbfriends-get-recovery-code':
+            return { code: mockCb.recoveryCode || null };
+        case 'cbfriends-update-profile':
+            if (mockCb.profile) {
+                if (data.displayName) mockCb.profile.displayName = data.displayName;
+                if (data.handle) mockCb.profile.handle = data.handle;
+                mockCb.profile.bio = data.bio || '';
+                mockCb.profile.accent = data.accent || '';
+                mockCb.profile.favoriteGame = data.favoriteGame || '';
+                if (typeof data.avatarUrl === 'string') mockCb.profile.avatarUrl = data.avatarUrl;
+            }
+            return { ok: true };
+        case 'cbfriends-request-profile': {
+            const pool = mockCb.lfg.concat(mockCb.friends.friends, mockCb.friends.incoming);
+            const found = pool.find(p => p.cbId === data.cbId);
+            mockCb.viewedProfile = found
+                ? Object.assign({ bio: 'zombies main, EE runs nightly', accent: '#F3751B', favoriteGame: 'boiii', createdAt: 1750000000 }, found)
+                : null;
+            return { ok: true };
+        }
+        case 'cbfriends-get-viewed-profile':
+            return { profile: mockCb.viewedProfile || null };
+        case 'cbfriends-get-chat-heads':
+            return { rooms: mockCb.chatHeads };
+        case 'cbfriends-get-played-with':
+            return { people: mockCb.playedWith };
+        case 'cbfriends-get-dm-list':
+            return { conversations: mockCb.dmConversations, unread: 0 };
+        case 'cbfriends-get-dm':
+            return { peer: mockCb.dmPeer, messages: mockCb.dmMessages };
+        case 'cbfriends-set-dm-peer':
+            mockCb.dmPeer = data && data.cbId;
+            return { ok: true };
+        case 'cbfriends-send-dm':
+            return { ok: true };
+        case 'cbfriends-mod-status':
+            return { role: mockCb.modRole };
+        case 'cbfriends-mod-get-reports':
+            return { reports: mockCb.modReports };
+        case 'cbfriends-mod-get-log':
+            return { entries: mockCb.modLog };
+        case 'cbfriends-mod-get-lookup':
+            return { account: mockCb.modLookup };
+        case 'cbfriends-set-mod-active':
+        case 'cbfriends-mod-lookup':
+        case 'cbfriends-mod-resolve':
+        case 'cbfriends-mod-mute':
+        case 'cbfriends-mod-set-role':
+        case 'cbfriends-set-activity':
+        case 'cbfriends-load-older-chat':
+        case 'cbfriends-report':
+        case 'cbfriends-show-person-notification':
+        case 'cbfriends-show-invite-notification':
+        case 'cbfriends-dismiss-invite-notification':
+            return { ok: true };
+        case 'cbfriends-block':
+            mockCb.blocked.push(mockPerson('blocked' + mockCb.blocked.length, 'Blocked user'));
+            return { ok: true };
+        case 'cbfriends-unblock':
+            mockCb.blocked = mockCb.blocked.filter(p => p.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-get-blocked':
+            return { blocked: mockCb.blocked };
+        case 'cbfriends-get-security-events':
+            return { events: mockCb.securityEvents };
+        case 'cbfriends-get-invites':
+            return { invites: mockCb.invites || [] };
+        case 'cbfriends-invite-friend':
+        case 'cbfriends-request-join':
+        case 'cbfriends-accept-invite':
+        case 'cbfriends-decline-invite':
+            return { ok: true };
+        case 'cbfriends-get-friends':
+            return { friends: mockCb.friends.friends, incoming: mockCb.friends.incoming, outgoing: mockCb.friends.outgoing };
+        case 'cbfriends-add-friend':
+            mockCb.friends.outgoing.push(mockPerson(data.handle, data.handle));
+            return { ok: true };
+        case 'cbfriends-accept': {
+            const i = mockCb.friends.incoming.findIndex(p => p.cbId === data.cbId);
+            if (i >= 0) { const p = mockCb.friends.incoming.splice(i, 1)[0]; p.online = true; p.game = 'boiii'; mockCb.friends.friends.push(p); }
+            return { ok: true };
+        }
+        case 'cbfriends-decline':
+            mockCb.friends.incoming = mockCb.friends.incoming.filter(p => p.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-cancel':
+            mockCb.friends.outgoing = mockCb.friends.outgoing.filter(p => p.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-remove':
+            mockCb.friends.friends = mockCb.friends.friends.filter(p => p.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-get-lfg':
+            return { posts: mockCb.lfg.filter(p => !mockCb.lfgFilter || p.game === mockCb.lfgFilter) };
+        case 'cbfriends-lfg-join': {
+            const post = mockCb.lfg.find(p => p.cbId === data.cbId);
+            if (post) { post.iJoined = true; post.joined = (post.joined || 0) + 1; }
+            return { ok: true };
+        }
+        case 'cbfriends-set-lfg-filter':
+            mockCb.lfgFilter = (data && data.game) || '';
+            return { ok: true };
+        case 'cbfriends-set-chat-room':
+            mockCb.chatRoom = (data && data.room) || '';
+            return { ok: true };
+        case 'cbfriends-get-chat':
+            return { messages: mockCb.chat[mockCb.chatRoom] || [], hasMore: false };
+        case 'cbfriends-send-chat': {
+            const list = mockCb.chat[data.room] || (mockCb.chat[data.room] = []);
+            list.push({ id: list.length + 1, cbId: 'cb_preview', handle: 'divity', displayName: 'Divity', text: data.text });
+            return { ok: true };
+        }
+        case 'cbfriends-get-broadcast':
+            return mockCb.broadcast;
+        case 'cbfriends-set-broadcast': {
+            mockCb.broadcast = { on: !!(data && data.on), game: (data && data.game) || '', note: (data && data.note) || '', slots: (data && data.slots) || 0 };
+            mockCb.lfg = mockCb.lfg.filter(p => p.relation !== 'self');
+            if (mockCb.broadcast.on) {
+                mockCb.lfg.push(Object.assign(mockPerson('divity', 'Divity', {
+                    online: true, game: mockCb.broadcast.game, note: mockCb.broadcast.note,
+                    slots: mockCb.broadcast.slots, joined: 0, iJoined: false
+                }), { relation: 'self' }));
+            }
+            return { ok: true };
+        }
+        case 'cbfriends-post-lfg':
+        case 'cbfriends-set-community-active':
+            return { ok: true };
+        case 'cbfriends-clear-lfg':
+            mockCb.lfg = mockCb.lfg.filter(p => p.relation !== 'self');
+            return { ok: true };
         case 'browse-folder':
             return 'C:\\Users\\preview\\Downloads\\zm_example_map';
         case 'browse-file':

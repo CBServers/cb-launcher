@@ -1,0 +1,46 @@
+name = "cbfriends"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+# EMERGENCY ROLLBACK ONLY: production runs on a VPS (see the README's Deploy section).
+# Uncomment before `wrangler deploy` to pull social.cbservers.xyz back onto a Worker —
+# deploying with this active steals the hostname from the VPS.
+# routes = [
+#   { pattern = "social.cbservers.xyz", custom_domain = true },
+# ]
+
+# Account + recovery-index store. Create real namespaces before deploying:
+#   wrangler kv namespace create CB
+#   wrangler kv namespace create CB --preview
+# then paste the returned ids below. Local `wrangler dev` simulates KV and ignores the ids.
+kv_namespaces = [
+  { binding = "CB", id = "REPLACE_WITH_KV_ID", preview_id = "REPLACE_WITH_PREVIEW_KV_ID" },
+]
+
+# One Durable Object per chat room; KV can't serialise appends safely.
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "ChatRoom"
+
+# One Durable Object per Discord user holds that user's relay long-poll and mailbox.
+[[durable_objects.bindings]]
+name = "MAILBOX"
+class_name = "Mailbox"
+
+# One Durable Object per account holds its friend edges, so concurrent updates serialise.
+[[durable_objects.bindings]]
+name = "GRAPH"
+class_name = "SocialGraph"
+
+# A single Durable Object holds live presence and the LFG board for everyone.
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "Directory"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom", "Mailbox"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SocialGraph", "Directory"]
