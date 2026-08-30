@@ -2,6 +2,7 @@
 #include "mod_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "mods/mod_store.hpp"
+#include "mods/mod_updater.hpp"
 
 #include <utils/com.hpp>
 #include <utils/io.hpp>
@@ -100,9 +101,10 @@ namespace commands::mod_commands
                 : mods::import_folder(config, path, progress));
         }
 
-        void run_workshop_install(const game_config::game_config_t config, const std::string workshop_id, const uint64_t size)
+        void run_workshop_install(const game_config::game_config_t config, const std::string workshop_id, const uint64_t size,
+                                  const std::vector<mods::workshop_download> children)
         {
-            finish_job(config.game_key, mods::install_workshop_item(config, workshop_id, size, job_progress(config.game_key)));
+            finish_job(config.game_key, mods::install_workshop_item(config, workshop_id, size, children, job_progress(config.game_key)));
         }
 
         // One import/install job per game at a time; returns false (and answers the
@@ -174,6 +176,28 @@ namespace commands::mod_commands
             }
         });
 
+        // CDN-hosted overrides: { "<workshopId>": { version, size } }. The frontend
+        // compares version against the installed mod instead of Steam's updated time.
+        cef_ui.add_command("get-mod-overrides", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config || !mods::supports(*config))
+            {
+                return;
+            }
+
+            for (const auto& entry : mod_updater::get_overrides(*config))
+            {
+                rapidjson::Value item(rapidjson::kObjectType);
+                item.AddMember("version", make_string(entry.version, allocator), allocator);
+                item.AddMember("size", entry.size, allocator);
+                response.AddMember(make_string(entry.id, allocator), item, allocator);
+            }
+        });
+
         cef_ui.add_command("import-mod", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto config = ctx.get_game_config_from_request(value);
@@ -210,12 +234,27 @@ namespace commands::mod_commands
             const auto id = mods::json_string(value, "id");
             const auto size = value.IsObject() && value.HasMember("size") && value["size"].IsUint64() ? value["size"].GetUint64() : 0;
 
+            // Required items from the workshop worker; the store re-validates them.
+            std::vector<mods::workshop_download> children{};
+            if (value.IsObject() && value.HasMember("children") && value["children"].IsArray())
+            {
+                for (const auto& entry : value["children"].GetArray())
+                {
+                    const auto child_id = mods::json_string(entry, "id");
+                    if (!child_id.empty() && children.size() < mods::MAX_WORKSHOP_CHILDREN)
+                    {
+                        const auto child_size = entry.IsObject() && entry.HasMember("size") && entry["size"].IsUint64() ? entry["size"].GetUint64() : 0;
+                        children.push_back({child_id, child_size});
+                    }
+                }
+            }
+
             if (!claim_job(*config, response))
             {
                 return;
             }
 
-            std::thread(run_workshop_install, *config, id, size).detach();
+            std::thread(run_workshop_install, *config, id, size, std::move(children)).detach();
             set_result(response, true);
         };
         cef_ui.add_command("install-workshop-mod", workshop_install);

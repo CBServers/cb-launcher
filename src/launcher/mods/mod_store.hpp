@@ -30,6 +30,14 @@ namespace mods
         std::optional<installed_mod> mod;
     };
 
+    struct workshop_download
+    {
+        std::string id;
+        uint64_t size{};
+    };
+
+    constexpr size_t MAX_WORKSHOP_CHILDREN = 16;
+
     // Return false to cancel the running operation (honoured during downloads).
     using progress_callback = std::function<bool(const std::string& phase, const std::string& name, int percent)>;
 
@@ -47,7 +55,8 @@ namespace mods
     std::vector<installed_mod> list_installed(const game_config::game_config_t& config);
     import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {}, const std::string& origin = "import");
     import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress = {});
-    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, uint64_t expected_size, const progress_callback& progress = {});
+    import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, uint64_t expected_size,
+                                        const std::vector<workshop_download>& children = {}, const progress_callback& progress = {});
     std::optional<std::filesystem::path> mod_path(const game_config::game_config_t& config, const std::string& id);
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error);
 }

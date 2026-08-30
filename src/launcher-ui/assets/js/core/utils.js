@@ -665,6 +665,13 @@ class GameUtils {
             .replace(/'/g, '&#39;');
     }
 
+    // CoD engines colour text with ^ followed by 0-9 or : (rainbow); mod titles carry them verbatim.
+    static stripColorCodes(value) {
+        const raw = String(value == null ? '' : value);
+        const stripped = raw.replace(/\^[0-9:]/g, '').replace(/\s{2,}/g, ' ').trim();
+        return stripped || raw.trim();
+    }
+
     static formatCount(value) {
         if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
         if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';

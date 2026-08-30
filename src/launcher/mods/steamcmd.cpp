@@ -188,6 +188,9 @@ namespace mods::steamcmd
 
         std::error_code code{};
         std::filesystem::remove_all(item, code);
+        // The manifest claims content from past installs that cleanup deleted; starting
+        // with it present makes chunk reuse abort with "Missing game files" (Failure).
+        std::filesystem::remove(workshop_path() / utils::string::va("appworkshop_%u.acf", appid), code);
 
         auto runs_before = count_content_runs(appid);
 

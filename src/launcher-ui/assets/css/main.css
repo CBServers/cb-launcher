@@ -3750,6 +3750,9 @@ button { font-family: inherit; cursor: pointer; }
     font-size: 12px;
 }
 
+.mods-refresh[hidden] { display: none; }
+.mods-refresh.is-spinning .reload-icon { animation: cdn-spin 1s linear infinite; }
+
 .mods-view { display: none; }
 .mods-view.active { display: block; }
 
@@ -4126,6 +4129,22 @@ button { font-family: inherit; cursor: pointer; }
 
 .mod-detail-rating { color: #7EE8A8; }
 
+.mod-detail-required {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.mod-detail-required strong { color: var(--text); font-size: 12px; }
+.mod-detail-required span { color: var(--text-muted); }
+.mod-detail-required small { color: var(--text-dim); font-size: 11px; }
+
 .mod-detail-desc {
     max-height: 260px;
     overflow-y: auto;
@@ -4305,6 +4324,11 @@ html[data-theme="dark"] .secondary-action:hover {
 .folder-icon {
     -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2h6.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z"/></svg>');
+}
+
+.reload-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20 11.5a8 8 0 10-2.34 6.16M20 5.5v6h-6"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20 11.5a8 8 0 10-2.34 6.16M20 5.5v6h-6"/></svg>');
 }
 
 .trash-icon {

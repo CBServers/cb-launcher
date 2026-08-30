@@ -1,7 +1,7 @@
 const mockMods = {
     installed: {
         bo3: [
-            { id: 'usermaps:zm_leviathan', name: 'Leviathan', kind: 'map', folder: 'usermaps', source: 'workshop', version: '1.4', workshopId: '2967301155', installedAt: '2026-07-24T10:00:00Z', size: 2040109465 },
+            { id: 'usermaps:zm_leviathan', name: '^1[ZM] ^3Leviathan', kind: 'map', folder: 'usermaps', source: 'workshop', version: '1.4', workshopId: '2967301155', installedAt: '2026-07-24T10:00:00Z', size: 2040109465 },
             { id: 'mods:wunderwaffe', name: 'Project Wunderwaffe', kind: 'mod', folder: 'mods', source: 'workshop', version: '2.1', workshopId: '2781201010', installedAt: '2026-08-03T10:00:00Z', size: 503316480, updateAvailable: true },
             { id: 'usermaps:zm_frost', name: 'zm_frost', kind: 'map', folder: 'usermaps', source: 'import', version: '', workshopId: '', installedAt: '2026-08-18T10:00:00Z', size: 650117120 }
         ],
