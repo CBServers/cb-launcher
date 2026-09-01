@@ -292,10 +292,10 @@ namespace game_config
         {
             this->set(property_keys::SKIP_INTRO_CINEMATIC, "");
         }
-        if (this->game_key == "hmw")
-        {
-            this->set(property_keys::DISABLE_CB_EXTENSION, "");
-        }
+        //if (this->game_key == "hmw")
+        //{
+        //    this->set(property_keys::DISABLE_CB_EXTENSION, "");
+        //}
         if (this->game_key == "cod1" || this->game_key == "coduo" || this->game_key == "cod2x")
         {
             this->set(property_keys::CUSTOM_RESOLUTION_ENABLED, "");
@@ -900,10 +900,14 @@ namespace game_config
                 .display_name = "HorizonMW",
                 .id = "hmw-mod",
                 .exe_name = "hmw-mod.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+                // CB Extension retired; empty urls make client_updater skip the download entirely
+                //.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
+                //.update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+                //.required_updater_files = {"d3d11.dll"},
+                .update_manifest_url = "",
+                .update_folder_url = "",
                 .manifest_path = "manifest/hmw.json",
-                .required_updater_files = {"d3d11.dll"},
+                .required_updater_files = {},
                 .valid_game_files = {"h1_mp64_ship.exe"},
                 .mode_arguments = {},
                 .name_argument = "+set name",
@@ -916,8 +920,8 @@ namespace game_config
                     {property_keys::DETECTED_COMPONENTS, "hmw"},
                     {property_keys::DETECTED_COMPONENTS_STAMP, "hmw"},
                     {property_keys::SELECTED_COMPONENTS, "hmw"},
-                    {property_keys::LAUNCH_OPTIONS, "hmw"},
-                    {property_keys::DISABLE_CB_EXTENSION, "hmw"}
+                    {property_keys::LAUNCH_OPTIONS, "hmw"}
+                    //, {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },
                 .client_data_folders = {},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},

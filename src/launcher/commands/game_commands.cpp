@@ -624,22 +624,13 @@ namespace commands::game_commands
             ensure_launch_prerequisites(config);
 
             protect_iw3sp_mod_profiles(config);
-            // Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
+            // CB Extension retired; always strip a leftover d3d11.dll proxy from HMW installs
             if (game == "hmw")
             {
-                const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
-                const bool force_disable = utils::nt::is_wine_environment();
-                if (force_disable || (disable_ext && *disable_ext == "true"))
+                const auto dll_path = game_directory / "d3d11.dll";
+                if (utils::io::file_exists(dll_path))
                 {
-                    if (force_disable)
-                    {
-                        printf("[Wine] Disabling CB Extension (d3d11 proxy) - not compatible with Wine/Proton\n");
-                    }
-                    const auto dll_path = game_directory / "d3d11.dll";
-                    if (utils::io::file_exists(dll_path))
-                    {
-                        utils::io::remove_file(dll_path);
-                    }
+                    utils::io::remove_file(dll_path);
                 }
             }
 
