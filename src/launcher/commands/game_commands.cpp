@@ -17,6 +17,7 @@
 #include <cmath>
 
 #include "discord/discord_service.hpp"
+#include "social/cbfriends_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "plutonium/plutonium.hpp"
 
@@ -231,6 +232,7 @@ namespace commands::game_commands
                 }
 
                 discord::discord_service::instance().clear_activity();
+                social::cbfriends_service::instance().clear_rich_activity();
                 clear_tracked_launch();
                 unlock_launch_barrier();
             }).detach();

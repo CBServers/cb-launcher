@@ -189,6 +189,7 @@ async function saveProfile(env, account) {
         cbId: account.cbId,
         profile: account.profile,
         createdAt: account.createdAt,
+        discordId: account.discordId || '',
     });
 }
 
@@ -717,7 +718,7 @@ async function presenceFor(env, cbId) {
 
 // Join flags and the game only mean anything while the beat behind them is still fresh.
 function livePresence(pres) {
-    if (!pres) return { online: false };
+    pres = pres || {};
     const online = (Date.now() - (pres.at || 0)) < PRESENCE_FRESH_MS;
     return {
         online,
@@ -725,6 +726,11 @@ function livePresence(pres) {
         status: pres.status || '',
         game: pres.game || '',
         mode: pres.mode || '',
+        map: pres.map || '',
+        gametype: pres.gametype || '',
+        server: pres.server || '',
+        players: pres.players || 0,
+        maxPlayers: pres.maxPlayers || 0,
         joinable: online && !!pres.joinable,
         directJoin: online && !!pres.directJoin,
         openable: online && !!pres.openable,
@@ -733,10 +739,12 @@ function livePresence(pres) {
 }
 
 // Public shape of a friend, request, or LFG poster: profile plus live presence.
-function personFrom(cbId, profile, createdAt, pres) {
+function personFrom(cbId, profile, createdAt, pres, discordId, knownDiscord) {
     const live = livePresence(pres);
+    const echoDiscord = knownDiscord && discordId && knownDiscord.has(discordId);
     return {
         cbId,
+        ...(echoDiscord ? { discordId } : {}),
         handle: profile.handle || '',
         displayName: profile.displayName || '',
         avatarUrl: profile.avatarUrl || '',
@@ -746,10 +754,15 @@ function personFrom(cbId, profile, createdAt, pres) {
         favoriteGame: profile.favoriteGame || '',
         playtime: profile.playtime || {},
         createdAt: createdAt || 0,
-        lastSeen: live.lastSeen || 0,
+        lastSeen: live.lastSeen || profile.lastSeen || 0,
         online: live.online,
         game: live.game,
         mode: live.mode,
+        map: live.map,
+        gametype: live.gametype,
+        server: live.server,
+        players: live.players,
+        maxPlayers: live.maxPlayers,
         status: live.status,
         joinable: live.joinable,
         directJoin: live.directJoin,
@@ -759,14 +772,15 @@ function personFrom(cbId, profile, createdAt, pres) {
 }
 
 // Resolves a batch through the directory in one call, reading KV only for accounts it has not seen.
-async function peopleViews(env, ids) {
+async function peopleViews(env, ids, knownDiscord) {
     if (!ids.length) return [];
     const known = await dirCall(env, 'people', { ids });
     return Promise.all(ids.map(async id => {
         const hit = known[id];
-        if (hit) return personFrom(id, hit.profile || {}, hit.createdAt, hit.pres);
+        if (hit) return personFrom(id, hit.profile || {}, hit.createdAt, hit.pres, hit.discordId, knownDiscord);
         const account = await getAccount(env, id);
-        return personFrom(id, (account && account.profile) || {}, account && account.createdAt, null);
+        return personFrom(id, (account && account.profile) || {}, account && account.createdAt, null,
+            account && account.discordId, knownDiscord);
     }));
 }
 
@@ -842,10 +856,17 @@ async function handleFriendDrop(env, cbId, body, kind) {
     return json(200, { status: 'ok' });
 }
 
-async function handleFriendList(env, cbId) {
+const DISCORD_ID_RE = /^\d{5,32}$/;
+const MAX_DISCORD_FRIENDS = 200;
+
+async function handleFriendList(env, cbId, body) {
     const edges = await graphGet(env, cbId);
+    // A CB friend's Discord id is echoed only when it is already in the caller's own set.
+    const knownDiscord = new Set(Array.isArray(body.discordFriends)
+        ? body.discordFriends.filter(id => typeof id === 'string' && DISCORD_ID_RE.test(id)).slice(0, MAX_DISCORD_FRIENDS)
+        : []);
     const [f, i, o] = await Promise.all([
-        peopleViews(env, edges.friends),
+        peopleViews(env, edges.friends, knownDiscord),
         peopleViews(env, edges.incoming),
         peopleViews(env, edges.outgoing),
     ]);
@@ -855,14 +876,23 @@ async function handleFriendList(env, cbId) {
 // The beat carries the profile too, so the directory can serve friend lists without touching KV.
 async function handlePresence(env, cbId, body) {
     const account = await getAccount(env, cbId);
+    const count = n => Number.isFinite(n) ? Math.max(0, Math.min(999, Math.trunc(n))) : 0;
     const beat = await dirCall(env, 'beat', {
         cbId,
         profile: (account && account.profile) || {},
         createdAt: (account && account.createdAt) || 0,
+        discordId: (account && account.discordId) || '',
+        // A goodbye beat (launcher closing) drops presence instead of refreshing it.
+        bye: !!body.bye,
         pres: {
             status: typeof body.status === 'string' ? body.status.slice(0, 64) : '',
             game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
             mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
+            map: typeof body.map === 'string' ? body.map.slice(0, 64) : '',
+            gametype: typeof body.gametype === 'string' ? body.gametype.slice(0, 32) : '',
+            server: typeof body.server === 'string' ? body.server.slice(0, 64) : '',
+            players: count(body.players),
+            maxPlayers: count(body.maxPlayers),
             // Flags only; the secret is exchanged over the invite mailbox.
             joinable: !!body.joinable,
             directJoin: !!body.directJoin,
@@ -871,11 +901,15 @@ async function handlePresence(env, cbId, body) {
         },
     });
 
-    if (beat.flush && account) {
-        account.profile.playtime = account.profile.playtime || {};
-        for (const [game, seconds] of Object.entries(beat.flush)) {
-            account.profile.playtime[game] = (account.profile.playtime[game] || 0) + seconds;
+    // Presence is memory-only, so last seen rides the writes that already happen.
+    if (account && (beat.flush || body.bye)) {
+        if (beat.flush) {
+            account.profile.playtime = account.profile.playtime || {};
+            for (const [game, seconds] of Object.entries(beat.flush)) {
+                account.profile.playtime[game] = (account.profile.playtime[game] || 0) + seconds;
+            }
         }
+        account.profile.lastSeen = Date.now();
         await saveProfile(env, account);
     }
     return json(200, { ok: true });
@@ -1376,7 +1410,7 @@ export default {
             case '/v1/friends/remove':
                 return handleFriendDrop(env, cbId, body, 'remove');
             case '/v1/friends/list':
-                return handleFriendList(env, cbId);
+                return handleFriendList(env, cbId, body);
             case '/v1/presence':
                 return handlePresence(env, cbId, body);
             case '/v1/lfg/post':
@@ -1743,6 +1777,7 @@ export class Directory {
             const it = this.entry(body.cbId);
             it.profile = body.profile || it.profile;
             it.createdAt = body.createdAt || it.createdAt;
+            it.discordId = body.discordId || it.discordId || '';
 
             // Credit the gap since the last beat, which is how long they have been in that game.
             const previous = it.pres ? it.pres.at : 0;
@@ -1754,8 +1789,12 @@ export class Directory {
                 it.pendingTotal = (it.pendingTotal || 0) + seconds;
             }
 
-            it.pres = { ...(body.pres || {}), at: now };
-            this.noteMatch(body.cbId, it, it.pres.matchId, it.pres.game, now);
+            if (body.bye) {
+                it.pres = null;
+            } else {
+                it.pres = { ...(body.pres || {}), at: now };
+                this.noteMatch(body.cbId, it, it.pres.matchId, it.pres.game, now);
+            }
             this.prune();
 
             let flush = null;
@@ -1788,6 +1827,7 @@ export class Directory {
             if (it) {
                 it.profile = body.profile || it.profile;
                 it.createdAt = body.createdAt || it.createdAt;
+                it.discordId = body.discordId || it.discordId || '';
             }
             return json(200, { ok: true });
         }
@@ -1808,7 +1848,7 @@ export class Directory {
             const out = {};
             for (const cbId of (body.ids || [])) {
                 const it = this.people.get(cbId);
-                if (it) out[cbId] = { profile: it.profile, createdAt: it.createdAt, pres: it.pres };
+                if (it) out[cbId] = { profile: it.profile, createdAt: it.createdAt, pres: it.pres, discordId: it.discordId || '' };
             }
             return json(200, out);
         }

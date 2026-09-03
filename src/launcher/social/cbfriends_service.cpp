@@ -5,6 +5,7 @@
 #include "social_constants.hpp"
 
 #include "discord/token_store.hpp"
+#include "discord/discord_service.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
@@ -98,16 +99,27 @@ namespace social
             return doc;
         }
 
+        int json_int(const rapidjson::Value& v, const char* key)
+        {
+            return (v.IsObject() && v.HasMember(key) && v[key].IsInt()) ? v[key].GetInt() : 0;
+        }
+
         cb_person parse_person(const rapidjson::Value& v)
         {
             cb_person p;
             p.cb_id = json_get(v, "cbId");
+            p.discord_id = json_get(v, "discordId");
             p.handle = json_get(v, "handle");
             p.display_name = json_get(v, "displayName");
             p.avatar_url = json_get(v, "avatarUrl");
             p.online = v.IsObject() && v.HasMember("online") && v["online"].IsBool() && v["online"].GetBool();
             p.game = json_get(v, "game");
             p.mode = json_get(v, "mode");
+            p.map_display = json_get(v, "map");
+            p.gametype = json_get(v, "gametype");
+            p.server_name = json_get(v, "server");
+            p.players = json_int(v, "players");
+            p.max_players = json_int(v, "maxPlayers");
             p.status = json_get(v, "status");
             p.bio = json_get(v, "bio");
             p.accent = json_get(v, "accent");
@@ -555,6 +567,7 @@ namespace social
         // keep advertising a lobby nobody is in until it went stale 15 minutes later.
         if (get_state() == profile_state::ready)
         {
+            send_presence(true);
             post_signed(base_url() + "/v1/lfg/clear", ts_body(), 3);
         }
 
@@ -640,35 +653,70 @@ namespace social
         }
     }
 
-    void cbfriends_service::send_presence()
+    void cbfriends_service::send_presence(const bool bye)
     {
         if (get_state() != profile_state::ready)
         {
             return;
         }
 
-        std::string game, match;
-        bool joinable, direct, openable;
+        rapidjson::Document body;
+        body.SetObject();
+        auto& allocator = body.GetAllocator();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
+
+        if (bye)
+        {
+            body.AddMember("bye", true, allocator);
+            post_signed(base_url() + "/v1/presence", serialize(body), 3);
+            return;
+        }
+
+        const auto me = get_own_presence();
+        std::string match;
+        bool direct, openable;
         {
             std::lock_guard lock(mutex_);
-            game = current_game_.empty() ? activity_game_ : current_game_;
-            joinable = !activity_secret_.empty();
             direct = activity_direct_;
             openable = activity_openable_;
             match = activity_match_;
         }
 
-        rapidjson::Document body;
-        body.SetObject();
-        auto& allocator = body.GetAllocator();
-        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
-        if (!game.empty()) add_string(body, "game", game);
+        if (!me.game.empty()) add_string(body, "game", me.game);
+        if (!me.mode.empty()) add_string(body, "mode", me.mode);
+        if (!me.map_display.empty()) add_string(body, "map", me.map_display);
+        if (!me.gametype.empty()) add_string(body, "gametype", me.gametype);
+        if (!me.server_name.empty()) add_string(body, "server", me.server_name);
+        if (me.max_players > 0)
+        {
+            body.AddMember("players", me.players, allocator);
+            body.AddMember("maxPlayers", me.max_players, allocator);
+        }
         // Flags only; the secret rides the invite mailbox.
-        body.AddMember("joinable", joinable, allocator);
+        body.AddMember("joinable", me.joinable, allocator);
         body.AddMember("directJoin", direct, allocator);
         body.AddMember("openable", openable, allocator);
         if (!match.empty()) add_string(body, "matchId", match);
         post_signed(base_url() + "/v1/presence", serialize(body));
+    }
+
+    cb_own_presence cbfriends_service::get_own_presence() const
+    {
+        std::lock_guard lock(mutex_);
+        cb_own_presence me;
+        me.game = current_game_.empty() ? activity_game_ : current_game_;
+        me.joinable = !activity_secret_.empty();
+        // Match details only describe the fork's game, not whatever the frontend reports.
+        if (!activity_game_.empty() && activity_game_ == me.game)
+        {
+            me.mode = activity_mode_;
+            me.map_display = activity_map_;
+            me.gametype = activity_gametype_;
+            me.server_name = activity_server_;
+            me.players = activity_players_;
+            me.max_players = activity_max_players_;
+        }
+        return me;
     }
 
     void cbfriends_service::set_activity(const std::string& game)
@@ -681,7 +729,7 @@ namespace social
             }
             current_game_ = game;
         }
-        std::thread(&cbfriends_service::send_presence, this).detach();
+        std::thread(&cbfriends_service::send_presence, this, false).detach();
     }
 
     void cbfriends_service::set_friends_changed_callback(std::function<void()> callback)
@@ -690,19 +738,23 @@ namespace social
         friends_changed_cb_ = std::move(callback);
     }
 
-    void cbfriends_service::set_rich_activity(const std::string& game, const std::string& join_secret,
-                                              const bool direct_join, const bool openable,
-                                              const std::string& match_id)
+    void cbfriends_service::set_rich_activity(const cb_rich_activity& activity)
     {
         {
             std::lock_guard lock(mutex_);
-            activity_game_ = game;
-            activity_secret_ = join_secret;
-            activity_direct_ = direct_join;
-            activity_openable_ = openable;
-            activity_match_ = match_id;
+            activity_game_ = activity.game;
+            activity_secret_ = activity.join_secret;
+            activity_direct_ = activity.direct_join;
+            activity_openable_ = activity.openable;
+            activity_match_ = activity.match_id;
+            activity_mode_ = activity.mode;
+            activity_map_ = activity.map_display;
+            activity_gametype_ = activity.gametype;
+            activity_server_ = activity.server_name;
+            activity_players_ = activity.players;
+            activity_max_players_ = activity.max_players;
         }
-        std::thread(&cbfriends_service::send_presence, this).detach();
+        std::thread(&cbfriends_service::send_presence, this, false).detach();
     }
 
     void cbfriends_service::clear_rich_activity()
@@ -714,8 +766,14 @@ namespace social
             activity_direct_ = false;
             activity_openable_ = false;
             activity_match_.clear();
+            activity_mode_.clear();
+            activity_map_.clear();
+            activity_gametype_.clear();
+            activity_server_.clear();
+            activity_players_ = 0;
+            activity_max_players_ = 0;
         }
-        std::thread(&cbfriends_service::send_presence, this).detach();
+        std::thread(&cbfriends_service::send_presence, this, false).detach();
     }
 
     bool cbfriends_service::is_joinable() const
@@ -992,7 +1050,26 @@ namespace social
             return;
         }
 
-        auto doc = post_json(base_url() + "/v1/friends/list", ts_body());
+        rapidjson::Document body;
+        body.SetObject();
+        auto& allocator = body.GetAllocator();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
+
+        // Linked Discord friends; the worker echoes a CB friend's Discord id only when it is in this set.
+        auto& discord = discord::discord_service::instance();
+        if (discord.get_status() == discord::link_status::linked)
+        {
+            rapidjson::Value ids(rapidjson::kArrayType);
+            for (const auto& f : discord.get_friends())
+            {
+                if (ids.Size() >= 200) break;
+                if (!f.linked && !f.in_launcher) continue;
+                ids.PushBack(rapidjson::Value(f.id.data(), allocator), allocator);
+            }
+            if (!ids.Empty()) body.AddMember("discordFriends", ids, allocator);
+        }
+
+        auto doc = post_json(base_url() + "/v1/friends/list", serialize(body));
         if (!doc)
         {
             return;

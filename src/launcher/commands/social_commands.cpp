@@ -37,6 +37,11 @@ namespace commands::social_commands
             obj.AddMember("online", person.online, allocator);
             add_string(obj, "game", person.game, allocator);
             add_string(obj, "mode", person.mode, allocator);
+            add_string(obj, "mapDisplay", person.map_display, allocator);
+            add_string(obj, "gametype", person.gametype, allocator);
+            add_string(obj, "serverName", person.server_name, allocator);
+            obj.AddMember("players", person.players, allocator);
+            obj.AddMember("maxPlayers", person.max_players, allocator);
             add_string(obj, "status", person.status, allocator);
             add_string(obj, "bio", person.bio, allocator);
             add_string(obj, "accent", person.accent, allocator);
@@ -124,6 +129,19 @@ namespace commands::social_commands
             response.AddMember("hasRecoveryCode", service.has_recovery_code(), allocator);
             // Gates the Invite button.
             response.AddMember("joinable", service.is_joinable(), allocator);
+
+            // What friends see for us, so the profile card can show it verbatim.
+            const auto me = service.get_own_presence();
+            rapidjson::Value presence(rapidjson::kObjectType);
+            add_string(presence, "game", me.game, allocator);
+            add_string(presence, "mode", me.mode, allocator);
+            add_string(presence, "mapDisplay", me.map_display, allocator);
+            add_string(presence, "gametype", me.gametype, allocator);
+            add_string(presence, "serverName", me.server_name, allocator);
+            presence.AddMember("players", me.players, allocator);
+            presence.AddMember("maxPlayers", me.max_players, allocator);
+            presence.AddMember("joinable", me.joinable, allocator);
+            response.AddMember("presence", presence, allocator);
         });
 
         cef_ui.add_command("cbfriends-create-profile", [](const rapidjson::Value& value, rapidjson::Document& response)

@@ -44,12 +44,28 @@
         if (menu) menu.hidden = true;
     }
 
+    // Drops hidden items, then collapses separators that would lead, trail, or double up.
+    function tidy(items) {
+        const out = [];
+        for (const item of items) {
+            if (!item || item.hidden) continue;
+            if (item.separator) {
+                if (!out.length || out[out.length - 1].separator) continue;
+            }
+            out.push(item);
+        }
+        while (out.length && out[out.length - 1].separator) out.pop();
+        return out;
+    }
+
     function showMenu(x, y, items) {
         const el = ensureMenu();
-        const usable = items.filter(i => i && !i.hidden);
-        el.innerHTML = usable.map((item, idx) =>
-            `<button type="button" class="library-card-menu-item${item.danger ? ' is-danger' : ''}" role="menuitem" data-idx="${idx}">${escapeHtml(item.label)}</button>`
-        ).join('');
+        const usable = tidy(items);
+        el.innerHTML = usable.map((item, idx) => {
+            if (item.separator) return '<div class="library-card-menu-separator"></div>';
+            const cls = (item.danger ? ' is-danger' : '') + (item.disabled ? ' is-disabled' : '');
+            return `<button type="button" class="library-card-menu-item${cls}" role="menuitem" data-idx="${idx}"${item.disabled ? ' aria-disabled="true"' : ''}>${escapeHtml(item.label)}</button>`;
+        }).join('');
 
         el.style.left = '0px';
         el.style.top = '0px';
@@ -64,7 +80,7 @@
                 event.stopPropagation();
                 const item = usable[parseInt(btn.dataset.idx, 10)];
                 hideMenu();
-                if (item && item.action) {
+                if (item && item.action && !item.disabled) {
                     try { item.action(); } catch (error) { console.error('Person menu action failed:', error); }
                 }
             });
@@ -105,6 +121,15 @@
             case 'incoming': return `<button class="cb-add-btn" data-person-accept="${escapeHtml(p.cbId)}">${escapeHtml(t('acceptRequest'))}</button>`;
             default: return `<button class="cb-add-btn" data-person-add="${escapeHtml(p.handle)}">${escapeHtml(t('addFriend'))}</button>`;
         }
+    }
+
+    // "<gametype> on <map> · <server | Private Match | Campaign> · n/m", the second presence line.
+    function matchContext(p) {
+        if (!p.mapDisplay) return '';
+        const parts = [p.gametype ? `${p.gametype} on ${p.mapDisplay}` : p.mapDisplay];
+        parts.push(p.serverName || (p.mode === 'sp' ? t('campaign') : t('privateMatch')));
+        if (p.maxPlayers > 0) parts.push(`${p.players}/${p.maxPlayers}`);
+        return parts.join(' · ');
     }
 
     function hours(seconds) {
@@ -148,6 +173,7 @@
         const presence = p.online
             ? (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('online'))
             : t('offline');
+        const presenceSub = p.online && p.game && p.mapDisplay ? escapeHtml(matchContext(p)) : '';
         const since = memberSince(p.createdAt);
         const meta = [
             p.favoriteGame ? `<div class="cb-person-field"><span>${escapeHtml(t('favouriteGame'))}</span>${escapeHtml(gameName(p.favoriteGame))}</div>` : '',
@@ -166,6 +192,7 @@
                     <div class="cb-person-presence" data-status="${p.online ? 'online' : 'offline'}">
                         <span class="friend-status-dot" data-status="${p.online ? (p.game ? 'online' : 'idle') : 'offline'}"></span>${presence}
                     </div>
+                    ${presenceSub ? `<div class="cb-person-presence-sub">${presenceSub}</div>` : ''}
                     ${p.bio ? `<div class="cb-person-bio">${escapeHtml(p.bio)}</div>` : ''}
                     ${meta ? `<div class="cb-person-meta">${meta}</div>` : ''}
                     ${played ? `<div class="cb-person-section">
@@ -263,26 +290,50 @@
         }
     }
 
+    // A keyboard-activated button has no pointer position, so anchor to the element instead.
+    function positionFor(event) {
+        let x = event.clientX, y = event.clientY;
+        if (!x && !y && event.currentTarget instanceof Element) {
+            const rect = (event.target.closest('button') || event.currentTarget).getBoundingClientRect();
+            x = rect.left; y = rect.bottom + 4;
+        }
+        return { x, y };
+    }
+
     window.PersonMenu = {
-        // person: { cbId, handle, displayName, relation? }; extra: additional menu items.
+        // extra: { top, bottom } item groups or an array (bottom); items may set disabled, danger or separator.
         open(event, person, extra) {
             if (!person || !person.cbId) return;
             event.preventDefault();
             // Keep it from reaching the document dismiss handler, which would close it immediately.
             event.stopPropagation();
+            const groups = Array.isArray(extra) ? { bottom: extra } : (extra || {});
             const isSelf = person.relation === 'self';
-            const known = person.relation === 'friend' || person.relation === 'requested';
-            const items = [
+            const known = person.relation === 'friend' || person.relation === 'requested' || person.relation === 'incoming';
+            const items = [].concat(groups.top || [], [
+                { separator: true },
                 { label: t('viewProfile'), action: () => showCard(person) },
                 { label: t('message'), hidden: isSelf || person.relation !== 'friend' || !window.DirectMessages,
                   action: () => window.DirectMessages.open(person.cbId) },
                 { label: t('addFriend'), hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
+                { separator: true },
+            ], groups.bottom || [], [
                 { label: t('block'), hidden: isSelf, danger: true, action: () => blockUser(person) },
                 { label: t('report'), hidden: isSelf, danger: true, action: () => reportUser(person) },
-            ].concat(extra || []);
-            showMenu(event.clientX, event.clientY, items);
+            ]);
+            const pos = positionFor(event);
+            showMenu(pos.x, pos.y, items);
+        },
+        // A plain menu at the pointer, for rows that are not CB people (Discord friends).
+        showMenuAt(event, items) {
+            event.preventDefault();
+            event.stopPropagation();
+            const pos = positionFor(event);
+            showMenu(pos.x, pos.y, items);
         },
         showCard,
+        matchContext,
+        formatAgo: ago,
         init() { bindCardActions(); }
     };
 

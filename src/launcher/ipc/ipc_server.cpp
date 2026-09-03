@@ -152,12 +152,57 @@ namespace ipc
         // Last friends snapshot sent this connection; skips redundant pushes (touched cross-thread).
         utils::concurrency::container<std::string> last_friends_line{};
 
+        template <typename Writer>
+        static void write_discord_game(Writer& w, const discord::friend_entry& entry)
+        {
+            w.Key("game");
+            w.StartObject();
+            w.Key("id");         w.String(entry.game_id.data());
+            w.Key("mode");       w.String(entry.game_mode.data());
+            w.Key("map");        w.String(entry.game_map.data());
+            w.Key("gametype");   w.String(entry.game_gametype.data());
+            w.Key("joinable");   w.Bool(entry.joinable);
+            w.Key("directJoin"); w.Bool(entry.direct_join);
+            w.Key("openable");   w.Bool(entry.openable);
+            w.Key("sameMatch");  w.Bool(entry.same_match);
+            w.EndObject();
+        }
+
+        template <typename Writer>
+        static void write_cb_game(Writer& w, const social::cb_person& f)
+        {
+            w.Key("game");
+            w.StartObject();
+            w.Key("id");         w.String(f.game.data());
+            w.Key("mode");       w.String(f.mode.data());
+            w.Key("map");        w.String(f.map_display.data());
+            w.Key("gametype");   w.String(f.gametype.data());
+            // Mirrors the Discord entry so the fork's game.joinable gate works unchanged.
+            w.Key("joinable");   w.Bool(f.joinable);
+            w.Key("directJoin"); w.Bool(f.direct_join);
+            w.Key("openable");   w.Bool(f.openable);
+            w.Key("sameMatch");  w.Bool(f.same_match);
+            w.EndObject();
+        }
+
         // The launcher-linked friends snapshot for the connected fork (see ipc-protocol.md "friends").
+        // Someone on both lists is written once; "id" picks the rail (cb_ while online on CB) since forks route on it.
         static std::string build_friends_line()
         {
             auto& service = discord::discord_service::instance();
             const bool linked = service.get_status() == discord::link_status::linked;
             const auto registry_ok = service.registry_ok();
+
+            const auto cb_friends = social::cbfriends_service::instance().get_friends().friends;
+            std::unordered_map<std::string, size_t> cb_by_discord;
+            for (size_t i = 0; i < cb_friends.size(); ++i)
+            {
+                if (!cb_friends[i].discord_id.empty())
+                {
+                    cb_by_discord.emplace(cb_friends[i].discord_id, i);
+                }
+            }
+            std::vector<bool> merged(cb_friends.size(), false);
 
             return build_json_object([&](auto& w)
             {
@@ -177,55 +222,65 @@ namespace ipc
                             continue;
                         }
 
+                        const social::cb_person* cb = nullptr;
+                        if (const auto it = cb_by_discord.find(entry.id); it != cb_by_discord.end())
+                        {
+                            cb = &cb_friends[it->second];
+                            merged[it->second] = true;
+                        }
+
+                        const bool cb_in_game = cb && cb->online && !cb->game.empty();
+                        const bool cb_online = cb && cb->online;
+                        const bool discord_online = entry.status == "online" || entry.status == "idle";
+
                         w.StartObject();
-                        w.Key("id");         w.String(entry.id.data());
+                        w.Key("id");         w.String(cb_online ? cb->cb_id.data() : entry.id.data());
                         w.Key("name");       w.String(entry.display_name.data());
-                        w.Key("status");     w.String(entry.status.data());
-                        w.Key("inLauncher"); w.Bool(entry.in_launcher);
+                        if (cb)
+                        {
+                            w.Key("handle");    w.String(cb->handle.data());
+                            w.Key("cbId");      w.String(cb->cb_id.data());
+                            w.Key("discordId"); w.String(entry.id.data());
+                        }
+                        const bool in_game = cb_in_game || !entry.game_id.empty();
+                        w.Key("status");     w.String(in_game ? "online" : (cb_online || discord_online ? "idle" : "offline"));
+                        w.Key("inLauncher"); w.Bool(entry.in_launcher || cb_online);
                         w.Key("source");     w.String("discord");
 
-                        if (!entry.game_id.empty())
+                        if (cb_in_game)
                         {
-                            w.Key("game");
-                            w.StartObject();
-                            w.Key("id");         w.String(entry.game_id.data());
-                            w.Key("mode");       w.String(entry.game_mode.data());
-                            w.Key("map");        w.String(entry.game_map.data());
-                            w.Key("gametype");   w.String(entry.game_gametype.data());
-                            w.Key("joinable");   w.Bool(entry.joinable);
-                            w.Key("directJoin"); w.Bool(entry.direct_join);
-                            w.Key("openable");   w.Bool(entry.openable);
-                            w.Key("sameMatch");  w.Bool(entry.same_match);
-                            w.EndObject();
+                            write_cb_game(w, *cb);
+                        }
+                        else if (!entry.game_id.empty())
+                        {
+                            write_discord_game(w, entry);
                         }
 
                         w.EndObject();
                     }
                 }
 
-                // CB-native friends alongside the Discord ones, tagged so the fork can group them.
-                for (const auto& f : social::cbfriends_service::instance().get_friends().friends)
+                // CB-only friends alongside the Discord ones, tagged so the fork can group them.
+                for (size_t i = 0; i < cb_friends.size(); ++i)
                 {
+                    if (merged[i])
+                    {
+                        continue;
+                    }
+                    const auto& f = cb_friends[i];
+
                     w.StartObject();
                     w.Key("id");         w.String(f.cb_id.data());
                     w.Key("name");       w.String(f.display_name.data());
                     w.Key("handle");     w.String(f.handle.data());
+                    w.Key("cbId");       w.String(f.cb_id.data());
                     w.Key("status");     w.String(f.online ? (f.game.empty() ? "idle" : "online") : "offline");
                     w.Key("inLauncher"); w.Bool(f.online);
                     w.Key("source");     w.String("cb");
 
                     if (!f.game.empty())
                     {
-                        w.Key("game");
-                        w.StartObject();
-                        w.Key("id");         w.String(f.game.data());
-                        w.Key("mode");       w.String(f.mode.data());
-                        // Mirrors the Discord entry so the fork's game.joinable gate works unchanged.
-                        w.Key("joinable");   w.Bool(f.joinable);
-                        w.Key("directJoin"); w.Bool(f.direct_join);
-                        w.Key("openable");   w.Bool(f.openable);
-                        w.Key("sameMatch");  w.Bool(f.same_match);
-                        w.EndObject();
+                        write_cb_game(w, f);
                     }
 
                     w.EndObject();
@@ -357,6 +412,8 @@ namespace ipc
             {
                 service.clear_activity();
             }
+            // The CB beat falls back to the fork's game, so this must clear too.
+            social::cbfriends_service::instance().clear_rich_activity();
         }
 
         void serve_connection(const HANDLE pipe)
@@ -636,9 +693,20 @@ namespace ipc
             discord::discord_service::instance().set_rich_game_activity(
                 this->connection_game_id, config->display_name, mode, discord_info);
 
-            // The CB service publishes only the flags and keeps the secret for outgoing invites.
-            social::cbfriends_service::instance().set_rich_activity(
-                this->connection_game_id, info.join_secret, info.direct_join, info.openable, info.match_id);
+            // The CB service publishes the flags and match details and keeps the secret for outgoing invites.
+            social::cb_rich_activity cb_info{};
+            cb_info.game = this->connection_game_id;
+            cb_info.join_secret = info.join_secret;
+            cb_info.direct_join = info.direct_join;
+            cb_info.openable = info.openable;
+            cb_info.match_id = info.match_id;
+            cb_info.mode = mode;
+            cb_info.map_display = info.map_display;
+            cb_info.gametype = info.gametype;
+            cb_info.server_name = info.server_name;
+            cb_info.players = info.players;
+            cb_info.max_players = info.max_players;
+            social::cbfriends_service::instance().set_rich_activity(cb_info);
         }
 
         // Accept flow: route a join secret to a running fork, or cold-launch then connect.

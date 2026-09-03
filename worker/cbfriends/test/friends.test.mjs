@@ -1,5 +1,5 @@
 // The friend graph, presence propagation and the LFG board seen through two and three identities.
-import { makeEnv, makeClient, mk, sha256Hex, checks } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, checks, stubDiscord } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -29,10 +29,34 @@ check('A and B are now friends (both sides)',
 check('no dangling requests after accept',
     aList.b.outgoing.length === 0 && bList.b.incoming.length === 0);
 
-await call(B, '/v1/presence', { game: 'boiii', mode: 'zm' });
+await call(B, '/v1/presence', { game: 'boiii', mode: 'zm', map: 'Nuketown', gametype: 'Zombies', server: 'CB Zombies #1', players: 3, maxPlayers: 4 });
 aList = await call(A, '/v1/friends/list');
-const bAsFriend = aList.b.friends.find(p => p.handle === 'bravo');
+let bAsFriend = aList.b.friends.find(p => p.handle === 'bravo');
 check('friend presence shows online + game', bAsFriend && bAsFriend.online === true && bAsFriend.game === 'boiii');
+check('friend presence carries match details',
+    bAsFriend && bAsFriend.mode === 'zm' && bAsFriend.map === 'Nuketown' && bAsFriend.gametype === 'Zombies' &&
+    bAsFriend.server === 'CB Zombies #1' && bAsFriend.players === 3 && bAsFriend.maxPlayers === 4);
+
+// The Discord id behind a CB friend only comes back to a caller who already holds it.
+stubDiscord(token => token === 'tok-b' ? { id: '222222222222222222', username: 'bravo', avatar: null } : null);
+check('B links Discord', (await call(B, '/v1/account/sync-discord', { discordToken: 'tok-b' })).s === 200);
+await call(B, '/v1/presence', { game: 'boiii' });
+aList = await call(A, '/v1/friends/list');
+check('no Discord id without the caller naming it', aList.b.friends.find(p => p.handle === 'bravo').discordId === undefined);
+aList = await call(A, '/v1/friends/list', { discordFriends: ['333333333333333333'] });
+check('no Discord id for an id the caller does not hold', aList.b.friends.find(p => p.handle === 'bravo').discordId === undefined);
+aList = await call(A, '/v1/friends/list', { discordFriends: ['333333333333333333', '222222222222222222'] });
+check('Discord id echoed when it is in the caller\'s set', aList.b.friends.find(p => p.handle === 'bravo').discordId === '222222222222222222');
+bList = await call(B, '/v1/friends/list', { discordFriends: ['222222222222222222'] });
+check('a request row never carries a Discord id', bList.b.incoming.every(p => !('discordId' in p)) && bList.b.outgoing.every(p => !('discordId' in p)));
+
+await call(B, '/v1/presence', { bye: true });
+aList = await call(A, '/v1/friends/list');
+bAsFriend = aList.b.friends.find(p => p.handle === 'bravo');
+check('goodbye beat drops presence immediately', bAsFriend && bAsFriend.online === false && bAsFriend.game === '');
+check('goodbye beat records last seen', bAsFriend && bAsFriend.lastSeen > 0 && Date.now() - bAsFriend.lastSeen < 5000);
+
+await call(B, '/v1/presence', { game: 'boiii', mode: 'zm' });
 
 await call(B, '/v1/lfg/post', { game: 'boiii', mode: 'zm', note: 'need 2 for EE' });
 let lfg = await call(A, '/v1/lfg/list', { game: 'boiii' });

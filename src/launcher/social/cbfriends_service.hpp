@@ -47,12 +47,18 @@ namespace social
     struct cb_person
     {
         std::string cb_id;
+        std::string discord_id; // only set for friends we also hold on Discord (worker echoes it back)
         std::string handle;
         std::string display_name;
         std::string avatar_url;
         bool online{false};
         std::string game;
         std::string mode;
+        std::string map_display;
+        std::string gametype;
+        std::string server_name;
+        int players{0};
+        int max_players{0};
         std::string status;
         std::string bio;
         std::string accent;
@@ -74,6 +80,35 @@ namespace social
         bool openable{false};    // closed private match we can knock on
         bool same_match{false};
         std::string match_id;
+    };
+
+    // What friends currently see for us: the published game plus the fork's match details.
+    struct cb_own_presence
+    {
+        std::string game;
+        std::string mode;
+        std::string map_display;
+        std::string gametype;
+        std::string server_name;
+        int players{0};
+        int max_players{0};
+        bool joinable{false};
+    };
+
+    // Our own in-game state as reported by the fork, mirroring discord::rich_presence_info.
+    struct cb_rich_activity
+    {
+        std::string game;
+        std::string join_secret;
+        bool direct_join{false};
+        bool openable{false};
+        std::string match_id;
+        std::string mode;
+        std::string map_display;
+        std::string gametype;
+        std::string server_name;
+        int players{0};
+        int max_players{0};
     };
 
     // A pending CB game invite or join-request, mirroring discord::invite_entry.
@@ -186,11 +221,11 @@ namespace social
         // Fired when the friends snapshot changes, so the IPC layer can re-push it to a fork.
         void set_friends_changed_callback(std::function<void()> callback);
 
-        // Publishes the join flags on presence and holds the secret locally for outgoing invites.
-        void set_rich_activity(const std::string& game, const std::string& join_secret, bool direct_join,
-                               bool openable, const std::string& match_id);
+        // Publishes the join flags and match details on presence; the secret stays local for outgoing invites.
+        void set_rich_activity(const cb_rich_activity& activity);
         void clear_rich_activity();
         bool is_joinable() const;
+        cb_own_presence get_own_presence() const;
         bool is_same_match(const std::string& game, const std::string& match_id) const;
 
         void send_invite(const std::string& cb_id);
@@ -306,7 +341,8 @@ namespace social
         void worker_loop();
         void refresh_friends();
         void refresh_lfg();
-        void send_presence();
+        // A goodbye beat drops our presence server-side instead of letting it age out.
+        void send_presence(bool bye = false);
         void send_broadcast_keepalive();
         void load_broadcast();
         void poll_invites();
@@ -355,6 +391,12 @@ namespace social
         bool activity_direct_{false};
         bool activity_openable_{false};
         std::string activity_match_;
+        std::string activity_mode_;
+        std::string activity_map_;
+        std::string activity_gametype_;
+        std::string activity_server_;
+        int activity_players_{0};
+        int activity_max_players_{0};
 
         std::vector<cb_invite> invites_;
         std::function<void(std::string)> join_secret_cb_;

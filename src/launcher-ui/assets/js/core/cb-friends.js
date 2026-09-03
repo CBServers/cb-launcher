@@ -17,6 +17,7 @@
     let myJoinable = false; // we're hosting a joinable match => can invite
     let friends = { friends: [], incoming: [], outgoing: [] };
     let playedWith = [];
+    const people = new Map(); // cbId -> { person, relation }, rebuilt on every list render
     const shownCbInvites = new Set();
     const announcedRequests = new Set();
     let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
@@ -75,8 +76,15 @@
 
     // ---- profile ----
 
-    function currentGameId() {
-        return (window.GameStateManager && window.GameStateManager.runningGameId) || '';
+    // The service's published presence, with the frontend's running game as a fallback.
+    function ownPresence() {
+        const me = (lastStatus && lastStatus.presence) || {};
+        const game = me.game || (window.GameStateManager && window.GameStateManager.runningGameId) || '';
+        return Object.assign({}, me, { game });
+    }
+
+    function matchContext(p) {
+        return window.PersonMenu ? window.PersonMenu.matchContext(p) : '';
     }
 
     function renderProfileCard(profile) {
@@ -84,15 +92,19 @@
             ? `<img class="cb-profile-avatar-img" src="${escapeHtml(profile.avatarUrl)}" alt="" />`
             : `<span class="cb-profile-avatar-initials">${escapeHtml(initials(profile.displayName || profile.handle))}</span>`;
         const handle = profile.handle ? '@' + escapeHtml(profile.handle) : '';
-        const game = currentGameId();
+        const me = ownPresence();
+        const game = me.game;
+        const chip = game && me.joinable ? `<span class="friend-chip" data-kind="joinable">${escapeHtml(t('joinable'))}</span>` : '';
+        const sub = game ? matchContext(me) : '';
         const activity = game
-            ? `<div class="cb-profile-activity"><span class="friend-status-dot" data-status="online"></span>${escapeHtml(t("playing", { game: gameName(game) }))}</div>`
-            : '';
+            ? `<div class="cb-profile-activity"><span class="friend-status-dot" data-status="online"></span>${escapeHtml(t("playing", { game: gameName(game) }))}${chip}</div>`
+              + (sub ? `<div class="cb-profile-activity-sub">${escapeHtml(sub)}</div>` : '')
+            : `<div class="cb-profile-activity is-idle"><span class="friend-status-dot" data-status="idle"></span>${escapeHtml(t('online'))}</div>`;
         return `
             <div class="cb-profile-card">
                 <div class="cb-profile-avatar">
                     ${avatar}
-                    ${game ? '<span class="friend-status-dot cb-profile-dot" data-status="online"></span>' : ''}
+                    <span class="friend-status-dot cb-profile-dot" data-status="${game ? 'online' : 'idle'}"></span>
                 </div>
                 <div class="cb-profile-body">
                     <div class="cb-profile-name">${escapeHtml(profile.displayName || profile.handle || t('displayName'))}</div>
@@ -184,50 +196,115 @@
 
     // ---- friends ----
 
+    // First line: what they are doing. Offline rows carry "last seen" when the worker knows it.
     function presenceLabel(p) {
-        if (p.online) {
-            if (p.game) return escapeHtml(t('playing', { game: gameName(p.game) }));
-            return t('online');
-        }
+        if (p.online) return p.game ? t('playing', { game: gameName(p.game) }) : t('online');
+        if (p.lastSeen && window.PersonMenu) return t('lastSeenAgo', { when: window.PersonMenu.formatAgo(p.lastSeen) });
         return t('offline');
     }
 
-    function personRow(p, actionsHtml) {
+    // Second line: the match, only while there is one.
+    function presenceSub(p) {
+        return p.online && p.game ? matchContext(p) : '';
+    }
+
+    function presenceChip(p) {
+        if (!p.online || !p.game) return '';
+        if (p.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(t('inYourMatch'))}</span>`;
+        if (p.joinable) return `<span class="friend-chip" data-kind="joinable">${escapeHtml(t('joinable'))}</span>`;
+        if (p.openable) return `<span class="friend-chip" data-kind="open">${escapeHtml(t('openMatch'))}</span>`;
+        return '';
+    }
+
+    // In-game first, then idle, then offline by most recently seen.
+    function presenceRank(p) {
+        if (p.online) return p.game ? 0 : 1;
+        return 2;
+    }
+    function sortByPresence(list) {
+        return list.slice().sort((a, b) => presenceRank(a) - presenceRank(b) || (b.lastSeen || 0) - (a.lastSeen || 0));
+    }
+
+    function personRow(p, relation, actionsHtml) {
+        people.set(p.cbId, { person: p, relation });
         const status = p.online ? (p.game ? 'online' : 'idle') : 'offline';
         const avatar = p.avatarUrl
             ? `<img class="friend-avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" loading="lazy" />`
             : `<span class="friend-avatar-initials">${escapeHtml(initials(p.displayName || p.handle))}</span>`;
+        const sub = presenceSub(p);
         return `
-            <div class="friend-row" data-status="${status}" data-person-id="${escapeHtml(p.cbId)}" data-person-handle="${escapeHtml(p.handle)}" data-person-name="${escapeHtml(p.displayName || p.handle)}" data-person-relation="friend">
+            <div class="friend-row" data-status="${status}" data-person-id="${escapeHtml(p.cbId)}" data-person-handle="${escapeHtml(p.handle)}" data-person-name="${escapeHtml(p.displayName || p.handle)}" data-person-relation="${escapeHtml(relation)}">
                 <div class="friend-avatar">
                     ${avatar}
                     <span class="friend-status-dot" data-status="${status}"></span>
                 </div>
                 <div class="friend-row-body">
-                    <div class="friend-name">${escapeHtml(p.displayName || p.handle)} <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span></div>
-                    <div class="friend-activity">${presenceLabel(p)}</div>
+                    <div class="friend-name">${escapeHtml(p.displayName || p.handle)} <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span>${presenceChip(p)}</div>
+                    <div class="friend-activity">${escapeHtml(presenceLabel(p))}</div>
+                    ${sub ? `<div class="friend-activity-sub">${escapeHtml(sub)}</div>` : ''}
                 </div>
-                ${actionsHtml || ''}
+                <div class="friend-actions">
+                    ${actionsHtml || ''}
+                    <button class="friend-more-btn" type="button" data-cb-more="${escapeHtml(p.cbId)}" title="${escapeHtml(t('more'))}" aria-label="${escapeHtml(t('more'))}">&#8943;</button>
+                </div>
             </div>
         `;
     }
 
-    // Row actions, mirroring the Discord friends list.
+    // Inline row actions are the live ones only; everything else lives in the menu.
     function friendActions(p) {
-        if (p.sameMatch) {
-            return `<div class="friend-actions"><span class="cb-pending-label">${escapeHtml(t('inYourMatch'))}</span>
-                <button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">${escapeHtml(t('remove'))}</button></div>`;
-        }
+        if (p.sameMatch) return '';
         const btns = [];
         if (p.joinable || p.openable) {
             const label = p.joinable ? t('join') : t('askToJoin');
-            btns.push(`<button class="friend-join-btn" data-cb-join="${escapeHtml(p.cbId)}">${label}</button>`);
+            btns.push(`<button class="friend-join-btn" data-cb-join="${escapeHtml(p.cbId)}">${escapeHtml(label)}</button>`);
         }
         if (myJoinable && p.online) {
             btns.push(`<button class="friend-invite-btn" data-cb-invite="${escapeHtml(p.cbId)}">${escapeHtml(t('invite'))}</button>`);
         }
-        btns.push(`<button class="cb-ghost-btn" data-cb-remove="${escapeHtml(p.cbId)}">${escapeHtml(t('remove'))}</button>`);
-        return `<div class="friend-actions">${btns.join('')}</div>`;
+        return btns.join('');
+    }
+
+    async function confirmRemove(p) {
+        try {
+            const idx = await window.showMessageBox(
+                t('removeTitle', { handle: p.handle }), t('removeBody'),
+                [{ label: t('removeConfirm'), danger: true }, t('cancel')]);
+            if (idx !== 0) return;
+        } catch (error) { return; }
+        friendAction('cbfriends-remove', p.cbId);
+    }
+
+    // Menu items for a row: session actions on top, relationship actions beside block/report.
+    function menuItemsFor(p, relation) {
+        const top = [];
+        const bottom = [];
+        if (relation === 'friend') {
+            const live = p.online && p.game;
+            if (live && !p.sameMatch && (p.joinable || p.openable)) {
+                top.push({ label: t(p.joinable ? 'join' : 'askToJoin'), action: () => friendAction('cbfriends-request-join', p.cbId) });
+            }
+            if (p.online && !p.sameMatch) {
+                // Greyed rather than hidden: the reason is on our side and obvious.
+                top.push({ label: t('invite'), disabled: !myJoinable, action: () => friendAction('cbfriends-invite-friend', p.cbId) });
+            }
+            bottom.push({ label: t('remove'), danger: true, action: () => confirmRemove(p) });
+        } else if (relation === 'incoming') {
+            top.push({ label: t('accept'), action: () => friendAction('cbfriends-accept', p.cbId) });
+            top.push({ label: t('decline'), action: () => friendAction('cbfriends-decline', p.cbId) });
+        } else if (relation === 'requested') {
+            bottom.push({ label: t('cancelRequest'), action: () => friendAction('cbfriends-cancel', p.cbId) });
+        }
+        return { top, bottom };
+    }
+
+    function openRowMenu(event, cbId) {
+        const entry = people.get(cbId);
+        if (!entry || !window.PersonMenu) return;
+        const { person, relation } = entry;
+        window.PersonMenu.open(event, {
+            cbId: person.cbId, handle: person.handle, displayName: person.displayName, relation,
+        }, menuItemsFor(person, relation));
     }
 
     function renderFriendsSection() {
@@ -236,47 +313,39 @@
                 <div class="cb-create-handle cb-add-handle">
                     <span class="cb-create-at">@</span>
                     <input id="cb-add-input" class="cb-create-input" type="text" maxlength="32"
-                        placeholder="add a friend by handle" autocomplete="off" spellcheck="false" />
+                        placeholder="${escapeHtml(t('addByHandle'))}" autocomplete="off" spellcheck="false" />
                 </div>
                 <button id="cb-add-btn" class="cb-add-btn" type="button">${escapeHtml(t('add'))}</button>
             </div>
         `;
 
         let sections = '';
+        people.clear();
 
         if (friends.incoming.length) {
-            const rows = friends.incoming.map(p => personRow(p, `
-                <div class="friend-actions">
+            const rows = friends.incoming.map(p => personRow(p, 'incoming', `
                     <button class="friend-invite-btn" data-cb-accept="${escapeHtml(p.cbId)}">${escapeHtml(t('accept'))}</button>
-                    <button class="cb-ghost-btn" data-cb-decline="${escapeHtml(p.cbId)}">${escapeHtml(t('decline'))}</button>
-                </div>`)).join('');
+                    <button class="cb-ghost-btn" data-cb-decline="${escapeHtml(p.cbId)}">${escapeHtml(t('decline'))}</button>`)).join('');
             sections += `<div class="cb-section-head">${escapeHtml(t('requests'))} <span class="friends-group-count">${friends.incoming.length}</span></div>${rows}`;
         }
 
-        const online = friends.friends.filter(p => p.online);
-        const offline = friends.friends.filter(p => !p.online);
         if (friends.friends.length) {
-            const rowFor = p => personRow(p, friendActions(p));
-            sections += `<div class="cb-section-head">${escapeHtml(t('friends'))} <span class="friends-group-count">${friends.friends.length}</span></div>`;
-            sections += online.map(rowFor).join('') + offline.map(rowFor).join('');
+            const rows = sortByPresence(friends.friends).map(p => personRow(p, 'friend', friendActions(p))).join('');
+            sections += `<div class="cb-section-head">${escapeHtml(t('friends'))} <span class="friends-group-count">${friends.friends.length}</span></div>${rows}`;
         } else if (!friends.incoming.length && !friends.outgoing.length) {
             sections += `<div class="friends-empty" style="display:block">${escapeHtml(t('noFriends'))}</div>`;
         }
 
         if (friends.outgoing.length) {
-            const rows = friends.outgoing.map(p => personRow(p, `
-                <div class="friend-actions">
+            const rows = friends.outgoing.map(p => personRow(p, 'requested', `
                     <span class="cb-pending-label">${escapeHtml(t('pending'))}</span>
-                    <button class="cb-ghost-btn" data-cb-cancel="${escapeHtml(p.cbId)}">${escapeHtml(t('cancel'))}</button>
-                </div>`)).join('');
+                    <button class="cb-ghost-btn" data-cb-cancel="${escapeHtml(p.cbId)}">${escapeHtml(t('cancel'))}</button>`)).join('');
             sections += `<div class="cb-section-head">${escapeHtml(t('sent'))}</div>${rows}`;
         }
 
         if (playedWith.length) {
-            const rows = playedWith.map(p => personRow(p, `
-                <div class="friend-actions">
-                    <button class="friend-invite-btn" data-cb-add-handle="${escapeHtml(p.handle)}">${escapeHtml(t('add'))}</button>
-                </div>`)).join('');
+            const rows = playedWith.map(p => personRow(p, 'none', `
+                    <button class="friend-invite-btn" data-cb-add-handle="${escapeHtml(p.handle)}">${escapeHtml(t('add'))}</button>`)).join('');
             sections += `<div class="cb-section-head">${escapeHtml(t('playedWith'))} <span class="friends-group-count">${playedWith.length}</span></div>${rows}`;
         }
 
@@ -585,8 +654,8 @@
                     if (decline) return friendAction('cbfriends-decline', decline.getAttribute('data-cb-decline'));
                     const cancel = t.closest('[data-cb-cancel]');
                     if (cancel) return friendAction('cbfriends-cancel', cancel.getAttribute('data-cb-cancel'));
-                    const remove = t.closest('[data-cb-remove]');
-                    if (remove) return friendAction('cbfriends-remove', remove.getAttribute('data-cb-remove'));
+                    const more = t.closest('[data-cb-more]');
+                    if (more) return openRowMenu(event, more.getAttribute('data-cb-more'));
                     const join = t.closest('[data-cb-join]');
                     if (join) return friendAction('cbfriends-request-join', join.getAttribute('data-cb-join'));
                     const invite = t.closest('[data-cb-invite]');
@@ -597,8 +666,10 @@
                 panel.addEventListener('contextmenu', (event) => {
                     const el = event.target.closest('[data-person-id]');
                     if (!el || !window.PersonMenu) return;
+                    const cbId = el.getAttribute('data-person-id');
+                    if (people.has(cbId)) return openRowMenu(event, cbId);
                     window.PersonMenu.open(event, {
-                        cbId: el.getAttribute('data-person-id'),
+                        cbId,
                         handle: el.getAttribute('data-person-handle'),
                         displayName: el.getAttribute('data-person-name'),
                         relation: el.getAttribute('data-person-relation') || '',
