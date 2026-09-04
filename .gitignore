@@ -158,3 +158,5 @@ deps/discord_social_sdk
 
 CLAUDE.md
 .claude
+# Wrangler local dev state
+.wrangler/

@@ -1,14 +1,17 @@
-// Server browser service. UI-only phase: getServers() is the single seam where
-// real master-server fetching plugs in later (native command or worker call
-// keyed by GameUtils.getGameMapping); until then it serves generated mock data.
-// Fixtures are deterministic per game so ids stay stable across sessions and
-// favorites survive relaunches; only players/bots/ping change per refresh.
+// Server browser service. Live lists come from the servers worker (see
+// worker/servers, a 30s cache over gameserve.rs); ping is then measured
+// natively per user via the ping-servers command, since no API can know the
+// user's own latency. Preview mode (file://, localhost) serves deterministic
+// mock data instead so ids stay stable and favorites survive relaunches.
 //
-// Server: { id: 'ip:port', name, map, mode: 'mp'|'zm', gametype, players, maxPlayers, bots, ping, locked, region }
+// Server: { id: 'ip:port', name, map, mode: 'mp'|'zm', gametype, players, maxPlayers, bots, ping: ms|null, locked?, region, country?, countryName? }
 (function () {
     'use strict';
 
     const CAPABILITIES = {
+        cod1:      { modes: ['mp'] },
+        coduo:     { modes: ['mp'] },
+        cod2x:     { modes: ['mp'] },
         cod4x:     { modes: ['mp'] },
         t4:        { modes: ['mp', 'zm'] },
         t5:        { modes: ['mp', 'zm'] },
@@ -24,6 +27,11 @@
 
     const FAVORITES_KEY = 'cb_server_favorites';
     const VIEW_KEY = 'cb_server_view';
+
+    const SERVERS_API = 'https://servers.cbservers.xyz';
+    const PREVIEW_MODE = window.location.protocol === 'file:'
+        || window.location.hostname === 'localhost'
+        || window.location.hostname === '127.0.0.1';
 
     window.__serversMock = window.__serversMock || { latency: 600 };
 
@@ -48,7 +56,7 @@
 
     const NAME_HEADS = ['Frontline', 'Overwatch', 'Night Ops', 'Iron Sights', 'Warzone', 'Bulletworks', 'Ghost Division', 'Task Force', 'Vanguard', 'Redline', 'Sandbox', 'Old School'];
     const NAME_TAILS = ['24/7', 'EU Mix', 'NA Central', 'Hardcore', 'Vanilla', 'No Rules', 'Community', 'Ranked', 'Casual Nights', 'Sniper Lobby', 'FFA Madness', 'Stock Maps'];
-    const REGIONS = ['NA', 'EU', 'AS', 'OCE'];
+    const REGIONS = ['NA', 'SA', 'EU', 'AS', 'OCE', 'AF'];
     const REGION_POOL = ['NA', 'NA', 'EU', 'EU', 'AS', 'OCE'];
     const MAX_PLAYERS = [8, 12, 16, 18, 18, 24, 32];
 
@@ -118,8 +126,7 @@
         return server;
     }
 
-    async function getServers(game) {
-        if (!supports(game)) return [];
+    async function mockServers(game) {
         await delay();
 
         const count = 15 + (hash(game) % 12);
@@ -127,6 +134,33 @@
         for (let i = 0; i < count; i++) {
             servers.push(buildServer(game, i, mulberry32(hash(`${game}:${i}`))));
         }
+        return servers;
+    }
+
+    async function getServers(game) {
+        if (!supports(game)) return [];
+
+        if (PREVIEW_MODE && !window.__serversMock.api) {
+            return mockServers(game);
+        }
+
+        const api = window.__serversMock.api || SERVERS_API;
+        const res = await fetch(`${api}/v1/servers?game=${game}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const servers = Array.isArray(data.servers) ? data.servers : [];
+
+        // A failed probe just leaves pings null; the list is still useful.
+        try {
+            const pings = await window.executeCommand('ping-servers', { addresses: servers.map(server => server.id) });
+            servers.forEach(server => {
+                const ping = pings && pings[server.id];
+                server.ping = typeof ping === 'number' ? Math.round(ping) : null;
+            });
+        } catch (error) {
+            console.warn('Server ping probe failed', error);
+        }
+
         return servers;
     }
 

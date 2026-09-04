@@ -4471,6 +4471,7 @@ html[data-theme="dark"] .secondary-action:hover {
 }
 
 .server-ping { font-size: 12px; }
+.server-ping.is-off { color: var(--text-dim); }
 .server-ping.is-good { color: var(--play); }
 .server-ping.is-mid { color: var(--warn); }
 .server-ping.is-bad { color: var(--danger); }

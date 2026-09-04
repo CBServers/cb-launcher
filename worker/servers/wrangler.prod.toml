@@ -1,0 +1,10 @@
+# Production config (CB Servers account). Deployed with CLOUDFLARE_API_TOKEN.
+name = "servers"
+account_id = "bfdc73fed8c594eb5cd7f468be61e4f3"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+routes = [
+  { pattern = "servers.cbservers.xyz", custom_domain = true }
+]

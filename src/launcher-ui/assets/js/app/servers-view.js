@@ -52,6 +52,8 @@
         return selector ? panel.querySelector(selector) : panel;
     }
 
+    const hasPing = server => typeof server.ping === 'number';
+
     const LOCK_SVG = '<svg class="server-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
     const STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.95 5.98 6.6.96-4.78 4.66 1.13 6.58L12 17.57l-5.9 3.11 1.13-6.58-4.78-4.66 6.6-.96z"/></svg>';
 
@@ -186,15 +188,17 @@
                 && (!s.hideFull || server.players < server.maxPlayers)
                 && (!s.favoritesOnly || window.ServersService.isFavorite(gameId, server.id)))
             .sort((a, b) => {
-                if (s.sort === 'ping') return a.ping - b.ping;
+                const pingOf = server => hasPing(server) ? server.ping : Infinity;
+                if (s.sort === 'ping') return pingOf(a) - pingOf(b);
                 if (s.sort === 'name') return a.name.localeCompare(b.name);
-                return (b.players - a.players) || (a.ping - b.ping);
+                return (b.players - a.players) || (pingOf(a) - pingOf(b));
             });
     }
 
     function serverRowHTML(gameId, server) {
         const favorite = window.ServersService.isFavorite(gameId, server.id);
-        const pingClass = server.ping < 80 ? 'is-good' : server.ping < 150 ? 'is-mid' : 'is-bad';
+        const pinged = hasPing(server);
+        const pingClass = !pinged ? 'is-off' : server.ping < 80 ? 'is-good' : server.ping < 150 ? 'is-mid' : 'is-bad';
         const playersTitle = server.bots > 0 ? ` title="${escapeHtml(t('servers.bots', { count: server.bots }))}"` : '';
         return `
             <div class="server-row" data-server-id="${escapeHtml(server.id)}">
@@ -202,9 +206,9 @@
                 <div class="server-name">${server.locked ? `<span title="${escapeHtml(t('servers.passworded'))}">${LOCK_SVG}</span>` : ''}<span>${escapeHtml(server.name)}</span></div>
                 <span class="server-map">${escapeHtml(server.map)}</span>
                 <span class="server-mode"><span class="badge server-mode-badge">${escapeHtml(`${server.mode.toUpperCase()} · ${server.gametype.toUpperCase()}`)}</span></span>
-                <span class="server-region">${escapeHtml(server.region)}</span>
+                <span class="server-region"${server.countryName ? ` title="${escapeHtml(server.countryName)}"` : ''}>${escapeHtml(server.region)}</span>
                 <span class="server-players"${playersTitle}>${server.players}/${server.maxPlayers}</span>
-                <span class="server-ping ${pingClass}">${server.ping}ms</span>
+                <span class="server-ping ${pingClass}">${pinged ? `${server.ping}ms` : '—'}</span>
                 <button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>
             </div>`;
     }
