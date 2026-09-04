@@ -18,10 +18,12 @@ namespace commands::server_commands
         constexpr size_t MAX_ADDRESSES = 64;
         constexpr auto SWEEP_TIMEOUT = std::chrono::milliseconds(1200);
 
-        // Quake-derived clients answer this out-of-band info query. Clients that
-        // don't (boiii and the newer-title mods) simply never reply and report
-        // as null; per-protocol probes for them are a follow-up.
-        constexpr char PROBE[] = "\xff\xff\xff\xff" "getinfo xxx";
+        // Quake-derived clients answer the out-of-band getinfo query; Plutonium
+        // dropped that and answers a dedicated pingreq/pingres pair instead
+        // (captured from their client). Both probes go to every server and the
+        // first reply of either kind sets the latency.
+        constexpr char PROBE_GETINFO[] = "\xff\xff\xff\xff" "getinfo xxx";
+        constexpr char PROBE_PINGREQ[] = "\xff\xff\xff\xff" "pingreq";
 
         struct probe_target
         {
@@ -98,7 +100,8 @@ namespace commands::server_commands
                 auto& target = targets[i];
                 by_endpoint[endpoint_key(target.endpoint)] = i;
                 target.sent = std::chrono::steady_clock::now();
-                sendto(sock, PROBE, sizeof(PROBE) - 1, 0, reinterpret_cast<const sockaddr*>(&target.endpoint), sizeof(target.endpoint));
+                sendto(sock, PROBE_GETINFO, sizeof(PROBE_GETINFO) - 1, 0, reinterpret_cast<const sockaddr*>(&target.endpoint), sizeof(target.endpoint));
+                sendto(sock, PROBE_PINGREQ, sizeof(PROBE_PINGREQ) - 1, 0, reinterpret_cast<const sockaddr*>(&target.endpoint), sizeof(target.endpoint));
             }
 
             const auto deadline = std::chrono::steady_clock::now() + SWEEP_TIMEOUT;
