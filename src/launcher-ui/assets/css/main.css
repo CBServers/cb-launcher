@@ -5238,7 +5238,6 @@ html[data-theme="dark"] .secondary-action:hover {
     width: 52px;
     height: 52px;
     border-radius: 50%;
-    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5249,6 +5248,7 @@ html[data-theme="dark"] .secondary-action:hover {
 .cb-profile-avatar-img {
     width: 100%;
     height: 100%;
+    border-radius: 50%;
     object-fit: cover;
 }
 
@@ -5778,8 +5778,9 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 }
 
 /* The shared dot is absolutely positioned for avatar corners; inline here, or it escapes to the
-   card's own corner, which is the stray square that showed on every profile. */
-.cb-person-presence .friend-status-dot {
+   nearest positioned ancestor, the stray square at the page corner. */
+.cb-person-presence .friend-status-dot,
+.dm-row .friend-status-dot {
     position: static;
     width: 8px;
     height: 8px;

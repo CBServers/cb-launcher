@@ -97,9 +97,9 @@
         const chip = game && me.joinable ? `<span class="friend-chip" data-kind="joinable">${escapeHtml(t('joinable'))}</span>` : '';
         const sub = game ? matchContext(me) : '';
         const activity = game
-            ? `<div class="cb-profile-activity"><span class="friend-status-dot" data-status="online"></span>${escapeHtml(t("playing", { game: gameName(game) }))}${chip}</div>`
+            ? `<div class="cb-profile-activity">${escapeHtml(t("playing", { game: gameName(game) }))}${chip}</div>`
               + (sub ? `<div class="cb-profile-activity-sub">${escapeHtml(sub)}</div>` : '')
-            : `<div class="cb-profile-activity is-idle"><span class="friend-status-dot" data-status="idle"></span>${escapeHtml(t('online'))}</div>`;
+            : `<div class="cb-profile-activity is-idle">${escapeHtml(t('online'))}</div>`;
         return `
             <div class="cb-profile-card">
                 <div class="cb-profile-avatar">
