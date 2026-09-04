@@ -4394,7 +4394,10 @@ html[data-theme="dark"] .secondary-action:hover {
 .servers-head,
 .server-row {
     display: grid;
-    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px auto;
+    /* The head and each row are separate grids; an auto last track would size
+       to the Join button in rows but to nothing in the head, skewing every
+       fr column between them. Fixed width keeps both resolving identically. */
+    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px 100px;
     align-items: center;
     column-gap: 12px;
     padding: 8px 14px;
@@ -4476,7 +4479,7 @@ html[data-theme="dark"] .secondary-action:hover {
 .server-ping.is-mid { color: var(--warn); }
 .server-ping.is-bad { color: var(--danger); }
 
-.server-join-btn { padding: 5px 14px; }
+.server-join-btn { padding: 5px 14px; justify-self: end; }
 
 .servers-error { flex-direction: column; }
 
