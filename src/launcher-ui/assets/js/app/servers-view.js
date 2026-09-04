@@ -272,8 +272,37 @@
             });
         });
         host.querySelectorAll('.server-join-btn').forEach(button => {
-            button.addEventListener('click', () => window.showToast(t('servers.joinComingSoon'), 'info'));
+            button.addEventListener('click', () => joinServer(gameId, button.closest('.server-row').dataset.serverId));
         });
+    }
+
+    async function joinServer(gameId, id) {
+        const s = getState(gameId);
+        const server = (s.servers || []).find(entry => entry.id === id);
+        if (!server) return;
+
+        if (!s.caps.join) {
+            window.showToast(t('servers.joinComingSoon'), 'info');
+            return;
+        }
+
+        const gameState = window.GameStateManager && window.GameStateManager.gameStates[gameId];
+        if (!gameState || gameState.installStatus !== 'installed') {
+            window.showToast(t('servers.joinInstallFirst'), 'info');
+            if (window.showSetupFlow) window.showSetupFlow(gameId);
+            return;
+        }
+
+        try {
+            const result = await window.ServersService.joinServer(gameId, server);
+            if (!result || !result.success) {
+                throw new Error((result && result.error) || 'Failed to join the server.');
+            }
+            window.showToast(t('servers.joiningToast', { name: server.name }), 'info');
+        } catch (error) {
+            console.error(error);
+            window.showToast(String(error.message || error), 'error');
+        }
     }
 
     function renderUpdated(gameId) {

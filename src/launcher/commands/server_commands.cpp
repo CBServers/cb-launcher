@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "server_commands.hpp"
 #include "cef/cef_ui.hpp"
+#include "ipc/ipc_server.hpp"
 
 #include <chrono>
 #include <unordered_map>
@@ -142,8 +143,42 @@ namespace commands::server_commands
         }
     }
 
-    void register_commands(cef::cef_ui& cef_ui, command_context&)
+    void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
+        cef_ui.add_command("join-server", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto set_result = [&response](const bool success, const std::string& error = {})
+            {
+                response.SetObject();
+                auto& allocator = response.GetAllocator();
+                response.AddMember("success", success, allocator);
+                if (!error.empty())
+                {
+                    rapidjson::Value message{};
+                    message.SetString(error.data(), static_cast<rapidjson::SizeType>(error.size()), allocator);
+                    response.AddMember("error", message, allocator);
+                }
+            };
+
+            const auto config = ctx.get_game_config_from_request(value);
+            if (!config || config->id != "boiii")
+            {
+                set_result(false, "Joining is not supported for this game yet.");
+                return;
+            }
+
+            const std::string ip = value.HasMember("ip") && value["ip"].IsString() ? value["ip"].GetString() : "";
+            const auto port = value.HasMember("port") && value["port"].IsInt() ? value["port"].GetInt() : 0;
+            if (!parse_endpoint(ip + ":" + std::to_string(port)))
+            {
+                set_result(false, "Invalid server address.");
+                return;
+            }
+
+            ipc::ipc_server::instance().join_direct(config->id, ip, port);
+            set_result(true);
+        });
+
         cef_ui.add_command("ping-servers", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();

@@ -18,7 +18,7 @@
         iw4x:      { modes: ['mp'] },
         iw5:       { modes: ['mp'] },
         t6:        { modes: ['mp', 'zm'] },
-        boiii:     { modes: ['mp', 'zm'] },
+        boiii:     { modes: ['mp', 'zm'], join: true },
         iw6x:      { modes: ['mp'] },
         s1x:       { modes: ['mp'] },
         'h1-mod':  { modes: ['mp'] },
@@ -199,6 +199,15 @@
         return added;
     }
 
+    function joinServer(game, server) {
+        const separator = server.id.lastIndexOf(':');
+        return window.executeCommand('join-server', {
+            game: GameUtils.getGameMapping(game),
+            ip: server.id.slice(0, separator),
+            port: Number(server.id.slice(separator + 1))
+        });
+    }
+
     function getViewPrefs(game) {
         const prefs = readStore(VIEW_KEY)[game];
         return prefs && typeof prefs === 'object' ? prefs : {};
@@ -215,6 +224,7 @@
         REGIONS,
         supports,
         getServers,
+        joinServer,
         getFavorites,
         isFavorite,
         toggleFavorite,

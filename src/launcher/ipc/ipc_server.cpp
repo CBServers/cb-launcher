@@ -597,12 +597,19 @@ namespace ipc
                 return;
             }
 
+            this->dispatch_join(parsed->game_id, parsed->mode, parsed->t);
+        }
+
+        // Route a join transport to its game: connect a running fork in place, or stash and launch/relaunch
+        // so the fork's hello fires the connect. Shared by Discord accepts and server-browser joins.
+        void dispatch_join(const std::string& game_id, const std::string& mode, const join_secret::transport& t)
+        {
             // Stash the transport so the target fork's hello fires the connect; the deadline backstops a launch that never connects.
             const auto stash_pending_join = [&]
             {
                 this->pending_join.access([&](std::optional<pending_join_entry>& pj)
                 {
-                    pj = pending_join_entry{ parsed->game_id, parsed->t, parsed->mode,
+                    pj = pending_join_entry{ game_id, t, mode,
                         std::chrono::steady_clock::now() + std::chrono::minutes(10) };
                 });
             };
@@ -611,61 +618,61 @@ namespace ipc
             const auto ipc = this->connected.access<connected_state>([](const connected_state& c) { return c; });
             const auto running_id = commands::game_commands::tracked_game_id();
 
-            // A: the invited fork is already running and on IPC.
-            if (ipc.game == parsed->game_id)
+            // A: the target fork is already running and on IPC.
+            if (ipc.game == game_id)
             {
                 // Different non-switchable mode => stop + relaunch; otherwise connect in place. launch_mode is set only for fixed-mode forks.
-                const auto config = game_config::get_game_config_by_id(parsed->game_id);
-                const bool target_is_real_mode = config && !parsed->mode.empty()
-                    && config->mode_arguments.contains(parsed->mode);
+                const auto config = game_config::get_game_config_by_id(game_id);
+                const bool target_is_real_mode = config && !mode.empty()
+                    && config->mode_arguments.contains(mode);
                 const bool mode_known = !ipc.launch_mode.empty();
 
-                if (target_is_real_mode && mode_known && parsed->mode != ipc.launch_mode)
+                if (target_is_real_mode && mode_known && mode != ipc.launch_mode)
                 {
-                    utils::logger::write("[cbl-join] game '{}' running in mode '{}' but invite is '{}'; relaunching",
-                                         parsed->game_id, ipc.launch_mode, parsed->mode);
+                    utils::logger::write("[cbl-join] game '{}' running in mode '{}' but join is '{}'; relaunching",
+                                         game_id, ipc.launch_mode, mode);
                     stash_pending_join();
-                    commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
+                    commands::game_commands::relaunch_for_join(game_id, mode);
                     return;
                 }
 
-                utils::logger::write("[cbl-join] game '{}' already running; sending connect over pipe", parsed->game_id);
-                this->send_connect(parsed->t);
+                utils::logger::write("[cbl-join] game '{}' already running; sending connect over pipe", game_id);
+                this->send_connect(t);
                 return;
             }
 
-            // A2: the invited game holds the barrier but isn't on IPC yet (booting or mid-update); queue and let its hello complete the join.
-            if (running_id == parsed->game_id)
+            // A2: the target game holds the barrier but isn't on IPC yet (booting or mid-update); queue and let its hello complete the join.
+            if (running_id == game_id)
             {
                 utils::logger::write("[cbl-join] game '{}' launching/running but not on IPC yet; queueing connect",
-                                     parsed->game_id);
+                                     game_id);
                 stash_pending_join();
                 return;
             }
 
-            // B: a different game holds the barrier (other fork, or a non-fork game). Stop it and launch the invited game.
+            // B: a different game holds the barrier (other fork, or a non-fork game). Stop it and launch the target game.
             if (!running_id.empty())
             {
-                utils::logger::write("[cbl-join] game '{}' running but invite is for '{}'; switching games",
-                                     running_id, parsed->game_id);
+                utils::logger::write("[cbl-join] game '{}' running but join is for '{}'; switching games",
+                                     running_id, game_id);
                 stash_pending_join();
-                commands::game_commands::relaunch_for_join(parsed->game_id, parsed->mode);
+                commands::game_commands::relaunch_for_join(game_id, mode);
                 return;
             }
 
-            // A3: an untracked instance of the invited game is running (launcher restart / manual start); queue — its reconnect hello gets adopted and fires the connect.
-            if (game_config::is_game_process_running(parsed->game_id))
+            // A3: an untracked instance of the target game is running (launcher restart / manual start); queue — its reconnect hello gets adopted and fires the connect.
+            if (game_config::is_game_process_running(game_id))
             {
                 utils::logger::write("[cbl-join] game '{}' running unmanaged; queueing connect for its hello",
-                                     parsed->game_id);
+                                     game_id);
                 stash_pending_join();
                 return;
             }
 
             // C: nothing running: stash the transport and cold-launch; hello fires the connect.
-            utils::logger::write("[cbl-join] game '{}' not running; cold-launching then connecting", parsed->game_id);
+            utils::logger::write("[cbl-join] game '{}' not running; cold-launching then connecting", game_id);
             stash_pending_join();
-            commands::game_commands::launch_for_join(parsed->game_id, parsed->mode);
+            commands::game_commands::launch_for_join(game_id, mode);
         }
     };
 
@@ -744,6 +751,14 @@ namespace ipc
     void ipc_server::handle_join_secret(const std::string& secret)
     {
         this->impl_->handle_join_secret(secret);
+    }
+
+    void ipc_server::join_direct(const std::string& game_id, const std::string& ip, const int port)
+    {
+        join_secret::transport t{};
+        t.ip = ip;
+        t.port = port;
+        this->impl_->dispatch_join(game_id, {}, t);
     }
 
     void ipc_server::clear_pending_join()

@@ -100,6 +100,8 @@ function mockCommand(command, data) {
         }
         case 'ping-servers':
             return {};
+        case 'join-server':
+            return { success: true };
         case 'open-folder':
         case 'open-url':
             return true;
