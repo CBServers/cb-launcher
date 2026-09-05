@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <string>
 #include <optional>
 #include <vector>
@@ -44,6 +45,8 @@ namespace utils::cdn
 
         // Test latency to all configured servers
         latency_result test_all_latencies();
+        // Starts the probe in the background if it has not run; returns immediately.
+        void begin_latency_test();
 
         // Get/set the user's CDN preference
         cdn_region get_preference() const;
@@ -79,7 +82,8 @@ namespace utils::cdn
         cdn_region preference_{cdn_region::automatic};
         std::string custom_url_{};
         latency_result cached_latency_{};
-        bool latency_tested_{false};
+        std::atomic<bool> latency_tested_{false};
+        std::atomic<bool> latency_testing_{false};
 
         static constexpr const char* CDN_NA_URL = "https://cdn-na.cbservers.xyz/";
         static constexpr const char* CDN_EU_URL = "https://cdn-weu.cbservers.xyz/";

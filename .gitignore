@@ -160,3 +160,5 @@ CLAUDE.md
 .claude
 # Wrangler local dev state
 .wrangler/
+# Local cbfriends/relay dev store
+worker/*/kv.json

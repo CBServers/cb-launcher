@@ -1,4 +1,6 @@
 #include "cdn.hpp"
+
+#include <thread>
 #include "properties.hpp"
 #include "flags.hpp"
 
@@ -48,21 +50,9 @@ namespace utils::cdn
         case cdn_region::automatic:
         default:
 
-            // If we haven't tested, test latencies (never ping CDNs in offline mode)
-            if (!this->latency_tested_ && !flags::has_flag("offline"))
-            {
-                printf("Testing CDN server latencies...\n");
-                const auto result = this->test_all_latencies();
-                if (result.success)
-                {
-                    printf("CDN latency test complete. Recommended: %s\n",
-                        this->region_to_string(result.recommended).data());
-                }
-                else
-                {
-                    printf("CDN latency test failed, using default server\n");
-                }
-            }
+            // Probing every CDN takes seconds, and this is reached from UI command handlers, so it
+            // runs in the background and the caller gets the default until an answer exists.
+            this->begin_latency_test();
 
             // If we have cached latency results, use the recommended server
             if (this->latency_tested_ && this->cached_latency_.success)
@@ -115,6 +105,34 @@ namespace utils::cdn
 
         curl_easy_cleanup(curl);
         return latency;
+    }
+
+    // Runs the probe once, off the calling thread. Callers read the default until it lands.
+    void cdn_manager::begin_latency_test()
+    {
+        if (this->latency_tested_.load() || flags::has_flag("offline"))
+        {
+            return;
+        }
+
+        bool expected = false;
+        if (!this->latency_testing_.compare_exchange_strong(expected, true))
+        {
+            return; // already in flight
+        }
+
+        std::thread([this]
+        {
+            try
+            {
+                this->test_all_latencies();
+            }
+            catch (...)
+            {
+                // A failed probe just leaves the default in place.
+            }
+            this->latency_testing_ = false;
+        }).detach();
     }
 
     latency_result cdn_manager::test_all_latencies()

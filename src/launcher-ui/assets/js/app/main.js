@@ -310,6 +310,22 @@ async function initialize() {
                 window.DiscordFriendsManager.start();
             }
 
+            if (!window.IS_OFFLINE && window.CbFriendsManager) {
+                window.CbFriendsManager.start();
+            }
+
+            if (!window.IS_OFFLINE && window.CommunityManager) {
+                window.CommunityManager.startBadgePolling();
+            }
+
+            if (!window.IS_OFFLINE && window.ModerationManager) {
+                window.ModerationManager.start();
+            }
+
+            if (!window.IS_OFFLINE && window.DirectMessages) {
+                window.DirectMessages.start();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });
@@ -467,6 +483,18 @@ async function initializeNavigation() {
         friendsElement.addEventListener("click", handleFriendsClick);
     }
 
+    // Handle community navigation
+    const communityElement = document.querySelector("#community");
+    if (communityElement) {
+        communityElement.addEventListener("click", handleCommunityClick);
+    }
+
+    // Handle moderation navigation
+    const moderationElement = document.querySelector("#moderation");
+    if (moderationElement) {
+        moderationElement.addEventListener("click", handleModerationClick);
+    }
+
     // Handle game navigation
     const gameElements = document.querySelectorAll(".game-item");
     gameElements.forEach(el => {
@@ -584,6 +612,28 @@ function handleSettingsClick(e) {
     removeActiveNavigation();
     el.classList.add("active");
     loadNavigationPage("settings");
+}
+
+function handleCommunityClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("community");
+}
+
+function handleModerationClick(e) {
+    const el = this;
+    if (el.classList.contains("active")) {
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage("moderation");
 }
 
 function handleSupportClick(e) {
@@ -793,6 +843,15 @@ window.GameStateManager = {
 
         if (cardsNeedRefresh && window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
             window.AppViews.refreshActionButtons();
+        }
+
+        // Tell the CB social service what we're playing, only when it changes.
+        const activity = this.runningGameId || '';
+        if (activity !== this._lastCbActivity) {
+            this._lastCbActivity = activity;
+            if (!window.IS_OFFLINE && typeof window.executeCommand === 'function') {
+                window.executeCommand('cbfriends-set-activity', { game: activity }).catch(() => {});
+            }
         }
     },
 
@@ -1325,6 +1384,17 @@ window.addEventListener('cb-progress-tick', (event) => {
     }
 });
 
+// Hides the Community nav item, and leaves it if the user is standing on it.
+function applyCommunityVisible(visible) {
+    const nav = document.getElementById('community');
+    if (!nav) return;
+    nav.style.display = visible ? '' : 'none';
+    if (!visible && nav.classList.contains('active')) {
+        const home = document.getElementById('home');
+        if (home) home.click();
+    }
+}
+
 function loadNavigationPage(page) {
     console.log(`Loading page: ${page}`);
 
@@ -1341,8 +1411,12 @@ function loadNavigationPage(page) {
         return Promise.reject(`Page not found: ${page}-page`);
     }
 
-    // Use flex layout for settings page to anchor footer to bottom
-    targetPage.style.display = (page === 'settings') ? 'flex' : 'block';
+    // Flex for settings (footer anchored to the bottom) and community (chat column fills the height)
+    targetPage.style.display = (page === 'settings' || page === 'community') ? 'flex' : 'block';
+
+    // The community board only polls while its tab is open.
+    if (window.CommunityManager) window.CommunityManager.setActive(page === 'community');
+    if (window.ModerationManager) window.ModerationManager.setActive(page === 'moderation');
 
     // Initialize page-specific functionality
     if (page === 'settings') {
@@ -1974,6 +2048,17 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Community tab" setting
+        const communityEnabled = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.CB_COMMUNITY_ENABLED);
+        const communityToggle = document.getElementById('cb-community-toggle');
+        if (communityToggle) {
+            communityToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const target = (communityEnabled === 'false') ? 'false' : 'true';
+            const btn = communityToggle.querySelector(`[data-value="${target}"]`);
+            if (btn) btn.classList.add('active');
+        }
+        applyCommunityVisible(communityEnabled !== 'false');
+
         // Load "Desktop Notifications" setting
         const desktopNotifications = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS);
         const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
@@ -2397,6 +2482,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: clickedValue
                         });
                         console.log(`Reduce motion set to: ${clickedValue}`);
+                    } else if (settingId === 'cb-community-toggle') {
+                        applyCommunityVisible(clickedValue === 'true');
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.CB_COMMUNITY_ENABLED]: clickedValue
+                        });
                     } else if (settingId === 'desktop-notifications-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.DESKTOP_NOTIFICATIONS]: clickedValue

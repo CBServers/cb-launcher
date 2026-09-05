@@ -17,6 +17,7 @@
 #include <cmath>
 
 #include "discord/discord_service.hpp"
+#include "social/cbfriends_service.hpp"
 #include "ipc/ipc_server.hpp"
 #include "plutonium/plutonium.hpp"
 
@@ -231,6 +232,7 @@ namespace commands::game_commands
                 }
 
                 discord::discord_service::instance().clear_activity();
+                social::cbfriends_service::instance().clear_rich_activity();
                 clear_tracked_launch();
                 unlock_launch_barrier();
             }).detach();
@@ -624,22 +626,13 @@ namespace commands::game_commands
             ensure_launch_prerequisites(config);
 
             protect_iw3sp_mod_profiles(config);
-            // Delete d3d11.dll if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
+            // CB Extension retired; always strip a leftover d3d11.dll proxy from HMW installs
             if (game == "hmw")
             {
-                const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
-                const bool force_disable = utils::nt::is_wine_environment();
-                if (force_disable || (disable_ext && *disable_ext == "true"))
+                const auto dll_path = game_directory / "d3d11.dll";
+                if (utils::io::file_exists(dll_path))
                 {
-                    if (force_disable)
-                    {
-                        printf("[Wine] Disabling CB Extension (d3d11 proxy) - not compatible with Wine/Proton\n");
-                    }
-                    const auto dll_path = game_directory / "d3d11.dll";
-                    if (utils::io::file_exists(dll_path))
-                    {
-                        utils::io::remove_file(dll_path);
-                    }
+                    utils::io::remove_file(dll_path);
                 }
             }
 
@@ -1070,7 +1063,9 @@ namespace commands::game_commands
                 return;
             }
 
-            response.SetBool(game_config::is_game_process_running(config->id));
+            // Polled constantly by the UI; a snapshot up to a second old is plenty and keeps the
+            // process-table walk off the critical path for every game on screen.
+            response.SetBool(game_config::is_game_process_running(config->id, 1000));
         });
 
         cef_ui.add_command("stop-game", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)

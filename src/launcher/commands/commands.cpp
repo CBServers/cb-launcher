@@ -14,6 +14,7 @@
 #include "discord_commands.hpp"
 #include "mod_commands.hpp"
 #include "server_commands.hpp"
+#include "social_commands.hpp"
 
 namespace commands
 {
@@ -31,18 +32,16 @@ namespace commands
 
     std::vector<std::string> command_context::get_skip_files(
         const std::string& game,
-        const game_config::game_config_t& config) const
+        const game_config::game_config_t& /*config*/) const
     {
         std::vector<std::string> skip_files;
 
-        // Check if HMW and CB extension is disabled (or running under Wine, where d3d11 proxies don't work)
+        // CB Extension retired; d3d11.dll is never installed for HMW anymore
         if (game == "hmw")
         {
-            const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
-            if (utils::nt::is_wine_environment() || (disable_ext && *disable_ext == "true"))
-            {
-                skip_files.push_back("d3d11.dll");
-            }
+            //const auto disable_ext = config.get(property_keys::DISABLE_CB_EXTENSION);
+            //if (utils::nt::is_wine_environment() || (disable_ext && *disable_ext == "true"))
+            skip_files.push_back("d3d11.dll");
         }
 
         return skip_files;
@@ -115,7 +114,8 @@ namespace commands
         component_commands::register_commands(cef_ui, ctx);
         cdn_commands::register_commands(cef_ui, ctx);
         discord_commands::register_commands(cef_ui, ctx);
-    mod_commands::register_commands(cef_ui, ctx);
+        mod_commands::register_commands(cef_ui, ctx);
         server_commands::register_commands(cef_ui, ctx);
+        social_commands::register_commands(cef_ui, ctx);
     }
 }

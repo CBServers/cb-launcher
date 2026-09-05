@@ -203,6 +203,11 @@ class RedistPopupController {
     }
 
     hide() {
+        // Closing mid-install otherwise leaves the poller running for the rest of the session.
+        if (this.pollId) {
+            clearInterval(this.pollId);
+            this.pollId = null;
+        }
         this.backdrop.classList.remove('active');
         this.popup.classList.remove('active');
         setTimeout(() => { this.backdrop.style.display = 'none'; }, 250);

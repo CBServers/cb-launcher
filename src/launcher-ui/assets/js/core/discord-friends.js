@@ -302,6 +302,8 @@
             const list = document.getElementById('friends-list');
             if (list) {
                 list.addEventListener('click', (event) => {
+                    const moreBtn = event.target.closest('[data-friend-more]');
+                    if (moreBtn) { window.AppViews.openFriendMenu(event, moreBtn.getAttribute('data-friend-more')); return; }
                     const inviteBtn = event.target.closest('[data-invite-user]');
                     if (inviteBtn) { sendInvite(inviteBtn.getAttribute('data-invite-user')); return; }
                     const joinBtn = event.target.closest('[data-join-user]');
@@ -309,6 +311,10 @@
                         requestJoin(joinBtn.getAttribute('data-join-user'), joinBtn.getAttribute('data-game-id'),
                             joinBtn.getAttribute('data-knock') === '1');
                     }
+                });
+                list.addEventListener('contextmenu', (event) => {
+                    const row = event.target.closest('[data-friend-id]');
+                    if (row && window.AppViews) window.AppViews.openFriendMenu(event, row.getAttribute('data-friend-id'));
                 });
             }
 

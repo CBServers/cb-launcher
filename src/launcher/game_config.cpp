@@ -292,10 +292,10 @@ namespace game_config
         {
             this->set(property_keys::SKIP_INTRO_CINEMATIC, "");
         }
-        if (this->game_key == "hmw")
-        {
-            this->set(property_keys::DISABLE_CB_EXTENSION, "");
-        }
+        //if (this->game_key == "hmw")
+        //{
+        //    this->set(property_keys::DISABLE_CB_EXTENSION, "");
+        //}
         if (this->game_key == "cod1" || this->game_key == "coduo" || this->game_key == "cod2x")
         {
             this->set(property_keys::CUSTOM_RESOLUTION_ENABLED, "");
@@ -815,6 +815,37 @@ namespace game_config
             }
         },
         {
+            "ww2",
+            {
+                .game_key = "ww2",
+                .display_name = "World War II",
+                .id = "s2x",
+                .exe_name = "s2x.exe",
+                // Placeholder until an S2x payload is published; these 404 today.
+                .update_manifest_url = CLIENT_UPDATE_SERVER "s2x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "s2x/",
+                .manifest_path = "manifest/ww2.json",
+                .required_updater_files = {},
+                .valid_game_files = {"s2_mp64_ship.exe", "s2_sp64_ship.exe"},
+                // Without a mode flag s2x.exe opens its own picker and waits, so always pass one.
+                .mode_arguments = {
+                    {"mp", "-multiplayer"},
+                    {"sp", "-singleplayer"},
+                    {"zm", "-zombies"}
+                },
+                // S2x reads the player name from its own config, not argv.
+                .name_argument = "",
+                .base_folder = "ww2_game_files",
+                .base_properties_game = "",
+                .property_overrides = {},
+                .client_default_path = utils::properties::get_appdata_folder_path("s2x"),
+                .client_install_path_files = {"s2x.exe"},
+                .client_data_folders = {"data"},
+                // From the ship exe's imports: MSVCP140/VCRUNTIME140_1, and no d3dx, so no June 2010 DX.
+                .required_redists = {"vcr2022"}
+            }
+        },
+        {
             "mw2r",
             {
                 .game_key = "mw2r",
@@ -869,10 +900,14 @@ namespace game_config
                 .display_name = "HorizonMW",
                 .id = "hmw-mod",
                 .exe_name = "hmw-mod.exe",
-                .update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+                // CB Extension retired; empty urls make client_updater skip the download entirely
+                //.update_manifest_url = CLIENT_UPDATE_SERVER "h2m.json",
+                //.update_folder_url = CLIENT_UPDATE_SERVER "h2m/",
+                //.required_updater_files = {"d3d11.dll"},
+                .update_manifest_url = "",
+                .update_folder_url = "",
                 .manifest_path = "manifest/hmw.json",
-                .required_updater_files = {"d3d11.dll"},
+                .required_updater_files = {},
                 .valid_game_files = {"h1_mp64_ship.exe"},
                 .mode_arguments = {},
                 .name_argument = "+set name",
@@ -885,8 +920,8 @@ namespace game_config
                     {property_keys::DETECTED_COMPONENTS, "hmw"},
                     {property_keys::DETECTED_COMPONENTS_STAMP, "hmw"},
                     {property_keys::SELECTED_COMPONENTS, "hmw"},
-                    {property_keys::LAUNCH_OPTIONS, "hmw"},
-                    {property_keys::DISABLE_CB_EXTENSION, "hmw"}
+                    {property_keys::LAUNCH_OPTIONS, "hmw"}
+                    //, {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },
                 .client_data_folders = {},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
@@ -911,6 +946,7 @@ namespace game_config
         {"h1-mod", "mwr"},
         {"iw7-mod", "iw"},
         {"bo4", "bo4"},
+        {"s2x", "ww2"},
         {"mw2r", "mw2r"},
         {"hmw-mod", "hmw"}
     };
@@ -1161,7 +1197,7 @@ namespace game_config
         return false;
     }
 
-    bool is_game_process_running(const std::string& game)
+    bool is_game_process_running(const std::string& game, const unsigned int max_age_ms)
     {
         const auto config = get_game_config_by_id(game);
         if (!config)
@@ -1169,14 +1205,7 @@ namespace game_config
             return false;
         }
 
-        for (const auto& exe : config->collect_exes())
-        {
-            if (!exe.empty() && utils::nt::is_process_running(exe))
-            {
-                return true;
-            }
-        }
-        return false;
+        return utils::nt::is_any_process_running(config->collect_exes(), max_age_ms);
     }
 
     void reset_all_games()

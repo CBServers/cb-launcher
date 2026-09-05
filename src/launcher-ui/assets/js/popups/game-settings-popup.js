@@ -53,13 +53,6 @@ class GameSettingsPopup {
                             <button class="toggle-btn" data-value="true">ON</button>
                         </div>
                     </div>
-                    <div class="setting-item inline-setting" id="disable-cb-extension-row" style="display: none;">
-                        <label>Disable CB Extension</label>
-                        <div class="toggle-group small" id="disable-cb-extension-toggle">
-                            <button class="toggle-btn" data-value="false">OFF</button>
-                            <button class="toggle-btn" data-value="true">ON</button>
-                        </div>
-                    </div>
                     <div class="setting-item inline-setting" id="launch-admin-row">
                         <label>Launch as Administrator</label>
                         <div class="toggle-group small" id="launch-admin-toggle">
@@ -205,7 +198,6 @@ class GameSettingsPopup {
         this.popup.querySelector('label[for="play-behavior-select"]').textContent = this.t('popup.gameSettings.playButtonBehaviorLabel');
         this.popup.querySelector('#game-options-section h4').textContent = this.t('popup.gameSettings.gameOptions');
         this.popup.querySelector('#skip-intro-cinematic-row label').textContent = this.t('popup.gameSettings.skipIntroCinematic');
-        this.popup.querySelector('#disable-cb-extension-row label').textContent = this.t('popup.gameSettings.disableCbExtension');
         this.popup.querySelector('#launch-admin-row label').textContent = this.t('popup.gameSettings.launchAdmin');
         this.popup.querySelector('#player-section h4').textContent = this.t('popup.gameSettings.player');
         this.popup.querySelector('#player-name-override-row label').textContent = this.t('popup.gameSettings.playerNameOverride');
@@ -240,7 +232,6 @@ class GameSettingsPopup {
         const gameOptionsSection = this.popup.querySelector('#game-options-section');
         const playerSection = this.popup.querySelector('#player-section');
         const skipIntroRow = this.popup.querySelector('#skip-intro-cinematic-row');
-        const disableExtRow = this.popup.querySelector('#disable-cb-extension-row');
         const nameOverrideError = this.popup.querySelector('#player-name-override-error');
 
         if (game === 'bo3' || game === 'hmw') {
@@ -257,7 +248,6 @@ class GameSettingsPopup {
         const supportsName = this.gameConfig.supportsName === true;
 
         skipIntroRow.style.display = game === 'bo3' ? 'flex' : 'none';
-        disableExtRow.style.display = game === 'hmw' ? 'flex' : 'none';
 
         this.popup.querySelector('#custom-resolution-row').style.display = this.supportsCustomResolution() ? 'flex' : 'none';
         this.popup.querySelector('#custom-resolution-error').classList.remove('visible');
@@ -363,25 +353,7 @@ class GameSettingsPopup {
                     if (targetButton) {
                         targetButton.classList.add('active');
                     }
-                } else if (this.currentGame === 'hmw') {
-                    // Load HMW CB extension setting
-                    const disableExt = await window.executeCommand('get-game-property', {
-                        game: this.currentGame,
-                        suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION
-                    });
-                    const toggleGroup = this.popup.querySelector('#disable-cb-extension-toggle');
-                    const buttons = toggleGroup.querySelectorAll('.toggle-btn');
-
-                    // Remove active class from all buttons
-                    buttons.forEach(btn => btn.classList.remove('active'));
-
-                    // Set active button based on saved value
-                    const targetValue = disableExt === 'true' ? 'true' : 'false';
-                    const targetButton = toggleGroup.querySelector(`[data-value="${targetValue}"]`);
-                    if (targetButton) {
-                        targetButton.classList.add('active');
-                    }
-                } else {
+                } else if (this.currentGame !== 'hmw') {
                     // Load play behavior preference for other games
                     const savedBehavior = await window.executeCommand('get-game-property', {
                         game: this.currentGame,
@@ -524,16 +496,7 @@ class GameSettingsPopup {
                         suffix: PROPERTY_KEYS.GAME.SKIP_INTRO_CINEMATIC,
                         value: activeButton ? activeButton.dataset.value : 'false'
                     });
-                } else if (this.currentGame === 'hmw') {
-                    // Save HMW CB extension setting
-                    const toggleGroup = this.popup.querySelector('#disable-cb-extension-toggle');
-                    const activeButton = toggleGroup.querySelector('.toggle-btn.active');
-                    await window.executeCommand('set-game-property', {
-                        game: this.currentGame,
-                        suffix: PROPERTY_KEYS.GAME.DISABLE_CB_EXTENSION,
-                        value: activeButton ? activeButton.dataset.value : 'false'
-                    });
-                } else {
+                } else if (this.currentGame !== 'hmw') {
                     // Save play behavior preference for other games
                     const selectedBehavior = this.popup.querySelector('#play-behavior-select').value;
                     if (selectedBehavior === 'ask') {

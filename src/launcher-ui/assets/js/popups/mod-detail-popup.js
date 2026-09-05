@@ -101,6 +101,16 @@ class ModDetailPopup {
         this.render(body, detail);
     }
 
+    requiredItemsHTML(children) {
+        const total = children.reduce((sum, child) => sum + (Number(child.size) || 0), 0);
+        return `
+            <div class="mod-detail-required">
+                <strong>${this.esc(this.t('mods.requiredItems'))}</strong>
+                <span>${children.map(child => this.esc(child.title || child.id)).join(', ')}</span>
+                <small>${this.esc(this.t('mods.requiredItemsNote', { size: GameUtils.formatBytes(total) }))}</small>
+            </div>`;
+    }
+
     render(body, detail) {
         const images = [detail.preview, ...detail.screenshots].filter(Boolean);
         const heroSrc = this.esc(images[0]);
@@ -121,6 +131,7 @@ class ModDetailPopup {
                 ${votes ? `<span class="mod-detail-rating">${this.esc(this.t('mods.rating', { percent, votes: GameUtils.formatCount(votes) }))}</span>` : ''}
                 ${updated ? `<span>${this.esc(this.t('mods.updatedDate', { date: updated }))}</span>` : ''}
             </div>
+            ${Array.isArray(detail.children) && detail.children.length ? this.requiredItemsHTML(detail.children) : ''}
             <div class="mod-detail-desc">${this.bbcodeToHtml(detail.description) || this.esc(detail.title)}</div>
             <div class="popup-actions">
                 <button class="btn-cancel mod-detail-steam">${this.esc(this.t('mods.viewOnSteam'))}</button>

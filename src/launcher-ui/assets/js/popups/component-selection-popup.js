@@ -12,6 +12,7 @@ class ComponentSelectionPopup {
         this.availableSpace = 0;
         this.options = {};
         this.installPath = '';
+        this.detectionPoll = null; // detection watcher, cleared on close so it can't outlive the popup
         this.createPopup();
     }
 
@@ -171,7 +172,39 @@ class ComponentSelectionPopup {
         }, 10);
     }
 
+    // The detection watcher polls ten times a second, so leaving it running after the popup closes
+    // pins the UI thread for the rest of the session, and every reopen stacked another one.
+    stopDetectionPoll() {
+        if (this.detectionPoll) {
+            clearInterval(this.detectionPoll);
+            this.detectionPoll = null;
+        }
+    }
+
+    // Watches an in-flight detection, then hands the result back. Replaces any previous watcher.
+    watchDetection(onDone) {
+        this.stopDetectionPoll();
+        this.detectionPoll = setInterval(async () => {
+            let status;
+            try {
+                status = await window.executeCommand('get-component-detection-status', { game: this.currentGame });
+            } catch (error) {
+                return this.stopDetectionPoll();
+            }
+
+            if (status && status.active) return;
+            this.stopDetectionPoll();
+
+            const updatedInfo = await window.executeCommand('get-game-component-info', {
+                game: this.currentGame,
+                detectExisting: true
+            });
+            onDone(updatedInfo);
+        }, 250);
+    }
+
     hide() {
+        this.stopDetectionPoll();
         this.backdrop.classList.remove('active');
         this.popup.classList.remove('active');
 
@@ -201,26 +234,11 @@ class ComponentSelectionPopup {
                 // Show loading spinner and poll
                 this.showDetectionLoading();
 
-                const pollInterval = setInterval(async () => {
-                    const status = await window.executeCommand('get-component-detection-status', {
-                        game: this.currentGame
-                    });
-
-                    if (!status || !status.active) {
-                        // Detection complete
-                        clearInterval(pollInterval);
-
-                        // Reload component info to get detected results
-                        const updatedInfo = await window.executeCommand('get-game-component-info', {
-                            game: this.currentGame,
-                            detectExisting: true
-                        });
-
-                        this.installedComponents = updatedInfo.installed || [];
-                        this.hideDetectionLoading();
-                        this.finishLoadingComponents();
-                    }
-                }, 100); // Poll every 100ms
+                this.watchDetection((updatedInfo) => {
+                    this.installedComponents = (updatedInfo && updatedInfo.installed) || [];
+                    this.hideDetectionLoading();
+                    this.finishLoadingComponents();
+                });
             } else {
                 // Cache hit - instant response
                 this.installedComponents = componentInfo.installed || [];
@@ -391,26 +409,11 @@ class ComponentSelectionPopup {
             // Check if detection is in progress
             if (componentInfo.detectionInProgress) {
                 // Poll for completion
-                const pollInterval = setInterval(async () => {
-                    const status = await window.executeCommand('get-component-detection-status', {
-                        game: this.currentGame
-                    });
-
-                    if (!status || !status.active) {
-                        // Detection complete
-                        clearInterval(pollInterval);
-
-                        // Reload component info to get detected results
-                        const updatedInfo = await window.executeCommand('get-game-component-info', {
-                            game: this.currentGame,
-                            detectExisting: true
-                        });
-
-                        this.installedComponents = updatedInfo.installed || [];
-                        this.hideDetectionLoading();
-                        this.finishLoadingComponents();
-                    }
-                }, 100); // Poll every 100ms
+                this.watchDetection((updatedInfo) => {
+                    this.installedComponents = (updatedInfo && updatedInfo.installed) || [];
+                    this.hideDetectionLoading();
+                    this.finishLoadingComponents();
+                });
             } else {
                 // Instant response (shouldn't happen on force refresh, but handle it)
                 this.installedComponents = componentInfo.installed || [];

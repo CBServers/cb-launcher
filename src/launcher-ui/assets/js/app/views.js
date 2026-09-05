@@ -879,44 +879,23 @@
 
     const sizeBadgeFetched = new Set();
 
-    function waitForComponentDetection(backendId, timeoutMs = 30000) {
-        return new Promise(resolve => {
-            const start = Date.now();
-            const poll = setInterval(async () => {
-                if (Date.now() - start > timeoutMs) {
-                    clearInterval(poll);
-                    resolve();
-                    return;
-                }
-                try {
-                    const status = await window.executeCommand('get-component-detection-status', { game: backendId });
-                    if (!status || !status.active) {
-                        clearInterval(poll);
-                        resolve();
-                    }
-                } catch (e) {
-                    clearInterval(poll);
-                    resolve();
-                }
-            }, 300);
-        });
-    }
-
-    async function getDetectedComponentInfo(backendId) {
-        const info = await window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
-        if (!info || !info.detectionInProgress) return info;
-        await waitForComponentDetection(backendId);
-        return window.executeCommand('get-game-component-info', { game: backendId, detectExisting: true });
-    }
-
     async function fetchLibraryCardSize(card, gameId) {
         try {
-            const info = await getDetectedComponentInfo(GameUtils.getGameMapping(gameId));
+            // A size badge is not worth a scan of the whole install; take what detection already
+            // knows and let the background sweep fill the rest in.
+            const info = await window.executeCommand('get-game-component-info', {
+                game: GameUtils.getGameMapping(gameId),
+                detectExisting: true,
+                cacheOnly: true
+            });
             if (!info) return;
             const installed = info.installed || [];
             const sizes = info.sizes || {};
             const total = installed.reduce((sum, id) => sum + (sizes[id] || 0), 0);
-            if (total <= 0) return;
+            if (total <= 0) {
+                sizeBadgeFetched.delete(gameId); // nothing cached yet; try again after the sweep
+                return;
+            }
             const sizeEl = card.querySelector('[data-size-badge]');
             if (sizeEl) {
                 sizeEl.textContent = GameUtils.formatBytes(total);
@@ -1383,12 +1362,57 @@
         return t('friends.statusOffline');
     }
 
-    function friendActivityLabel(f) {
+    // Two lines like the CB list: the game, then whatever follows it in the details string.
+    function friendPresenceLines(f) {
         if (f.activityDetails) {
-            return f.activityState ? `${f.activityDetails} — ${f.activityState}` : f.activityDetails;
+            const cfg = f.gameId && window.GameUtils ? window.GameUtils.getGameConfigByUIId(f.gameId) : null;
+            const sep = f.activityDetails.indexOf(' - ');
+            const game = cfg ? cfg.displayName : (sep > 0 ? f.activityDetails.slice(0, sep) : f.activityDetails);
+            const parts = [];
+            if (sep > 0) parts.push(f.activityDetails.slice(sep + 3));
+            if (f.activityState) parts.push(f.activityState);
+            return { main: t('friends.playing', { game }), sub: parts.join(' · ') };
         }
-        if (f.inLauncher) return t('friends.inLauncher');
-        return friendStatusLabel(f.status);
+        if (f.inLauncher) return { main: t('friends.inLauncher'), sub: '' };
+        return { main: friendStatusLabel(f.status), sub: '' };
+    }
+
+    function friendChip(f) {
+        if (!f.activityDetails) return '';
+        if (f.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(t('friends.inYourMatch'))}</span>`;
+        if (f.joinable) return `<span class="friend-chip" data-kind="joinable">${escapeHtml(t('friends.joinable'))}</span>`;
+        if (f.openable) return `<span class="friend-chip" data-kind="open">${escapeHtml(t('friends.openMatch'))}</span>`;
+        return '';
+    }
+
+    // In-game first, then online or idle, then offline.
+    function friendRank(f) {
+        if (f.activityDetails) return 0;
+        return f.status === 'online' || f.status === 'idle' ? 1 : 2;
+    }
+
+    // Session actions for a Discord friend: join when live, invite greyed when we have nothing to invite to.
+    function friendMenuItems(f) {
+        const items = [];
+        const online = f.status === 'online' || f.status === 'idle';
+        if (f.sameMatch) return items;
+        if (f.joinable || f.openable) {
+            const knock = !f.joinable;
+            items.push({ label: t(knock ? 'friends.askToJoin' : 'friends.join'), action: () =>
+                window.DiscordFriendsManager.requestJoin(f.id, f.gameId || '', knock) });
+        }
+        if (online) {
+            items.push({ label: t('friends.invite'), disabled: !friendsState.joinable, action: () =>
+                window.DiscordFriendsManager.sendInvite(f.id) });
+        }
+        return items;
+    }
+
+    function openFriendMenu(event, id) {
+        const f = friendsState.friends.find(x => x.id === id);
+        if (!f || !window.PersonMenu || !window.DiscordFriendsManager) return;
+        const items = friendMenuItems(f);
+        if (items.length) window.PersonMenu.showMenuAt(event, items);
     }
 
     function friendInitials(name) {
@@ -1458,42 +1482,48 @@
         }
         if (empty) empty.style.display = 'none';
 
-        const online  = friends.filter(f => f.status === 'online' || f.status === 'idle');
-        const offline = friends.filter(f => f.status !== 'online' && f.status !== 'idle');
+        const sorted = friends.slice().sort((a, b) => friendRank(a) - friendRank(b));
+        const onlineCount = friends.filter(f => f.status === 'online' || f.status === 'idle').length;
 
-        const header = online.length === 0 ? '' : `
-            <div class="friends-group-head">${escapeHtml(t('friends.statusOnline'))} <span class="friends-group-count">${online.length}</span></div>
+        const header = onlineCount === 0 ? '' : `
+            <div class="friends-group-head">${escapeHtml(t('friends.statusOnline'))} <span class="friends-group-count">${onlineCount}</span></div>
         `;
         const canInvite = friendsState.joinable;
         // A friend can be both joinable (we ask to join them) and invitable (we're hosting too) —
         // show both buttons side by side rather than letting one override the other.
         const actionBtns = f => {
-            // Already in our match: joining would just reconnect and inviting is a no-op.
-            if (f.sameMatch) {
-                return `<div class="friend-actions"><span class="friend-same-match">${escapeHtml(t('friends.inYourMatch'))}</span></div>`;
-            }
             const btns = [];
-            if (f.joinable || f.openable) {
-                // Joinable (open match) auto-admits regardless of transport => "Join"; only a closed,
-                // openable match requires a real knock => "Ask to Join".
-                const joinLabel = f.joinable ? t('friends.join') : t('friends.askToJoin');
-                btns.push(`<button class="friend-join-btn" data-join-user="${escapeHtml(f.id)}" data-game-id="${escapeHtml(f.gameId || '')}" data-knock="${f.joinable ? '' : '1'}" title="${escapeHtml(joinLabel)}">${escapeHtml(joinLabel)}</button>`);
+            // Already in our match: joining would just reconnect and inviting is a no-op.
+            if (!f.sameMatch) {
+                if (f.joinable || f.openable) {
+                    // Joinable (open match) auto-admits regardless of transport => "Join"; only a closed,
+                    // openable match requires a real knock => "Ask to Join".
+                    const joinLabel = f.joinable ? t('friends.join') : t('friends.askToJoin');
+                    btns.push(`<button class="friend-join-btn" data-join-user="${escapeHtml(f.id)}" data-game-id="${escapeHtml(f.gameId || '')}" data-knock="${f.joinable ? '' : '1'}" title="${escapeHtml(joinLabel)}">${escapeHtml(joinLabel)}</button>`);
+                }
+                if (canInvite && (f.status === 'online' || f.status === 'idle')) {
+                    btns.push(`<button class="friend-invite-btn" data-invite-user="${escapeHtml(f.id)}" title="${escapeHtml(t('friends.invite'))}">${escapeHtml(t('friends.invite'))}</button>`);
+                }
             }
-            if (canInvite && (f.status === 'online' || f.status === 'idle')) {
-                btns.push(`<button class="friend-invite-btn" data-invite-user="${escapeHtml(f.id)}" title="${escapeHtml(t('friends.invite'))}">${escapeHtml(t('friends.invite'))}</button>`);
+            if (friendMenuItems(f).length) {
+                btns.push(`<button class="friend-more-btn" type="button" data-friend-more="${escapeHtml(f.id)}" title="${escapeHtml(t('friends.more'))}" aria-label="${escapeHtml(t('friends.more'))}">&#8943;</button>`);
             }
             return btns.length ? `<div class="friend-actions">${btns.join('')}</div>` : '';
         };
-        const rows = online.concat(offline).map(f => `
-            <div class="friend-row" data-status="${escapeHtml(f.status)}">
+        const rows = sorted.map(f => {
+            const lines = friendPresenceLines(f);
+            return `
+            <div class="friend-row" data-status="${escapeHtml(f.status)}" data-friend-id="${escapeHtml(f.id)}">
                 ${friendAvatar(f)}
                 <div class="friend-row-body">
-                    <div class="friend-name">${escapeHtml(f.displayName)}</div>
-                    <div class="friend-activity">${escapeHtml(friendActivityLabel(f))}</div>
+                    <div class="friend-name">${escapeHtml(f.displayName)}${friendChip(f)}</div>
+                    <div class="friend-activity">${escapeHtml(lines.main)}</div>
+                    ${lines.sub ? `<div class="friend-activity-sub">${escapeHtml(lines.sub)}</div>` : ''}
                 </div>
                 ${actionBtns(f)}
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         list.innerHTML = header + rows;
     }
@@ -1556,6 +1586,7 @@
     window.AppViews = {
         renderAll,
         activateDetailTab,
+        openFriendMenu,
         renderSidebarGames,
         renderHome,
         renderLibrary,

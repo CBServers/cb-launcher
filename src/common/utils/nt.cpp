@@ -6,6 +6,11 @@
 
 #include <utils/string.hpp>
 
+#include <mutex>
+#include <chrono>
+#include <algorithm>
+#include <vector>
+
 #include "finally.hpp"
 
 namespace utils::nt
@@ -453,6 +458,79 @@ namespace utils::nt
         }
 
         return std::filesystem::path(std::wstring(buffer, size));
+    }
+
+    namespace
+    {
+        std::mutex process_names_mutex;
+        std::vector<std::string> cached_process_names;
+        std::chrono::steady_clock::time_point cached_process_time{};
+
+        // Every running executable name, lowercased. One snapshot, reused by every name tested.
+        std::vector<std::string> snapshot_process_names()
+        {
+            std::vector<std::string> names;
+
+            HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+            if (snapshot == INVALID_HANDLE_VALUE)
+            {
+                return names;
+            }
+
+            PROCESSENTRY32 entry;
+            entry.dwSize = sizeof(PROCESSENTRY32);
+
+            if (Process32First(snapshot, &entry))
+            {
+                do
+                {
+                    names.push_back(string::to_lower(entry.szExeFile));
+                } while (Process32Next(snapshot, &entry));
+            }
+
+            CloseHandle(snapshot);
+            return names;
+        }
+    }
+
+    // Walks the process table once and tests every name against it. Callers used to ask per name,
+    // which meant a full system snapshot each time and hundreds of milliseconds on the UI thread.
+    // A polling caller can accept a recent snapshot; anything that acts on the answer passes 0.
+    bool is_any_process_running(const std::vector<std::string>& process_names, const unsigned int max_age_ms)
+    {
+        if (process_names.empty())
+        {
+            return false;
+        }
+
+        std::vector<std::string> running;
+        {
+            std::lock_guard lock(process_names_mutex);
+            const auto now = std::chrono::steady_clock::now();
+            const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - cached_process_time);
+            if (max_age_ms == 0 || cached_process_names.empty() || age.count() > static_cast<long long>(max_age_ms))
+            {
+                cached_process_names = snapshot_process_names();
+                cached_process_time = now;
+            }
+            running = cached_process_names;
+        }
+
+        for (const auto& wanted : process_names)
+        {
+            if (wanted.empty())
+            {
+                continue;
+            }
+
+            const auto lowered = string::to_lower(wanted);
+            if (std::find(running.begin(), running.end(), lowered) != running.end())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     bool is_process_running(const std::string& processName)

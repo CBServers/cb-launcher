@@ -160,6 +160,9 @@ namespace detection_service
 
         std::thread([config]
         {
+            // Detection is thousands of stats, so it runs at the same lowered thread and I/O
+            // priority the background sweep uses rather than competing with the UI thread.
+            SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
             try
             {
                 detect_and_store(config, false);
@@ -171,6 +174,7 @@ namespace detection_service
             {
                 printf("Component detection failed for %s: %s\n", config.game_key.data(), e.what());
             }
+            SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
 
             end(config.game_key);
         }).detach();

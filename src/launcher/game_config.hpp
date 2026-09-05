@@ -163,7 +163,9 @@ namespace game_config
     std::string get_exe_for_mode(const std::string& game, const std::string& mode);
     bool validate_game_path(const std::string& game, const std::filesystem::path& path);
     // OS-level check: any of the game's executables is running. `game` is the wire id (game_config.id).
-    bool is_game_process_running(const std::string& game);
+    // max_age_ms lets a polling caller reuse a recent process snapshot; 0 always takes a fresh one,
+    // which is what anything acting on the answer (such as the join flow) must use.
+    bool is_game_process_running(const std::string& game, unsigned int max_age_ms = 0);
     void reset_all_games();
 
     // Get the resolved base URL for a game config using the active CDN
