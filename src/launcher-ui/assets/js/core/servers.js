@@ -21,6 +21,7 @@
         boiii:     { modes: ['mp', 'zm'], join: true },
         iw6x:      { modes: ['mp'] },
         s1x:       { modes: ['mp'] },
+        'iw7-mod': { modes: ['mp'] },
         'h1-mod':  { modes: ['mp'] },
         'hmw-mod': { modes: ['mp'] }
     };
@@ -29,6 +30,8 @@
     const VIEW_KEY = 'cb_server_view';
 
     const SERVERS_API = 'https://servers.cbservers.xyz';
+    const PING_POLL_INTERVAL = 100;
+    const PING_POLL_TIMEOUT = 5000;
     const PREVIEW_MODE = window.location.protocol === 'file:'
         || window.location.hostname === 'localhost'
         || window.location.hostname === '127.0.0.1';
@@ -45,6 +48,7 @@
         boiii:     { mp: ['mp_apartments', 'mp_biodome', 'mp_sector', 'mp_stronghold', 'mp_metro'], zm: ['zm_zod', 'zm_castle', 'zm_island', 'zm_stalingrad', 'zm_genesis'] },
         iw6x:      { mp: ['mp_strikezone', 'mp_warhawk', 'mp_sovereign', 'mp_flooded', 'mp_prisonbreak'] },
         s1x:       { mp: ['mp_bio_lab', 'mp_comeback', 'mp_detroit', 'mp_greenband', 'mp_riot'] },
+        'iw7-mod': { mp: ['mp_breakneck', 'mp_frontier', 'mp_throwback', 'mp_genesis', 'mp_precinct'] },
         'h1-mod':  { mp: ['mp_crash', 'mp_crossfire', 'mp_shipment', 'mp_broadcast', 'mp_citystreets', 'mp_showdown'] },
         'hmw-mod': { mp: ['mp_rust', 'mp_terminal', 'mp_highrise', 'mp_quarry', 'mp_subbase', 'mp_estate'] }
     };
@@ -152,9 +156,9 @@
 
         // A failed probe just leaves pings null; the list is still useful.
         try {
-            const pings = await window.executeCommand('ping-servers', { addresses: servers.map(server => server.id) });
+            const pings = await pingServers(servers.map(server => server.id));
             servers.forEach(server => {
-                const ping = pings && pings[server.id];
+                const ping = pings[server.id];
                 server.ping = typeof ping === 'number' ? Math.round(ping) : null;
             });
         } catch (error) {
@@ -162,6 +166,20 @@
         }
 
         return servers;
+    }
+
+    // The native sweep runs on its own thread; start it, then poll until it reports done.
+    async function pingServers(addresses) {
+        const started = await window.executeCommand('ping-servers', { addresses });
+        if (!started || typeof started.job !== 'number') return {};
+
+        const deadline = Date.now() + PING_POLL_TIMEOUT;
+        while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, PING_POLL_INTERVAL));
+            const result = await window.executeCommand('get-ping-results', { job: started.job });
+            if (result && result.done) return result.pings || {};
+        }
+        return {};
     }
 
     function readStore(key) {

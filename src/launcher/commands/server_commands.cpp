@@ -3,7 +3,10 @@
 #include "cef/cef_ui.hpp"
 #include "ipc/ipc_server.hpp"
 
+#include <atomic>
 #include <chrono>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 
 // The precompiled std_include.hpp already pulls the classic winsock via
@@ -15,7 +18,9 @@ namespace commands::server_commands
 {
     namespace
     {
-        constexpr size_t MAX_ADDRESSES = 64;
+        constexpr size_t MAX_ADDRESSES = 512;
+        constexpr size_t MAX_JOBS = 8;
+        constexpr size_t SEND_BATCH = 32;
         constexpr auto SWEEP_TIMEOUT = std::chrono::milliseconds(1200);
 
         // Quake-derived clients answer the out-of-band getinfo query; Plutonium
@@ -32,6 +37,18 @@ namespace commands::server_commands
             std::chrono::steady_clock::time_point sent{};
             std::optional<double> latency_ms{};
         };
+
+        // Sweeps run on their own thread so the CEF IO thread never blocks on select();
+        // the frontend starts a job and polls it. `done` is the publication barrier for `targets`.
+        struct sweep_job
+        {
+            std::vector<probe_target> targets{};
+            std::atomic<bool> done{false};
+        };
+
+        std::mutex jobs_mutex{};
+        std::unordered_map<uint64_t, std::shared_ptr<sweep_job>> jobs{};
+        uint64_t next_job_id = 1;
 
         bool ensure_winsock()
         {
@@ -76,6 +93,27 @@ namespace commands::server_commands
             return (static_cast<uint64_t>(endpoint.sin_addr.s_addr) << 16) | endpoint.sin_port;
         }
 
+        void drain(const SOCKET sock, std::vector<probe_target>& targets, const std::unordered_map<uint64_t, size_t>& by_endpoint, size_t& pending)
+        {
+            char buffer[2048];
+            sockaddr_in from{};
+            auto from_size = static_cast<int>(sizeof(from));
+            while (recvfrom(sock, buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr*>(&from), &from_size) >= 0)
+            {
+                if (const auto it = by_endpoint.find(endpoint_key(from)); it != by_endpoint.end())
+                {
+                    auto& target = targets[it->second];
+                    if (!target.latency_ms)
+                    {
+                        target.latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - target.sent).count();
+                        --pending;
+                    }
+                }
+
+                from_size = static_cast<int>(sizeof(from));
+            }
+        }
+
         // One non-blocking socket serves every probe: replies are matched back to
         // their target by source address, and the first reply sets the latency.
         void sweep(std::vector<probe_target>& targets)
@@ -94,18 +132,32 @@ namespace commands::server_commands
             u_long non_blocking = 1;
             ioctlsocket(sock, FIONBIO, &non_blocking);
 
+            // Windows defaults to an 8 KB receive buffer; a few hundred getinfo replies would overflow it.
+            int rcvbuf = 4 * 1024 * 1024;
+            setsockopt(sock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&rcvbuf), sizeof(rcvbuf));
+
             std::unordered_map<uint64_t, size_t> by_endpoint{};
             for (size_t i = 0; i < targets.size(); ++i)
             {
+                by_endpoint[endpoint_key(targets[i].endpoint)] = i;
+            }
+
+            auto pending = targets.size();
+            for (size_t i = 0; i < targets.size(); ++i)
+            {
                 auto& target = targets[i];
-                by_endpoint[endpoint_key(target.endpoint)] = i;
                 target.sent = std::chrono::steady_clock::now();
                 sendto(sock, PROBE_GETINFO, sizeof(PROBE_GETINFO) - 1, 0, reinterpret_cast<const sockaddr*>(&target.endpoint), sizeof(target.endpoint));
                 sendto(sock, PROBE_PINGREQ, sizeof(PROBE_PINGREQ) - 1, 0, reinterpret_cast<const sockaddr*>(&target.endpoint), sizeof(target.endpoint));
+
+                // Drain between batches so early replies are timed as they land, not after the whole burst.
+                if ((i + 1) % SEND_BATCH == 0)
+                {
+                    drain(sock, targets, by_endpoint, pending);
+                }
             }
 
             const auto deadline = std::chrono::steady_clock::now() + SWEEP_TIMEOUT;
-            auto pending = targets.size();
             while (pending > 0)
             {
                 const auto remaining = std::chrono::duration_cast<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now()).count();
@@ -123,26 +175,48 @@ namespace commands::server_commands
                     break;
                 }
 
-                char buffer[2048];
-                sockaddr_in from{};
-                auto from_size = static_cast<int>(sizeof(from));
-                while (recvfrom(sock, buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr*>(&from), &from_size) >= 0)
-                {
-                    if (const auto it = by_endpoint.find(endpoint_key(from)); it != by_endpoint.end())
-                    {
-                        auto& target = targets[it->second];
-                        if (!target.latency_ms)
-                        {
-                            target.latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - target.sent).count();
-                            --pending;
-                        }
-                    }
-
-                    from_size = static_cast<int>(sizeof(from));
-                }
+                drain(sock, targets, by_endpoint, pending);
             }
 
             closesocket(sock);
+        }
+
+        uint64_t start_job(std::vector<probe_target> targets)
+        {
+            auto job = std::make_shared<sweep_job>();
+            job->targets = std::move(targets);
+
+            uint64_t id{};
+            {
+                std::lock_guard lock{jobs_mutex};
+                id = next_job_id++;
+                if (jobs.size() >= MAX_JOBS)
+                {
+                    jobs.erase(jobs.begin());
+                }
+                jobs[id] = job;
+            }
+
+            std::thread([job]
+            {
+                sweep(job->targets);
+                job->done.store(true, std::memory_order_release);
+            }).detach();
+
+            return id;
+        }
+
+        std::shared_ptr<sweep_job> find_job(const uint64_t id)
+        {
+            std::lock_guard lock{jobs_mutex};
+            const auto it = jobs.find(id);
+            return it == jobs.end() ? nullptr : it->second;
+        }
+
+        void forget_job(const uint64_t id)
+        {
+            std::lock_guard lock{jobs_mutex};
+            jobs.erase(id);
         }
     }
 
@@ -193,6 +267,7 @@ namespace commands::server_commands
             }
 
             std::vector<probe_target> targets{};
+            std::unordered_map<std::string, bool> seen{};
             for (const auto& entry : value["addresses"].GetArray())
             {
                 if (targets.size() >= MAX_ADDRESSES)
@@ -206,28 +281,47 @@ namespace commands::server_commands
                 }
 
                 const std::string address{entry.GetString(), entry.GetStringLength()};
-                const auto duplicate = std::any_of(targets.begin(), targets.end(), [&address](const probe_target& target) { return target.address == address; });
                 const auto endpoint = parse_endpoint(address);
-                if (!duplicate && endpoint)
+                if (endpoint && !std::exchange(seen[address], true))
                 {
                     targets.push_back({address, *endpoint});
                 }
             }
 
-            sweep(targets);
+            response.AddMember("job", start_job(std::move(targets)), allocator);
+        });
 
-            for (const auto& target : targets)
+        cef_ui.add_command("get-ping-results", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto id = value.IsObject() && value.HasMember("job") && value["job"].IsUint64() ? value["job"].GetUint64() : 0;
+            const auto job = find_job(id);
+            if (!job || !job->done.load(std::memory_order_acquire))
+            {
+                // An unknown job (evicted or never started) reports done with no pings so the caller stops polling.
+                response.AddMember("done", job == nullptr, allocator);
+                return;
+            }
+
+            rapidjson::Value pings(rapidjson::kObjectType);
+            for (const auto& target : job->targets)
             {
                 rapidjson::Value key(target.address.data(), static_cast<rapidjson::SizeType>(target.address.size()), allocator);
                 if (target.latency_ms)
                 {
-                    response.AddMember(key, *target.latency_ms, allocator);
+                    pings.AddMember(key, *target.latency_ms, allocator);
                 }
                 else
                 {
-                    response.AddMember(key, rapidjson::Value(rapidjson::kNullType), allocator);
+                    pings.AddMember(key, rapidjson::Value(rapidjson::kNullType), allocator);
                 }
             }
+
+            response.AddMember("done", true, allocator);
+            response.AddMember("pings", pings, allocator);
+            forget_job(id);
         });
     }
 }

@@ -280,7 +280,9 @@ function mockCommand(command, data) {
             return { success: index >= 0 };
         }
         case 'ping-servers':
-            return {};
+            return { job: 1 };
+        case 'get-ping-results':
+            return { done: true, pings: {} };
         case 'join-server':
             return { success: true };
         case 'open-folder':

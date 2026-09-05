@@ -146,6 +146,7 @@
             renderList(gameId);
         });
         panel.querySelector('.servers-refresh-btn').addEventListener('click', () => loadServers(gameId));
+        bindListEvents(gameId, panel.querySelector('.servers-list-host'));
 
         ensureTimers();
         if (s.servers === null || Date.now() - s.lastUpdated > STALE_MS) {
@@ -178,7 +179,7 @@
         renderList(gameId);
     }
 
-    function applyFilters(gameId, s) {
+    function applyFilters(gameId, s, favorites) {
         const needle = s.query.trim().toLowerCase();
         return s.servers
             .filter(server => (s.mode === 'all' || server.mode === s.mode)
@@ -186,7 +187,7 @@
                 && (!needle || server.name.toLowerCase().includes(needle) || server.map.toLowerCase().includes(needle))
                 && (!s.hideEmpty || server.players > 0)
                 && (!s.hideFull || server.players < server.maxPlayers)
-                && (!s.favoritesOnly || window.ServersService.isFavorite(gameId, server.id)))
+                && (!s.favoritesOnly || favorites.has(server.id)))
             .sort((a, b) => {
                 const pingOf = server => hasPing(server) ? server.ping : Infinity;
                 if (s.sort === 'ping') return pingOf(a) - pingOf(b);
@@ -195,8 +196,7 @@
             });
     }
 
-    function serverRowHTML(gameId, server) {
-        const favorite = window.ServersService.isFavorite(gameId, server.id);
+    function serverRowHTML(server, favorite) {
         const pinged = hasPing(server);
         const pingClass = !pinged ? 'is-off' : server.ping < 80 ? 'is-good' : server.ping < 150 ? 'is-mid' : 'is-bad';
         const playersTitle = server.bots > 0 ? ` title="${escapeHtml(t('servers.bots', { count: server.bots }))}"` : '';
@@ -234,9 +234,10 @@
             return;
         }
 
-        const shown = applyFilters(gameId, s);
+        const favorites = new Set(window.ServersService.getFavorites(gameId));
+        const shown = applyFilters(gameId, s, favorites);
         if (!shown.length) {
-            const noFavorites = s.favoritesOnly && !window.ServersService.getFavorites(gameId).length;
+            const noFavorites = s.favoritesOnly && !favorites.size;
             host.innerHTML = emptyHTML(noFavorites ? 'servers.noFavorites' : 'servers.noMatches');
             return;
         }
@@ -255,24 +256,33 @@
                     <span>${escapeHtml(t('servers.colPing'))}</span>
                     <span></span>
                 </div>
-                ${shown.map(server => serverRowHTML(gameId, server)).join('')}
+                ${shown.map(server => serverRowHTML(server, favorites.has(server.id))).join('')}
             </div>
         `;
+    }
 
-        host.querySelectorAll('.server-fav-btn').forEach(button => {
-            button.addEventListener('click', () => {
-                const id = button.closest('.server-row').dataset.serverId;
+    // One delegated listener per panel instead of two per row.
+    function bindListEvents(gameId, host) {
+        host.addEventListener('click', event => {
+            const row = event.target.closest('.server-row');
+            if (!row || !host.contains(row)) return;
+            const id = row.dataset.serverId;
+
+            const favButton = event.target.closest('.server-fav-btn');
+            if (favButton) {
                 const added = window.ServersService.toggleFavorite(gameId, id);
-                if (s.favoritesOnly) {
+                if (getState(gameId).favoritesOnly) {
                     renderList(gameId);
                     return;
                 }
-                button.classList.toggle('is-fav', added);
-                button.title = favTitle(added);
-            });
-        });
-        host.querySelectorAll('.server-join-btn').forEach(button => {
-            button.addEventListener('click', () => joinServer(gameId, button.closest('.server-row').dataset.serverId));
+                favButton.classList.toggle('is-fav', added);
+                favButton.title = favTitle(added);
+                return;
+            }
+
+            if (event.target.closest('.server-join-btn')) {
+                joinServer(gameId, id);
+            }
         });
     }
 

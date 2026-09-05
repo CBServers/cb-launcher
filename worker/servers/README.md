@@ -8,7 +8,7 @@ launcher owns its own schema in case the upstream changes.
 
 | Endpoint | Query | Response |
 |---|---|---|
-| `GET /v1/servers` | `game=<launcher key: cod1, coduo, cod2x, cod4x, t4, t5, iw4x, iw5, t6, boiii, iw6x, s1x, h1-mod, hmw-mod>` | `{ servers: [...], fetchedAt }` |
+| `GET /v1/servers` | `game=<launcher key: cod1, coduo, cod2x, cod4x, t4, t5, iw4x, iw5, t6, boiii, iw6x, s1x, iw7-mod, h1-mod, hmw-mod>` | `{ servers: [...], fetchedAt }` |
 
 Per server: `id` (`ip:port`), `name` (color codes stripped), `map` (display
 name), `mode` (`mp`/`zm`), `gametype`, `players`, `maxPlayers`, `bots`,

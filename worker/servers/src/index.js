@@ -27,6 +27,7 @@ const GAMES = {
     t6: ['T6', 'T6ZM'],
     boiii: ['T7'],
     iw6x: ['IW6'],
+    'iw7-mod': ['IW7'],
     s1x: ['S1'],
     'h1-mod': ['H1'],
     'hmw-mod': ['HMW', 'H2M'],
