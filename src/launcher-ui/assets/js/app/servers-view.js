@@ -179,7 +179,7 @@
         renderList(gameId);
     }
 
-    function applyFilters(gameId, s, favorites) {
+    function applyFilters(s, favorites) {
         const needle = s.query.trim().toLowerCase();
         return s.servers
             .filter(server => (s.mode === 'all' || server.mode === s.mode)
@@ -235,7 +235,7 @@
         }
 
         const favorites = new Set(window.ServersService.getFavorites(gameId));
-        const shown = applyFilters(gameId, s, favorites);
+        const shown = applyFilters(s, favorites);
         if (!shown.length) {
             const noFavorites = s.favoritesOnly && !favorites.size;
             host.innerHTML = emptyHTML(noFavorites ? 'servers.noFavorites' : 'servers.noMatches');

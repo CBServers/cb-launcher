@@ -192,7 +192,9 @@ namespace commands::server_commands
                 id = next_job_id++;
                 if (jobs.size() >= MAX_JOBS)
                 {
-                    jobs.erase(jobs.begin());
+                    // Ids are monotonic, so the smallest key is the oldest job.
+                    jobs.erase(std::min_element(jobs.begin(), jobs.end(),
+                        [](const auto& a, const auto& b) { return a.first < b.first; }));
                 }
                 jobs[id] = job;
             }
