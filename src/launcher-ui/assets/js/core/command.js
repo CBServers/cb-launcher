@@ -279,6 +279,12 @@ function mockCommand(command, data) {
             if (index >= 0) list.splice(index, 1);
             return { success: index >= 0 };
         }
+        case 'ping-servers':
+            return { job: 1 };
+        case 'get-ping-results':
+            return { done: true, pings: {} };
+        case 'join-server':
+            return { success: true };
         case 'open-folder':
         case 'open-url':
             return true;

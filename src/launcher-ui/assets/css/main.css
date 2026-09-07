@@ -4386,6 +4386,135 @@ html[data-theme="dark"] .secondary-action:hover {
     text-align: right;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   SERVERS TAB
+   ═══════════════════════════════════════════════════════════════ */
+
+.servers-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.servers-toolbar .search-field { width: 240px; }
+.servers-toolbar .filter-chips { flex: 1; }
+.servers-toolbar .cdn-select { min-width: 160px; }
+
+.servers-updated {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.servers-count {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.servers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.servers-head,
+.server-row {
+    display: grid;
+    /* The head and each row are separate grids; an auto last track would size
+       to the Join button in rows but to nothing in the head, skewing every
+       fr column between them. Fixed width keeps both resolving identically. */
+    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px 100px;
+    align-items: center;
+    column-gap: 12px;
+    padding: 8px 14px;
+}
+
+.servers-head {
+    padding-top: 0;
+    padding-bottom: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.server-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    /* Off-screen rows skip style/layout/paint; the intrinsic size keeps scroll height stable. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 61px;
+    transition: border-color 0.2s var(--ease);
+}
+
+.server-row:hover { border-color: var(--border-hi); }
+
+.server-fav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-dim);
+    transition: color 0.2s var(--ease);
+}
+
+.server-fav-btn svg { width: 15px; height: 15px; }
+.server-fav-btn:hover { color: var(--warn); }
+.server-fav-btn.is-fav { color: var(--warn); }
+
+.server-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.server-name > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-lock {
+    display: block;
+    width: 12px;
+    height: 12px;
+    color: var(--text-muted);
+}
+
+.server-map,
+.server-region,
+.server-players {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-ping { font-size: 12px; }
+.server-ping.is-off { color: var(--text-dim); }
+.server-ping.is-good { color: var(--play); }
+.server-ping.is-mid { color: var(--warn); }
+.server-ping.is-bad { color: var(--danger); }
+
+.server-join-btn { padding: 5px 14px; justify-self: end; }
+
+.servers-error { flex-direction: column; }
+
 /* ============================================================ */
 /* SUPPORT + SETTINGS REWORK                                    */
 /* ============================================================ */
@@ -6560,7 +6689,8 @@ html:not([data-theme]) .friends-group-count,
 html:not([data-theme]) .redist-badge,
 html:not([data-theme]) .mods-type-badge,
 html:not([data-theme]) .mods-update-badge,
-html:not([data-theme]) .mods-count {
+html:not([data-theme]) .mods-count,
+html:not([data-theme]) .server-mode-badge {
     border-radius: 2px;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -6582,7 +6712,14 @@ html:not([data-theme]) .mod-detail-meta,
 html:not([data-theme]) .mods-card-meta,
 html:not([data-theme]) .mods-row-progress,
 html:not([data-theme]) .mods-import-status,
-html:not([data-theme]) .mods-folders-hint code {
+html:not([data-theme]) .mods-folders-hint code,
+html:not([data-theme]) .servers-head,
+html:not([data-theme]) .servers-count,
+html:not([data-theme]) .servers-updated,
+html:not([data-theme]) .server-map,
+html:not([data-theme]) .server-region,
+html:not([data-theme]) .server-players,
+html:not([data-theme]) .server-ping {
     font-family: var(--font-mono);
 }
 
@@ -6661,7 +6798,9 @@ html:not([data-theme]) .component-selection-popup .component-install-path-sectio
 html:not([data-theme]) .settings-content .setting-item.inline-setting,
 html:not([data-theme]) .game-settings-item,
 html:not([data-theme]) .directory-row,
-html:not([data-theme]) .redist-row {
+html:not([data-theme]) .redist-row,
+html:not([data-theme]) .server-row,
+html:not([data-theme]) .server-fav-btn {
     border-radius: var(--radius-sm);
 }
 

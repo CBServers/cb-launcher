@@ -29,6 +29,9 @@ namespace ipc
         // Route an accepted invite's join secret: connect a running fork, or cold-launch then connect.
         void handle_join_secret(const std::string& secret);
 
+        // Server-browser join: same routing as a join secret, from a bare address.
+        void join_direct(const std::string& game_id, const std::string& ip, int port);
+
         // Drop any join queued for a not-yet-connected fork so a stale connect can't fire on a later hello.
         void clear_pending_join();
 

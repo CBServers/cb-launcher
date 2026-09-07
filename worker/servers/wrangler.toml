@@ -1,0 +1,5 @@
+# Staging / personal-account config. Production deploys use wrangler.prod.toml.
+name = "servers"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = true
