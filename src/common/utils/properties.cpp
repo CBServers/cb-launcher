@@ -59,15 +59,19 @@ namespace utils::properties
         }
     }
 
-    std::filesystem::path get_appdata_path()
+    std::filesystem::path get_portable_root()
     {
-        // -portable writes launcher data next to the exe instead of %LOCALAPPDATA%
-        if (flags::has_flag("portable"))
-        {
-            static auto portable = nt::library{}.get_folder() / "cbservers";
-            return portable;
-        }
+        static auto portable = nt::library{}.get_folder() / "cbservers";
+        return portable;
+    }
 
+    std::filesystem::path get_portable_marker()
+    {
+        return get_portable_root() / "portable.marker";
+    }
+
+    std::filesystem::path get_local_root()
+    {
         PWSTR path;
         if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
         {
@@ -85,6 +89,24 @@ namespace utils::properties
         static auto appdata = std::filesystem::path(path) / "cbservers";
 #endif
         return appdata;
+    }
+
+    bool is_portable()
+    {
+        // Decided once: the data root must not move mid-process.
+        static const bool portable = []
+        {
+            if (flags::has_flag("portable")) return true;
+            std::error_code ec;
+            return std::filesystem::exists(get_portable_marker(), ec);
+        }();
+        return portable;
+    }
+
+    std::filesystem::path get_appdata_path()
+    {
+        // Portable writes launcher data next to the exe instead of %LOCALAPPDATA%
+        return is_portable() ? get_portable_root() : get_local_root();
     }
 
     std::filesystem::path get_appdata_folder_path(const std::string& folder)

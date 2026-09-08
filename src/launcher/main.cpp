@@ -227,6 +227,9 @@ namespace
 
     void create_shortcuts()
     {
+        // Opt-out also skips the Start Menu link, which costs the user toast notifications.
+        if (utils::properties::load(property_keys::AUTO_SHORTCUTS) == "false") return;
+
         try
         {
             const auto launcher_path = utils::nt::library{}.get_path();
@@ -324,6 +327,10 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 #endif
 
         game_config::seed_legacy_client_selections();
+
+        // Persistent equivalents of -noupdate / -offline, settable from the Settings page.
+        if (utils::properties::load(property_keys::SKIP_SELF_UPDATE) == "true") utils::flags::add_flag("noupdate");
+        if (utils::properties::load(property_keys::OFFLINE_MODE) == "true") utils::flags::add_flag("offline");
 
         // Listen for forwarded deep links immediately so a link clicked mid-update isn't lost.
         deep_link::server deep_link_server{};

@@ -10,6 +10,8 @@
     let homeHeroControlsBound = false;
     let pinnedGameIds = [];
     let pinnedGamesLoaded = false;
+    let hiddenGameIds = [];
+    let hiddenGamesLoaded = false;
     let latestInstallationStates = [];
 
     function escapeHtml(value) {
@@ -84,6 +86,12 @@
     function gameDescriptionNote(config) {
         return window.LauncherI18n
             ? window.LauncherI18n.getGameText(config.uiId, 'descriptionNote', '')
+            : '';
+    }
+
+    function gameDescriptionWarning(config) {
+        return window.LauncherI18n
+            ? window.LauncherI18n.getGameText(config.uiId, 'descriptionWarning', '')
             : '';
     }
 
@@ -310,7 +318,7 @@
             .map(({ config, status }) => ({ config, status: status || 'not-setup' }));
 
         if (!homeHeroStates.length) {
-            homeHeroStates = GameUtils.getAllGameConfigs().map(config => ({
+            homeHeroStates = GameUtils.getAllGameConfigs().filter(config => !isHidden(config.uiId)).map(config => ({
                 config,
                 status: 'not-setup'
             }));
@@ -330,12 +338,14 @@
         const safeStates = Array.isArray(states) ? states : [];
         latestInstallationStates = safeStates;
 
-        renderHomeClientCards('home-ready-row', safeStates
-            .filter(({ config, status }) => config && status === 'installed')
+        const visibleStates = safeStates.filter(({ config }) => config && !isHidden(config.uiId));
+
+        renderHomeClientCards('home-ready-row', visibleStates
+            .filter(({ status }) => status === 'installed')
             .map(({ config }) => config));
 
         renderHomePinnedRow();
-        setHomeHeroStates(safeStates);
+        setHomeHeroStates(visibleStates);
     }
 
     async function loadPinnedGames() {
@@ -372,6 +382,66 @@
         return pinnedGameIds.includes(gameId);
     }
 
+    async function loadHiddenGames() {
+        if (hiddenGamesLoaded) return hiddenGameIds;
+        hiddenGamesLoaded = true;
+        if (typeof window.executeCommand !== 'function') return hiddenGameIds;
+
+        try {
+            const raw = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.HIDDEN_GAMES);
+            if (typeof raw === 'string' && raw.trim()) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    hiddenGameIds = parsed.filter(id => GameUtils.getGameConfigByUIId(id));
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load hidden games:', error);
+        }
+        return hiddenGameIds;
+    }
+
+    async function setHiddenGames(ids) {
+        hiddenGameIds = (ids || []).filter(id => GameUtils.getGameConfigByUIId(id));
+        hiddenGamesLoaded = true;
+        if (typeof window.executeCommand === 'function') {
+            try {
+                await window.executeCommand('set-property', {
+                    [PROPERTY_KEYS.LAUNCHER.HIDDEN_GAMES]: JSON.stringify(hiddenGameIds)
+                });
+            } catch (error) {
+                console.error('Failed to save hidden games:', error);
+            }
+        }
+        applyHiddenGames();
+    }
+
+    function isHidden(gameId) {
+        return hiddenGameIds.includes(gameId);
+    }
+
+    async function toggleHidden(gameId) {
+        if (!GameUtils.getGameConfigByUIId(gameId)) return;
+        await setHiddenGames(isHidden(gameId)
+            ? hiddenGameIds.filter(id => id !== gameId)
+            : [...hiddenGameIds, gameId]);
+    }
+
+    async function unhideGame(gameId) {
+        await loadHiddenGames();
+        if (isHidden(gameId)) await setHiddenGames(hiddenGameIds.filter(id => id !== gameId));
+    }
+
+    // Re-derive every surface that lists games from the current hidden set.
+    function applyHiddenGames() {
+        document.querySelectorAll('#library-grid .library-card[data-game]').forEach(card => {
+            card.dataset.hidden = isHidden(card.dataset.game) ? 'true' : 'false';
+        });
+        renderHomeFromStates(latestInstallationStates);
+        updateSidebarMyGames(window.__recentGamesSnapshot || []);
+        bindLibraryControls();
+    }
+
     async function togglePin(gameId) {
         if (!GameUtils.getGameConfigByUIId(gameId)) return;
 
@@ -391,6 +461,7 @@
         if (!section || !row) return;
 
         const configs = pinnedGameIds
+            .filter(id => !isHidden(id))
             .map(id => GameUtils.getGameConfigByUIId(id))
             .filter(Boolean);
 
@@ -443,7 +514,10 @@
         const orderIndex = new Map(GameUtils.GAME_ORDER.map((id, i) => [id, i]));
         const recencyIndex = new Map((recentIds || []).map((id, i) => [id, i]));
 
-        const installedItems = items.filter(it => installedGameIds.has(it.dataset.game || it.id));
+        const installedItems = items.filter(it => {
+            const id = it.dataset.game || it.id;
+            return installedGameIds.has(id) && !isHidden(id);
+        });
         installedItems.sort((a, b) => {
             const ai = recencyIndex.has(a.dataset.game) ? recencyIndex.get(a.dataset.game) : Infinity;
             const bi = recencyIndex.has(b.dataset.game) ? recencyIndex.get(b.dataset.game) : Infinity;
@@ -476,7 +550,7 @@
             status: 'not-setup'
         })));
 
-        loadPinnedGames().then(() => renderHomePinnedRow());
+        Promise.all([loadPinnedGames(), loadHiddenGames()]).then(() => renderHomePinnedRow());
     }
 
     function renderSidebarGames() {
@@ -628,6 +702,10 @@
             label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
             action: () => togglePin(gameId)
         });
+        items.push({
+            label: isHidden(gameId) ? t('common.unhideGame') : t('common.hideFromLibrary'),
+            action: () => toggleHidden(gameId)
+        });
         items.push({ label: t('common.gameDetails'), action: () => navigateTo(gameId) });
         return items;
     }
@@ -692,6 +770,7 @@
     function renderLibrary() {
         const grid = document.getElementById('library-grid');
         if (!grid) return;
+        loadHiddenGames().then(() => applyHiddenGames());
 
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => {
             const comingSoon = !!config.comingSoon;
@@ -705,7 +784,7 @@
                        <span data-action-label>${escapeHtml(t('common.install'))}</span>
                    </button>`;
             return `
-            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-search="${escapeHtml(`${config.displayName} ${config.client}`.toLowerCase())}">
+            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-client="${escapeHtml(config.clientKey)}" data-status="not-setup" data-hidden="${isHidden(config.uiId) ? 'true' : 'false'}" data-search="${escapeHtml(`${config.displayName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
                 ${comingSoon ? `<span class="library-card-soon-badge">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
                 <span class="library-card-player-pill" data-player-badge hidden>
@@ -799,6 +878,9 @@
     function cardMatchesFilter(card, filter) {
         const status = card.dataset.status;
         const client = card.dataset.client;
+        const hidden = card.dataset.hidden === 'true';
+        if (filter === 'hidden') return hidden;
+        if (hidden) return false;
         if (filter === 'all') return true;
         if (filter === 'installed') return status === 'installed';
         if (filter === 'not-installed') return status !== 'installed';
@@ -812,10 +894,20 @@
         const searchClear = document.getElementById('library-search-clear');
 
         function applyFilters() {
+            const cards = document.querySelectorAll('#library-grid .library-card:not(.library-card-empty)');
+            const hiddenChip = filters ? filters.querySelector('.chip[data-filter="hidden"]') : null;
+            if (hiddenChip) {
+                const hiddenCount = Array.from(cards).filter(card => card.dataset.hidden === 'true').length;
+                hiddenChip.hidden = hiddenCount === 0;
+                if (hiddenCount === 0 && hiddenChip.classList.contains('active')) {
+                    hiddenChip.classList.remove('active');
+                    const all = filters.querySelector('.chip[data-filter="all"]');
+                    if (all) all.classList.add('active');
+                }
+            }
             const active = filters ? filters.querySelector('.chip.active') : null;
             const filter = active ? active.dataset.filter : 'all';
             const term = search ? search.value.trim().toLowerCase() : '';
-            const cards = document.querySelectorAll('.library-card:not(.library-card-empty)');
             let visibleCount = 0;
 
             cards.forEach(card => {
@@ -945,6 +1037,7 @@
 
     async function refreshInstallationStates(checker) {
         const states = await getInstallationStates(checker);
+        await loadHiddenGames();
 
         installedGameIds = new Set(states
             .filter(s => s.status === 'installed')
@@ -1011,6 +1104,7 @@
                         <section class="description">
                             <strong>${escapeHtml(config.displayName)}</strong>
                             <p>${escapeHtml(gameDescription(config))}</p>
+                            ${gameDescriptionWarning(config) ? `<p class="description-warning">${escapeHtml(gameDescriptionWarning(config))}</p>` : ''}
                             ${gameDescriptionNote(config) ? `<p>${gameDescriptionNote(config)}</p>` : ''}
                             ${hasCredits ? `<br><strong>${escapeHtml(t('detail.credits'))}</strong><p>${credits}</p>` : ''}
                             ${hasProvider ? `<br><strong>${escapeHtml(t('detail.note'))}</strong><p>${t('detail.noteBody', { provider: escapeHtml(config.provider) })}</p>` : ''}
@@ -1604,6 +1698,9 @@
         updateGamePageInstallSize,
         navigateTo,
         updateSidebarMyGames,
+        isHidden,
+        setHiddenGames,
+        unhideGame,
         applyDownloadQueueInstallingState,
         refreshActionButtons: applyDownloadQueueInstallingState
     };

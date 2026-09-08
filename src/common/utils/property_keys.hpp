@@ -9,6 +9,10 @@ namespace property_keys
     constexpr const char* SKIP_REDIST_CHECK = "launcher-skip-redist-check";
     constexpr const char* SHORTCUT_CREATED = "launcher-shortcut-created";
     constexpr const char* START_MENU_SHORTCUT_CREATED = "launcher-start-menu-shortcut-created";
+    constexpr const char* AUTO_SHORTCUTS = "launcher-auto-shortcuts";
+    constexpr const char* SKIP_SELF_UPDATE = "launcher-skip-self-update";
+    constexpr const char* OFFLINE_MODE = "launcher-offline-mode";
+    constexpr const char* PORTABLE_MODE = "launcher-portable-mode";
     constexpr const char* DESKTOP_NOTIFICATIONS = "launcher-desktop-notifications";
     constexpr const char* REDUCE_MOTION = "launcher-reduce-motion";
     constexpr const char* CDN_PREFERENCE = "launcher-cdn-preference";

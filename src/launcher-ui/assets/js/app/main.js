@@ -209,12 +209,71 @@ function applyReduceMotion(enabled) {
 }
 
 function applyTheme(theme) {
+    const root = document.documentElement;
     if (theme === 'dark' || theme === 'navy' || theme === 'navy-gradient') {
-        document.documentElement.setAttribute('data-theme', theme);
+        root.setAttribute('data-theme', theme);
+        root.removeAttribute('data-accent');
     } else {
-        // Tactical is the bare :root baseline
-        document.documentElement.removeAttribute('data-theme');
+        // Tactical is the bare :root baseline; the MW variant only swaps the accent tokens
+        root.removeAttribute('data-theme');
+        if (theme === 'tactical-mw') root.setAttribute('data-accent', 'mw');
+        else root.removeAttribute('data-accent');
     }
+}
+
+// The restart button only shows when the stored toggle disagrees with the running state.
+function syncOfflineRestartButton(storedValue) {
+    const btn = document.getElementById('offline-restart-btn');
+    if (!btn) return;
+    const wantOffline = storedValue === 'true';
+    const isOffline = !!window.IS_OFFLINE;
+    btn.hidden = wantOffline === isOffline;
+    btn.textContent = t(wantOffline ? 'settings.restartOffline' : 'settings.restartOnline');
+    btn.onclick = async () => {
+        btn.disabled = true;
+        try { await window.executeCommand(wantOffline ? 'relaunch' : 'relaunch-online'); } catch (_) {}
+    };
+}
+
+function anyGameRunning() {
+    const gsm = window.GameStateManager;
+    const states = gsm && gsm.gameStates ? Object.values(gsm.gameStates) : [];
+    return states.some(s => s && s.isRunning);
+}
+
+function syncPortableRestartButton(storedValue) {
+    const btn = document.getElementById('portable-restart-btn');
+    if (!btn) return;
+    const wantPortable = storedValue === 'true';
+    btn.hidden = wantPortable === !!window.IS_PORTABLE;
+    btn.textContent = t(wantPortable ? 'settings.portableMoveAndRestart' : 'settings.portableMoveBackAndRestart');
+    btn.onclick = async () => {
+        if (wantPortable && !window.PORTABLE_WRITABLE) {
+            await window.showMessageBox(t('settings.portableMode'), t('settings.portableNotWritable'), [t('common.ok')]);
+            return;
+        }
+        if ((window.ProgressManager && window.ProgressManager.isActive) || anyGameRunning()) {
+            window.showToast(t('settings.portableBusy'), 'error');
+            return;
+        }
+        const choice = await window.showMessageBox(
+            t('settings.portableConfirmTitle'),
+            t('settings.portableConfirmBody'),
+            [t('common.cancel'), t('common.ok')]
+        );
+        if (choice !== 1) return;
+
+        btn.disabled = true;
+        try {
+            const res = await window.executeCommand('switch-portable', { portable: wantPortable });
+            if (!res || !res.success) {
+                btn.disabled = false;
+                window.showToast(t(res && res.error === 'not-writable' ? 'settings.portableNotWritable' : 'settings.portableFailed'), 'error');
+            }
+        } catch (_) {
+            // The process exits on success, so a dropped reply is the expected outcome.
+        }
+    };
 }
 
 function applyOfflineIndicator() {
@@ -242,6 +301,16 @@ async function initialize() {
         try {
             const res = await window.executeCommand('get-offline-mode');
             window.IS_OFFLINE = !!(res && res.offline);
+        } catch (_) {}
+    }
+
+    window.IS_PORTABLE = false;
+    window.PORTABLE_WRITABLE = true;
+    if (typeof window.executeCommand === 'function') {
+        try {
+            const res = await window.executeCommand('get-portable-mode');
+            window.IS_PORTABLE = !!(res && res.portable);
+            window.PORTABLE_WRITABLE = !res || res.writable !== false;
         } catch (_) {}
     }
 
@@ -1711,6 +1780,10 @@ async function handleDeepLink(url) {
         return;
     }
 
+    if (window.AppViews && typeof window.AppViews.unhideGame === 'function') {
+        await window.AppViews.unhideGame(uiId);
+    }
+
     try {
         await navigateToGamePage(uiId);
     } catch (e) {
@@ -2030,6 +2103,31 @@ async function loadLauncherSettings() {
             if (targetButton) {
                 targetButton.classList.add('active');
             }
+        }
+
+        // Load "Create launcher shortcuts" setting (default on)
+        const autoShortcuts = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS);
+        const autoShortcutsToggle = document.getElementById('auto-shortcuts-toggle');
+        if (autoShortcutsToggle) {
+            autoShortcutsToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const targetValue = (autoShortcuts === 'false') ? 'false' : 'true';
+            const targetButton = autoShortcutsToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) targetButton.classList.add('active');
+        }
+
+        for (const [toggleId, key] of [
+            ['skip-self-update-toggle', PROPERTY_KEYS.LAUNCHER.SKIP_SELF_UPDATE],
+            ['offline-mode-toggle', PROPERTY_KEYS.LAUNCHER.OFFLINE_MODE],
+            ['portable-mode-toggle', PROPERTY_KEYS.LAUNCHER.PORTABLE_MODE]
+        ]) {
+            const group = document.getElementById(toggleId);
+            if (!group) continue;
+            const value = await window.executeCommand('get-property', key);
+            group.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const targetButton = group.querySelector(`[data-value="${value === 'true' ? 'true' : 'false'}"]`);
+            if (targetButton) targetButton.classList.add('active');
+            if (toggleId === 'offline-mode-toggle') syncOfflineRestartButton(value);
+            if (toggleId === 'portable-mode-toggle') syncPortableRestartButton(value);
         }
 
         // Load "Skip Redistributable Check" setting
@@ -2476,6 +2574,25 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: clickedValue
                         });
                         console.log(`Skip redist check set to: ${clickedValue}`);
+                    } else if (settingId === 'skip-self-update-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.SKIP_SELF_UPDATE]: clickedValue
+                        });
+                    } else if (settingId === 'offline-mode-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.OFFLINE_MODE]: clickedValue
+                        });
+                        syncOfflineRestartButton(clickedValue);
+                    } else if (settingId === 'portable-mode-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.PORTABLE_MODE]: clickedValue
+                        });
+                        syncPortableRestartButton(clickedValue);
+                    } else if (settingId === 'auto-shortcuts-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS]: clickedValue
+                        });
+                        console.log(`Auto shortcuts set to: ${clickedValue}`);
                     } else if (settingId === 'reduce-motion-toggle') {
                         applyReduceMotion(clickedValue === 'true');
                         await window.executeCommand('set-property', {
@@ -2527,8 +2644,12 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS]: 'true',
+                    [PROPERTY_KEYS.LAUNCHER.SKIP_SELF_UPDATE]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.OFFLINE_MODE]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.HIDDEN_GAMES]: '[]',
                     [PROPERTY_KEYS.LAUNCHER.LANGUAGE]: 'en',
-                    [PROPERTY_KEYS.LAUNCHER.THEME]: 'dark',
+                    [PROPERTY_KEYS.LAUNCHER.THEME]: 'tactical',
                     [PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME]: '',
                     [PROPERTY_KEYS.LAUNCHER.CDN_CUSTOM_URL]: ''
                 });
@@ -2563,6 +2684,9 @@ async function handleResetAllSettings() {
                 applyReduceMotion(false);
                 const themeSelect = document.getElementById('theme-select');
                 if (themeSelect) themeSelect.value = 'tactical';
+                if (window.AppViews && typeof window.AppViews.setHiddenGames === 'function') {
+                    await window.AppViews.setHiddenGames([]);
+                }
 
                 // Reload settings page to show defaults
                 await refreshLocalizedUI('settings');
@@ -2755,6 +2879,15 @@ async function initializeSettingsPage() {
     const consoleBtn = document.getElementById('show-console-btn');
     if (consoleBtn) {
         consoleBtn.onclick = handleToggleConsole;
+    }
+
+    const cliBtn = document.getElementById('command-line-toggle-btn');
+    const cliList = document.getElementById('command-line-list');
+    if (cliBtn && cliList) {
+        cliBtn.onclick = () => {
+            cliList.hidden = !cliList.hidden;
+            cliBtn.textContent = t(cliList.hidden ? 'settings.commandLineShow' : 'settings.commandLineHide');
+        };
     }
 
     syncConsoleButtonLabel();

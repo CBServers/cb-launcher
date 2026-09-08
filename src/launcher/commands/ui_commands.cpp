@@ -5,6 +5,7 @@
 #include <utils/com.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 #include <utils/string.hpp>
 
 #include "redist/redist_installer.hpp"
@@ -270,9 +271,102 @@ namespace commands::ui_commands
             }
         });
 
+        // Copies the live data folder to the other root, skipping self-rebuilding caches, then
+        // flips the marker and restarts. Property values ride along, so "desired" travels with the data.
+        cef_ui.add_command("switch-portable", [](const rapidjson::Value& request, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const auto set_error = [&](const char* code)
+            {
+                response.AddMember("success", false, allocator);
+                response.AddMember("error", rapidjson::StringRef(code), allocator);
+            };
+
+            const bool to_portable = request.IsObject() && request.HasMember("portable") &&
+                                     request["portable"].IsBool() && request["portable"].GetBool();
+            if (to_portable == utils::properties::is_portable())
+            {
+                set_error("no-change");
+                return;
+            }
+
+            const auto src = utils::properties::get_appdata_path();
+            const auto dst = to_portable ? utils::properties::get_portable_root() : utils::properties::get_local_root();
+
+            static const std::vector<std::filesystem::path> skipped = {
+                std::filesystem::path("mods") / "steamcmd",
+                std::filesystem::path("user") / "cef-data",
+                std::filesystem::path("user") / "avatar-cache",
+            };
+
+            try
+            {
+                std::error_code ec;
+                std::filesystem::create_directories(dst, ec);
+                if (ec)
+                {
+                    set_error("not-writable");
+                    return;
+                }
+
+                for (auto it = std::filesystem::recursive_directory_iterator(src); it != std::filesystem::recursive_directory_iterator(); ++it)
+                {
+                    const auto rel = std::filesystem::relative(it->path(), src);
+                    const bool skip = rel.filename() == "portable.marker" || rel.extension() == ".log" ||
+                                      std::find(skipped.begin(), skipped.end(), rel) != skipped.end();
+                    if (skip)
+                    {
+                        if (it->is_directory()) it.disable_recursion_pending();
+                        continue;
+                    }
+
+                    const auto target = dst / rel;
+                    if (it->is_directory())
+                    {
+                        std::filesystem::create_directories(target);
+                    }
+                    else
+                    {
+                        std::filesystem::create_directories(target.parent_path());
+                        std::filesystem::copy_file(it->path(), target, std::filesystem::copy_options::overwrite_existing);
+                    }
+                }
+
+                const auto marker = utils::properties::get_portable_marker();
+                if (to_portable)
+                {
+                    if (!utils::io::write_file(marker, "")) throw std::runtime_error("marker");
+                }
+                else
+                {
+                    utils::io::remove_file(marker);
+                }
+            }
+            catch (const std::exception& e)
+            {
+                printf("switch-portable failed: %s\n", e.what());
+                set_error("copy-failed");
+                return;
+            }
+
+            response.AddMember("success", true, allocator);
+            utils::nt::relaunch_self("");
+            utils::nt::terminate();
+        });
+
+        // Fresh process with no flags; the stored offline/noupdate toggles decide the new mode.
+        cef_ui.add_command("relaunch", [](const auto&, rapidjson::Document& response)
+        {
+            response.SetBool(true);
+            utils::nt::relaunch_self("");
+            utils::nt::terminate();
+        });
+
         cef_ui.add_command("relaunch-online", [](const auto&, rapidjson::Document& response)
         {
             response.SetBool(true);
+            utils::properties::store(property_keys::OFFLINE_MODE, "false");
             utils::nt::relaunch_self(""); // empty args drops -offline
             utils::nt::terminate();
         });

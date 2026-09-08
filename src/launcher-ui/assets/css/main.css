@@ -7894,3 +7894,91 @@ html:not([data-theme]) .toast {
 .community-broadcast-title .community-live-dot {
     margin-right: 8px;
 }
+
+/* ============================================================ */
+/* TACTICAL MODERN WARFARE                                      */
+/* Same theme as Tactical Black Ops with the MW2 lime accent.   */
+/* ============================================================ */
+
+html:not([data-theme])[data-accent="mw"] {
+    --accent: #A4D233;
+    --accent-contrast: #0F1407;
+    --accent-soft: rgba(164, 210, 51, 0.22);
+    --accent-glow: rgba(164, 210, 51, 0.45);
+    --accent-deep: #7FA61E;
+    --accent-grad: linear-gradient(135deg, #A4D233 0%, #86B022 100%);
+
+    --play-glow: rgba(164, 210, 51, 0.4);
+    --shadow-glow: 0 0 24px rgba(164, 210, 51, 0.15);
+
+    --nav-active-bg: linear-gradient(135deg, rgba(164, 210, 51, 0.16), rgba(164, 210, 51, 0.05));
+    --nav-active-border: rgba(164, 210, 51, 0.4);
+    --chip-active-bg: rgba(164, 210, 51, 0.14);
+    --chip-active-border: rgba(164, 210, 51, 0.5);
+    --focus-border: rgba(164, 210, 51, 0.55);
+    --card-hover-border: rgba(164, 210, 51, 0.45);
+    --hero-tint: rgba(164, 210, 51, 0.08);
+    --interactive-hover-border: rgba(164, 210, 51, 0.35);
+    --link-hover: #BFE35C;
+    --checkbox-mark: #0F1407;
+}
+
+/* ── Uninstalled games render in black and white ── */
+.library-card:not(.is-installed):not(.is-coming-soon) .library-card-art {
+    filter: grayscale(1) brightness(0.9);
+}
+
+.library-card:not(.is-installed):not(.is-coming-soon):hover .library-card-art {
+    filter: grayscale(0) brightness(1.2) contrast(1.08);
+}
+
+.client-card.status-not-setup .client-card-art,
+.client-card.status-partial .client-card-art {
+    filter: grayscale(1) brightness(0.9);
+}
+
+.client-card.status-not-setup:hover .client-card-art,
+.client-card.status-partial:hover .client-card-art {
+    filter: grayscale(0) brightness(1.16) contrast(1.06);
+}
+
+/* ── Game page warning callout ── */
+.description .description-warning {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--warn-border, rgba(255, 178, 63, 0.35));
+    border-left: 3px solid var(--warn, #FFB23F);
+    border-radius: var(--radius);
+    background: var(--warn-soft, rgba(255, 178, 63, 0.12));
+    color: var(--text);
+}
+
+/* ── Settings: command line reference ── */
+.settings-content .setting-item.command-line-list {
+    padding: 0 0 4px 0;
+}
+
+.command-line-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.command-line-table td {
+    padding: 6px 10px 6px 0;
+    vertical-align: top;
+    border-top: 1px solid var(--border);
+}
+
+.command-line-table td:first-child {
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 18px;
+}
+
+.command-line-table code {
+    font-family: var(--font-mono, 'Consolas', monospace);
+    color: var(--accent);
+    font-size: 12px;
+}

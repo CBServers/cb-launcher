@@ -69,6 +69,10 @@ function mockCommand(command, data) {
             return 'main';
         case 'get-property':
             return null;
+        case 'get-portable-mode':
+            return { portable: false, writable: true };
+        case 'switch-portable':
+            return { success: true };
         case 'get-game-property':
             return data && data.suffix === PROPERTY_KEYS.GAME.IS_INSTALLED ? 'false' : '';
         case 'is-game-running':

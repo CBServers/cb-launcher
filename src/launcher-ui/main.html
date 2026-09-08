@@ -186,6 +186,7 @@
                             <span class="chip" data-filter="alterware" data-i18n="library.filterAlterWare">AlterWare</span>
                             <span class="chip" data-filter="aurora" data-i18n="library.filterAurora">Aurora</span>
                             <span class="chip" data-filter="others" data-i18n="library.filterOthers">Others</span>
+                            <span class="chip" data-filter="hidden" data-i18n="library.filterHidden" hidden>Hidden</span>
                         </div>
                         <div class="search-field">
                             <input type="text" id="library-search" data-i18n-placeholder="library.searchPlaceholder" placeholder="Search clients..." />
@@ -327,7 +328,7 @@
                         </section>
 
                         <section class="settings-section">
-                            <h3 data-i18n="settings.launcher">Launcher</h3>
+                            <h3 data-i18n="settings.appearance">Appearance</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label data-i18n="settings.language">Language</label>
@@ -349,7 +350,8 @@
                                 </div>
                                 <div class="cdn-control">
                                     <select class="cdn-select" id="theme-select">
-                                        <option value="tactical" data-i18n="settings.themeTactical">Tactical</option>
+                                        <option value="tactical" data-i18n="settings.themeTactical">Tactical Black Ops</option>
+                                        <option value="tactical-mw" data-i18n="settings.themeTacticalMw">Tactical Modern Warfare</option>
                                         <option value="dark" data-i18n="settings.themeDark">Dark</option>
                                         <option value="navy" data-i18n="settings.themeNavy">Navy Dark</option>
                                         <option value="navy-gradient" data-i18n="settings.themeNavyGradient">Navy Gradient</option>
@@ -366,6 +368,10 @@
                                     <button class="toggle-btn" data-value="true">ON</button>
                                 </div>
                             </div>
+                        </section>
+
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.launcher">Launcher</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label>Community tab</label>
@@ -388,6 +394,16 @@
                             </div>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
+                                    <label data-i18n="settings.autoShortcuts">Create launcher shortcuts</label>
+                                    <span class="setting-description" data-i18n="settings.autoShortcutsBody">Keeps a Desktop and Start Menu shortcut for the launcher. Turning this off also stops Windows notifications, since they are delivered through the Start Menu shortcut.</span>
+                                </div>
+                                <div class="toggle-group small" id="auto-shortcuts-toggle">
+                                    <button class="toggle-btn" data-value="false">OFF</button>
+                                    <button class="toggle-btn active" data-value="true">ON</button>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
                                     <label data-i18n="settings.closeLauncherAfterLaunch">Close launcher after game launch</label>
                                     <span class="setting-description" data-i18n="settings.closeLauncherAfterLaunchBody">When enabled, the launcher will automatically close after launching a game.</span>
                                 </div>
@@ -396,6 +412,69 @@
                                     <button class="toggle-btn" data-value="true">ON</button>
                                 </div>
                             </div>
+                        </section>
+
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.startup">Startup</h3>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.skipSelfUpdate">Skip launcher update on startup</label>
+                                    <span class="setting-description" data-i18n="settings.skipSelfUpdateBody">When enabled, the launcher will not update itself on startup. Same as the -noupdate flag. Takes effect the next time the launcher starts.</span>
+                                </div>
+                                <div class="toggle-group small" id="skip-self-update-toggle">
+                                    <button class="toggle-btn active" data-value="false">OFF</button>
+                                    <button class="toggle-btn" data-value="true">ON</button>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.offlineMode">Offline mode</label>
+                                    <span class="setting-description" data-i18n="settings.offlineModeBody">When enabled, the launcher starts without updates, Discord or CB Friends. Same as the -offline flag. Takes effect the next time the launcher starts.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <button class="settings-action-btn" id="offline-restart-btn" hidden></button>
+                                    <div class="toggle-group small" id="offline-mode-toggle">
+                                    <button class="toggle-btn active" data-value="false">OFF</button>
+                                    <button class="toggle-btn" data-value="true">ON</button>
+                                </div>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.portableMode">Portable mode</label>
+                                    <span class="setting-description" data-i18n="settings.portableModeBody">Keeps launcher data and settings in a cbservers folder next to the launcher exe instead of AppData. Same as the -portable flag. Switching copies your data to the new location and restarts the launcher.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <button class="settings-action-btn" id="portable-restart-btn" hidden></button>
+                                    <div class="toggle-group small" id="portable-mode-toggle">
+                                        <button class="toggle-btn active" data-value="false">OFF</button>
+                                        <button class="toggle-btn" data-value="true">ON</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label data-i18n="settings.commandLine">Command line arguments</label>
+                                    <span class="setting-description" data-i18n="settings.commandLineBody">Flags the launcher accepts when started from a shortcut or terminal.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <button class="settings-action-btn" id="command-line-toggle-btn" data-i18n="settings.commandLineShow">Show</button>
+                                </div>
+                            </div>
+                            <div class="setting-item command-line-list" id="command-line-list" hidden>
+                                <table class="command-line-table">
+                                    <tr><td><code>-launch &lt;game&gt;</code></td><td data-i18n="settings.cliLaunch">Launch a game on startup (cod4, waw, mw2, bo1, mw3, bo2, cod2, or any library id)</td></tr>
+                                    <tr><td><code>-mode &lt;sp|mp|zm|sv&gt;</code></td><td data-i18n="settings.cliMode">Mode to use with -launch</td></tr>
+                                    <tr><td><code>-install &lt;game&gt;</code></td><td data-i18n="settings.cliInstall">Open the setup flow for a game on startup</td></tr>
+                                    <tr><td><code>-noupdate</code></td><td data-i18n="settings.cliNoUpdate">Skip the launcher self-update check</td></tr>
+                                    <tr><td><code>-offline</code></td><td data-i18n="settings.cliOffline">Start without network features (no updates, Discord or social)</td></tr>
+                                    <tr><td><code>-portable</code></td><td data-i18n="settings.cliPortable">Keep data and settings next to the launcher exe</td></tr>
+                                </table>
+                            </div>
+                        </section>
+
+                        <section class="settings-section">
+                            <h3 data-i18n="settings.advanced">Advanced</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
                                     <label data-i18n="settings.skipHashVerification">Skip hash verification</label>

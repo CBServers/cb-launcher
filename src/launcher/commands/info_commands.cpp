@@ -4,6 +4,7 @@
 
 #include <utils/flags.hpp>
 #include <utils/properties.hpp>
+#include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <game_config.hpp>
 #include <version.hpp>
@@ -131,6 +132,26 @@ namespace commands::info_commands
             response.SetObject();
             auto& allocator = response.GetAllocator();
             response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
+        });
+
+        cef_ui.add_command("get-portable-mode", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("portable", utils::properties::is_portable(), allocator);
+
+            // Can we write next to the exe at all? Program Files says no without elevation.
+            bool writable = false;
+            try
+            {
+                const auto probe = utils::nt::library{}.get_folder() / ".cb-write-probe";
+                writable = utils::io::write_file(probe, "");
+                if (writable) utils::io::remove_file(probe);
+            }
+            catch (...)
+            {
+            }
+            response.AddMember("writable", writable, allocator);
         });
 
         cef_ui.add_command("check-launcher-update", [](const rapidjson::Value&, rapidjson::Document& response)
