@@ -218,6 +218,9 @@ namespace social
         // The game we're currently in, or "" when idle. Published on the presence heartbeat.
         void set_activity(const std::string& game);
 
+        // The backend the frontend should read public stats from; honours -cbfriends-url.
+        std::string get_base_url() const { return base_url(); }
+
         // Fired when the friends snapshot changes, so the IPC layer can re-push it to a fork.
         void set_friends_changed_callback(std::function<void()> callback);
 
@@ -343,6 +346,8 @@ namespace social
         void refresh_lfg();
         // A goodbye beat drops our presence server-side instead of letting it age out.
         void send_presence(bool bye = false);
+        // Anonymous stand-in for the beat while there is no profile; feeds the player counts only.
+        void send_pulse(bool bye = false);
         void send_broadcast_keepalive();
         void load_broadcast();
         void poll_invites();

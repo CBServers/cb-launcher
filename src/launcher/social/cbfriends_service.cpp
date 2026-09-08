@@ -234,13 +234,15 @@ namespace social
             profile_json = utils::properties::load(property_keys::CB_PROFILE);
         }
 
+        // The worker needs the keypair loaded to sign this session's requests, and a launcher with
+        // no profile still signs its anonymous pulse with it.
+        identity::instance().ensure();
+
         if (account_id.empty() || !profile_json || profile_json->empty())
         {
+            ensure_worker();
             return;
         }
-
-        // The worker needs the keypair loaded to sign this session's requests.
-        identity::instance().ensure();
 
         rapidjson::Document doc;
         doc.Parse(profile_json->c_str());
@@ -570,6 +572,10 @@ namespace social
             send_presence(true);
             post_signed(base_url() + "/v1/lfg/clear", ts_body(), 3);
         }
+        else
+        {
+            send_pulse(true);
+        }
 
         // A listing lasts the session. Without this, load_broadcast() re-posts it on next launch
         // and closing the app only ever looks like it cleared.
@@ -644,6 +650,15 @@ namespace social
                     refresh_mod_queue();
                 }
             }
+            else
+            {
+                const auto now = static_cast<int64_t>(std::time(nullptr));
+                if (now - last_presence_.load() >= 30)
+                {
+                    last_presence_ = now;
+                    send_pulse();
+                }
+            }
 
             // Interruptible sleep so stop() returns promptly.
             for (int i = 0; i < 10 && running_; ++i)
@@ -700,6 +715,34 @@ namespace social
         post_signed(base_url() + "/v1/presence", serialize(body));
     }
 
+    // The profile-less counterpart of the presence beat: just the game, signed by the device key.
+    void cbfriends_service::send_pulse(const bool bye)
+    {
+        if (get_state() == profile_state::ready)
+        {
+            return;
+        }
+
+        rapidjson::Document body;
+        body.SetObject();
+        auto& allocator = body.GetAllocator();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
+        if (bye)
+        {
+            body.AddMember("bye", true, allocator);
+            post_signed(base_url() + "/v1/pulse", serialize(body), 3);
+            return;
+        }
+
+        std::string game;
+        {
+            std::lock_guard lock(mutex_);
+            game = current_game_;
+        }
+        if (!game.empty()) add_string(body, "game", game);
+        post_signed(base_url() + "/v1/pulse", serialize(body));
+    }
+
     cb_own_presence cbfriends_service::get_own_presence() const
     {
         std::lock_guard lock(mutex_);
@@ -729,7 +772,14 @@ namespace social
             }
             current_game_ = game;
         }
-        std::thread(&cbfriends_service::send_presence, this, false).detach();
+        if (get_state() == profile_state::ready)
+        {
+            std::thread(&cbfriends_service::send_presence, this, false).detach();
+        }
+        else
+        {
+            std::thread(&cbfriends_service::send_pulse, this, false).detach();
+        }
     }
 
     void cbfriends_service::set_friends_changed_callback(std::function<void()> callback)

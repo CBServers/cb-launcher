@@ -360,6 +360,20 @@
                             </div>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
+                                    <label data-i18n="settings.playerCounts">Player counts</label>
+                                    <span class="setting-description" data-i18n="settings.playerCountsBody">Which live player count the library and game pages show. Players in servers and players in the launcher are counted separately and cannot be added together.</span>
+                                </div>
+                                <div class="cdn-control">
+                                    <select class="cdn-select" id="player-count-select">
+                                        <option value="both" data-i18n="settings.playerCountsBoth">Both</option>
+                                        <option value="servers" data-i18n="settings.playerCountsServers">In servers</option>
+                                        <option value="launcher" data-i18n="settings.playerCountsLauncher">In launcher</option>
+                                        <option value="off" data-i18n="settings.playerCountsOff">Hidden</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
                                     <label data-i18n="settings.reduceMotion">Reduce motion</label>
                                     <span class="setting-description" data-i18n="settings.reduceMotionBody">When enabled, the launcher disables its animations and transitions.</span>
                                 </div>

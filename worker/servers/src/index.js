@@ -6,10 +6,14 @@
 // gameserve.rs a handful of times a minute regardless of user count, and the
 // launcher owns its own schema in case the upstream ever changes.
 //
-// Endpoint (GET):
+// Endpoints (GET):
 //   /v1/servers?game=<launcher game key, e.g. t6>
 //       -> { servers: [{id,name,map,mode,gametype,players,maxPlayers,bots,ping,region,country,countryName}], fetchedAt }
 //   Ping is always null here: the launcher measures it natively per user.
+//   /v1/player-counts
+//       -> { games: { <launcher game key>: { players, servers } }, fetchedAt }
+//   Players in public servers per game, from gameserve.rs's stats feed plus the BO4 lobby page.
+//   Games whose upstream failed are absent rather than reported as zero.
 
 const UPSTREAM = 'https://gameserve.rs/api/v1';
 
@@ -32,6 +36,12 @@ const GAMES = {
     'h1-mod': ['H1'],
     'hmw-mod': ['HMW', 'H2M'],
 };
+
+// BO4 has no master list; its lobby service publishes a status page with the live totals. Workers
+// refuse to fetch a bare IP (Cloudflare error 1003), so an unproxied A record in our zone fronts it.
+const T8_LOBBY_URL = 'http://t8.cbservers.xyz:8080/';
+const T8_PLAYERS_RE = /PLAYERS ONLINE.*?<h6[^>]*>\s*(\d+)\s*<\/h6>/is;
+const T8_LOBBIES_RE = /LOBBYS ACTIVE.*?<h6[^>]*>\s*(\d+)\s*<\/h6>/is;
 
 const RATE_LIMIT_PER_MINUTE = 60;
 const CACHE_SECONDS = 30;
@@ -143,6 +153,77 @@ async function handleServers(game) {
     return result;
 }
 
+// One upstream call covers every gameserve.rs game; Plutonium zm ids and H2M fold into their
+// launcher key the same way the server lists do.
+async function fetchGameserveCounts() {
+    const response = await fetch(`${UPSTREAM}/stats`);
+    if (!response.ok) {
+        throw new Error(`stats -> ${response.status}`);
+    }
+
+    const body = await response.json();
+    const byGame = ((body.data || {}).current || {}).byGame || {};
+    const games = {};
+    for (const [game, upstreamIds] of Object.entries(GAMES)) {
+        let seen = false;
+        const bucket = { players: 0, servers: 0 };
+        for (const id of upstreamIds) {
+            const entry = byGame[id];
+            if (!entry || typeof entry !== 'object') continue;
+            seen = true;
+            bucket.players += Number(entry.players) || 0;
+            bucket.servers += Number(entry.servers) || 0;
+        }
+        if (seen) games[game] = bucket;
+    }
+    return games;
+}
+
+async function fetchT8Counts() {
+    const response = await fetch(T8_LOBBY_URL);
+    if (!response.ok) {
+        throw new Error(`t8 -> ${response.status}`);
+    }
+
+    const html = await response.text();
+    const players = html.match(T8_PLAYERS_RE);
+    const lobbies = html.match(T8_LOBBIES_RE);
+    if (!players || !lobbies) {
+        throw new Error('t8 page missing totals');
+    }
+    return { players: Number(players[1]), servers: Number(lobbies[1]) };
+}
+
+async function handlePlayerCounts() {
+    const cacheKey = new Request('https://cache/v1/player-counts');
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const [gameserve, t8] = await Promise.allSettled([fetchGameserveCounts(), fetchT8Counts()]);
+    if (gameserve.status === 'rejected' && t8.status === 'rejected') {
+        throw new Error(`${gameserve.reason}; ${t8.reason}`);
+    }
+
+    const games = gameserve.status === 'fulfilled' ? gameserve.value : {};
+    if (t8.status === 'fulfilled') {
+        games.bo4 = t8.value;
+    } else {
+        console.log(`t8 counts failed: ${t8.reason}`);
+    }
+    if (gameserve.status === 'rejected') {
+        console.log(`gameserve counts failed: ${gameserve.reason}`);
+    }
+
+    const result = json(200, {
+        games,
+        fetchedAt: new Date().toISOString(),
+    }, { 'Cache-Control': `max-age=${CACHE_SECONDS}` });
+    await caches.default.put(cacheKey, result.clone());
+    return result;
+}
+
 export default {
     async fetch(request) {
         if (request.method !== 'GET') {
@@ -154,13 +235,22 @@ export default {
         }
 
         const url = new URL(request.url);
-        const game = url.searchParams.get('game');
-        if (!GAMES[game]) {
-            return json(400, { error: 'unknown game' });
+        if (url.pathname === '/v1/player-counts') {
+            try {
+                return await handlePlayerCounts();
+            } catch (error) {
+                console.log(`player counts failed: ${error}`);
+                return json(502, { error: 'upstream unavailable' });
+            }
         }
 
         if (url.pathname !== '/v1/servers') {
             return json(404, { error: 'not found' });
+        }
+
+        const game = url.searchParams.get('game');
+        if (!GAMES[game]) {
+            return json(400, { error: 'unknown game' });
         }
 
         try {

@@ -9,6 +9,7 @@ launcher owns its own schema in case the upstream changes.
 | Endpoint | Query | Response |
 |---|---|---|
 | `GET /v1/servers` | `game=<launcher key: cod1, coduo, cod2x, cod4x, t4, t5, iw4x, iw5, t6, boiii, iw6x, s1x, iw7-mod, h1-mod, hmw-mod>` | `{ servers: [...], fetchedAt }` |
+| `GET /v1/player-counts` | none | `{ games: { <launcher key>: { players, servers } }, fetchedAt }` |
 
 Per server: `id` (`ip:port`), `name` (color codes stripped), `map` (display
 name), `mode` (`mp`/`zm`), `gametype`, `players`, `maxPlayers`, `bots`,
@@ -17,6 +18,17 @@ name), `mode` (`mp`/`zm`), `gametype`, `players`, `maxPlayers`, `bots`,
 
 Plutonium games merge their separate mp/zm upstream ids (e.g. `T6` + `T6ZM`);
 `hmw-mod` merges `HMW` and `H2M`, which track different master servers.
+
+`/v1/player-counts` is the "players in servers" number on the launcher's
+library cards and game pages, cached 30 seconds like a list. It comes from
+gameserve.rs's `/stats` feed (one upstream call for every game, folded with
+the same id merges) plus a scrape of the BO4 lobby-service status page
+(`bo4`, which has no master list). That page lives on a bare IP, which
+Workers cannot fetch (Cloudflare error 1003), so `t8.cbservers.xyz` is an
+unproxied A record pointing at it. A game whose upstream failed is omitted
+rather than reported as zero; the two upstreams fail independently. The
+launcher's other count, people running each game from the launcher itself,
+comes from the cbfriends worker's `/v1/stats` and is never added to this one.
 
 ## Deploy
 

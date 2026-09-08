@@ -788,8 +788,14 @@
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
                 ${comingSoon ? `<span class="library-card-soon-badge">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
                 <span class="library-card-player-pill" data-player-badge hidden>
-                    <span class="library-card-player-dot"></span>
-                    <span data-player-count>0</span>
+                    <span class="library-card-player-seg" data-player-servers hidden>
+                        <span class="library-card-player-dot"></span>
+                        <span data-player-count>0</span>
+                    </span>
+                    <span class="library-card-player-seg" data-player-launcher hidden>
+                        <span class="library-card-player-dot is-launcher"></span>
+                        <span data-player-count>0</span>
+                    </span>
                 </span>
                 <span class="library-card-size-pill" data-size-badge hidden></span>
                 <div class="library-card-progress" aria-hidden="true">
@@ -830,33 +836,62 @@
         bindLibraryControls();
     }
 
-    function updateLibraryCardPlayerCount(gameId, count) {
+    // counts: { servers, launcher }, either null while unknown. A zero hides its segment.
+    function safePlayerCount(value) {
+        return (typeof value === 'number' && value > 0) ? value : 0;
+    }
+
+    function playerCountParts(counts) {
+        const mode = window.PlayerCountManager ? window.PlayerCountManager.getMode() : 'both';
+        const source = counts || {};
+        if (mode === 'off') return { servers: 0, launcher: 0 };
+        return {
+            servers: mode === 'launcher' ? 0 : safePlayerCount(source.servers),
+            launcher: mode === 'servers' ? 0 : safePlayerCount(source.launcher)
+        };
+    }
+
+    function playerCountTooltip(counts) {
+        const source = counts || {};
+        return [
+            `${safePlayerCount(source.servers).toLocaleString()} ${t('common.inServers')}`,
+            `${safePlayerCount(source.launcher).toLocaleString()} ${t('common.inLauncher')}`
+        ].join('\n');
+    }
+
+    function updateLibraryCardPlayerCount(gameId, counts) {
         const card = document.querySelector(`.library-card[data-game="${gameId}"]`);
         if (!card) return;
         const pill = card.querySelector('[data-player-badge]');
-        const label = card.querySelector('[data-player-count]');
-        if (!pill || !label) return;
-        const safe = typeof count === 'number' && count > 0 ? count : 0;
-        if (safe > 0) {
-            label.textContent = safe.toLocaleString();
-            pill.hidden = false;
-        } else {
-            pill.hidden = true;
-        }
+        if (!pill) return;
+        const parts = playerCountParts(counts);
+        const setSegment = (selector, value) => {
+            const seg = pill.querySelector(selector);
+            if (!seg) return;
+            const label = seg.querySelector('[data-player-count]');
+            if (label) label.textContent = value.toLocaleString();
+            seg.hidden = value <= 0;
+        };
+        setSegment('[data-player-servers]', parts.servers);
+        setSegment('[data-player-launcher]', parts.launcher);
+        pill.hidden = parts.servers <= 0 && parts.launcher <= 0;
+        pill.title = playerCountTooltip(counts);
     }
 
-    function updateGamePagePlayerCount(gameId, count) {
+    function updateGamePagePlayerCount(gameId, counts) {
         const page = document.getElementById(`${gameId}-page`);
         if (!page) return;
-        const pill = page.querySelector('[data-game-player-badge]');
-        if (!pill) return;
-        const safe = typeof count === 'number' && count > 0 ? count : 0;
-        if (safe > 0) {
-            pill.textContent = safe.toLocaleString();
-            pill.hidden = false;
-        } else {
-            pill.hidden = true;
-        }
+        const off = window.PlayerCountManager && window.PlayerCountManager.getMode() === 'off';
+        const source = off ? {} : (counts || {});
+        const setChip = (kind, value, labelKey, hintKey) => {
+            const chip = page.querySelector(`[data-game-player-badge="${kind}"]`);
+            if (!chip) return;
+            chip.textContent = `${value.toLocaleString()} ${t(labelKey)}`;
+            chip.title = t(hintKey);
+            chip.hidden = value <= 0;
+        };
+        setChip('servers', safePlayerCount(source.servers), 'common.inServers', 'common.inServersHint');
+        setChip('launcher', safePlayerCount(source.launcher), 'common.inLauncher', 'common.inLauncherHint');
     }
 
     function updateGamePageInstallSize(gameId, bytes) {
@@ -1149,7 +1184,8 @@
                     <div class="hero-bottom-content">
                         <img class="game-logo-img" src="${escapeHtml(config.logoPath)}" alt="${escapeHtml(config.displayName)}">
                         <div class="game-meta-row">
-                            <span class="game-meta-player" data-game-player-badge hidden>0</span>
+                            <span class="game-meta-player" data-game-player-badge="servers" hidden>0</span>
+                            <span class="game-meta-player is-launcher" data-game-player-badge="launcher" hidden>0</span>
                             <span>${escapeHtml(config.client)}</span>
                             <span class="game-meta-size" data-game-size-badge hidden></span>
                         </div>

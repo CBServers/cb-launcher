@@ -680,6 +680,7 @@ function dirCall(env, path, payload) {
 }
 
 const PRESENCE_FRESH_MS = 90_000;
+const STATS_CACHE_MS = 10_000;        // launchers poll /v1/stats every 30s; the count is one pass over the directory
 const LFG_FRESH_MS = 15 * 60_000;
 const PLAYED_WITH_MS = 6 * 3600_000;  // how long a match roster is worth suggesting from
 const PLAYED_WITH_MATCHES = 5;        // recent matches kept per person
@@ -874,11 +875,12 @@ async function handleFriendList(env, cbId, body) {
 }
 
 // The beat carries the profile too, so the directory can serve friend lists without touching KV.
-async function handlePresence(env, cbId, body) {
+async function handlePresence(env, cbId, body, fpr) {
     const account = await getAccount(env, cbId);
     const count = n => Number.isFinite(n) ? Math.max(0, Math.min(999, Math.trunc(n))) : 0;
     const beat = await dirCall(env, 'beat', {
         cbId,
+        fpr,
         profile: (account && account.profile) || {},
         createdAt: (account && account.createdAt) || 0,
         discordId: (account && account.discordId) || '',
@@ -1249,6 +1251,41 @@ async function handleLfgList(env, cbId, body) {
     return json(200, { posts });
 }
 
+// ---- Player counts ----
+//
+// Every launcher pulses the game it is running, profile or not, so the library can show how many
+// people are in each game from the launcher itself. Accounts already say this on their presence
+// beat; the pulse is the same signal from a device key with no account behind it. Nothing but the
+// key fingerprint and a game id is kept, and only for the presence window.
+
+async function handlePulse(env, fpr, body) {
+    await dirCall(env, 'pulse', {
+        fpr,
+        bye: !!body.bye,
+        game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
+    });
+    return json(200, { ok: true });
+}
+
+let statsCache = { at: 0, text: '' };
+
+// Public and unauthenticated: the numbers are aggregates with nothing to protect.
+async function handleStats(env) {
+    const now = Date.now();
+    if (now - statsCache.at > STATS_CACHE_MS) {
+        const stats = await dirCall(env, 'stats', {});
+        statsCache = { at: now, text: JSON.stringify({ ...stats, fetchedAt: new Date(now).toISOString() }) };
+    }
+    return new Response(statsCache.text, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': `max-age=${Math.floor(STATS_CACHE_MS / 1000)}`,
+        },
+    });
+}
+
 // ---- Discord invite relay ----
 //
 // Speaks the protocol relay_client.cpp already implements, so retiring the standalone relay is just
@@ -1318,11 +1355,14 @@ async function relayFetch(request, env, pathname) {
 
 export default {
     async fetch(request, env) {
+        const { pathname } = new URL(request.url);
+
+        if (request.method === 'GET' && pathname === '/v1/stats') {
+            return handleStats(env);
+        }
         if (request.method !== 'POST') {
             return json(405, { error: 'method not allowed' });
         }
-
-        const { pathname } = new URL(request.url);
 
         // Discord invite relay. Authed by Discord token / relay token rather than a device key, so it
         // is dispatched before the CB auth below and works for users with no CB profile.
@@ -1360,6 +1400,11 @@ export default {
                 const hash = await sha256Hex(new TextEncoder().encode(body.recoveryCode));
                 return handleRecover(env, fpr, body, `rec:${hash}`, 'code');
             }
+        }
+
+        // Needs a device key but no account, so launchers without a profile still count.
+        if (pathname === '/v1/pulse') {
+            return handlePulse(env, fpr, body);
         }
 
         // Everything past here requires an established account.
@@ -1412,7 +1457,7 @@ export default {
             case '/v1/friends/list':
                 return handleFriendList(env, cbId, body);
             case '/v1/presence':
-                return handlePresence(env, cbId, body);
+                return handlePresence(env, cbId, body, fpr);
             case '/v1/lfg/post':
                 return handleLfgPost(env, cbId, body);
             case '/v1/lfg/clear':
@@ -1715,8 +1760,28 @@ export class SocialGraph {
 export class Directory {
     constructor() {
         this.people = new Map();
+        this.anon = new Map();      // device fpr -> { game, at } for launchers with no account
         this.matches = new Map();   // matchId -> Map(cbId -> { at, game })
         this.chatHeads = new Map(); // room -> { id, at } of the newest message
+    }
+
+    // Launchers in each game right now, accounts and anonymous pulses alike. Idle launchers only
+    // count toward the total.
+    stats(now) {
+        const launcher = {};
+        let online = 0;
+        const add = (game, at) => {
+            if (now - at >= PRESENCE_FRESH_MS) return;
+            online++;
+            if (game) launcher[game] = (launcher[game] || 0) + 1;
+        };
+        for (const it of this.people.values()) {
+            if (it.pres) add(it.pres.game, it.pres.at);
+        }
+        for (const it of this.anon.values()) {
+            add(it.game, it.at);
+        }
+        return { launcher, online };
     }
 
     entry(cbId) {
@@ -1748,6 +1813,9 @@ export class Directory {
             const recent = (it.matches || []).some(m => now - m.at < PLAYED_WITH_MS);
             if (!livePres && !livePost && !recent) this.people.delete(cbId);
         }
+        for (const [fpr, it] of this.anon) {
+            if (now - it.at >= PRESENCE_FRESH_MS) this.anon.delete(fpr);
+        }
         for (const [matchId, roster] of this.matches) {
             for (const [cbId, seen] of roster) {
                 if (now - seen.at > PLAYED_WITH_MS) roster.delete(cbId);
@@ -1773,7 +1841,20 @@ export class Directory {
         const body = await request.json().catch(() => ({}));
         const now = Date.now();
 
+        if (pathname === '/pulse') {
+            if (body.bye) this.anon.delete(body.fpr);
+            else if (body.fpr) this.anon.set(body.fpr, { game: body.game || '', at: now });
+            this.prune();
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/stats') {
+            return json(200, this.stats(now));
+        }
+
         if (pathname === '/beat') {
+            // The same launcher may have pulsed anonymously before creating its profile.
+            if (body.fpr) this.anon.delete(body.fpr);
             const it = this.entry(body.cbId);
             it.profile = body.profile || it.profile;
             it.createdAt = body.createdAt || it.createdAt;

@@ -15,6 +15,7 @@ namespace property_keys
     constexpr const char* PORTABLE_MODE = "launcher-portable-mode";
     constexpr const char* DESKTOP_NOTIFICATIONS = "launcher-desktop-notifications";
     constexpr const char* REDUCE_MOTION = "launcher-reduce-motion";
+    constexpr const char* PLAYER_COUNT_MODE = "launcher-player-count-mode";
     constexpr const char* CDN_PREFERENCE = "launcher-cdn-preference";
     constexpr const char* CDN_CUSTOM_URL = "launcher-cdn-custom-url";
     constexpr const char* GLOBAL_PLAYER_NAME = "launcher-global-player-name";

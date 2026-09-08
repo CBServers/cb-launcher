@@ -20,7 +20,8 @@ const PROPERTY_KEYS = {
         CB_COMMUNITY_ENABLED: 'launcher-cb-community-enabled',
         CB_CHAT_SEEN: 'launcher-cb-chat-seen',
         DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
-        REDUCE_MOTION: 'launcher-reduce-motion'
+        REDUCE_MOTION: 'launcher-reduce-motion',
+        PLAYER_COUNT_MODE: 'launcher-player-count-mode'
     },
     GAME: {
         INSTALL: 'install',

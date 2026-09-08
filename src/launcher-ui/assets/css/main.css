@@ -1155,6 +1155,19 @@ body.offline-mode #friends {
 
 .library-card-player-pill[hidden] { display: none; }
 
+.library-card-player-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.library-card-player-seg[hidden] { display: none; }
+
+.library-card-player-seg + .library-card-player-seg:not([hidden]) {
+    padding-left: 8px;
+    border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 .library-card-player-dot {
     width: 7px;
     height: 7px;
@@ -1162,6 +1175,11 @@ body.offline-mode #friends {
     background: #22c55e;
     box-shadow: 0 0 6px rgba(34, 197, 94, 0.75);
     flex-shrink: 0;
+}
+
+.library-card-player-dot.is-launcher {
+    background: #60a5fa;
+    box-shadow: 0 0 6px rgba(96, 165, 250, 0.75);
 }
 
 .library-card.library-card-empty {
@@ -3649,6 +3667,11 @@ button { font-family: inherit; cursor: pointer; }
     border-radius: 50%;
     background: #22c55e;
     box-shadow: 0 0 6px rgba(34, 197, 94, 0.75);
+}
+
+.game-meta-row span.game-meta-player.is-launcher::before {
+    background: #60a5fa;
+    box-shadow: 0 0 6px rgba(96, 165, 250, 0.75);
 }
 
 .detail-tabs { display: none; }
@@ -7111,6 +7134,12 @@ html:not([data-theme]) .game-meta-row span.game-meta-player::before {
     box-shadow: 0 0 6px var(--success-border);
 }
 
+html:not([data-theme]) .library-card-player-dot.is-launcher,
+html:not([data-theme]) .game-meta-row span.game-meta-player.is-launcher::before {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-soft);
+}
+
 html:not([data-theme]) .library-install-btn {
     background: rgba(0, 0, 0, 0.45);
     font-family: var(--font-display);
@@ -7923,12 +7952,12 @@ html:not([data-theme])[data-accent="mw"] {
     --checkbox-mark: #0F1407;
 }
 
-/* ── Uninstalled games render in black and white ── */
-.library-card:not(.is-installed):not(.is-coming-soon) .library-card-art {
+/* ── Uninstalled games render in black and white (community rooms borrow the card, not the state) ── */
+.library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card) .library-card-art {
     filter: grayscale(1) brightness(0.9);
 }
 
-.library-card:not(.is-installed):not(.is-coming-soon):hover .library-card-art {
+.library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card):hover .library-card-art {
     filter: grayscale(0) brightness(1.2) contrast(1.08);
 }
 

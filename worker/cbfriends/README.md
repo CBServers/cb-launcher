@@ -21,10 +21,12 @@ The signed body is JSON and must include a fresh `ts` (unix seconds, ±300s) to 
 launcher signs `sha256(body)` via libtomcrypt, emitting an ANSI X9.62 DER signature; the worker
 accepts both that and raw `r‖s`. The device credential id is `fpr = sha256hex(publicKey)`.
 
-## Endpoints (all POST)
+## Endpoints (all POST unless noted)
 
 | Endpoint | Body | Response |
 |---|---|---|
+| `GET /v1/stats` | none, unauthenticated | `200 { launcher: { <game>: n }, online, fetchedAt }` — launchers in each game right now (accounts via their presence beat plus anonymous pulses), cached 10s, CORS `*` |
+| `/v1/pulse` | `{ ts, game?, bye? }` | `200 { ok }` — anonymous stand-in for `/v1/presence` from a device key with **no account**; feeds `/v1/stats` only. Never creates an account |
 | `/v1/account/bootstrap` | `{ ts, hwidHash, discordToken?, handle?, displayName?, avatarUrl? }` | `200 { cbId, profile, created, recoveryCode? }` — `recoveryCode` only on create; `409 { recoverable:true, via:[...] }` if the machine/Discord already owns an account |
 | `/v1/account` | `{ ts }` | `200 { cbId, profile }` — whoami for the signing key; `404` if unknown |
 | `/v1/recover/hwid` | `{ ts, hwidHash }` | `200 { cbId, profile }` — attaches the signing key to the account anchored on this HWID |
@@ -106,7 +108,9 @@ immediately after a write:
   old `fr:`/`rin:`/`rout:`/`blk:` KV arrays is migrated across the first time it is read, once.
 - `Directory` (binding `DIRECTORY`) — a single instance holding live presence, the LFG board, and a
   profile snapshot per account, so a friend list or a board listing is one call rather than two KV
-  reads per person. **Not** persisted, on the same reasoning as `Mailbox`: presence expires after 90s
+  reads per person. It also holds the anonymous pulses (device fingerprint → game) behind
+  `/v1/stats`, pruned on the same 90s window; a beat from a key that pulsed earlier drops its
+  anonymous entry so a launcher that creates a profile mid-session is not counted twice. **Not** persisted, on the same reasoning as `Mailbox`: presence expires after 90s
   and a post after 15 minutes, and the next 30-second beat repopulates both. A redeploy therefore
   shows an empty board for up to one beat.
 

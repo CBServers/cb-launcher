@@ -2199,6 +2199,14 @@ async function loadLauncherSettings() {
             themeSelect.value = savedTheme || 'tactical';
         }
 
+        // Load player count mode
+        const playerCountMode = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.PLAYER_COUNT_MODE);
+        applyPlayerCountMode(playerCountMode || 'both');
+        const playerCountSelect = document.getElementById('player-count-select');
+        if (playerCountSelect) {
+            playerCountSelect.value = playerCountMode || 'both';
+        }
+
         // Load global player name
         const globalPlayerName = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.GLOBAL_PLAYER_NAME);
         const playerNameInput = document.getElementById('setting-global-player-name');
@@ -2479,6 +2487,32 @@ async function setupLanguageSelect() {
     }
 }
 
+function applyPlayerCountMode(mode) {
+    if (window.PlayerCountManager) {
+        window.PlayerCountManager.setMode(mode);
+    }
+}
+
+function setupPlayerCountSelect() {
+    const select = document.getElementById('player-count-select');
+    if (!select || select.dataset.bound) return;
+
+    select.dataset.bound = 'true';
+    select.addEventListener('change', async (event) => {
+        const mode = event.target.value;
+        applyPlayerCountMode(mode);
+        if (typeof window.executeCommand === 'function') {
+            try {
+                await window.executeCommand('set-property', {
+                    [PROPERTY_KEYS.LAUNCHER.PLAYER_COUNT_MODE]: mode
+                });
+            } catch (error) {
+                console.error('Failed to save player count mode:', error);
+            }
+        }
+    });
+}
+
 function setupThemeSelect() {
     const themeSelect = document.getElementById('theme-select');
     if (!themeSelect || themeSelect.dataset.bound) return;
@@ -2682,8 +2716,11 @@ async function handleResetAllSettings() {
                 }
                 applyTheme('tactical');
                 applyReduceMotion(false);
+                applyPlayerCountMode('both');
                 const themeSelect = document.getElementById('theme-select');
                 if (themeSelect) themeSelect.value = 'tactical';
+                const playerCountSelect = document.getElementById('player-count-select');
+                if (playerCountSelect) playerCountSelect.value = 'both';
                 if (window.AppViews && typeof window.AppViews.setHiddenGames === 'function') {
                     await window.AppViews.setHiddenGames([]);
                 }
@@ -2864,6 +2901,7 @@ async function initializeSettingsPage() {
     await setupDiscordSettings();
     await setupLanguageSelect();
     setupThemeSelect();
+    setupPlayerCountSelect();
 
     // Setup action button listeners
     const resetBtn = document.getElementById('reset-all-settings-btn');

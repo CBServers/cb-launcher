@@ -197,6 +197,12 @@ namespace commands::social_commands
             response.AddMember("ok", ok, allocator);
         });
 
+        cef_ui.add_command("cbfriends-get-url", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            add_string(response, "url", social::cbfriends_service::instance().get_base_url(), response.GetAllocator());
+        });
+
         cef_ui.add_command("cbfriends-set-activity", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
