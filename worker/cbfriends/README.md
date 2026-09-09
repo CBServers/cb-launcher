@@ -25,7 +25,10 @@ accepts both that and raw `r‖s`. The device credential id is `fpr = sha256hex(
 
 | Endpoint | Body | Response |
 |---|---|---|
-| `GET /v1/stats` | none, unauthenticated | `200 { launcher: { <game>: n }, online, fetchedAt }` — launchers in each game right now (accounts via their presence beat plus anonymous pulses), cached 10s, CORS `*` |
+| `GET /v1/stats` | none, unauthenticated | `200 { launcher: { <game>: n }, online, idle, games, fetchedAt }` — launchers in each game right now (accounts via their presence beat plus anonymous pulses), `idle` = online with no game, `games` mirrors `launcher`; cached 10s, CORS `*` |
+| `GET /v1/stats/summary` | none, unauthenticated | `200 { online, idle, games, latest, servers, peak24h, peakAll, serversPeak24h, serversPeakAll, gamePeaks, since, today: { dau, wau, mau, new, games }, yesterday }` — headline numbers for the public dashboard; cached 60s, 60/min per IP |
+| `GET /v1/stats/series?range=` | `6h` `12h` `24h` `48h` `7d` `30d` `all` | `200 { range, bucket, from, to, t[], online[], idle[], games: { <game>: [] }, servers: { players[], servers[], games: { <game>: { players[], servers[] } } } }` — columnar, ≤720 buckets, `null` where nothing was sampled; cached 60s (`all` 5min) |
+| `GET /v1/stats/uniques?range=` | `30d` `90d` `all` | `200 { range, days: [{ day, dau, wau, mau, new, games, partial? }] }` — unique launchers per UTC day (device-key hash, never IPs), today is `partial` |
 | `/v1/pulse` | `{ ts, game?, bye? }` | `200 { ok }` — anonymous stand-in for `/v1/presence` from a device key with **no account**; feeds `/v1/stats` only. Never creates an account |
 | `/v1/account/bootstrap` | `{ ts, hwidHash, discordToken?, handle?, displayName?, avatarUrl? }` | `200 { cbId, profile, created, recoveryCode? }` — `recoveryCode` only on create; `409 { recoverable:true, via:[...] }` if the machine/Discord already owns an account |
 | `/v1/account` | `{ ts }` | `200 { cbId, profile }` — whoami for the signing key; `404` if unknown |
@@ -135,6 +138,13 @@ holds the shared rig; Discord is stubbed where a suite needs it.
 Production runs on a VPS, not Cloudflare: `serve.mjs` hosts the unmodified `src/index.js` on
 `node:http` with a SQLite store (`store-sqlite.mjs`), behind Caddy and Cloudflare's proxy.
 It must run as a **single process** — `Mailbox` and `Directory` are in-process memory by design.
+
+`serve.mjs` also provides the `STATS` binding (`stats-sqlite.mjs`, `STATS_DB_PATH`, default
+`stats.db` next to the main db) and calls the worker's `scheduled()` every minute to sample the
+directory and the servers worker (`SERVERS_URL`, e.g. `http://127.0.0.1:8788/v1/player-counts`)
+into it. Set `STATS_SALT` to a persistent secret: sightings are stored as
+`sha256(salt || fingerprint)[:16]`, so changing the salt resets every unique-launcher count. Without
+the binding (wrangler) the live `/v1/stats` still works and `/v1/stats/*` answers 404.
 
 The Worker deployment remains as a dormant rollback path:
 

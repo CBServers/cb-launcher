@@ -1,5 +1,7 @@
 // Shared rig for the worker suites: fake KV, Durable Object shims, signed-request clients.
 // Every suite imports the real src/index.js, so nothing here stubs worker logic.
+import { openStats } from '../stats-sqlite.mjs';
+
 export const mod = await import(new URL('../src/index.js', import.meta.url).href);
 export const worker = mod.default;
 
@@ -72,6 +74,7 @@ export function makeEnv() {
     if (mod.Mailbox) env.MAILBOX = bind('MAILBOX', mod.Mailbox);
     if (mod.SocialGraph) env.GRAPH = bind('GRAPH', mod.SocialGraph);
     if (mod.Directory) env.DIRECTORY = bind('DIRECTORY', mod.Directory);
+    env.STATS = openStats(':memory:', { salt: 'test' });
     const drop = kind => made[kind].clear();
     return { env, disk, drop };
 }

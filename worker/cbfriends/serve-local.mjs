@@ -2,6 +2,7 @@
 //   node serve-local.mjs [port] [kv.json]   then   cb-launcher.exe -cbfriends-url http://127.0.0.1:8787
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { openStats } from './stats-sqlite.mjs';
 
 const port = Number(process.argv[2]) || 8787;
 const persistPath = process.argv[3] || null;
@@ -84,7 +85,11 @@ const env = {
     MAILBOX: doBinding(module.Mailbox, 'mailbox'),
     GRAPH: doBinding(module.SocialGraph, 'graph'),
     DIRECTORY: doBinding(module.Directory, 'directory'),
+    // In-memory history so the stats endpoints answer during UI work; gone when the process exits.
+    STATS: openStats(':memory:', { salt: 'local' }),
+    SERVERS_URL: process.env.SERVERS_URL || '',
 };
+setInterval(() => worker.scheduled({ scheduledTime: Date.now() }, env).catch(e => console.error('stats tick:', e)), 60_000).unref();
 
 const server = createServer(async (req, res) => {
     const chunks = [];

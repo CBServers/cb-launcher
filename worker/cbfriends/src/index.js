@@ -902,6 +902,7 @@ async function handlePresence(env, cbId, body, fpr) {
             matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
         },
     });
+    if (!body.bye) noteSighting(env, fpr, typeof body.game === 'string' ? body.game.slice(0, 32) : '');
 
     // Presence is memory-only, so last seen rides the writes that already happen.
     if (account && (beat.flush || body.bye)) {
@@ -1259,12 +1260,52 @@ async function handleLfgList(env, cbId, body) {
 // key fingerprint and a game id is kept, and only for the presence window.
 
 async function handlePulse(env, fpr, body) {
-    await dirCall(env, 'pulse', {
-        fpr,
-        bye: !!body.bye,
-        game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
-    });
+    const game = typeof body.game === 'string' ? body.game.slice(0, 32) : '';
+    await dirCall(env, 'pulse', { fpr, bye: !!body.bye, game });
+    if (!body.bye) noteSighting(env, fpr, game);
     return json(200, { ok: true });
+}
+
+// ---- History (public stats dashboard) ----
+//
+// The STATS binding (serve.mjs, SQLite) keeps per-minute samples, hourly rollups and hashed daily
+// sightings; without it (wrangler) the live /v1/stats still works and the history endpoints 404.
+// The binding salts and hashes the fingerprint itself, so nothing here ever sees a stable id.
+
+function noteSighting(env, fpr, game) {
+    if (!env.STATS) return;
+    try { env.STATS.seen(Math.floor(Date.now() / 1000), game, fpr); } catch (e) { console.error('stats seen:', e); }
+}
+
+const STATS_SERVERS_TIMEOUT_MS = 10_000;
+const STATS_READ_PER_MINUTE = 60;  // per IP, the page polls a few times a minute at most
+
+// One history tick: snapshot the directory and the servers worker into the STATS binding.
+async function statsTick(env, nowMs) {
+    if (!env.STATS) return;
+    const live = await dirCall(env, 'stats', {});
+    let servers = null;
+    if (env.SERVERS_URL) {
+        try {
+            const res = await fetch(env.SERVERS_URL, { signal: AbortSignal.timeout(STATS_SERVERS_TIMEOUT_MS) });
+            const body = res.ok ? await res.json() : null;
+            if (body && body.games && typeof body.games === 'object') servers = body.games;
+        } catch (e) {
+            console.error('stats servers fetch:', e.message || e);
+        }
+    }
+    await env.STATS.sample(Math.floor(nowMs / 1000), live, servers);
+}
+
+function publicJson(status, body, maxAge) {
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+        status,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': `max-age=${maxAge}`,
+        },
+    });
 }
 
 let statsCache = { at: 0, text: '' };
@@ -1274,16 +1315,57 @@ async function handleStats(env) {
     const now = Date.now();
     if (now - statsCache.at > STATS_CACHE_MS) {
         const stats = await dirCall(env, 'stats', {});
-        statsCache = { at: now, text: JSON.stringify({ ...stats, fetchedAt: new Date(now).toISOString() }) };
+        const inGame = Object.values(stats.launcher).reduce((a, b) => a + b, 0);
+        statsCache = { at: now, text: JSON.stringify({
+            ...stats,
+            idle: Math.max(0, stats.online - inGame),
+            games: stats.launcher,
+            fetchedAt: new Date(now).toISOString(),
+        }) };
     }
-    return new Response(statsCache.text, {
-        status: 200,
-        headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': `max-age=${Math.floor(STATS_CACHE_MS / 1000)}`,
-        },
-    });
+    return publicJson(200, statsCache.text, Math.floor(STATS_CACHE_MS / 1000));
+}
+
+const historyCache = new Map(); // `${path}?${range}` -> { at, text }
+
+async function handleHistory(env, request, pathname) {
+    if (!env.STATS) return publicJson(404, { error: 'history not enabled' }, 60);
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    if (!withinRate(`stats:${ip}`, STATS_READ_PER_MINUTE)) {
+        return publicJson(429, { error: 'rate limited' }, 0);
+    }
+    const range = new URL(request.url).searchParams.get('range') || '';
+    const key = `${pathname}?${range}`;
+    const now = Date.now();
+    const nowSec = Math.floor(now / 1000);
+    let ttl;
+    let build;
+    switch (pathname) {
+        case '/v1/stats/series':
+            ttl = range === 'all' ? 300_000 : 60_000;
+            build = () => env.STATS.series(nowSec, range || '24h');
+            break;
+        case '/v1/stats/summary':
+            ttl = 60_000;
+            build = async () => {
+                const live = JSON.parse((await handleStats(env).then(r => r.text())));
+                const hist = env.STATS.summary(nowSec);
+                return { ...hist, online: live.online, idle: live.idle, games: live.games, fetchedAt: live.fetchedAt };
+            };
+            break;
+        case '/v1/stats/uniques':
+            ttl = 300_000;
+            build = () => env.STATS.uniques(nowSec, range || '30d');
+            break;
+        default:
+            return publicJson(404, { error: 'not found' }, 60);
+    }
+    let hit = historyCache.get(key);
+    if (!hit || now - hit.at > ttl) {
+        hit = { at: now, text: JSON.stringify(await build()) };
+        historyCache.set(key, hit);
+    }
+    return publicJson(200, hit.text, Math.floor(ttl / 1000));
 }
 
 // ---- Discord invite relay ----
@@ -1357,8 +1439,9 @@ export default {
     async fetch(request, env) {
         const { pathname } = new URL(request.url);
 
-        if (request.method === 'GET' && pathname === '/v1/stats') {
-            return handleStats(env);
+        if (pathname === '/v1/stats' || pathname.startsWith('/v1/stats/')) {
+            if (request.method !== 'GET') return json(405, { error: 'method not allowed' });
+            return pathname === '/v1/stats' ? handleStats(env) : handleHistory(env, request, pathname);
         }
         if (request.method !== 'POST') {
             return json(405, { error: 'method not allowed' });
@@ -1491,6 +1574,11 @@ export default {
             default:
                 return json(404, { error: 'not found' });
         }
+    },
+
+    // Cron entry: serve.mjs calls it every minute; a Workers cron trigger would too.
+    async scheduled(event, env) {
+        await statsTick(env, (event && event.scheduledTime) || Date.now());
     },
 };
 

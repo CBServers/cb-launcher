@@ -10,15 +10,23 @@
 // so load-balancing across workers would fork presence and mailboxes.
 import { createServer } from 'node:http';
 import { openStore } from './store-sqlite.mjs';
+import { openStats } from './stats-sqlite.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT) || 8787;
 const dbPath = process.env.DB_PATH || new URL('./cbfriends.db', import.meta.url).pathname
     .replace(/^\/([A-Za-z]:)/, '$1');
+// History lives in its own file so backups and write locks stay independent of the main store.
+const statsPath = process.env.STATS_DB_PATH || dbPath.replace(/[^\\/]+$/, 'stats.db');
+const STATS_TICK_MS = 60_000;
 
 const module = await import(new URL('./src/index.js', import.meta.url).href);
 const worker = module.default;
 const store = openStore(dbPath);
+if (!process.env.STATS_SALT) {
+    console.warn('STATS_SALT unset: using a fixed dev salt; set it in production so unique-launcher counts survive restarts');
+}
+const stats = openStats(statsPath, { salt: process.env.STATS_SALT || 'dev-salt' });
 
 // Same surface as store-sqlite's doStorage, over a Map that lives and dies with the process.
 function memStorage() {
@@ -61,6 +69,8 @@ const env = {
     GRAPH: doBinding(module.SocialGraph, 'graph', true),
     MAILBOX: doBinding(module.Mailbox, 'mailbox', false),
     DIRECTORY: doBinding(module.Directory, 'directory', false),
+    STATS: stats,
+    SERVERS_URL: process.env.SERVERS_URL || '',
 };
 
 const server = createServer(async (req, res) => {
@@ -104,6 +114,22 @@ server.keepAliveTimeout = 75_000;
 const sweeper = setInterval(() => store.sweepExpired(), 60_000);
 sweeper.unref();
 
+// One history sample a minute; a slow servers fetch must not stack ticks.
+let ticking = false;
+async function tick() {
+    if (ticking) return;
+    ticking = true;
+    try {
+        await worker.scheduled({ scheduledTime: Date.now(), cron: '* * * * *' }, env);
+    } catch (e) {
+        console.error('stats tick:', e);
+    } finally {
+        ticking = false;
+    }
+}
+setTimeout(tick, 5_000).unref();
+setInterval(tick, STATS_TICK_MS).unref();
+
 let shuttingDown = false;
 function shutdown(signal) {
     if (shuttingDown) return;
@@ -111,6 +137,7 @@ function shutdown(signal) {
     console.log(`${signal}: draining (held polls resolve within 25s)`);
     server.close(() => {
         store.close();
+        stats.close();
         process.exit(0);
     });
     setTimeout(() => process.exit(0), 30_000).unref();
@@ -119,5 +146,5 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(port, host, () => {
-    console.log(`cbfriends on http://${host}:${port}, db ${dbPath}`);
+    console.log(`cbfriends on http://${host}:${port}, db ${dbPath}, stats ${statsPath}`);
 });
