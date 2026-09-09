@@ -1,0 +1,7 @@
+{
+    "module": "../workshop/src/index.js",
+    "port": 8790,
+    "kv": ["WORKSHOP"],
+    "vars": ["STEAM_API_KEY", "CDN_ORIGIN"],
+    "cronSeconds": 300
+}

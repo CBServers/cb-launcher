@@ -26,8 +26,10 @@ through a 60s in-memory cache — so a warm isolate serves requests with zero KV
 operations. Token resolution (`tok:` keys, 1h TTL) and rate limiting are also
 memory-first.
 
-Consequence: a newly linked user becomes visible to their friends within ~2
-minutes (1 min cron + 60s cache) rather than instantly. Rate limiting is
+Link and unlink also patch the in-memory index and rewrite the `index` key
+inline, so on the single-process VPS deployment a new link is visible to
+friends on their next intersect (the launcher refreshes every 30s). The cron
+is a reconciliation pass (every 5 minutes on the VPS). Rate limiting is
 per-isolate, i.e. best-effort.
 
 Deploying requires setting the cron trigger alongside the script upload:

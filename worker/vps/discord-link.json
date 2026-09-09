@@ -1,0 +1,6 @@
+{
+    "module": "../discord-link/src/index.js",
+    "port": 8789,
+    "kv": ["LINKS"],
+    "cronSeconds": 300
+}

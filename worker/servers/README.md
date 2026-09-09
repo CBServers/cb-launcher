@@ -32,8 +32,6 @@ comes from the cbfriends worker's `/v1/stats` and is never added to this one.
 
 ## Deploy
 
-```
-npx wrangler dev                      # local, no secrets needed
-npx wrangler deploy                   # staging (workers.dev)
-npx wrangler deploy -c wrangler.prod.toml   # production (servers.cbservers.xyz)
-```
+Production runs on a VPS through the `worker/vps` harness (`node ../vps/serve.mjs
+../vps/servers.json`), not on Cloudflare. The wrangler config is local-only and
+gitignored; the Worker is kept only as a rollback path.

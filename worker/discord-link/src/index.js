@@ -110,13 +110,26 @@ function checkRateLimit(userId) {
     return count <= RATE_LIMIT_PER_MINUTE;
 }
 
+// Applies a link change to the in-memory index and the "index" key right away, so friends
+// see it on their next intersect instead of after the cron rebuild.
+async function updateIndex(env, userId, linked) {
+    const ids = await loadIndex(env);
+    if (ids === null || ids.has(userId) === linked) {
+        return;
+    }
+    if (linked) ids.add(userId); else ids.delete(userId);
+    await env.LINKS.put(INDEX_KEY, JSON.stringify([...ids]));
+}
+
 async function handleLink(userId, env) {
     await env.LINKS.put(`linked:${userId}`, JSON.stringify({ linkedAt: Math.floor(Date.now() / 1000) }));
+    await updateIndex(env, userId, true);
     return new Response(null, { status: 204 });
 }
 
 async function handleUnlink(userId, env) {
     await env.LINKS.delete(`linked:${userId}`);
+    await updateIndex(env, userId, false);
     return new Response(null, { status: 204 });
 }
 
@@ -172,9 +185,9 @@ async function handleIntersect(request, userId, env) {
     return json(200, { linked: unique.filter((id, i) => results[i] !== null) });
 }
 
-// Rebuilds the "index" key from the per-user "linked:" keys. list() is
-// eventually consistent, so a brand-new link can miss one rebuild; the next
-// run picks it up.
+// Rebuilds the "index" key from the per-user "linked:" keys. Link/unlink update
+// the index inline; this pass reconciles anything that slipped through (on
+// Workers, other isolates' writes; list() is eventually consistent either way).
 async function rebuildIndex(env) {
     const ids = [];
     let cursor;

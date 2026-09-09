@@ -1,0 +1,4 @@
+{
+    "module": "../servers/src/index.js",
+    "port": 8788
+}
