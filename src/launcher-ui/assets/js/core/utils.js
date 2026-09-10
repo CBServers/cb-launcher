@@ -1068,6 +1068,11 @@ class GameUtils {
             try { missingResp = await window.executeCommand('get-missing-redists-for-game', { game: backendGame }); }
             catch (e) { console.error('get-missing-redists-for-game failed', e); }
 
+            // Fails open, but say so: an empty list and a check that never ran look identical otherwise.
+            if (!missingResp || missingResp.checked !== true) {
+                console.error(`Redist check did not run for ${backendGame}, launching without it`, missingResp);
+            }
+
             const missing = (missingResp && missingResp.missing) || [];
             if (missing.length > 0) {
                 const result = window.LaunchRedistModal

@@ -32,6 +32,20 @@ namespace redist
             return alt;
         }
 
+        // Checking only the newest d3dx9 passes on the trimmed Jun2010 redists Steam titles ship,
+        // which lack every older version our clients import.
+        detect_alternative dx_runtime_files()
+        {
+            static const std::initializer_list<const wchar_t*> names = {
+                L"d3dx9_34.dll", L"d3dx9_37.dll", L"d3dx9_43.dll", L"d3dx11_43.dll", L"XInput1_3.dll"
+            };
+
+            auto alt = system_dlls(L"System32", names);
+            const auto wow = system_dlls(L"SysWOW64", names);
+            alt.insert(alt.end(), wow.begin(), wow.end());
+            return alt;
+        }
+
         detect_alternative winsxs_assembly(const wchar_t* prefix)
         {
             return {{ detect_kind::directory_prefix_exists,
@@ -197,10 +211,7 @@ namespace redist
                 "/silent",
                 true,
                 {
-                    {
-                        { detect_kind::file_exists, { L"%SystemRoot%\\System32\\D3DX9_43.dll" }, L"", 0 },
-                        { detect_kind::file_exists, { L"%SystemRoot%\\SysWOW64\\D3DX9_43.dll" }, L"", 0 },
-                    },
+                    dx_runtime_files(),
                 }
             },
         };

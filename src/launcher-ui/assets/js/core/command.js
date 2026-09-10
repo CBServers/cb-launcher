@@ -294,6 +294,8 @@ function mockCommand(command, data) {
         case 'open-folder':
         case 'open-url':
             return true;
+        case 'get-missing-redists-for-game':
+            return { checked: true, missing: [] };
         default:
             return null;
     }

@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 
 #include <utils/com.hpp>
+#include <utils/logger.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
@@ -471,12 +472,15 @@ namespace commands::ui_commands
 
             if (utils::nt::is_wine_environment())
             {
+                response.AddMember("checked", true, allocator);
                 response.AddMember("missing", missing, allocator);
                 return;
             }
 
             if (!value.IsObject() || !value.HasMember("game") || !value["game"].IsString())
             {
+                utils::logger::write("[redist] launch check skipped: no game in request");
+                response.AddMember("checked", false, allocator);
                 response.AddMember("missing", missing, allocator);
                 return;
             }
@@ -484,6 +488,16 @@ namespace commands::ui_commands
             const std::string game = value["game"].GetString();
             const auto required = game_config::resolve_required_redists(game);
             const auto groups = redist::redist_installer::instance().get_missing(required);
+
+            std::string missing_names;
+            for (const auto& g : groups)
+            {
+                if (!missing_names.empty()) missing_names += ", ";
+                missing_names += g.group_id;
+            }
+
+            utils::logger::write("[redist] launch check for {}: {} required, missing [{}]",
+                game, required.size(), missing_names);
 
             for (const auto& g : groups)
             {
@@ -498,6 +512,7 @@ namespace commands::ui_commands
                 missing.PushBack(obj, allocator);
             }
 
+            response.AddMember("checked", true, allocator);
             response.AddMember("missing", missing, allocator);
         });
 
