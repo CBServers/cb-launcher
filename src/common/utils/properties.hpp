@@ -15,6 +15,8 @@ namespace utils::properties
     std::filesystem::path get_portable_root();
     std::filesystem::path get_local_root();
     std::filesystem::path get_portable_marker();
+    // Left in the new root by a data move; its presence tells the next start to delete the other root.
+    std::filesystem::path get_move_marker(const std::filesystem::path& root);
 
     std::unique_lock<named_mutex> lock();
 

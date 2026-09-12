@@ -501,7 +501,7 @@ namespace mods
                 }
 
                 const auto target = (into / utils::string::utf8_to_path(name)).lexically_normal();
-                if (!client_store::is_inside_folder(target, into))
+                if (!utils::io::is_inside_folder(target, into))
                 {
                     return "The zip archive contains an unsafe path: " + name;
                 }
@@ -1126,7 +1126,7 @@ namespace mods
         }
 
         const auto target = (*parent / dirname).lexically_normal();
-        return client_store::is_inside_folder(target, *parent) ? std::optional{target} : std::nullopt;
+        return utils::io::is_inside_folder(target, *parent) ? std::optional{target} : std::nullopt;
     }
 
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)

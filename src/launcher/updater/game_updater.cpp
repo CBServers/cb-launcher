@@ -270,19 +270,6 @@ namespace game_updater
             cores = (cores * 2) / 3;
             return std::max(1ull, std::min(cores, file_count));
         }
-
-        bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
-        {
-            std::error_code code{};
-            const auto relative = std::filesystem::relative(file, folder, code);
-            if (code)
-            {
-                return false;
-            }
-
-            const auto start = relative.begin();
-            return start != relative.end() && start->native() != L"..";
-        }
     }
 
     game_updater::game_updater(const game_config::game_config_t& config, bool skip_hash, bool delete_deselected, updater::ui_progress_listener* listener)
@@ -1484,7 +1471,7 @@ namespace game_updater
             auto parent = this->resolve_target(file).parent_path();
 
             // Add all parent directories up to (but not including) install_path
-            while (parent != this->install_path && is_inside_folder(parent, this->install_path))
+            while (parent != this->install_path && utils::io::is_inside_folder(parent, this->install_path))
             {
                 directories_to_check.insert(parent);
                 parent = parent.parent_path();

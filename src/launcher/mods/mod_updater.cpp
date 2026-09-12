@@ -71,7 +71,7 @@ namespace mod_updater
             }
 
             auto path = (root / utils::string::utf8_to_path(name)).lexically_normal();
-            return client_store::is_inside_folder(path, root) ? std::optional{std::move(path)} : std::nullopt;
+            return utils::io::is_inside_folder(path, root) ? std::optional{std::move(path)} : std::nullopt;
         }
 
         std::vector<manifest_file> parse_manifest(const std::string& json)

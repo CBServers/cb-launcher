@@ -76,6 +76,63 @@ namespace
         SetProcessDPIAware();
     }
 
+    // True once nothing but (optionally) the root-level client auth keys is left.
+    bool remove_data_root(const std::filesystem::path& root, const bool keep_client_keys)
+    {
+        std::error_code ec;
+        if (!keep_client_keys)
+        {
+            std::filesystem::remove_all(root, ec);
+            return !std::filesystem::exists(root, ec);
+        }
+
+        std::vector<std::filesystem::path> entries;
+        for (const auto& entry : std::filesystem::directory_iterator(root, ec))
+        {
+            if (entry.path().extension() != ".key") entries.push_back(entry.path());
+        }
+
+        auto done = true;
+        for (const auto& entry : entries)
+        {
+            std::filesystem::remove_all(entry, ec);
+            done = done && !std::filesystem::exists(entry, ec);
+        }
+        return done;
+    }
+
+    // Finishes a Settings data move: the new root carries the move marker, the old root gets deleted.
+    void remove_previous_data_root()
+    {
+        const auto current = utils::properties::get_appdata_path();
+        const auto move_marker = utils::properties::get_move_marker(current);
+
+        std::error_code ec;
+        if (!std::filesystem::exists(move_marker, ec)) return;
+
+        // Leaving the local root: the game clients still read their auth keys from it.
+        const bool leaving_local = utils::properties::is_portable();
+        const auto previous = leaving_local ? utils::properties::get_local_root() : utils::properties::get_portable_root();
+        const bool can_delete = !utils::io::is_inside_folder(previous, current) &&
+                                !utils::io::is_inside_folder(current, previous);
+
+        std::thread([previous, move_marker, can_delete, leaving_local]
+        {
+            // The old instance's CEF subprocesses hold files open for a few seconds after it exits.
+            auto done = !can_delete;
+            for (auto attempt = 0; !done && attempt < 15; ++attempt)
+            {
+                done = remove_data_root(previous, leaving_local);
+                if (!done) std::this_thread::sleep_for(1s);
+            }
+
+            if (done)
+            {
+                utils::io::remove_file(move_marker);
+            }
+        }).detach();
+    }
+
     bool try_become_singleton()
     {
         static utils::named_mutex mutex{"cb-launcher"};
@@ -340,6 +397,7 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         printf("Debug console enabled\n");
 #endif
 
+        remove_previous_data_root();
         game_config::seed_legacy_client_selections();
 
         // Persistent equivalents of -noupdate / -offline, settable from the Settings page.

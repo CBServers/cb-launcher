@@ -70,6 +70,11 @@ namespace utils::properties
         return get_portable_root() / "portable.marker";
     }
 
+    std::filesystem::path get_move_marker(const std::filesystem::path& root)
+    {
+        return root / "user" / "data-moved.marker";
+    }
+
     std::filesystem::path get_local_root()
     {
         PWSTR path;

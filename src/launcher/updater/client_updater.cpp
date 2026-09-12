@@ -513,7 +513,7 @@ namespace client_updater
 
             const auto is_scoped = std::any_of(roots.begin(), roots.end(), [&path](const std::filesystem::path& root)
             {
-                return client_store::is_inside_folder(path, root);
+                return utils::io::is_inside_folder(path, root);
             });
 
             if (!is_scoped || !utils::io::file_exists(path))
@@ -538,7 +538,7 @@ namespace client_updater
                 const auto inside_root = std::any_of(roots.begin(), roots.end(),
                     [&parent, &parent_key](const std::filesystem::path& root)
                 {
-                    return parent_key != client_store::path_key(root) && client_store::is_inside_folder(parent, root);
+                    return parent_key != client_store::path_key(root) && utils::io::is_inside_folder(parent, root);
                 });
 
                 if (!inside_root)
@@ -638,7 +638,7 @@ namespace client_updater
             auto parent = file_path.parent_path();
             const auto base = this->paths_.resolve_base(file.name, file.dest);
 
-            while (parent != base && client_store::is_inside_folder(parent, base))
+            while (parent != base && utils::io::is_inside_folder(parent, base))
             {
                 directories_to_check.insert(parent);
                 parent = parent.parent_path();

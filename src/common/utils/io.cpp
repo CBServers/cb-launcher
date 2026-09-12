@@ -167,4 +167,17 @@ namespace utils::io
                               std::filesystem::copy_options::overwrite_existing |
                               std::filesystem::copy_options::recursive);
     }
+
+    bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
+    {
+        std::error_code code{};
+        const auto relative = std::filesystem::relative(file, folder, code);
+        if (code)
+        {
+            return false;
+        }
+
+        const auto start = relative.begin();
+        return start != relative.end() && start->native() != L"..";
+    }
 }

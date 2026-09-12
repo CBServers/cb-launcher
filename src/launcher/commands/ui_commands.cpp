@@ -294,6 +294,8 @@ namespace commands::ui_commands
 
             const auto src = utils::properties::get_appdata_path();
             const auto dst = to_portable ? utils::properties::get_portable_root() : utils::properties::get_local_root();
+            const auto portable_marker = utils::properties::get_portable_marker();
+            const auto move_marker = utils::properties::get_move_marker(dst);
 
             static const std::vector<std::filesystem::path> skipped = {
                 std::filesystem::path("mods") / "steamcmd",
@@ -314,7 +316,9 @@ namespace commands::ui_commands
                 for (auto it = std::filesystem::recursive_directory_iterator(src); it != std::filesystem::recursive_directory_iterator(); ++it)
                 {
                     const auto rel = std::filesystem::relative(it->path(), src);
-                    const bool skip = rel.filename() == "portable.marker" || rel.extension() == ".log" ||
+                    // Root .key files are client auth keys, which the game clients only read from the local root.
+                    const bool skip = rel.filename() == portable_marker.filename() || rel.filename() == move_marker.filename() ||
+                                      rel.extension() == ".log" || (!rel.has_parent_path() && rel.extension() == ".key") ||
                                       std::find(skipped.begin(), skipped.end(), rel) != skipped.end();
                     if (skip)
                     {
@@ -334,15 +338,18 @@ namespace commands::ui_commands
                     }
                 }
 
-                const auto marker = utils::properties::get_portable_marker();
                 if (to_portable)
                 {
-                    if (!utils::io::write_file(marker, "")) throw std::runtime_error("marker");
+                    if (!utils::io::write_file(portable_marker, "")) throw std::runtime_error("marker");
                 }
                 else
                 {
-                    utils::io::remove_file(marker);
+                    utils::io::remove_file(portable_marker);
+                    if (std::filesystem::exists(portable_marker, ec)) throw std::runtime_error("marker");
                 }
+
+                // Only once the switch is certain, so a failed switch never schedules deleting live data.
+                utils::io::write_file(move_marker, "");
             }
             catch (const std::exception& e)
             {

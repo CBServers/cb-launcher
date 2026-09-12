@@ -309,19 +309,6 @@ namespace client_store
         return text;
     }
 
-    bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
-    {
-        std::error_code code{};
-        const auto relative = std::filesystem::relative(file, folder, code);
-        if (code)
-        {
-            return false;
-        }
-
-        const auto start = relative.begin();
-        return start != relative.end() && start->native() != L"..";
-    }
-
     void prune_empty_directories(const std::set<std::filesystem::path>& directories)
     {
         std::vector<std::filesystem::path> sorted_dirs(directories.begin(), directories.end());
@@ -506,7 +493,7 @@ namespace client_store
                     const auto inside_root = std::any_of(roots.begin(), roots.end(),
                         [&parent, &parent_key](const std::filesystem::path& root)
                     {
-                        return parent_key != path_key(root) && is_inside_folder(parent, root);
+                        return parent_key != path_key(root) && utils::io::is_inside_folder(parent, root);
                     });
 
                     if (!inside_root)

@@ -10,6 +10,7 @@
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
 #include <utils/nt.hpp>
+#include <utils/properties.hpp>
 #include <utils/string.hpp>
 #include <version.hpp>
 
@@ -140,13 +141,6 @@ namespace launcher_updater
             size_t cores = std::thread::hardware_concurrency();
             cores = (cores * 2) / 3;
             return std::max(1ull, std::min(cores, file_count));
-        }
-
-        bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder)
-        {
-            const auto relative = std::filesystem::relative(file, folder);
-            const auto start = relative.begin();
-            return start != relative.end() && start->string() != "..";
         }
     }
 
@@ -418,11 +412,16 @@ namespace launcher_updater
 
     void launcher_updater::cleanup_root_directory() const
     {
+        static const std::vector<std::filesystem::path> kept_folders = {"user", "data", "manifest", "mods", "clients"};
+        const auto portable_marker = utils::properties::get_portable_marker().filename();
+
         const auto existing_files = utils::io::list_files(this->base_);
         for (const auto& file : existing_files)
         {
-            const auto entry = std::filesystem::relative(file, this->base_);
-            if ((entry.string() == "user" || entry.string() == "data" || entry.string() == "manifest" || entry.string() == "mods") && utils::io::directory_exists(file) || file.extension() == ".key")
+            const auto name = file.filename();
+            const bool kept_folder = std::find(kept_folders.begin(), kept_folders.end(), name) != kept_folders.end() &&
+                                     utils::io::directory_exists(file);
+            if (kept_folder || file.extension() == ".key" || name == portable_marker)
             {
                 continue;
             }
@@ -462,7 +461,7 @@ namespace launcher_updater
 
                 for (const auto& legal_file : legal_files)
                 {
-                    if ((is_folder && is_inside_folder(legal_file, file)) ||
+                    if ((is_folder && utils::io::is_inside_folder(legal_file, file)) ||
                         (is_file && legal_file == file))
                     {
                         is_legal = true;

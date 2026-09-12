@@ -43,8 +43,6 @@ namespace client_store
     // Comparable key for a path: absolute, normalized, case-folded like the filesystem.
     std::wstring path_key(const std::filesystem::path& path);
 
-    bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder);
-
     // Deepest-first, so a nested directory is gone before its parent is tested.
     void prune_empty_directories(const std::set<std::filesystem::path>& directories);
 

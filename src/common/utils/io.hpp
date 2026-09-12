@@ -28,4 +28,6 @@ namespace utils::io
     bool directory_is_empty(const std::filesystem::path& directory);
     std::vector<std::filesystem::path> list_files(const std::filesystem::path& directory, bool recursive = false);
     void copy_folder(const std::filesystem::path& src, const std::filesystem::path& target);
+    // True for the folder itself too; false across volumes or when either path can't be resolved.
+    bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder);
 }
