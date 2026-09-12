@@ -82,7 +82,7 @@ const env = {
         },
     },
     CHAT: doBinding(module.ChatRoom, 'chat'),
-    MAILBOX: doBinding(module.Mailbox, 'mailbox'),
+    INBOX: doBinding(module.Inbox, 'inbox'),
     GRAPH: doBinding(module.SocialGraph, 'graph'),
     DIRECTORY: doBinding(module.Directory, 'directory'),
     // In-memory history so the stats endpoints answer during UI work; gone when the process exits.

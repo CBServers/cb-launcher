@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "social/inbox_client.hpp"
+
 namespace discord
 {
     enum class link_status
@@ -141,6 +143,10 @@ namespace discord
         void set_join_secret_callback(std::function<void(std::string)> callback);
         // Invoked (on the discord thread) when approving a knock/invite requires the game to open its match.
         void set_open_match_callback(std::function<void()> callback);
+        // Invoked (on the discord thread) when a new invite is queued for the in-launcher prompt.
+        void set_invites_changed_callback(std::function<void()> callback);
+        // Incoming discord-sourced inbox traffic; hops onto the discord thread.
+        void handle_inbox_message(const social::inbox_client::message& message);
 
         link_status get_status() const;
         std::optional<own_profile> get_profile() const;

@@ -45,10 +45,13 @@ async function grow(n) {
     }
 }
 
-// The four calls the launcher makes on every five-second tick.
+// The invite inbox is bound once per session, not per tick, so it is set up outside the cycle.
+await call(me, '/v1/inbox/attach');
+
+// The calls the launcher makes on every five-second tick, plus one round of its held inbox poll.
 const cycle = () => measure(async () => {
     await call(me, '/v1/friends/list');
-    await call(me, '/v1/invite/poll');
+    await call(me, '/v1/inbox/poll', { after: 0, hold: false });
     await call(me, '/v1/lfg/list', { game: 'boiii' });
     await call(me, '/v1/chat/poll', { room: 'boiii', after: 0 });
 });
@@ -69,9 +72,9 @@ check(`poll cost does not grow with the population (${small.get} -> ${large.get}
 check('a poll cycle never scans the namespace', small.list === 0 && large.list === 0);
 check('polling writes nothing to KV', large.put === 0 && large.delete === 0);
 
-// Each endpoint resolves the caller's device key; that lookup is the floor, and nothing sits on top
-// of it except the invite mailbox, which is a single key.
-check(`four polled endpoints cost five reads in total (${large.get})`, large.get === 5);
+// Each account endpoint resolves the caller's device key; that lookup is the floor, and the inbox
+// poll is keyed by the device itself so it costs nothing.
+check(`four polled endpoints cost three reads in total (${large.get})`, large.get === 3);
 
 const beat = await measure(() => call(me, '/v1/presence', { game: 'boiii' }));
 check(`presence no longer writes to KV (${beat.put} puts)`, beat.put === 0);

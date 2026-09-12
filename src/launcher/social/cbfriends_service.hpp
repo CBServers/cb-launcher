@@ -10,6 +10,8 @@
 
 #include <rapidjson/document.h>
 
+#include "inbox_client.hpp"
+
 namespace social
 {
     enum class profile_state
@@ -231,8 +233,11 @@ namespace social
         cb_own_presence get_own_presence() const;
         bool is_same_match(const std::string& game, const std::string& match_id) const;
 
-        void send_invite(const std::string& cb_id);
-        void request_join(const std::string& cb_id);
+        // Outcome of an outgoing invite / join request:
+        // "sent" | "offline" | "rate_limited" | "dropped" | "failed".
+        using action_reporter = std::function<void(std::string status, std::string error)>;
+        void send_invite(const std::string& cb_id, action_reporter on_result = {});
+        void request_join(const std::string& cb_id, action_reporter on_result = {});
         std::vector<cb_invite> get_invites() const;
         // Routes their secret for an invite, or approves and replies with ours for a request.
         void accept_invite(const std::string& id);
@@ -240,6 +245,10 @@ namespace social
         void set_join_secret_callback(std::function<void(std::string)> callback);
         // Fired when approving a join-request needs the game to open its private match first.
         void set_open_match_callback(std::function<void()> callback);
+        // Fired (on the inbox poll thread) when a new invite is queued for the prompt.
+        void set_invites_changed_callback(std::function<void()> callback);
+        // Incoming cb-sourced inbox traffic: invites, join requests and replies from CB friends.
+        void handle_inbox_message(const inbox_client::message& message);
 
         profile_state get_state() const;
         std::optional<cb_profile> get_profile() const;
@@ -350,7 +359,6 @@ namespace social
         void send_pulse(bool bye = false);
         void send_broadcast_keepalive();
         void load_broadcast();
-        void poll_invites();
         void chat_loop();
         void poll_chat(bool hold);
         void stop_chat_worker();
@@ -366,7 +374,6 @@ namespace social
         void refresh_chat_heads();
         void refresh_mod_role();
         void refresh_mod_queue();
-        void process_message(const rapidjson::Value& message);
         void send_reply(const std::string& to, const std::string& reply_to, const std::string& game,
                         const std::string& match, const std::string& secret);
         std::optional<cb_person> find_friend(const std::string& cb_id) const;
@@ -406,6 +413,7 @@ namespace social
         std::vector<cb_invite> invites_;
         std::function<void(std::string)> join_secret_cb_;
         std::function<void()> open_match_cb_;
+        std::function<void()> invites_changed_cb_;
 
         std::string dm_peer_;
         std::vector<chat_message> dm_;

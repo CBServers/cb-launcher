@@ -3,7 +3,7 @@
 #include "discord_constants.hpp"
 #include "game_config.hpp"
 #include "link_registry.hpp"
-#include "relay_client.hpp"
+#include "social/inbox_client.hpp"
 #include "token_store.hpp"
 #include "ipc/ipc_server.hpp"
 
@@ -361,6 +361,19 @@ namespace discord
             }
         }
 
+        // Fired from the discord thread whenever a new invite is queued for the in-launcher prompt.
+        utils::concurrency::container<std::function<void()>> invites_changed_cb{};
+
+        void notify_invites_changed()
+        {
+            std::function<void()> cb{};
+            this->invites_changed_cb.access([&cb](const std::function<void()>& stored) { cb = stored; });
+            if (cb)
+            {
+                cb();
+            }
+        }
+
         // Invites (discord thread only).
         std::function<void(std::string)> join_secret_cb{};
         std::function<void()> open_match_cb{}; // fired when an approve/invite needs the game to open its match
@@ -388,11 +401,6 @@ namespace discord
         std::map<uint64_t, std::chrono::steady_clock::time_point> pending_join_requests{}; // hosts we asked to join
         std::map<uint64_t, std::chrono::steady_clock::time_point> recent_knock_converts{}; // anti ping-pong for knock re-asks
         bool launch_command_registered{false}; // Discord cold-launch handler (registered once on ready)
-
-        // Invite transport. Started once linked; every failure falls back to the SDK path.
-        relay_client relay{};
-        // Presence snapshot for the relay poll body; written here, read from the poll thread.
-        utils::concurrency::container<relay_client::session_snapshot> relay_snapshot{};
 
         std::chrono::steady_clock::duration connect_backoff{CONNECT_RETRY_INITIAL};
         std::chrono::steady_clock::time_point next_connect_retry{};
@@ -443,63 +451,11 @@ namespace discord
                 return stamp_same_match(s.friends, own_game_id, own_match_id);
             });
 
-            this->update_relay_snapshot(joinable);
-
             // Our own match changing flips friends between joinable and "in your match".
             if (friends_changed)
             {
                 this->notify_friends_changed();
             }
-        }
-
-        // The relay stores this snapshot and returns it to nobody in v1; it is the v2 presence hook.
-        void update_relay_snapshot(const bool joinable)
-        {
-            relay_client::session_snapshot snapshot{};
-
-            if (this->current_activity)
-            {
-                const auto& a = *this->current_activity;
-                snapshot.valid = true;
-                snapshot.game = a.game_id;
-                snapshot.match_id = a.match_id;
-                snapshot.mode = a.mode;
-                snapshot.map = a.map_raw;
-                snapshot.gametype = a.gametype_raw;
-                snapshot.joinable = joinable;
-                snapshot.direct_join = a.direct_join;
-                snapshot.openable = a.openable;
-                snapshot.players = a.players;
-                snapshot.max_players = a.max_players;
-            }
-
-            this->relay_snapshot.access([&snapshot](relay_client::session_snapshot& stored)
-            {
-                stored = snapshot;
-            });
-        }
-
-        // Called on the relay poll thread, so everything it reads is behind a lock.
-        relay_client::session_snapshot build_relay_snapshot() const
-        {
-            auto snapshot = this->relay_snapshot.access<relay_client::session_snapshot>(
-                [](const relay_client::session_snapshot& stored) { return stored; });
-
-            // Soft metric: linked friends Discord shows online who publish no launcher activity.
-            snapshot.privacy_gap = this->state->access<int>([](const shared_state& s)
-            {
-                int gap = 0;
-                for (const auto& entry : s.friends)
-                {
-                    if (entry.linked && entry.status != "offline" && !entry.in_launcher)
-                    {
-                        ++gap;
-                    }
-                }
-                return gap;
-            });
-
-            return snapshot;
         }
 
         // Republishes the current game activity (on set and on reconnect) so presence survives SDK reconnects.
@@ -744,12 +700,12 @@ namespace discord
             });
         }
 
-        // Transport selection for outgoing invites/knocks: the relay first, the rate-limited SDK
-        // only when the recipient has no relay session or the relay itself is unreachable.
+        // Transport selection for outgoing invites/knocks: the inbox first, the rate-limited SDK
+        // only when the recipient holds no inbox poll or the inbox itself is unreachable.
         void send_through_relay(const uint64_t uid, const std::string& kind, const action_callback& on_result,
                                 std::function<void()> sdk_send)
         {
-            if (!this->relay.enabled())
+            if (!social::inbox_client::instance().discord_enabled())
             {
                 sdk_send();
                 return;
@@ -762,28 +718,28 @@ namespace discord
                                     ? this->current_activity->join_secret
                                     : std::string{};
 
-            this->relay.send_invite_async(std::to_string(uid), kind, game, match, secret,
-                                          [i = this, uid, kind, on_result, sdk_send = std::move(sdk_send)](
-                                          const relay_client::outcome out) mutable
+            social::inbox_client::instance().send_async(std::to_string(uid), kind, game, match, secret,
+                [i = this, uid, kind, on_result, sdk_send = std::move(sdk_send)](
+                const social::inbox_client::outcome out) mutable
             {
-                if (out == relay_client::outcome::delivered)
+                if (out == social::inbox_client::outcome::delivered)
                 {
                     utils::logger::write("[cbl-relay] {} -> {}: delivered", kind, uid);
                     i->post([on_result] { report(on_result, {action_result::code::sent}); });
                     return;
                 }
 
-                if (out == relay_client::outcome::throttled)
+                if (out == social::inbox_client::outcome::throttled)
                 {
                     utils::logger::write("[cbl-relay] {} -> {}: throttled", kind, uid);
                     i->post([on_result]
                     {
-                        report(on_result, {action_result::code::rate_limited, relay_client::throttle_retry_seconds});
+                        report(on_result, {action_result::code::rate_limited, social::inbox_client::throttle_retry_seconds});
                     });
                     return;
                 }
 
-                if (out == relay_client::outcome::blocked)
+                if (out == social::inbox_client::outcome::blocked)
                 {
                     utils::logger::write("[cbl-relay] {} -> {}: blocked", kind, uid);
                     i->post([on_result] { report(on_result, {action_result::code::dropped}); });
@@ -791,7 +747,7 @@ namespace discord
                 }
 
                 utils::logger::write("[cbl-relay] {} -> {}: {}, falling back to Discord", kind, uid,
-                                     out == relay_client::outcome::offline ? "recipient offline" : "transport error");
+                                     out == social::inbox_client::outcome::offline ? "recipient offline" : "transport error");
                 i->post([i, sdk_send = std::move(sdk_send)]
                 {
                     if (i->client && i->current_status() == link_status::linked)
@@ -815,10 +771,10 @@ namespace discord
             const auto game = this->current_activity ? this->current_activity->game_id : std::string{};
             const auto match = this->current_activity ? this->current_activity->match_id : std::string{};
 
-            this->relay.send_reply_async(to, relay_id, accept, game, match, secret,
-                                         [to, accept](const relay_client::outcome out)
+            social::inbox_client::instance().reply_async(to, relay_id, accept, game, match, secret,
+                [to, accept](const social::inbox_client::outcome out)
             {
-                if (out == relay_client::outcome::delivered)
+                if (out == social::inbox_client::outcome::delivered)
                 {
                     utils::logger::write("[cbl-relay] reply ({}) -> {}: delivered", accept ? "accept" : "decline", to);
                     return;
@@ -1063,6 +1019,7 @@ namespace discord
 
             utils::logger::write("[cbl-invite] queued incoming {} from {} for the in-launcher prompt",
                                  is_request ? "join-request" : (is_approval ? "request-approval" : "invite"), sender_id);
+            this->notify_invites_changed();
         }
 
         void on_invite(const discordpp::ActivityInvite& invite)
@@ -1085,22 +1042,27 @@ namespace discord
             this->handle_incoming(in);
         }
 
-        // Relay dispatch: the same policy as the SDK path, with relay-flavored transport hooks.
-        void handle_relay_message(const relay_client::message& message)
+        // Inbox dispatch: the same policy as the SDK path, with relay-flavored transport hooks.
+        void handle_relay_message(const social::inbox_client::message& message)
         {
-            const auto sender_id = std::to_string(message.sender_id);
+            const auto& sender_id = message.sender;
+            const auto sender_uid = std::strtoull(sender_id.data(), nullptr, 10);
+            if (sender_uid == 0)
+            {
+                return;
+            }
 
             // A decline answers a request we sent; clear the pending state instead of surfacing a join.
             if (message.is_approval && !message.accept)
             {
                 utils::logger::write("[cbl-relay] {} declined our join request", sender_id);
-                this->pending_join_requests.erase(message.sender_id);
+                this->pending_join_requests.erase(sender_uid);
                 this->remove_invite(sender_id);
                 return;
             }
 
             incoming_invite in{};
-            in.sender_id = message.sender_id;
+            in.sender_id = sender_uid;
             in.is_request = message.kind == "join-request";
             in.is_approval = message.is_approval;
             in.game_id = message.game_id;
@@ -1395,12 +1357,8 @@ namespace discord
                     link_registry::register_link(access_token);
                 }).detach();
 
-                // Idempotent: a reconnect only refreshes the access token the session is minted with.
-                this->relay.start(access_token, [this] { return this->build_relay_snapshot(); },
-                                  [this](const relay_client::message& message)
-                                  {
-                                      this->post([this, message] { this->handle_relay_message(message); });
-                                  });
+                // Binds our Discord address on the shared inbox; a reconnect only refreshes the token.
+                social::inbox_client::instance().attach_discord(access_token);
             }
 
             this->next_registry_refresh = std::chrono::steady_clock::now();
@@ -1556,7 +1514,7 @@ namespace discord
                 utils::properties::store(property_keys::DISCORD_DISPLAY_NAME, "");
             }
 
-            this->relay.stop();
+            social::inbox_client::instance().detach_discord();
             this->invite_objs.clear();
             this->relay_invites_.clear();
             this->state->access([](shared_state& s)
@@ -1658,8 +1616,6 @@ namespace discord
                 std::this_thread::sleep_for(TICK_INTERVAL);
             }
 
-            // Aborts any held poll, so shutdown never waits one out.
-            this->relay.stop();
             this->client.reset();
         }
     };
@@ -1871,6 +1827,20 @@ namespace discord
         {
             return s.own_game_id == game_id && s.own_match_id == match_id;
         });
+    }
+
+    void discord_service::set_invites_changed_callback(std::function<void()> callback)
+    {
+        this->impl_->invites_changed_cb.access([&callback](std::function<void()>& stored)
+        {
+            stored = std::move(callback);
+        });
+    }
+
+    void discord_service::handle_inbox_message(const social::inbox_client::message& message)
+    {
+        // Arrives on the inbox poll thread; everything invite-related runs on the discord thread.
+        this->impl_->post([this, message] { this->impl_->handle_relay_message(message); });
     }
 
     void discord_service::set_friends_changed_callback(std::function<void()> callback)

@@ -59,7 +59,7 @@ function doStorage(disk, prefix) {
 // Builds an env plus a disk and a drop() that discards instances without touching their storage.
 export function makeEnv() {
     const disk = new Map();
-    const made = { CHAT: new Map(), MAILBOX: new Map(), GRAPH: new Map(), DIRECTORY: new Map() };
+    const made = { CHAT: new Map(), INBOX: new Map(), GRAPH: new Map(), DIRECTORY: new Map() };
     const bind = (kind, Cls) => ({
         idFromName: n => n,
         get(n) {
@@ -71,7 +71,7 @@ export function makeEnv() {
     });
     const env = { CB: fakeKV() };
     if (mod.ChatRoom) env.CHAT = bind('CHAT', mod.ChatRoom);
-    if (mod.Mailbox) env.MAILBOX = bind('MAILBOX', mod.Mailbox);
+    if (mod.Inbox) env.INBOX = bind('INBOX', mod.Inbox);
     if (mod.SocialGraph) env.GRAPH = bind('GRAPH', mod.SocialGraph);
     if (mod.Directory) env.DIRECTORY = bind('DIRECTORY', mod.Directory);
     env.STATS = openStats(':memory:', { salt: 'test' });
@@ -114,20 +114,6 @@ export function makeClient(env) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CB-Key': who.key, 'X-CB-Sig': await sign(who, body, der) },
             body,
-        }), env);
-        let b = null;
-        try { b = await res.json(); } catch { /* empty body */ }
-        return { s: res.status, b };
-    };
-}
-
-// Bearer-authed client for the Discord relay endpoints, which never see a device key.
-export function makeRelayClient(env) {
-    return async function relay(path, token, body) {
-        const res = await worker.fetch(new Request('https://x' + path, {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify(body || {}),
         }), env);
         let b = null;
         try { b = await res.json(); } catch { /* empty body */ }

@@ -1521,17 +1521,16 @@
         return f.status === 'online' || f.status === 'idle' ? 1 : 2;
     }
 
-    // Session actions for a Discord friend: join when live, invite greyed when we have nothing to invite to.
+    // Session actions for a Discord friend, greyed rather than hidden when the reason is obvious:
+    // join needs a live joinable match on their side, invite needs one on ours.
     function friendMenuItems(f) {
         const items = [];
         const online = f.status === 'online' || f.status === 'idle';
         if (f.sameMatch) return items;
-        if (f.joinable || f.openable) {
-            const knock = !f.joinable;
-            items.push({ label: t(knock ? 'friends.askToJoin' : 'friends.join'), action: () =>
-                window.DiscordFriendsManager.requestJoin(f.id, f.gameId || '', knock) });
-        }
         if (online) {
+            const knock = !f.joinable && f.openable;
+            items.push({ label: t(knock ? 'friends.askToJoin' : 'friends.join'), disabled: !f.joinable && !f.openable,
+                action: () => window.DiscordFriendsManager.requestJoin(f.id, f.gameId || '', knock) });
             items.push({ label: t('friends.invite'), disabled: !friendsState.joinable, action: () =>
                 window.DiscordFriendsManager.sendInvite(f.id) });
         }

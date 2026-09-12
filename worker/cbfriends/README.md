@@ -51,8 +51,7 @@ one, returning `409 recoverable` so the client recovers instead of duplicating.
 
 `acct:<cbId>` holds the account JSON. Reverse indices `dev:<fpr>`, `hwid:<hash>`, `discord:<id>`,
 `rec:<codeHash>`, `handle:<folded>` each map to a `cbId`. Handles are globally unique and
-case-insensitive (the folded form is the key). `sec:<cbId>` holds the security event log and
-`inv:<cbId>` the game-invite mailbox.
+case-insensitive (the folded form is the key). `sec:<cbId>` holds the security event log.
 
 KV holds **only cold records**. Everything the poll loop touches lives in a Durable Object instead,
 for two reasons: KV is eventually consistent (a read can serve a value up to a minute stale, so an
@@ -62,31 +61,32 @@ object, which serialises its own requests and reads its own writes.
 
 It is also what makes the service affordable. The board used to be listed by scanning the `lfg:`
 prefix and reading each poster's account and presence, on every client's five-second tick;
-`test/kv-budget.test.mjs` now pins a poll cycle at a flat five KV reads no matter how many friends
-or broadcasters exist.
+`test/kv-budget.test.mjs` now pins a poll cycle at a flat three KV reads no matter how many friends
+or broadcasters exist (the inbox poll is keyed by the device and costs none).
 
-## Discord invite relay
+## Invite inbox
 
-This worker also serves the Discord invite relay that used to run separately, so there is one
-service instead of two. Those endpoints speak the protocol `src/launcher/discord/relay_client.cpp`
-already implements, and are authenticated by **Discord token / relay token** — never a device key —
-so they keep working for people who never opt into a CB profile.
+Game invites, join requests and their replies travel through one in-memory inbox per launcher,
+keyed by the signing device key, so a launcher holds a single poll whether it has a CB profile, a
+linked Discord account, or both. An inbox has up to two addresses: `cb:<cbId>` once the device has
+an account and `discord:<id>` once it presents a Discord token, so Discord-only users are reached
+the same way and the join secret only ever travels here (presence carries flags only).
 
-| Endpoint | Auth | Response |
+| Endpoint | Body | Response |
 |---|---|---|
-| `/v1/session/start` | `Bearer <discord token>` | `{ relayToken, relayEnabled }` |
-| `/v1/poll` | `Bearer <relayToken>` | `{ invites: [...] }` — long-poll, held ~25s |
-| `/v1/invite` | `Bearer <relayToken>` | `{ reason }` |
-| `/v1/invite/reply` | `Bearer <relayToken>` | `{ reason }` |
+| `/v1/inbox/attach` | `{ ts, discordToken? }` | `200 { cbId, discordId, discordError, relayEnabled }` — binds the addresses; a bad Discord token sets `discordError` rather than failing, so it never costs the CB address. Re-attaching with the same token skips Discord |
+| `/v1/inbox/poll` | `{ ts, after, hold? }` | `200 { messages: [...], cursor, attached }` — `after` acks everything up to it; with `hold` the request is held ~25s until something lands. `attached:false` means the server lost the inbox (restart) and the launcher must attach again. No KV reads |
+| `/v1/invite/send` | `{ ts, to, kind, game?, matchId?, joinSecret?, isApproval?, replyTo?, accept? }` | `200 { reason, id? }` — `to` is a `cb_` id (sender needs an account and the CB friendship; `403` otherwise) or a Discord snowflake (sender needs a Discord binding; `failed` otherwise, so the launcher falls back to the SDK). `429 { reason: 'throttled' }` at 30/min per sender |
 
-`reason` is what the client classifies on: `delivered`; `offline` → **the launcher falls back to the
-Discord SDK**; `throttled` (429) → report rate-limited and **do not** fall back, which is the whole
-point of the relay; `blocked` / `failed`.
+`reason` is what the launcher classifies on: `delivered`; `offline` (the recipient holds no live
+poll) → a CB invite reports the friend offline, a Discord invite **falls back to the Discord SDK**;
+`throttled` (429) → report rate-limited and **do not** fall back, which is the whole point of the
+inbox; `failed`. Each message carries `from` and `source` (`cb` | `discord`) so the launcher routes
+it to the matching service, and the Discord side keeps checking senders against its own friends
+list since the server holds no Discord graph.
 
-Set the KV key `relayEnabled` to `false` to push every client back onto the SDK without redeploying.
-
-These are distinct from the CB game invites (`/v1/invite/send`, `/v1/invite/poll`), which are
-device-key authed and route between CB friends by `cbId`.
+Set the KV key `relayEnabled` to `false` to push every Discord invite back onto the SDK without
+redeploying; CB invites have no other path and ignore it.
 
 ## Durable Objects
 
@@ -102,9 +102,11 @@ immediately after a write:
   (`msg:<zero-padded id>` plus a `seq` counter), so it survives evictions and redeploys. The
   in-memory array is only a mirror of the tail, loaded on wake via `blockConcurrencyWhile`. The last
   200 messages per room are retained; older ones are deleted from storage as new ones arrive.
-- `Mailbox` (binding `MAILBOX`) — one per Discord user, holds their relay long-poll and mailbox.
-  Deliberately **not** persisted: invites are short-lived, and anything undelivered falls back to the
-  Discord SDK, so surviving a redeploy would buy nothing.
+- `Inbox` (binding `INBOX`) — one per launcher (device key), holds its held poll and pending invites.
+  Deliberately **not** persisted: invites expire after two minutes, the poll response tells a launcher
+  when the server lost its inbox so it attaches again, and a Discord invite that finds nobody home
+  falls back to the SDK, so surviving a redeploy would buy nothing. Liveness lives in the
+  `Directory`'s address book (`cb:<cbId>` / `discord:<id>` → device), refreshed by every poll.
 - `SocialGraph` (binding `GRAPH`) — one per account, holding its `friends`, `incoming`, `outgoing`
   and `blocked` lists in Durable Object storage. Edits arrive as a batch and apply atomically, so
   accepting a request (three edits a side) cannot half-land. An account whose edges still live in the
@@ -113,7 +115,7 @@ immediately after a write:
   profile snapshot per account, so a friend list or a board listing is one call rather than two KV
   reads per person. It also holds the anonymous pulses (device fingerprint → game) behind
   `/v1/stats`, pruned on the same 90s window; a beat from a key that pulsed earlier drops its
-  anonymous entry so a launcher that creates a profile mid-session is not counted twice. **Not** persisted, on the same reasoning as `Mailbox`: presence expires after 90s
+  anonymous entry so a launcher that creates a profile mid-session is not counted twice. **Not** persisted, on the same reasoning as `Inbox`: presence expires after 90s
   and a post after 15 minutes, and the next 30-second beat repopulates both. A redeploy therefore
   shows an empty board for up to one beat.
 
@@ -137,7 +139,7 @@ holds the shared rig; Discord is stubbed where a suite needs it.
 
 Production runs on a VPS, not Cloudflare: `serve.mjs` hosts the unmodified `src/index.js` on
 `node:http` with a SQLite store (`store-sqlite.mjs`), behind Caddy and Cloudflare's proxy.
-It must run as a **single process** — `Mailbox` and `Directory` are in-process memory by design.
+It must run as a **single process** — `Inbox` and `Directory` are in-process memory by design.
 
 `serve.mjs` also provides the `STATS` binding (`stats-sqlite.mjs`, `STATS_DB_PATH`, default
 `stats.db` next to the main db) and calls the worker's `scheduled()` every minute to sample the

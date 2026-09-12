@@ -286,8 +286,38 @@ namespace commands::social_commands
         friend_action("cbfriends-cancel", &social::cbfriends_service::cancel_request);
         friend_action("cbfriends-remove", &social::cbfriends_service::remove_friend);
 
-        friend_action("cbfriends-invite-friend", &social::cbfriends_service::send_invite);
-        friend_action("cbfriends-request-join", &social::cbfriends_service::request_join);
+        // Outcome reaches the UI through the same handleInviteResult path as Discord invites.
+        const auto session_action = [&cef_ui](const char* name, const char* op,
+            void (social::cbfriends_service::*method)(const std::string&, social::cbfriends_service::action_reporter))
+        {
+            cef_ui.add_command(name, [&cef_ui, op, method](const rapidjson::Value& value, rapidjson::Document& response)
+            {
+                response.SetObject();
+                auto& allocator = response.GetAllocator();
+
+                const auto cb_id = read_string(value, "cbId");
+                const bool ok = !cb_id.empty();
+                if (ok)
+                {
+                    (social::cbfriends_service::instance().*method)(cb_id,
+                        [&cef_ui, op, cb_id](std::string status, std::string error)
+                        {
+                            // The worker's limit is per minute, so that is the honest retry hint.
+                            const float retry_after = status == "rate_limited" ? 60.f : 0.f;
+                            cef_ui.dispatch_invite_result({op, cb_id, std::move(status), retry_after, std::move(error)});
+                        });
+                }
+                response.AddMember("ok", ok, allocator);
+            });
+        };
+
+        session_action("cbfriends-invite-friend", "invite", &social::cbfriends_service::send_invite);
+        session_action("cbfriends-request-join", "join", &social::cbfriends_service::request_join);
+
+        social::cbfriends_service::instance().set_invites_changed_callback([&cef_ui]
+        {
+            cef_ui.dispatch_invites_changed("cb");
+        });
 
         cef_ui.add_command("cbfriends-get-invites", [](const rapidjson::Value&, rapidjson::Document& response)
         {

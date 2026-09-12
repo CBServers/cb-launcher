@@ -7,22 +7,14 @@
     const VISIBLE_POLL_INTERVAL_MS = 4 * 1000; // fast refresh while the Friends page is open
     const FAST_POLL_INTERVAL_MS = 2 * 1000;
     const FAST_POLL_MAX_MS = 5 * 60 * 1000;
-    const INVITE_POLL_INTERVAL_MS = 3 * 1000;
 
     let started = false;
     let fastPollTimer = null;
     let fastPollStartedAt = 0;
     let lastStatus = 'unknown';
-    const shownInvites = new Set(); // invite ids currently being prompted, to avoid re-prompting
 
     function t(key, variables) {
         return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;
-    }
-
-    function escapeHtml(value) {
-        return String(value == null ? '' : value)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     async function refresh() {
@@ -92,7 +84,10 @@
 
     // Discord's reply lands well after the command returns, so the outcome is pushed back
     // separately; toasting on the command alone would report success for a dropped request.
-    const pendingOps = new Map(); // userId -> 'invite' | 'join'
+    const pendingOps = new Map(); // userId | cbId -> 'invite' | 'join' | 'knock'
+
+    // CB friends report through the same handleInviteResult path; they register their op here.
+    function markPending(id, op) { pendingOps.set(id, op); }
 
     window.handleInviteResult = function (result) {
         if (!result || !window.showToast) return;
@@ -113,6 +108,9 @@
             case 'rate_limited':
                 window.showToast(t('toasts.inviteRateLimited',
                     { seconds: Math.max(1, Math.ceil(result.retryAfter || 0)) }), 'error');
+                break;
+            case 'offline':
+                window.showToast(t('toasts.friendOffline'), 'error');
                 break;
             case 'dropped':
                 console.info('Discord invite/join dropped (nothing to send):', result);
@@ -157,107 +155,17 @@
         }
     }
 
-    // The invite carries a fork id (boiii, iw6x, ...), which is the UI id, not the backend key.
-    function gameDisplayName(gameId) {
-        if (!gameId || !window.GameUtils) return '';
-        const config = window.GameUtils.getGameConfigByUIId(gameId);
-        return (config && config.displayName) || '';
-    }
-
-    // escapeName is for the in-app modal, which renders as HTML; the Windows toast takes plain text.
-    function inviteStrings(invite, escapeName) {
-        const name = escapeName ? escapeHtml(invite.senderName || 'A friend') : (invite.senderName || 'A friend');
-        const game = gameDisplayName(invite.gameId);
-        const isRequest = !!invite.isRequest;
-        const isApproval = !!invite.isApproval;
-        let title, bodyKey, acceptLabel;
-        if (isApproval) {
-            // A host accepted a join request we sent.
-            title = t('friends.joinAcceptedTitle');
-            bodyKey = 'friends.joinAcceptedBody';
-            acceptLabel = t('friends.accept');
-        } else if (isRequest) {
-            title = t('friends.joinRequestTitle');
-            bodyKey = invite.needsOpen ? 'friends.joinRequestOpenBody' : 'friends.joinRequestBody';
-            acceptLabel = t('friends.approve');
-        } else {
-            title = t('friends.inviteTitle');
-            bodyKey = 'friends.inviteBody';
-            acceptLabel = t('friends.accept');
-        }
-
-        // Naming the game needs its own phrasing per language, so fall back to the game-less
-        // wording rather than interpolating an empty name when the fork can't be resolved.
-        const body = t(game ? bodyKey + 'Game' : bodyKey)
-            .replace('{name}', name)
-            .replace('{game}', escapeName ? escapeHtml(game) : game);
-        return { title, body, acceptLabel };
-    }
-
-    function notifyInvite(invite) {
-        // Approvals normally connect on their own, so a desktop toast for them is just noise.
-        if (invite.isApproval) return;
-        const { title, body } = inviteStrings(invite, false);
-        window.executeCommand('show-invite-notification', { id: invite.id, title, body }).catch(() => {});
-    }
-
-    function dismissInviteNotification(id) {
-        window.executeCommand('dismiss-invite-notification', { id }).catch(() => {});
-    }
-
-    async function promptInvite(invite) {
-        const { title, body, acceptLabel } = inviteStrings(invite, true);
-
-        let accepted = false;
-        try {
-            const idx = await window.showMessageBox(title, body,
-                [acceptLabel, { label: t('friends.decline'), danger: true }]);
-            accepted = idx === 0;
-        } catch (error) {
-            console.warn('Invite prompt failed:', error);
-            return;
-        } finally {
-            // Answered in the launcher — don't leave a toast around still offering the choice.
-            dismissInviteNotification(invite.id);
-        }
-
-        try {
-            const command = accepted ? 'discord-accept-invite' : 'discord-decline-invite';
-            await window.executeCommand(command, { id: invite.id });
-        } catch (error) {
-            console.warn('Failed to respond to invite:', error);
-        }
-    }
-
-    async function pollInvites() {
-        if (currentStatus() !== 'linked') {
-            shownInvites.clear();
-            return;
-        }
-
-        let res;
-        try {
-            res = await window.executeCommand('discord-get-invites');
-        } catch (error) {
-            return;
-        }
-
-        const invites = (res && res.invites) || [];
-        const ids = new Set(invites.map(i => i.id));
-        for (const id of [...shownInvites]) {
-            if (!ids.has(id)) {
-                shownInvites.delete(id);
-                dismissInviteNotification(id);
-            }
-        }
-
-        for (const invite of invites) {
-            if (shownInvites.has(invite.id)) continue;
-            shownInvites.add(invite.id);
-            window.executeCommand('flash-taskbar').catch(() => {});
-            notifyInvite(invite);
-            promptInvite(invite);
-        }
+    // The sender's live match from the friends list: whatever follows the game in the details, plus the state.
+    function inviteContext(invite) {
+        if (!window.AppViews || typeof window.AppViews.getFriendsState !== 'function') return '';
+        const friends = window.AppViews.getFriendsState().friends || [];
+        const f = friends.find(x => x.id === invite.senderId);
+        if (!f || !f.activityDetails) return '';
+        const sep = f.activityDetails.indexOf(' - ');
+        const parts = [];
+        if (sep > 0) parts.push(f.activityDetails.slice(sep + 3));
+        if (f.activityState) parts.push(f.activityState);
+        return parts.join(' · ');
     }
 
     async function beginLink() {
@@ -288,6 +196,7 @@
         pollFast,
         sendInvite,
         requestJoin,
+        markPending,
 
         start() {
             if (started) return;
@@ -322,7 +231,19 @@
             setInterval(refresh, POLL_INTERVAL_MS);
             // Keep the list (joinability, online state) live while the user is looking at it.
             setInterval(() => { if (friendsPageVisible()) refresh(); }, VISIBLE_POLL_INTERVAL_MS);
-            setInterval(pollInvites, INVITE_POLL_INTERVAL_MS);
+
+            if (window.InvitePrompt) {
+                window.InvitePrompt.register('discord', {
+                    active: () => currentStatus() === 'linked',
+                    getInvites: 'discord-get-invites',
+                    accept: 'discord-accept-invite',
+                    decline: 'discord-decline-invite',
+                    showNotification: 'show-invite-notification',
+                    dismissNotification: 'dismiss-invite-notification',
+                    context: inviteContext,
+                });
+                window.InvitePrompt.start();
+            }
         }
     };
 })();

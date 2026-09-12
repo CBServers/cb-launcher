@@ -3,6 +3,9 @@
 #include "identity.hpp"
 #include "hwid.hpp"
 #include "social_constants.hpp"
+#include "signed_http.hpp"
+#include "inbox_client.hpp"
+#include "ipc/ipc_server.hpp"
 
 #include "discord/token_store.hpp"
 #include "discord/discord_service.hpp"
@@ -27,51 +30,11 @@ namespace social
     {
         constexpr int CHAT_HOLD_TIMEOUT_SECONDS = 40; // the room holds a poll for ~25s
 
-        std::string json_get(const rapidjson::Value& value, const char* key)
-        {
-            if (value.IsObject() && value.HasMember(key) && value[key].IsString())
-            {
-                return value[key].GetString();
-            }
-            return {};
-        }
-
-        void add_string(rapidjson::Document& doc, const char* key, const std::string& value)
-        {
-            rapidjson::Value v;
-            v.SetString(value.data(), static_cast<rapidjson::SizeType>(value.size()), doc.GetAllocator());
-            doc.AddMember(rapidjson::StringRef(key), v, doc.GetAllocator());
-        }
-
-        std::string serialize(const rapidjson::Document& doc)
-        {
-            rapidjson::StringBuffer buffer;
-            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-            doc.Accept(writer);
-            return std::string(buffer.GetString(), buffer.GetSize());
-        }
-
-        // Signs the exact bytes sent; the worker verifies over the same string.
-        std::optional<utils::http::result> post_signed(const std::string& url, const std::string& body,
-                                                       int timeout = 30,
-                                                       std::function<bool(size_t, size_t, size_t)> abort = {})
-        {
-            auto& id = identity::instance();
-            const auto key_b64 = utils::cryptography::base64::encode(id.public_key());
-            const auto sig_b64 = id.sign(body);
-            if (key_b64.empty() || sig_b64.empty())
-            {
-                return std::nullopt;
-            }
-
-            const utils::http::headers headers = {
-                {"Content-Type", "application/json"},
-                {"X-CB-Key", key_b64},
-                {"X-CB-Sig", sig_b64},
-            };
-
-            return utils::http::get_data(url, body, headers, std::move(abort), timeout, 1);
-        }
+        using signed_http::add_string;
+        using signed_http::json_get;
+        using signed_http::post_json;
+        using signed_http::post_signed;
+        using signed_http::serialize;
 
         std::string discord_access_token()
         {
@@ -79,24 +42,22 @@ namespace social
             return tokens ? tokens->access_token : std::string{};
         }
 
-        // POSTs a signed body, returning the parsed 200 response or nullopt.
-        std::optional<rapidjson::Document> post_json(const std::string& url, const std::string& body,
-                                                     int timeout = 30,
-                                                     std::function<bool(size_t, size_t, size_t)> abort = {})
+        // Maps an inbox outcome onto the UI's invite result statuses.
+        const char* outcome_status(const inbox_client::outcome out)
         {
-            const auto resp = post_signed(url, body, timeout, std::move(abort));
-            if (!resp)
+            switch (out)
             {
-                return std::nullopt;
+            case inbox_client::outcome::delivered:
+                return "sent";
+            case inbox_client::outcome::offline:
+                return "offline";
+            case inbox_client::outcome::throttled:
+                return "rate_limited";
+            case inbox_client::outcome::blocked:
+                return "dropped";
+            default:
+                return "failed";
             }
-
-            rapidjson::Document doc;
-            doc.Parse(resp->buffer.c_str());
-            if (resp->response_code != 200 || doc.HasParseError() || !doc.IsObject())
-            {
-                return std::nullopt;
-            }
-            return doc;
         }
 
         int json_int(const rapidjson::Value& v, const char* key)
@@ -216,12 +177,7 @@ namespace social
 
     std::string cbfriends_service::base_url() const
     {
-        std::string url = utils::flags::get_flag_value("cbfriends-url").value_or(CBFRIENDS_URL);
-        while (!url.empty() && url.back() == '/')
-        {
-            url.pop_back();
-        }
-        return url;
+        return signed_http::base_url();
     }
 
     void cbfriends_service::start()
@@ -266,6 +222,7 @@ namespace social
             state_ = profile_state::ready;
         }
         ensure_worker();
+        inbox_client::instance().reattach(); // binds the cb address; harmless before the inbox starts
         load_broadcast();
         sync_discord(); // keeps the avatar in step with Discord
     }
@@ -494,6 +451,7 @@ namespace social
             last_error_.clear();
         }
         ensure_worker();
+        inbox_client::instance().reattach(); // a fresh profile is a new cb address
     }
 
     void cbfriends_service::begin_update_profile(const std::string& display_name, const std::string& handle,
@@ -622,7 +580,6 @@ namespace social
                     }
                 }
                 refresh_friends();
-                poll_invites();
                 // An incoming message on a 15s tick reads as arriving late, so this is on the
                 // main tick; room chat heads only drive a dot, so they stay slower.
                 refresh_dm_list();
@@ -867,7 +824,7 @@ namespace social
         return std::nullopt;
     }
 
-    void cbfriends_service::send_invite(const std::string& cb_id)
+    void cbfriends_service::send_invite(const std::string& cb_id, action_reporter on_result)
     {
         std::string game, match, secret;
         {
@@ -880,112 +837,102 @@ namespace social
         {
             // Silent until now, which hid a fork publishing a transport the launcher couldn't read.
             utils::logger::write("[cbl-invite] -> drop invite to {}: no join secret for '{}'", cb_id, game);
+            if (on_result) on_result("dropped", {});
             return;
         }
 
-        rapidjson::Document body;
-        body.SetObject();
-        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
-        add_string(body, "to", cb_id);
-        add_string(body, "kind", std::string{"invite"});
-        add_string(body, "game", game);
-        if (!match.empty()) add_string(body, "matchId", match);
-        add_string(body, "joinSecret", secret);
         utils::logger::write("[cbl-invite] -> invite {} ({})", cb_id, game);
-        post_action("/v1/invite/send", serialize(body), {});
+        inbox_client::instance().send_async(cb_id, "invite", game, match, secret,
+            [cb_id, on_result = std::move(on_result)](const inbox_client::outcome out)
+            {
+                utils::logger::write("[cbl-invite] invite -> {}: {}", cb_id, outcome_status(out));
+                if (on_result) on_result(outcome_status(out), {});
+            });
     }
 
-    void cbfriends_service::request_join(const std::string& cb_id)
+    void cbfriends_service::request_join(const std::string& cb_id, action_reporter on_result)
     {
-        std::string game, match;
-        if (const auto f = find_friend(cb_id))
+        const auto f = find_friend(cb_id);
+        if (!f || !f->online || (!f->joinable && !f->openable) || is_same_match(f->game, f->match_id))
         {
-            game = f->game;
-            match = f->match_id;
+            utils::logger::write("[cbl-invite] -> drop join request to {} (not joinable, not openable)", cb_id);
+            if (on_result) on_result("dropped", {});
+            return;
         }
 
-        rapidjson::Document body;
-        body.SetObject();
-        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
-        add_string(body, "to", cb_id);
-        add_string(body, "kind", std::string{"join-request"});
-        if (!game.empty()) add_string(body, "game", game);
-        if (!match.empty()) add_string(body, "matchId", match);
-        post_action("/v1/invite/send", serialize(body), {});
+        const auto kind = f->joinable ? "join" : "knock";
+        utils::logger::write("[cbl-invite] -> {} {} ({})", kind, cb_id, f->game);
+        inbox_client::instance().send_async(cb_id, "join-request", f->game, f->match_id, {},
+            [cb_id, kind, on_result = std::move(on_result)](const inbox_client::outcome out)
+            {
+                utils::logger::write("[cbl-invite] {} -> {}: {}", kind, cb_id, outcome_status(out));
+                if (on_result) on_result(outcome_status(out), {});
+            });
     }
 
     void cbfriends_service::send_reply(const std::string& to, const std::string& reply_to,
                                        const std::string& game, const std::string& match,
                                        const std::string& secret)
     {
-        rapidjson::Document body;
-        body.SetObject();
-        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
-        add_string(body, "to", to);
-        add_string(body, "kind", std::string{"invite"});
-        body.AddMember("isApproval", true, body.GetAllocator());
-        add_string(body, "replyTo", reply_to);
-        if (!game.empty()) add_string(body, "game", game);
-        if (!match.empty()) add_string(body, "matchId", match);
-        add_string(body, "joinSecret", secret);
-        post_action("/v1/invite/send", serialize(body), {});
+        inbox_client::instance().reply_async(to, reply_to, true, game, match, secret,
+            [to](const inbox_client::outcome out)
+            {
+                utils::logger::write("[cbl-invite] reply (accept) -> {}: {}", to, outcome_status(out));
+            });
     }
 
-    void cbfriends_service::poll_invites()
+    // Runs on the inbox poll thread; callbacks are invoked with mutex_ released.
+    void cbfriends_service::handle_inbox_message(const inbox_client::message& message)
     {
-        if (get_state() != profile_state::ready)
-        {
-            return;
-        }
-        auto doc = post_json(base_url() + "/v1/invite/poll", ts_body());
-        if (!doc || !doc->HasMember("messages") || !(*doc)["messages"].IsArray())
-        {
-            return;
-        }
-        for (const auto& m : (*doc)["messages"].GetArray())
-        {
-            process_message(m);
-        }
-    }
+        const auto& id = message.id;
+        const auto& sender = message.sender;
+        const auto& kind = message.kind;
+        const auto& game = message.game_id;
+        const auto& match = message.match_id;
+        const auto& secret = message.join_secret;
 
-    void cbfriends_service::process_message(const rapidjson::Value& message)
-    {
-        const auto id = json_get(message, "id");
-        const auto sender = json_get(message, "sender");
-        const auto kind = json_get(message, "kind");
-        const auto game = json_get(message, "game");
-        const auto match = json_get(message, "matchId");
-        const auto secret = json_get(message, "joinSecret");
-        const bool is_approval = message.IsObject() && message.HasMember("isApproval") &&
-            message["isApproval"].IsBool() && message["isApproval"].GetBool();
-
-        // A host approved our join request, so connect right away.
-        if (is_approval)
+        if (message.is_approval)
         {
+            // A decline answers a request we sent; nothing to surface.
+            if (!message.accept)
+            {
+                utils::logger::write("[cbl-invite] {} declined our join request", sender);
+                return;
+            }
+
+            // A host approved our join request, so connect right away.
             std::function<void(std::string)> cb;
             {
                 std::lock_guard lock(mutex_);
                 cb = join_secret_cb_;
             }
             if (cb && !secret.empty()) cb(secret);
+            else utils::logger::write("[cbl-invite] approval from {} carried no join secret", sender);
             return;
         }
 
-        // A knock on a public server needs no approval, so reply with our secret.
+        // An open match (public server or open-to-friends) is standing consent: approve silently.
         if (kind == "join-request")
         {
             std::string my_game, my_match, my_secret;
-            bool direct;
+            bool openable;
             {
                 std::lock_guard lock(mutex_);
                 my_game = activity_game_.empty() ? current_game_ : activity_game_;
                 my_match = activity_match_;
                 my_secret = activity_secret_;
-                direct = activity_direct_;
+                openable = activity_openable_;
             }
-            if (direct && !my_secret.empty())
+            if (!my_secret.empty())
             {
+                utils::logger::write("[cbl-invite] auto-approving join-request from {} (match is open)", sender);
                 send_reply(sender, id, my_game, my_match, my_secret);
+                return;
+            }
+            // A knock we cannot serve (menus, match ended, not the host): drop rather than prompt.
+            if (!openable)
+            {
+                utils::logger::write("[cbl-invite] dropping join-request from {} (not joinable, not openable)", sender);
                 return;
             }
         }
@@ -1005,13 +952,27 @@ namespace social
         invite.is_approval = false;
         invite.join_secret = secret; // for a plain invite, the secret to connect with
 
-        std::lock_guard lock(mutex_);
-        invite.needs_open = invite.is_request && activity_openable_;
-        for (const auto& existing : invites_)
+        std::function<void()> changed;
         {
-            if (existing.id == invite.id) return; // de-dupe
+            std::lock_guard lock(mutex_);
+            invite.needs_open = invite.is_request && activity_openable_;
+            for (const auto& existing : invites_)
+            {
+                if (existing.id == invite.id) return; // de-dupe
+            }
+            invites_.push_back(invite);
+            changed = invites_changed_cb_;
         }
-        invites_.push_back(std::move(invite));
+
+        // A running fork toasts it in-game; the Windows toast can't draw over exclusive fullscreen.
+        if (!invite.is_request)
+        {
+            ipc::ipc_server::instance().notify_invite(invite.sender_name.empty() ? sender : invite.sender_name);
+        }
+
+        utils::logger::write("[cbl-invite] queued incoming {} from {} for the in-launcher prompt",
+                             invite.is_request ? "join-request" : "invite", sender);
+        if (changed) changed();
     }
 
     std::vector<cb_invite> cbfriends_service::get_invites() const
@@ -1070,15 +1031,27 @@ namespace social
 
     void cbfriends_service::decline_invite(const std::string& id)
     {
-        std::lock_guard lock(mutex_);
-        for (auto it = invites_.begin(); it != invites_.end(); ++it)
+        std::string sender;
         {
-            if (it->id == id)
+            std::lock_guard lock(mutex_);
+            for (auto it = invites_.begin(); it != invites_.end(); ++it)
             {
-                invites_.erase(it);
-                return;
+                if (it->id == id)
+                {
+                    sender = it->sender_cb_id;
+                    invites_.erase(it);
+                    break;
+                }
             }
         }
+        if (sender.empty()) return;
+
+        // Tells the sender, so a declined join request clears on their side instead of aging out.
+        inbox_client::instance().reply_async(sender, id, false, {}, {}, {},
+            [sender](const inbox_client::outcome out)
+            {
+                utils::logger::write("[cbl-invite] reply (decline) -> {}: {}", sender, outcome_status(out));
+            });
     }
 
     void cbfriends_service::set_join_secret_callback(std::function<void(std::string)> callback)
@@ -1091,6 +1064,12 @@ namespace social
     {
         std::lock_guard lock(mutex_);
         open_match_cb_ = std::move(callback);
+    }
+
+    void cbfriends_service::set_invites_changed_callback(std::function<void()> callback)
+    {
+        std::lock_guard lock(mutex_);
+        invites_changed_cb_ = std::move(callback);
     }
 
     void cbfriends_service::refresh_friends()

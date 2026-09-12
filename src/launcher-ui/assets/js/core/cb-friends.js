@@ -18,7 +18,6 @@
     let friends = { friends: [], incoming: [], outgoing: [] };
     let playedWith = [];
     const people = new Map(); // cbId -> { person, relation }, rebuilt on every list render
-    const shownCbInvites = new Set();
     const announcedRequests = new Set();
     let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
 
@@ -280,13 +279,11 @@
         const top = [];
         const bottom = [];
         if (relation === 'friend') {
-            const live = p.online && p.game;
-            if (live && !p.sameMatch && (p.joinable || p.openable)) {
-                top.push({ label: t(p.joinable ? 'join' : 'askToJoin'), action: () => friendAction('cbfriends-request-join', p.cbId) });
-            }
+            // Greyed rather than hidden: the reason is obvious on either side.
             if (p.online && !p.sameMatch) {
-                // Greyed rather than hidden: the reason is on our side and obvious.
-                top.push({ label: t('invite'), disabled: !myJoinable, action: () => friendAction('cbfriends-invite-friend', p.cbId) });
+                const knock = !p.joinable && p.openable;
+                top.push({ label: t(knock ? 'askToJoin' : 'join'), disabled: !p.joinable && !p.openable, action: () => requestJoin(p.cbId) });
+                top.push({ label: t('invite'), disabled: !myJoinable, action: () => sendInvite(p.cbId) });
             }
             bottom.push({ label: t('remove'), danger: true, action: () => confirmRemove(p) });
         } else if (relation === 'incoming') {
@@ -479,6 +476,34 @@
         }
     }
 
+    function tGlobal(k, v) { return window.LauncherI18n ? window.LauncherI18n.t(k, v) : k; }
+
+    // Mirrors the Discord flow: confirm before a join can cold-launch the game, and
+    // register the op so the shared invite-result toast knows join from knock.
+    async function requestJoin(cbId) {
+        const entry = people.get(cbId);
+        const p = entry && entry.person;
+        if (!p) return;
+        try {
+            let running = false;
+            if (window.GameStateManager) {
+                running = await window.GameStateManager.checkGameRunning(p.game || 'boiii');
+            }
+            if (!running) {
+                const idx = await window.showMessageBox(tGlobal('friends.joinLaunchTitle'), tGlobal('friends.joinLaunchBody'),
+                    [tGlobal('friends.join'), { label: tGlobal('common.cancel'), danger: true }]);
+                if (idx !== 0) return;
+            }
+        } catch (error) { return; }
+        if (window.DiscordFriendsManager) window.DiscordFriendsManager.markPending(cbId, p.joinable ? 'join' : 'knock');
+        friendAction('cbfriends-request-join', cbId);
+    }
+
+    function sendInvite(cbId) {
+        if (window.DiscordFriendsManager) window.DiscordFriendsManager.markPending(cbId, 'invite');
+        friendAction('cbfriends-invite-friend', cbId);
+    }
+
     function startCreatingPoll() {
         if (creatingTimer) return;
         creatingTimer = setInterval(refresh, CREATING_POLL_MS);
@@ -504,54 +529,12 @@
         } catch (error) { /* offline / preview */ }
     }
 
-    // Prompts incoming invites and join-requests, like the Discord flow.
-    async function pollCbInvites() {
-        if (lastState !== 'ready') { shownCbInvites.clear(); return; }
-        let res;
-        try {
-            res = await window.executeCommand('cbfriends-get-invites');
-        } catch (error) { return; }
-        const invites = (res && res.invites) || [];
-        const ids = new Set(invites.map(i => i.id));
-        for (const id of [...shownCbInvites]) if (!ids.has(id)) shownCbInvites.delete(id);
-        for (const inv of invites) {
-            if (shownCbInvites.has(inv.id)) continue;
-            shownCbInvites.add(inv.id);
-            promptCbInvite(inv);
-        }
-    }
-
-    // Naming the game needs its own phrasing per language, so fall back to the game-less wording
-    // rather than interpolating an empty name.
-    function cbInviteStrings(inv) {
-        const name = inv.senderName || t('aFriend');
-        const game = gameName(inv.gameId);
-        const key = inv.isRequest ? 'joinRequestBody' : 'inviteBody';
-        return {
-            title: t(inv.isRequest ? 'joinRequestTitle' : 'inviteTitle'),
-            body: t(game ? key : key + 'NoGame', { name, game })
-                + (inv.isRequest && inv.needsOpen ? t('joinRequestOpen') : ''),
-            acceptLabel: t(inv.isRequest ? 'approve' : 'join'),
-        };
-    }
-
-    async function promptCbInvite(inv) {
-        const { title, body, acceptLabel } = cbInviteStrings(inv);
-
-        // Approvals normally connect on their own, so a desktop toast for them is just noise.
-        if (!inv.isApproval) {
-            window.executeCommand('cbfriends-show-invite-notification', { id: inv.id, title, body }).catch(() => {});
-        }
-
-        let accepted = false;
-        try {
-            const idx = await window.showMessageBox(title, body, [acceptLabel, { label: t('decline'), danger: true }]);
-            accepted = idx === 0;
-        } catch (error) { return; }
-        window.executeCommand('cbfriends-dismiss-invite-notification', { id: inv.id }).catch(() => {});
-        try {
-            await window.executeCommand(accepted ? 'cbfriends-accept-invite' : 'cbfriends-decline-invite', { id: inv.id });
-        } catch (error) { console.warn('CB invite response failed:', error); }
+    // The sender's live match (map, mode, server, players) from the friends list, when we have it.
+    function inviteContext(inv) {
+        const entry = people.get(inv.senderId);
+        const p = entry && entry.person;
+        if (!p || !p.online || !p.game) return '';
+        return matchContext(p);
     }
 
     async function refresh() {
@@ -657,9 +640,9 @@
                     const more = t.closest('[data-cb-more]');
                     if (more) return openRowMenu(event, more.getAttribute('data-cb-more'));
                     const join = t.closest('[data-cb-join]');
-                    if (join) return friendAction('cbfriends-request-join', join.getAttribute('data-cb-join'));
+                    if (join) return requestJoin(join.getAttribute('data-cb-join'));
                     const invite = t.closest('[data-cb-invite]');
-                    if (invite) return friendAction('cbfriends-invite-friend', invite.getAttribute('data-cb-invite'));
+                    if (invite) return sendInvite(invite.getAttribute('data-cb-invite'));
                     const byHandle = t.closest('[data-cb-add-handle]');
                     if (byHandle) return friendAction('cbfriends-add-friend', byHandle.getAttribute('data-cb-add-handle'));
                 });
@@ -686,7 +669,19 @@
             refresh();
             setInterval(refresh, POLL_INTERVAL_MS);
             setInterval(() => { if (panelVisible()) refresh(); }, VISIBLE_POLL_MS);
-            setInterval(pollCbInvites, 3000);
+
+            if (window.InvitePrompt) {
+                window.InvitePrompt.register('cb', {
+                    active: () => lastState === 'ready',
+                    getInvites: 'cbfriends-get-invites',
+                    accept: 'cbfriends-accept-invite',
+                    decline: 'cbfriends-decline-invite',
+                    showNotification: 'cbfriends-show-invite-notification',
+                    dismissNotification: 'cbfriends-dismiss-invite-notification',
+                    context: inviteContext,
+                });
+                window.InvitePrompt.start();
+            }
         }
     };
 })();

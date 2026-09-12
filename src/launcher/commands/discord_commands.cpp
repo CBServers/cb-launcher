@@ -74,6 +74,11 @@ namespace commands::discord_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context&)
     {
+        discord::discord_service::instance().set_invites_changed_callback([&cef_ui]
+        {
+            cef_ui.dispatch_invites_changed("discord");
+        });
+
         cef_ui.add_command("discord-get-status", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             response.SetObject();

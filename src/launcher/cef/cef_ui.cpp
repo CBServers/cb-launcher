@@ -362,6 +362,25 @@ namespace cef
         CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_invite_result, this->browser_, result));
     }
 
+    void cef_ui::invoke_dispatch_invites_changed(CefRefPtr<CefBrowser> browser, std::string source)
+    {
+        if (!browser) return;
+        auto frame = browser->GetMainFrame();
+        if (!frame) return;
+
+        const auto js_code = utils::string::va(
+            "if (typeof window.handleInvitesChanged === 'function') { window.handleInvitesChanged('%s'); }",
+            escape_js_string(source).data());
+
+        frame->ExecuteJavaScript(js_code, frame->GetURL(), 0);
+    }
+
+    void cef_ui::dispatch_invites_changed(const std::string& source) const
+    {
+        if (!this->browser_) return;
+        CefPostTask(TID_UI, base::BindOnce(&cef_ui::invoke_dispatch_invites_changed, this->browser_, source));
+    }
+
     void cef_ui::invoke_bring_to_front(HWND window)
     {
         if (!window) return;

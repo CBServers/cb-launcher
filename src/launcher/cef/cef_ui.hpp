@@ -37,6 +37,8 @@ namespace cef
         void dispatch_deep_link(const std::string& url);
         // Hands the outcome to window.handleInviteResult so the UI can localize it.
         void dispatch_invite_result(const invite_result& result) const;
+        // Nudges window.handleInvitesChanged so a new invite prompts now rather than on the next poll.
+        void dispatch_invites_changed(const std::string& source) const;
         void notify_frontend_ready();
         void bring_to_front() const;
 
@@ -66,6 +68,7 @@ namespace cef
         static void invoke_show_toast(CefRefPtr<CefBrowser> browser, const std::string& message, const std::string& type, int duration_ms);
         static void invoke_dispatch_deep_link(CefRefPtr<CefBrowser> browser, std::string url);
         static void invoke_dispatch_invite_result(CefRefPtr<CefBrowser> browser, invite_result result);
+        static void invoke_dispatch_invites_changed(CefRefPtr<CefBrowser> browser, std::string source);
         static void invoke_bring_to_front(HWND window);
     };
 }

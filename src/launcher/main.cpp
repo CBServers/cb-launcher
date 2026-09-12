@@ -7,6 +7,7 @@
 #include "ipc/ipc_server.hpp"
 #include "redist/redist_worker.hpp"
 #include "social/cbfriends_service.hpp"
+#include "social/inbox_client.hpp"
 #include "social/selftest.hpp"
 #include "updater/detection_service.hpp"
 #include "updater/updater.hpp"
@@ -163,6 +164,17 @@ namespace
                 ipc::ipc_server::instance().request_open_match();
             });
             social::cbfriends_service::instance().start();
+
+            // One held poll carries both services' invites; each takes its own sender namespace.
+            social::inbox_client::instance().set_cb_handler([](const social::inbox_client::message& message)
+            {
+                social::cbfriends_service::instance().handle_inbox_message(message);
+            });
+            social::inbox_client::instance().set_discord_handler([](const social::inbox_client::message& message)
+            {
+                discord::discord_service::instance().handle_inbox_message(message);
+            });
+            social::inbox_client::instance().start();
         }
         cef_ui.create(path / "data" / "launcher-ui", "main.html");
 
@@ -181,6 +193,8 @@ namespace
             deep_link_sink = nullptr;
         }
         detection_service::shutdown();
+        // First, so the poll thread cannot dispatch into a service or IPC server that is going away.
+        social::inbox_client::instance().stop();
         ipc::ipc_server::instance().stop();
         discord::discord_service::instance().stop();
         social::cbfriends_service::instance().stop();

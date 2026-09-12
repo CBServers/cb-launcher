@@ -918,43 +918,109 @@ async function handlePresence(env, cbId, body, fpr) {
     return json(200, { ok: true });
 }
 
-// Game invite mailbox: friends-only, and the only place the join secret travels.
+// ---- Invite inbox ----
+//
+// One in-memory inbox per launcher, keyed by its device key, holding one held poll and every
+// invite addressed to it. A launcher has up to two addresses: cb:<cbId> once it has a profile and
+// discord:<id> once it presents a Discord token, so Discord-only users are reached the same way and
+// the join secret only ever travels here. Nothing touches KV: like presence, a restart costs one
+// re-attach, which the poll response asks for.
 
-async function readMailbox(env, cbId) {
-    const raw = await env.CB.get(`inv:${cbId}`);
-    if (!raw) return [];
-    try {
-        const v = JSON.parse(raw);
-        return Array.isArray(v) ? v : [];
-    } catch {
-        return [];
-    }
+const INVITE_RATE_PER_MINUTE = 30;
+const INVITE_FRESH_MS = 120_000;
+
+function inboxCall(env, fpr, path, payload) {
+    const stub = env.INBOX.get(env.INBOX.idFromName(fpr));
+    return stub.fetch(new Request(`https://inbox/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+    })).then(r => r.json());
 }
 
-// Delivers an invite, join-request or approval into a friend's mailbox.
-async function handleInviteSend(env, cbId, body) {
-    const to = String(body.to || '');
-    if (!to || to === cbId) return json(400, { error: 'bad target' });
-    if (!(await graphGet(env, cbId)).friends.includes(to)) return json(403, { error: 'not friends' });
-    if (await eitherBlocked(env, cbId, to)) return json(403, { error: 'not friends' });
+// Binds the caller's addresses. A bad Discord token is reported rather than fatal, so an expired
+// token never costs a launcher its CB address.
+async function handleInboxAttach(env, fpr, body) {
+    const cbId = (await requireAccount(env, fpr)) || '';
+    const token = typeof body.discordToken === 'string' ? body.discordToken : '';
+    let discordId = '';
+    let discordError = false;
+    let tokenHash = '';
+    if (token) {
+        tokenHash = await sha256Hex(new TextEncoder().encode(token));
+        const self = await inboxCall(env, fpr, 'self');
+        if (self.discordId && self.discordTokenHash === tokenHash) {
+            discordId = self.discordId; // every SDK reconnect re-attaches; skip Discord when nothing changed
+        } else {
+            discordId = (await resolveDiscordId(token)) || '';
+            discordError = !discordId;
+        }
+    }
+    await inboxCall(env, fpr, 'attach', { cbId, discordId, discordTokenHash: discordId ? tokenHash : '' });
 
+    const addresses = [];
+    if (cbId) addresses.push(`cb:${cbId}`);
+    if (discordId) addresses.push(`discord:${discordId}`);
+    await dirCall(env, 'inbox/bind', { fpr, addresses });
+
+    const relayEnabled = (await env.CB.get('relayEnabled')) !== 'false';
+    return json(200, { cbId, discordId, discordError, relayEnabled });
+}
+
+async function handleInboxPoll(env, fpr, body) {
+    await dirCall(env, 'inbox/touch', { fpr });
+    const res = await inboxCall(env, fpr, 'poll', { after: Number(body.after) || 0, hold: !!body.hold });
+    return json(200, res);
+}
+
+// Delivers an invite, join-request or reply. The target's shape picks the namespace: a cb_ id goes
+// friend-to-friend on the CB graph, a snowflake goes Discord-to-Discord with no server-side graph
+// (the recipient checks its own friends list, as it does for the SDK path).
+async function handleInviteSend(env, fpr, body) {
+    const to = String(body.to || '');
+    let from = '';
+    let source = '';
+    if (to.startsWith('cb_')) {
+        const cbId = await requireAccount(env, fpr);
+        if (!cbId) return json(401, { error: 'no account for this device key' });
+        if (to === cbId) return json(400, { error: 'bad target' });
+        if (!(await graphGet(env, cbId)).friends.includes(to)) return json(403, { error: 'not friends' });
+        if (await eitherBlocked(env, cbId, to)) return json(403, { error: 'not friends' });
+        from = cbId;
+        source = 'cb';
+    } else if (SNOWFLAKE_RE.test(to)) {
+        const self = await inboxCall(env, fpr, 'self');
+        // No Discord binding yet (an attach is pending): the launcher falls back to the SDK.
+        if (!self.discordId) return json(200, { reason: 'failed' });
+        if (to === self.discordId) return json(400, { error: 'bad target' });
+        from = self.discordId;
+        source = 'discord';
+    } else {
+        return json(400, { error: 'bad target' });
+    }
+
+    const gate = await inboxCall(env, fpr, 'rate', { limit: INVITE_RATE_PER_MINUTE });
+    if (!gate.allowed) return json(429, { reason: 'throttled' });
+
+    const isApproval = !!body.isApproval;
+    const accept = body.accept !== false;
     const message = {
-        id: 'inv_' + crypto.randomUUID().replace(/-/g, ''),
-        sender: cbId,
+        id: 'msg_' + crypto.randomUUID().replace(/-/g, ''),
+        from,
+        source,
         kind: body.kind === 'join-request' ? 'join-request' : 'invite',
         game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
         matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
-        joinSecret: typeof body.joinSecret === 'string' ? body.joinSecret.slice(0, 4096) : '',
-        isApproval: !!body.isApproval,
-        accept: body.accept !== false,
+        joinSecret: (!isApproval || accept) && typeof body.joinSecret === 'string' ? body.joinSecret.slice(0, 4096) : '',
+        isApproval,
+        accept,
         replyTo: typeof body.replyTo === 'string' ? body.replyTo.slice(0, 64) : '',
         at: Date.now(),
     };
 
-    const box = await readMailbox(env, to);
-    box.push(message);
-    await env.CB.put(`inv:${to}`, JSON.stringify(box.slice(-20)));
-    return json(200, { ok: true, id: message.id });
+    const { fpr: target } = await dirCall(env, 'inbox/resolve', { address: `${source}:${to}` });
+    if (!target) return json(200, { reason: 'offline' });
+    return json(200, await inboxCall(env, target, 'deliver', { message }));
 }
 
 // Refreshes the avatar from the linked Discord account, and links it if this account had none.
@@ -1151,14 +1217,6 @@ async function handleChatPoll(env, cbId, body) {
         messages: messages.filter(m => !blocks.includes(m.cbId)),
         cursor,
     });
-}
-
-// Deliver-once: returns pending messages and clears the mailbox.
-async function handleInvitePoll(env, cbId) {
-    const box = await readMailbox(env, cbId);
-    if (box.length) await env.CB.delete(`inv:${cbId}`);
-    const fresh = box.filter(m => Date.now() - (m.at || 0) < 120000);
-    return json(200, { messages: fresh });
 }
 
 // A post carries a profile snapshot so the board can be listed without a KV read per poster.
@@ -1368,73 +1426,6 @@ async function handleHistory(env, request, pathname) {
     return publicJson(200, hit.text, Math.floor(ttl / 1000));
 }
 
-// ---- Discord invite relay ----
-//
-// Speaks the protocol relay_client.cpp already implements, so retiring the standalone relay is just
-// a URL change. Identity here is Discord only, keyed by Discord id, so it keeps working for people
-// who never opt into a CB profile.
-
-const RELAY_PATHS = new Set(['/v1/session/start', '/v1/poll', '/v1/invite', '/v1/invite/reply']);
-const RELAY_SESSION_TTL = 3600;
-const RELAY_RATE_PER_MINUTE = 30;
-
-function relayMailbox(env, discordId, path, payload) {
-    const stub = env.MAILBOX.get(env.MAILBOX.idFromName(discordId));
-    return stub.fetch(new Request(`https://mailbox/${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload || {}),
-    }));
-}
-
-async function relayFetch(request, env, pathname) {
-    const auth = request.headers.get('Authorization') || '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!token) return json(401, { error: 'unauthorized' });
-
-    // Exchange a Discord bearer for a relay token.
-    if (pathname === '/v1/session/start') {
-        const user = await resolveDiscordUser(token);
-        if (!user) return json(401, { error: 'unauthorized' });
-
-        const relayToken = 'rl_' + crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-        await env.CB.put(`sess:${await sha256Hex(new TextEncoder().encode(relayToken))}`, user.id,
-                         { expirationTtl: RELAY_SESSION_TTL });
-        const enabled = (await env.CB.get('relayEnabled')) !== 'false';
-        return json(200, { relayToken, relayEnabled: enabled });
-    }
-
-    const me = await env.CB.get(`sess:${await sha256Hex(new TextEncoder().encode(token))}`);
-    if (!me) return json(401, { error: 'unauthorized' });
-
-    let body = {};
-    try { body = await request.json(); } catch { body = {}; }
-
-    if (pathname === '/v1/poll') {
-        return relayMailbox(env, me, 'poll', { ack: body.ack, session: body.session });
-    }
-
-    const to = String(body.to || '');
-    if (!SNOWFLAKE_RE.test(to) || to === me) return json(200, { reason: 'failed' });
-
-    const gate = await relayMailbox(env, me, 'rate', { limit: RELAY_RATE_PER_MINUTE });
-    if (!(await gate.json()).allowed) return json(429, { reason: 'throttled' });
-
-    const isReply = pathname === '/v1/invite/reply';
-    return relayMailbox(env, to, 'deliver', {
-        message: {
-            id: 'rmsg_' + crypto.randomUUID().replace(/-/g, ''),
-            from: me,
-            kind: isReply ? 'invite' : (body.kind === 'join-request' ? 'join-request' : 'invite'),
-            game: String(body.game || ''),
-            matchId: String(body.matchId || ''),
-            joinSecret: (!isReply || body.accept !== false) ? String(body.joinSecret || '') : '',
-            isApproval: isReply,
-            accept: body.accept !== false,
-        },
-    });
-}
-
 export default {
     async fetch(request, env) {
         const { pathname } = new URL(request.url);
@@ -1445,12 +1436,6 @@ export default {
         }
         if (request.method !== 'POST') {
             return json(405, { error: 'method not allowed' });
-        }
-
-        // Discord invite relay. Authed by Discord token / relay token rather than a device key, so it
-        // is dispatched before the CB auth below and works for users with no CB profile.
-        if (RELAY_PATHS.has(pathname)) {
-            return relayFetch(request, env, pathname);
         }
 
         const auth = await authenticate(request);
@@ -1488,6 +1473,16 @@ export default {
         // Needs a device key but no account, so launchers without a profile still count.
         if (pathname === '/v1/pulse') {
             return handlePulse(env, fpr, body);
+        }
+
+        // The invite inbox is keyed by device key, so a Discord-only launcher can use it too.
+        switch (pathname) {
+            case '/v1/inbox/attach':
+                return handleInboxAttach(env, fpr, body);
+            case '/v1/inbox/poll':
+                return handleInboxPoll(env, fpr, body);
+            case '/v1/invite/send':
+                return handleInviteSend(env, fpr, body);
         }
 
         // Everything past here requires an established account.
@@ -1551,10 +1546,6 @@ export default {
                 return handleLfgLeave(env, cbId);
             case '/v1/lfg/refresh':
                 return handleLfgRefresh(env, cbId);
-            case '/v1/invite/send':
-                return handleInviteSend(env, cbId, body);
-            case '/v1/invite/poll':
-                return handleInvitePoll(env, cbId);
             case '/v1/dm/send':
                 return handleDmSend(env, cbId, body);
             case '/v1/dm/poll':
@@ -1692,20 +1683,19 @@ export class ChatRoom {
     }
 }
 
-// One instance per Discord user, holding that user's long-poll and mailbox.
-export class Mailbox {
+// One instance per launcher (device key): its held poll, its pending invites and its addresses.
+// Liveness lives in the Directory's address book, refreshed by every poll.
+export class Inbox {
     constructor(state) {
         this.state = state;
         this.messages = [];
+        this.seq = Date.now(); // above any cursor a launcher kept from a previous instance
         this.waiters = [];
-        this.lastSeen = 0;
         this.rate = new Map();
-        this.snapshot = null;
-    }
-
-    // A recipient who hasn't polled recently is offline, so the sender falls back to the SDK.
-    reachable() {
-        return Date.now() - this.lastSeen < 90_000;
+        this.attached = false;
+        this.cbId = '';
+        this.discordId = '';
+        this.discordTokenHash = '';
     }
 
     wake() {
@@ -1717,44 +1707,55 @@ export class Mailbox {
         const { pathname } = new URL(request.url);
         const body = await request.json().catch(() => ({}));
 
+        if (pathname === '/attach') {
+            this.attached = true;
+            this.cbId = body.cbId || '';
+            this.discordId = body.discordId || '';
+            this.discordTokenHash = body.discordTokenHash || '';
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/self') {
+            return json(200, { cbId: this.cbId, discordId: this.discordId, discordTokenHash: this.discordTokenHash });
+        }
+
         if (pathname === '/rate') {
             const bucket = Math.floor(Date.now() / 60000);
             for (const key of this.rate.keys()) if (key !== bucket) this.rate.delete(key);
             const count = (this.rate.get(bucket) || 0) + 1;
             this.rate.set(bucket, count);
-            return json(200, { allowed: count <= (body.limit || RELAY_RATE_PER_MINUTE) });
+            return json(200, { allowed: count <= (body.limit || INVITE_RATE_PER_MINUTE) });
         }
 
         if (pathname === '/deliver') {
-            if (!this.reachable()) return json(200, { reason: 'offline' });
-            this.messages.push(body.message);
+            const message = { ...body.message, seq: ++this.seq };
+            this.messages.push(message);
             if (this.messages.length > 64) this.messages.shift();
             this.wake();
-            return json(200, { reason: 'delivered' });
+            return json(200, { reason: 'delivered', id: message.id });
         }
 
         if (pathname === '/poll') {
-            this.lastSeen = Date.now();
-            if (body.session && typeof body.session === 'object') this.snapshot = body.session;
-
-            const acked = new Set(Array.isArray(body.ack) ? body.ack : []);
-            if (acked.size) this.messages = this.messages.filter(m => !acked.has(m.id));
-            if (this.messages.length) return json(200, { invites: this.messages });
-
-            // Hold until a delivery wakes it or the hold elapses.
-            await new Promise(resolve => {
-                let done = false;
-                const finish = () => {
-                    if (done) return;
-                    done = true;
-                    clearTimeout(timer);
-                    this.waiters = this.waiters.filter(w => w !== finish);
-                    resolve();
-                };
-                const timer = setTimeout(finish, 25_000);
-                this.waiters.push(finish);
-            });
-            return json(200, { invites: this.messages });
+            // `after` acks everything up to it, and a stale invite carries a secret nobody should get.
+            const after = Number(body.after) || 0;
+            const now = Date.now();
+            this.messages = this.messages.filter(m => m.seq > after && now - m.at < INVITE_FRESH_MS);
+            // An unattached inbox (fresh after a restart) answers at once so the launcher re-attaches now.
+            if (body.hold && this.attached && !this.messages.length) {
+                await new Promise(resolve => {
+                    let done = false;
+                    const finish = () => {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        this.waiters = this.waiters.filter(w => w !== finish);
+                        resolve();
+                    };
+                    const timer = setTimeout(finish, CHAT_HOLD_MS);
+                    this.waiters.push(finish);
+                });
+            }
+            return json(200, { messages: this.messages, cursor: this.seq, attached: this.attached });
         }
 
         return json(404, { error: 'not found' });
@@ -1842,15 +1843,17 @@ export class SocialGraph {
     }
 }
 
-// One instance for the whole population: live presence, the LFG board, and a profile snapshot for
-// each. Held in memory only - every field is short-lived and the next beat repopulates it, the same
-// bargain Mailbox makes.
+// One instance for the whole population: live presence, the LFG board, a profile snapshot for
+// each, and the inbox address book. Held in memory only - every field is short-lived and the next
+// beat or attach repopulates it, the same bargain Inbox makes.
 export class Directory {
     constructor() {
         this.people = new Map();
         this.anon = new Map();      // device fpr -> { game, at } for launchers with no account
         this.matches = new Map();   // matchId -> Map(cbId -> { at, game })
         this.chatHeads = new Map(); // room -> { id, at } of the newest message
+        this.addr = new Map();      // 'cb:<id>' | 'discord:<id>' -> { fpr, at }, refreshed by each poll
+        this.byFpr = new Map();     // fpr -> Set(address)
     }
 
     // Launchers in each game right now, accounts and anonymous pulses alike. Idle launchers only
@@ -1904,6 +1907,16 @@ export class Directory {
         for (const [fpr, it] of this.anon) {
             if (now - it.at >= PRESENCE_FRESH_MS) this.anon.delete(fpr);
         }
+        for (const [address, it] of this.addr) {
+            if (now - it.at >= PRESENCE_FRESH_MS) this.addr.delete(address);
+        }
+        for (const [fpr, set] of this.byFpr) {
+            for (const address of set) {
+                const it = this.addr.get(address);
+                if (!it || it.fpr !== fpr) set.delete(address);
+            }
+            if (!set.size) this.byFpr.delete(fpr);
+        }
         for (const [matchId, roster] of this.matches) {
             for (const [cbId, seen] of roster) {
                 if (now - seen.at > PLAYED_WITH_MS) roster.delete(cbId);
@@ -1938,6 +1951,36 @@ export class Directory {
 
         if (pathname === '/stats') {
             return json(200, this.stats(now));
+        }
+
+        // The address book only ever mutates entries the caller owns: a second device binding the
+        // same address takes it over, and the first can neither keep it alive nor drop it.
+        if (pathname === '/inbox/bind') {
+            const fpr = String(body.fpr || '');
+            for (const address of this.byFpr.get(fpr) || []) {
+                const it = this.addr.get(address);
+                if (it && it.fpr === fpr) this.addr.delete(address);
+            }
+            const set = new Set((Array.isArray(body.addresses) ? body.addresses : []).map(String));
+            for (const address of set) this.addr.set(address, { fpr, at: now });
+            if (set.size) this.byFpr.set(fpr, set);
+            else this.byFpr.delete(fpr);
+            this.prune();
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/inbox/touch') {
+            const fpr = String(body.fpr || '');
+            for (const address of this.byFpr.get(fpr) || []) {
+                const it = this.addr.get(address);
+                if (it && it.fpr === fpr) it.at = now;
+            }
+            return json(200, { ok: true });
+        }
+
+        if (pathname === '/inbox/resolve') {
+            const it = this.addr.get(String(body.address || ''));
+            return json(200, { fpr: it && now - it.at < PRESENCE_FRESH_MS ? it.fpr : null });
         }
 
         if (pathname === '/beat') {

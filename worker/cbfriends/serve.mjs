@@ -1,13 +1,13 @@
 // Production Node harness for the cbfriends worker: real src/index.js, SQLite-backed KV and
-// persistent DO storage, in-memory Mailbox/Directory (deliberately non-persistent — presence
-// expires in 90s and invites fall back to the Discord SDK, so surviving a restart buys
-// nothing). serve-local.mjs remains the throwaway dev harness.
+// persistent DO storage, in-memory Inbox/Directory (deliberately non-persistent — presence
+// expires in 90s and a launcher re-attaches its inbox on the next poll, so surviving a restart
+// buys nothing). serve-local.mjs remains the throwaway dev harness.
 //
 //   node serve.mjs                          # 127.0.0.1:8787, ./cbfriends.db
 //   HOST=0.0.0.0 PORT=9000 DB_PATH=/var/lib/cbfriends/cbfriends.db node serve.mjs
 //
-// MUST run as a single process: Mailbox and Directory live in this process's memory,
-// so load-balancing across workers would fork presence and mailboxes.
+// MUST run as a single process: Inbox and Directory live in this process's memory,
+// so load-balancing across workers would fork presence and inboxes.
 import { createServer } from 'node:http';
 import { openStore } from './store-sqlite.mjs';
 import { openStats } from './stats-sqlite.mjs';
@@ -67,7 +67,7 @@ const env = {
     CB: store.kv,
     CHAT: doBinding(module.ChatRoom, 'chat', true),
     GRAPH: doBinding(module.SocialGraph, 'graph', true),
-    MAILBOX: doBinding(module.Mailbox, 'mailbox', false),
+    INBOX: doBinding(module.Inbox, 'inbox', false),
     DIRECTORY: doBinding(module.Directory, 'directory', false),
     STATS: stats,
     SERVERS_URL: process.env.SERVERS_URL || '',
