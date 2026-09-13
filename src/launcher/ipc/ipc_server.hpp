@@ -26,6 +26,9 @@ namespace ipc
         // Passive in-game toast for an incoming invite (a Windows toast can't draw over fullscreen).
         void notify_invite(const std::string& from);
 
+        // Passive in-game toast for a knock on our closed match, which waits on the launcher prompt.
+        void notify_join_request(const std::string& from);
+
         // Route an accepted invite's join secret: connect a running fork, or cold-launch then connect.
         void handle_join_secret(const std::string& secret);
 

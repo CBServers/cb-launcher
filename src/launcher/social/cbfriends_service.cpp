@@ -965,9 +965,14 @@ namespace social
         }
 
         // A running fork toasts it in-game; the Windows toast can't draw over exclusive fullscreen.
-        if (!invite.is_request)
+        const auto& toast_name = invite.sender_name.empty() ? sender : invite.sender_name;
+        if (invite.is_request)
         {
-            ipc::ipc_server::instance().notify_invite(invite.sender_name.empty() ? sender : invite.sender_name);
+            ipc::ipc_server::instance().notify_join_request(toast_name);
+        }
+        else
+        {
+            ipc::ipc_server::instance().notify_invite(toast_name);
         }
 
         utils::logger::write("[cbl-invite] queued incoming {} from {} for the in-launcher prompt",

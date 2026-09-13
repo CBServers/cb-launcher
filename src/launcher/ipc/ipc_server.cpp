@@ -897,6 +897,16 @@ namespace ipc
         }) + "\n");
     }
 
+    void ipc_server::notify_join_request(const std::string& from)
+    {
+        this->impl_->push_outbound(build_json_object([&](auto& w)
+        {
+            w.Key("type"); w.String("notify");
+            w.Key("kind"); w.String("join-request");
+            w.Key("from"); w.String(from.data());
+        }) + "\n");
+    }
+
     void ipc_server::handle_join_secret(const std::string& secret)
     {
         this->impl_->handle_join_secret(secret);

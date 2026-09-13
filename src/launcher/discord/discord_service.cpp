@@ -1012,7 +1012,11 @@ namespace discord
             });
 
             // A running fork toasts it in-game; the Windows toast can't draw over exclusive fullscreen.
-            if (!is_request)
+            if (is_request)
+            {
+                ipc::ipc_server::instance().notify_join_request(sender_name);
+            }
+            else
             {
                 ipc::ipc_server::instance().notify_invite(sender_name);
             }
