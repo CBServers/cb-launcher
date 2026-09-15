@@ -31,6 +31,7 @@ namespace commands::social_commands
         {
             rapidjson::Value obj(rapidjson::kObjectType);
             add_string(obj, "cbId", person.cb_id, allocator);
+            add_string(obj, "discordId", person.discord_id, allocator);
             add_string(obj, "handle", person.handle, allocator);
             add_string(obj, "displayName", person.display_name, allocator);
             add_string(obj, "avatarUrl", person.avatar_url, allocator);

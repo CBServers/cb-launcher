@@ -1,23 +1,39 @@
-// The CB Friends sub-tab: profile, friend graph, and game invites. The Discord panel is untouched.
+// The Friends page: the profile card, and one list merging CB friends with Discord friends.
 
 (function () {
     const POLL_INTERVAL_MS = 20 * 1000;
-    const VISIBLE_POLL_MS = 5 * 1000;   // while the CB panel is open
+    const VISIBLE_POLL_MS = 5 * 1000;   // while the Friends page is open
     const CREATING_POLL_MS = 1500;
     const HANDLE_RE = /^[a-z0-9_]{2,32}$/i;
+    const PENCIL_SVG = '<svg class="cb-profile-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+    const PERSON_SVG = '<svg class="cb-profile-avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
+    const DISCORD_SVG = '<svg class="friend-source-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>';
+
+    const EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const EYE_OFF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 8 10 8a17.6 17.6 0 0 1-2.16 3.19"/><path d="M6.61 6.61A17.4 17.4 0 0 0 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.39-1.61"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg>';
+    const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
     function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
+    function tGlobal(k, v) { return window.LauncherI18n ? window.LauncherI18n.t(k, v) : k; }
+    function tf(k, v) { return tGlobal('friends.' + k, v); }
 
     let started = false;
-    let activeSource = 'discord';
     let creatingTimer = null;
     let lastState = 'unknown';
     let lastStatus = null;
     let editingProfile = false;
+    let createOpen = false;       // the setup card was swapped for the create form
+    let createError = '';         // a local validation or launcher error for the create form
+    let dismissedError = null;    // a service error the user closed the form on
     let myJoinable = false; // we're hosting a joinable match => can invite
     let friends = { friends: [], incoming: [], outgoing: [] };
     let playedWith = [];
     const people = new Map(); // cbId -> { person, relation }, rebuilt on every list render
+    const rows = new Map();   // friend row key -> { cb, discord }, rebuilt on every list render
+    const renderedHtml = new WeakMap();
+    let openRecoveryCode = '';    // the code behind the open recovery dialog, in the DOM only while revealed
+    let recoveryBound = false;
+    let recoveryCopyTimer = null;
     const announcedRequests = new Set();
     let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
 
@@ -40,37 +56,43 @@
         return (cfg && cfg.displayName) || id;
     }
 
-    function discordProfile() {
-        if (window.AppViews && typeof window.AppViews.getFriendsState === 'function') {
-            const s = window.AppViews.getFriendsState();
-            return (s && s.status === 'linked' && s.profile) ? s.profile : null;
-        }
-        return null;
+    function discordState() {
+        const s = window.AppViews && typeof window.AppViews.getFriendsState === 'function'
+            ? window.AppViews.getFriendsState() : null;
+        return s || { status: 'unknown', profile: null, friends: [], registryOk: true, joinable: false };
     }
 
-    function panelVisible() {
+    function discordProfile() {
+        const s = discordState();
+        return s.status === 'linked' && s.profile ? s.profile : null;
+    }
+
+    function discordFriends() {
+        const s = discordState();
+        return s.status === 'linked' ? (s.friends || []) : [];
+    }
+
+    function cbReady() {
+        return lastState === 'ready' && !!(lastStatus && lastStatus.profile);
+    }
+
+    function pageVisible() {
         const page = document.getElementById('friends-page');
-        const panel = document.getElementById('friends-cb-panel');
-        return !!page && page.style.display !== 'none' && !!panel && panel.style.display !== 'none';
+        return !!page && page.style.display !== 'none';
     }
 
     // True while the user is typing, so a poll never rebuilds the DOM under them.
     function interacting() {
-        const panel = document.getElementById('friends-cb-panel');
+        const panel = document.getElementById('friends-panel');
         const el = document.activeElement;
         return !!(panel && el && panel.contains(el) && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
     }
 
-    function switchSource(source) {
-        activeSource = source;
-        const discord = document.getElementById('friends-discord-panel');
-        const cb = document.getElementById('friends-cb-panel');
-        if (discord) discord.style.display = source === 'discord' ? '' : 'none';
-        if (cb) cb.style.display = source === 'cb' ? '' : 'none';
-        document.querySelectorAll('.friends-source-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.getAttribute('data-source') === source);
-        });
-        if (source === 'cb') refresh();
+    // Skips identical markup, so polls keep hover state, loaded images and half-typed input.
+    function setHtml(el, html) {
+        if (!el || renderedHtml.get(el) === html) return;
+        renderedHtml.set(el, html);
+        el.innerHTML = html;
     }
 
     // ---- profile ----
@@ -100,23 +122,130 @@
               + (sub ? `<div class="cb-profile-activity-sub">${escapeHtml(sub)}</div>` : '')
             : `<div class="cb-profile-activity is-idle">${escapeHtml(t('online'))}</div>`;
         return `
-            <div class="cb-profile-card">
-                <div class="cb-profile-avatar">
+            <div class="cb-profile-card" data-cb-self-card>
+                <div class="cb-profile-avatar" data-cb-view-self title="${escapeHtml(t('viewProfile'))}">
                     ${avatar}
                     <span class="friend-status-dot cb-profile-dot" data-status="${game ? 'online' : 'idle'}"></span>
                 </div>
                 <div class="cb-profile-body">
-                    <div class="cb-profile-name">${escapeHtml(profile.displayName || profile.handle || t('displayName'))}</div>
+                    <div class="cb-profile-name"><span class="cb-profile-link" data-cb-view-self title="${escapeHtml(t('viewProfile'))}">${escapeHtml(profile.displayName || profile.handle || t('displayName'))}</span></div>
                     <div class="cb-profile-handle">${handle}</div>
                     ${activity}
                 </div>
                 <div class="cb-profile-actions">
-                    <button class="cb-ghost-btn" id="cb-view-btn" type="button">${escapeHtml(t('viewProfile'))}</button>
-                    <button class="cb-ghost-btn" id="cb-edit-btn" type="button">${escapeHtml(t('edit'))}</button>
-                    <button class="cb-profile-recovery-btn" id="cb-recovery-btn" type="button">${escapeHtml(t('recoveryCode'))}</button>
+                    <button class="cb-profile-btn" id="cb-edit-btn" type="button">${PENCIL_SVG}<span>${escapeHtml(t('edit'))}</span></button>
+                    <button class="cb-profile-btn cb-profile-more" id="cb-self-more" type="button" title="${escapeHtml(t('more'))}" aria-label="${escapeHtml(t('more'))}">&#8943;</button>
                 </div>
             </div>
         `;
+    }
+
+    // No CB profile yet: the card offers one, and Discord too while it isn't linked.
+    function renderSetupCard() {
+        const ds = discordState();
+        const dp = discordProfile();
+        const busy = ds.status === 'linking' || ds.status === 'connecting';
+        const avatar = dp
+            ? (dp.avatarUrl
+                ? `<img class="cb-profile-avatar-img" src="${escapeHtml(dp.avatarUrl)}" alt="" />`
+                : `<span class="cb-profile-avatar-initials">${escapeHtml(initials(dp.displayName))}</span>`)
+            : PERSON_SVG;
+        const heading = dp
+            ? `<div class="cb-profile-name">${escapeHtml(dp.displayName)}</div>
+               <div class="cb-profile-linked">${DISCORD_SVG}${escapeHtml(tf('discordLinked'))}</div>`
+            : `<div class="cb-profile-name">${escapeHtml(tf('setupTitle'))}</div>`;
+        const linkBtn = !dp && ds.status !== 'unavailable'
+            ? `<button class="cb-profile-btn" id="friends-link-discord" type="button"${busy ? ' disabled' : ''}>${DISCORD_SVG}<span>${escapeHtml(tf('linkDiscord'))}</span></button>`
+            : '';
+        return `
+            <div class="cb-profile-card cb-profile-setup">
+                <div class="cb-profile-avatar">${avatar}</div>
+                <div class="cb-profile-body">
+                    ${heading}
+                    <div class="cb-profile-text">${escapeHtml(tf(dp ? 'setupCbBody' : 'setupBody'))}</div>
+                </div>
+                <div class="cb-profile-actions">
+                    <button class="cb-profile-btn is-primary" id="friends-create-open" type="button">${escapeHtml(tf('createCb'))}</button>
+                    ${linkBtn}
+                </div>
+            </div>
+        `;
+    }
+
+    function profileHtml() {
+        const status = lastStatus;
+        const state = status ? status.state : 'none';
+        if (state === 'ready' && status.profile) {
+            return editingProfile ? renderEditForm(status.profile) : renderProfileCard(status.profile);
+        }
+        if (state === 'creating') {
+            return `<div class="cb-create"><div class="cb-create-title">${escapeHtml(t('creating'))}</div></div>`;
+        }
+        const serviceError = state === 'error' && status.error && status.error !== dismissedError ? status.error : '';
+        if (createOpen || serviceError) return renderCreateForm(createError || serviceError);
+        return renderSetupCard();
+    }
+
+    function viewOwnProfile() {
+        const me = lastStatus && lastStatus.profile;
+        if (me && me.cbId && window.PersonMenu) {
+            window.PersonMenu.showCard({ cbId: me.cbId, handle: me.handle, displayName: me.displayName });
+        }
+    }
+
+    function editOwnProfile() {
+        editingProfile = true;
+        renderPage(true);
+    }
+
+    // execCommand first: CEF's HTTP origin has no navigator.clipboard, and the async API can stall.
+    function copyText(text) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+        area.remove();
+        if (ok || !(navigator.clipboard && window.isSecureContext)) return Promise.resolve(ok);
+        return navigator.clipboard.writeText(text).then(() => true, () => false);
+    }
+
+    async function copyOwnHandle() {
+        const me = lastStatus && lastStatus.profile;
+        if (!me || !me.handle) return;
+        const ok = await copyText('@' + me.handle);
+        if (window.showToast) {
+            window.showToast(ok ? t('handleCopied', { handle: me.handle }) : t('copyFailed'), ok ? 'success' : 'error');
+        }
+    }
+
+    function linkDiscord() {
+        if (window.DiscordFriendsManager) window.DiscordFriendsManager.beginLink();
+    }
+
+    function unlinkDiscord() {
+        if (window.DiscordFriendsManager) window.DiscordFriendsManager.unlink();
+    }
+
+    function openSelfMenu(event) {
+        if (!window.PersonMenu) return;
+        const me = lastStatus && lastStatus.profile;
+        const ds = discordState();
+        const linked = ds.status === 'linked';
+        const busy = ds.status === 'linking' || ds.status === 'connecting';
+        window.PersonMenu.showMenuAt(event, [
+            { label: t('viewProfile'), action: viewOwnProfile },
+            { label: t('editProfile'), action: editOwnProfile },
+            { label: t('copyHandle'), hidden: !(me && me.handle), action: copyOwnHandle },
+            { separator: true },
+            { label: linked ? tf('unlinkDiscord') : tf(busy ? 'linking' : 'linkDiscord'),
+              hidden: ds.status === 'unavailable', disabled: busy, action: linked ? unlinkDiscord : linkDiscord },
+            { label: t('recoveryCode'), action: showRecoveryCode },
+        ]);
     }
 
     function gameOptions(selected) {
@@ -174,8 +303,8 @@
         const errorHtml = error ? `<div class="cb-create-error">${escapeHtml(error)}</div>` : '';
         return `
             <div class="cb-create">
-                <div class="cb-create-title">Create your CB profile</div>
-                <div class="cb-create-sub">A launcher-native identity so friends work even without Discord open.</div>
+                <div class="cb-create-title">${escapeHtml(t('createTitle'))}</div>
+                <div class="cb-create-sub">${escapeHtml(t('createSub'))}</div>
                 ${errorHtml}
                 <label class="cb-create-label">${escapeHtml(t('handle'))}</label>
                 <div class="cb-create-handle">
@@ -188,7 +317,10 @@
                 <input id="cb-name-input" class="cb-create-input" type="text" maxlength="64"
                     placeholder="Display name" value="${escapeHtml(suggestedName)}" autocomplete="off" />
                 <div class="cb-create-note">${escapeHtml(linkedNote)}</div>
-                <button id="cb-create-btn" class="cb-create-btn" type="button">${escapeHtml(t('createBtn'))}</button>
+                <div class="cb-create-actions">
+                    <button id="cb-create-btn" class="cb-create-btn" type="button">${escapeHtml(t('createBtn'))}</button>
+                    <button id="cb-create-cancel" class="cb-ghost-btn" type="button">${escapeHtml(t('cancel'))}</button>
+                </div>
             </div>
         `;
     }
@@ -207,21 +339,16 @@
         return p.online && p.game ? matchContext(p) : '';
     }
 
-    function presenceChip(p) {
-        if (!p.online || !p.game) return '';
-        if (p.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(t('inYourMatch'))}</span>`;
-        if (p.joinable) return `<span class="friend-chip" data-kind="joinable">${escapeHtml(t('joinable'))}</span>`;
-        if (p.openable) return `<span class="friend-chip" data-kind="open">${escapeHtml(t('openMatch'))}</span>`;
+    // Takes a CB person or a Discord friend; both carry the same join flags.
+    function matchChip(src) {
+        if (src.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(tf('inYourMatch'))}</span>`;
+        if (src.joinable) return `<span class="friend-chip" data-kind="joinable">${escapeHtml(tf('joinable'))}</span>`;
+        if (src.openable) return `<span class="friend-chip" data-kind="open">${escapeHtml(tf('openMatch'))}</span>`;
         return '';
     }
 
-    // In-game first, then idle, then offline by most recently seen.
-    function presenceRank(p) {
-        if (p.online) return p.game ? 0 : 1;
-        return 2;
-    }
-    function sortByPresence(list) {
-        return list.slice().sort((a, b) => presenceRank(a) - presenceRank(b) || (b.lastSeen || 0) - (a.lastSeen || 0));
+    function presenceChip(p) {
+        return p.online && p.game ? matchChip(p) : '';
     }
 
     function personRow(p, relation, actionsHtml) {
@@ -250,18 +377,147 @@
         `;
     }
 
-    // Inline row actions are the live ones only; everything else lives in the menu.
-    function friendActions(p) {
-        if (p.sameMatch) return '';
+    function discordOnline(f) {
+        return f.status === 'online' || f.status === 'idle';
+    }
+
+    // One entry per person: a CB friend absorbs the Discord friend the worker matched by id.
+    function mergedFriends() {
+        const byId = new Map(discordFriends().map(f => [f.id, f]));
+        const merged = (cbReady() ? friends.friends : []).map(p => {
+            const d = p.discordId ? byId.get(p.discordId) : null;
+            if (d) byId.delete(d.id);
+            return { cb: p, discord: d || null };
+        });
+        for (const f of byId.values()) merged.push({ cb: null, discord: f });
+        return merged;
+    }
+
+    function rowKey(row) {
+        return row.cb ? 'cb:' + row.cb.cbId : 'discord:' + row.discord.id;
+    }
+
+    // Mirrors the in-game list: CB presence wins while they are online on CB, Discord fills in otherwise.
+    // Join follows whichever side reports the match; invite goes over CB while they are online there.
+    function sessionFor(row) {
+        const { cb, discord } = row;
+        const cbOnline = !!(cb && cb.online);
+        const cbInGame = cbOnline && !!cb.game;
+        const dOnline = !!(discord && discordOnline(discord));
+        const dInGame = !cbInGame && !!(discord && discord.activityDetails);
+        const status = cbInGame || dInGame ? 'online' : (cbOnline || dOnline ? 'idle' : 'offline');
+        const match = cbInGame ? cb : (dInGame ? discord : null);
+        const sameMatch = !!(match && match.sameMatch);
+        const join = match && !sameMatch && (match.joinable || match.openable)
+            ? { rail: cbInGame ? 'cb' : 'discord', knock: !match.joinable } : null;
+        const inviteRail = cbOnline ? 'cb' : (dOnline ? 'discord' : '');
+        const canInvite = inviteRail === 'cb' ? myJoinable : (inviteRail === 'discord' && !!discordState().joinable);
+        return { cbOnline, cbInGame, dOnline, dInGame, status, match, sameMatch, join, inviteRail, canInvite };
+    }
+
+    function discordActivity(f) {
+        const cfg = f.gameId && window.GameUtils ? window.GameUtils.getGameConfigByUIId(f.gameId) : null;
+        const sep = f.activityDetails.indexOf(' - ');
+        const game = cfg ? cfg.displayName : (sep > 0 ? f.activityDetails.slice(0, sep) : f.activityDetails);
+        const parts = [];
+        if (sep > 0) parts.push(f.activityDetails.slice(sep + 3));
+        if (f.activityState) parts.push(f.activityState);
+        return { main: tf('playing', { game }), sub: parts.join(' · '), chip: matchChip(f) };
+    }
+
+    function presenceLines(row, x) {
+        const { cb, discord } = row;
+        if (x.cbInGame) return { main: tf('playing', { game: gameName(cb.game) }), sub: matchContext(cb), chip: matchChip(cb) };
+        if (x.dInGame) return discordActivity(discord);
+        if (x.cbOnline) return { main: tf('statusOnline'), sub: '', chip: '' };
+        if (discord && discord.inLauncher) return { main: tf('inLauncher'), sub: '', chip: '' };
+        if (x.dOnline) return { main: tf(discord.status === 'idle' ? 'statusIdle' : 'statusOnline'), sub: '', chip: '' };
+        if (cb) return { main: presenceLabel(cb), sub: '', chip: '' };
+        return { main: tf('statusOffline'), sub: '', chip: '' };
+    }
+
+    // In-game first, then online, then offline by most recently seen.
+    function sortRows(list) {
+        const rank = { online: 0, idle: 1, offline: 2 };
+        const name = row => (row.cb ? (row.cb.displayName || row.cb.handle) : row.discord.displayName) || '';
+        return list
+            .map(row => ({ row, x: sessionFor(row) }))
+            .sort((a, b) => rank[a.x.status] - rank[b.x.status]
+                || ((b.row.cb && b.row.cb.lastSeen) || 0) - ((a.row.cb && a.row.cb.lastSeen) || 0)
+                || name(a.row).localeCompare(name(b.row)))
+            .map(entry => entry.row);
+    }
+
+    // Session actions, greyed rather than hidden when the reason is obvious on either side.
+    function sessionItems(row) {
+        const x = sessionFor(row);
+        if (x.sameMatch || !(x.cbOnline || x.dOnline)) return [];
+        return [
+            { label: tf(x.join && x.join.knock ? 'askToJoin' : 'join'), disabled: !x.join, action: () => joinRow(row) },
+            { label: tf('invite'), disabled: !x.canInvite, action: () => inviteRow(row) },
+        ];
+    }
+
+    function joinRow(row) {
+        const x = sessionFor(row);
+        if (!x.join) return;
+        if (x.join.rail === 'cb') return requestJoin(row.cb.cbId);
+        if (window.DiscordFriendsManager) {
+            window.DiscordFriendsManager.requestJoin(row.discord.id, row.discord.gameId || '', x.join.knock);
+        }
+    }
+
+    function inviteRow(row) {
+        const x = sessionFor(row);
+        if (!x.canInvite) return;
+        if (x.inviteRail === 'cb') return sendInvite(row.cb.cbId);
+        if (window.DiscordFriendsManager) window.DiscordFriendsManager.sendInvite(row.discord.id);
+    }
+
+    function friendRow(row) {
+        const key = rowKey(row);
+        rows.set(key, row);
+        const { cb, discord } = row;
+        if (cb) people.set(cb.cbId, { person: cb, relation: 'friend' });
+
+        const x = sessionFor(row);
+        const lines = presenceLines(row, x);
+        const name = cb ? (cb.displayName || cb.handle) : discord.displayName;
+        const avatarUrl = (cb && cb.avatarUrl) || (discord && discord.avatarUrl) || '';
+        const avatar = avatarUrl
+            ? `<img class="friend-avatar-img" src="${escapeHtml(avatarUrl)}" alt="" loading="lazy" />`
+            : `<span class="friend-avatar-initials">${escapeHtml(initials(name))}</span>`;
+        const handle = cb ? ` <span class="cb-friend-handle">@${escapeHtml(cb.handle)}</span>` : '';
+        // Only Discord-only rows get the icon: it explains the missing handle, profile and Message.
+        const source = cb ? '' : `<span class="friend-source" title="${escapeHtml(tf('discordFriend'))}">${DISCORD_SVG}</span>`;
+
         const btns = [];
-        if (p.joinable || p.openable) {
-            const label = p.joinable ? t('join') : t('askToJoin');
-            btns.push(`<button class="friend-join-btn" data-cb-join="${escapeHtml(p.cbId)}">${escapeHtml(label)}</button>`);
+        if (!x.sameMatch) {
+            if (x.join) {
+                btns.push(`<button class="friend-join-btn" type="button" data-friend-join="${escapeHtml(key)}">${escapeHtml(tf(x.join.knock ? 'askToJoin' : 'join'))}</button>`);
+            }
+            if (x.canInvite) {
+                btns.push(`<button class="friend-invite-btn" type="button" data-friend-invite="${escapeHtml(key)}">${escapeHtml(tf('invite'))}</button>`);
+            }
         }
-        if (myJoinable && p.online) {
-            btns.push(`<button class="friend-invite-btn" data-cb-invite="${escapeHtml(p.cbId)}">${escapeHtml(t('invite'))}</button>`);
+        if (cb || sessionItems(row).length) {
+            btns.push(`<button class="friend-more-btn" type="button" data-friend-more="${escapeHtml(key)}" title="${escapeHtml(tf('more'))}" aria-label="${escapeHtml(tf('more'))}">&#8943;</button>`);
         }
-        return btns.join('');
+
+        return `
+            <div class="friend-row" data-status="${x.status}" data-friend-key="${escapeHtml(key)}">
+                <div class="friend-avatar">
+                    ${avatar}
+                    <span class="friend-status-dot" data-status="${x.status}"></span>
+                </div>
+                <div class="friend-row-body">
+                    <div class="friend-name">${escapeHtml(name)}${handle}${source}${lines.chip}</div>
+                    <div class="friend-activity">${escapeHtml(lines.main)}</div>
+                    ${lines.sub ? `<div class="friend-activity-sub">${escapeHtml(lines.sub)}</div>` : ''}
+                </div>
+                <div class="friend-actions">${btns.join('')}</div>
+            </div>
+        `;
     }
 
     async function confirmRemove(p) {
@@ -274,19 +530,24 @@
         friendAction('cbfriends-remove', p.cbId);
     }
 
-    // Menu items for a row: session actions on top, relationship actions beside block/report.
+    function openFriendRowMenu(event, key) {
+        const row = rows.get(key);
+        if (!row || !window.PersonMenu) return;
+        if (row.cb) {
+            const p = row.cb;
+            window.PersonMenu.open(event, { cbId: p.cbId, handle: p.handle, displayName: p.displayName, relation: 'friend' },
+                { top: sessionItems(row), bottom: [{ label: t('remove'), danger: true, action: () => confirmRemove(p) }] });
+            return;
+        }
+        const items = sessionItems(row);
+        if (items.length) window.PersonMenu.showMenuAt(event, items);
+    }
+
+    // Menu items for a request row: accept/decline on top, cancel beside block/report.
     function menuItemsFor(p, relation) {
         const top = [];
         const bottom = [];
-        if (relation === 'friend') {
-            // Greyed rather than hidden: the reason is obvious on either side.
-            if (p.online && !p.sameMatch) {
-                const knock = !p.joinable && p.openable;
-                top.push({ label: t(knock ? 'askToJoin' : 'join'), disabled: !p.joinable && !p.openable, action: () => requestJoin(p.cbId) });
-                top.push({ label: t('invite'), disabled: !myJoinable, action: () => sendInvite(p.cbId) });
-            }
-            bottom.push({ label: t('remove'), danger: true, action: () => confirmRemove(p) });
-        } else if (relation === 'incoming') {
+        if (relation === 'incoming') {
             top.push({ label: t('accept'), action: () => friendAction('cbfriends-accept', p.cbId) });
             top.push({ label: t('decline'), action: () => friendAction('cbfriends-decline', p.cbId) });
         } else if (relation === 'requested') {
@@ -304,88 +565,187 @@
         }, menuItemsFor(person, relation));
     }
 
-    function renderFriendsSection() {
-        const addRow = `
-            <div class="cb-add-row">
-                <div class="cb-create-handle cb-add-handle">
-                    <span class="cb-create-at">@</span>
-                    <input id="cb-add-input" class="cb-create-input" type="text" maxlength="32"
-                        placeholder="${escapeHtml(t('addByHandle'))}" autocomplete="off" spellcheck="false" />
-                </div>
-                <button id="cb-add-btn" class="cb-add-btn" type="button">${escapeHtml(t('add'))}</button>
-            </div>
-        `;
-
-        let sections = '';
+    function renderListHtml() {
         people.clear();
+        rows.clear();
+        const ready = cbReady();
+        const discordLinked = discordState().status === 'linked';
+        let html = '';
 
-        if (friends.incoming.length) {
-            const rows = friends.incoming.map(p => personRow(p, 'incoming', `
+        if (ready) {
+            html += `
+                <div class="cb-add-row">
+                    <div class="cb-create-handle cb-add-handle">
+                        <span class="cb-create-at">@</span>
+                        <input id="cb-add-input" class="cb-create-input" type="text" maxlength="32"
+                            placeholder="${escapeHtml(t('addByHandle'))}" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <button id="cb-add-btn" class="cb-add-btn" type="button">${escapeHtml(t('add'))}</button>
+                </div>
+            `;
+        }
+
+        const incoming = ready ? friends.incoming : [];
+        const outgoing = ready ? friends.outgoing : [];
+
+        if (incoming.length) {
+            const list = incoming.map(p => personRow(p, 'incoming', `
                     <button class="friend-invite-btn" data-cb-accept="${escapeHtml(p.cbId)}">${escapeHtml(t('accept'))}</button>
                     <button class="cb-ghost-btn" data-cb-decline="${escapeHtml(p.cbId)}">${escapeHtml(t('decline'))}</button>`)).join('');
-            sections += `<div class="cb-section-head">${escapeHtml(t('requests'))} <span class="friends-group-count">${friends.incoming.length}</span></div>${rows}`;
+            html += `<div class="cb-section-head">${escapeHtml(t('requests'))} <span class="friends-group-count">${incoming.length}</span></div>${list}`;
         }
 
-        if (friends.friends.length) {
-            const rows = sortByPresence(friends.friends).map(p => personRow(p, 'friend', friendActions(p))).join('');
-            sections += `<div class="cb-section-head">${escapeHtml(t('friends'))} <span class="friends-group-count">${friends.friends.length}</span></div>${rows}`;
-        } else if (!friends.incoming.length && !friends.outgoing.length) {
-            sections += `<div class="friends-empty" style="display:block">${escapeHtml(t('noFriends'))}</div>`;
+        const merged = mergedFriends();
+        if (merged.length) {
+            const list = sortRows(merged).map(friendRow).join('');
+            html += `<div class="cb-section-head">${escapeHtml(tf('title'))} <span class="friends-group-count">${merged.length}</span></div>${list}`;
+        } else if ((ready || discordLinked) && !incoming.length && !outgoing.length) {
+            html += `<div class="friends-empty">${escapeHtml(tf(ready ? 'emptyCb' : 'empty'))}</div>`;
         }
 
-        if (friends.outgoing.length) {
-            const rows = friends.outgoing.map(p => personRow(p, 'requested', `
+        if (outgoing.length) {
+            const list = outgoing.map(p => personRow(p, 'requested', `
                     <span class="cb-pending-label">${escapeHtml(t('pending'))}</span>
                     <button class="cb-ghost-btn" data-cb-cancel="${escapeHtml(p.cbId)}">${escapeHtml(t('cancel'))}</button>`)).join('');
-            sections += `<div class="cb-section-head">${escapeHtml(t('sent'))}</div>${rows}`;
+            html += `<div class="cb-section-head">${escapeHtml(t('sent'))}</div>${list}`;
         }
 
-        if (playedWith.length) {
-            const rows = playedWith.map(p => personRow(p, 'none', `
+        // Someone already listed as a Discord friend isn't news.
+        const discordIds = new Set(discordFriends().map(f => f.id));
+        const suggestions = ready ? playedWith.filter(p => !(p.discordId && discordIds.has(p.discordId))) : [];
+        if (suggestions.length) {
+            const list = suggestions.map(p => personRow(p, 'none', `
                     <button class="friend-invite-btn" data-cb-add-handle="${escapeHtml(p.handle)}">${escapeHtml(t('add'))}</button>`)).join('');
-            sections += `<div class="cb-section-head">${escapeHtml(t('playedWith'))} <span class="friends-group-count">${playedWith.length}</span></div>${rows}`;
+            html += `<div class="cb-section-head">${escapeHtml(t('playedWith'))} <span class="friends-group-count">${suggestions.length}</span></div>${list}`;
         }
 
-        return addRow + sections;
+        return html;
     }
 
-    function render(status) {
-        const host = document.getElementById('cb-profile');
-        const list = document.getElementById('cb-friends-list');
-        const empty = document.getElementById('cb-friends-empty');
-        if (!host) return;
-        if (empty) empty.style.display = 'none';
+    function renderNotice() {
+        const notice = document.getElementById('friends-notice');
+        if (!notice) return;
+        const ds = discordState();
+        let text = '';
+        if (ds.status === 'linking' || ds.status === 'connecting') text = tf('linking');
+        else if (ds.status === 'linked' && !ds.registryOk) text = tf('degraded');
+        if (notice.textContent !== text) notice.textContent = text;
+        notice.style.display = text ? '' : 'none';
+    }
 
-        const state = status ? status.state : 'none';
-
-        if (state === 'ready' && status.profile) {
-            host.innerHTML = editingProfile ? renderEditForm(status.profile) : renderProfileCard(status.profile);
-            if (list) list.innerHTML = editingProfile ? '' : renderFriendsSection();
-        } else if (state === 'creating') {
-            host.innerHTML = `<div class="cb-create"><div class="cb-create-title">Creating your profile…</div></div>`;
-            if (list) list.innerHTML = '';
-        } else {
-            host.innerHTML = renderCreateForm(state === 'error' ? (status && status.error) : '');
-            if (list) list.innerHTML = '';
-        }
+    // Polls pass nothing and back off while the user is editing or typing; user actions force it.
+    function renderPage(force) {
+        if (!started) return;
+        if (!force && (editingProfile || interacting())) return;
+        const host = document.getElementById('friends-profile');
+        const list = document.getElementById('friends-list');
+        if (!host || !list) return;
+        setHtml(host, profileHtml());
+        setHtml(list, editingProfile ? '' : renderListHtml());
+        renderNotice();
     }
 
     // ---- actions ----
 
+    function setRecoveryRevealed(root, show) {
+        const value = root.querySelector('.cb-recovery-value');
+        const toggle = root.querySelector('[data-recovery-toggle]');
+        if (!value || !toggle) return;
+        value.textContent = show ? openRecoveryCode : value.dataset.masked;
+        value.classList.toggle('is-revealed', show);
+        toggle.setAttribute('aria-pressed', String(show));
+        toggle.innerHTML = `${show ? EYE_OFF_SVG : EYE_SVG}<span>${escapeHtml(t(show ? 'hideCode' : 'showCode'))}</span>`;
+    }
+
+    // One delegated listener on the shared message box; the code itself lives only in openRecoveryCode.
+    function bindRecoveryDialog() {
+        const box = document.getElementById('message-box');
+        if (recoveryBound || !box) return;
+        recoveryBound = true;
+        box.addEventListener('click', async (event) => {
+            const root = event.target.closest('.cb-recovery');
+            if (!root || !openRecoveryCode) return;
+            const toggle = event.target.closest('[data-recovery-toggle]');
+            if (toggle) return setRecoveryRevealed(root, toggle.getAttribute('aria-pressed') !== 'true');
+            const copy = event.target.closest('[data-recovery-copy]');
+            if (!copy) return;
+            const ok = await copyText(openRecoveryCode);
+            const label = copy.querySelector('span');
+            if (label) label.textContent = t(ok ? 'copied' : 'copyFailedShort');
+            copy.classList.toggle('is-done', ok);
+            clearTimeout(recoveryCopyTimer);
+            recoveryCopyTimer = setTimeout(() => {
+                if (label) label.textContent = t('copy');
+                copy.classList.remove('is-done');
+            }, 1800);
+        });
+    }
+
+    // Masked until the user asks, so it can't leak onto a stream or a screenshot by accident.
     async function showRecoveryCode() {
+        let code = '';
         try {
             const res = await window.executeCommand('cbfriends-get-recovery-code');
-            const code = res && res.code;
-            if (!code) {
-                if (window.showToast) window.showToast(t('noRecoveryCode'), 'info');
-                return;
-            }
-            await window.showMessageBox(t('recoveryTitle'),
-                `Save this somewhere safe. You'll need it to recover your CB profile on a new PC if you haven't linked Discord.\n\n${code}`,
-                [t('done')]);
+            code = (res && res.code) || '';
         } catch (error) {
             console.warn('Failed to read recovery code:', error);
+            return;
         }
+        if (!code) {
+            if (window.showToast) window.showToast(t('noRecoveryCode'), 'info');
+            return;
+        }
+
+        bindRecoveryDialog();
+        const masked = code.replace(/[^-]/g, '•');
+        const body = `
+            <div class="cb-recovery">
+                <p class="cb-recovery-text">${escapeHtml(t('recoveryBody'))}</p>
+                <div class="cb-recovery-warning">${escapeHtml(t('recoveryWarning'))}</div>
+                <code class="cb-recovery-value" data-masked="${escapeHtml(masked)}">${escapeHtml(masked)}</code>
+                <div class="cb-recovery-actions">
+                    <button type="button" class="cb-recovery-btn" data-recovery-toggle aria-pressed="false">${EYE_SVG}<span>${escapeHtml(t('showCode'))}</span></button>
+                    <button type="button" class="cb-recovery-btn" data-recovery-copy>${COPY_SVG}<span>${escapeHtml(t('copy'))}</span></button>
+                </div>
+            </div>
+        `;
+        openRecoveryCode = code;
+        try {
+            await window.showMessageBox(t('recoveryTitle'), body, [t('done')]);
+        } catch (error) {
+            console.warn('Failed to show recovery code:', error);
+        }
+        // The closed box stays in the DOM, so put the mask back before letting go of the code.
+        document.querySelectorAll('#message-box .cb-recovery').forEach(root => setRecoveryRevealed(root, false));
+        openRecoveryCode = '';
+    }
+
+    function openCreateForm() {
+        createOpen = true;
+        createError = '';
+        renderPage(true);
+        const input = document.getElementById('cb-handle-input');
+        if (input) input.focus();
+    }
+
+    function closeCreateForm() {
+        createOpen = false;
+        createError = '';
+        dismissedError = lastStatus && lastStatus.error;
+        renderPage(true);
+    }
+
+    function showCreateError(message) {
+        const handleInput = document.getElementById('cb-handle-input');
+        const nameInput = document.getElementById('cb-name-input');
+        const typed = { handle: handleInput ? handleInput.value : '', name: nameInput ? nameInput.value : '' };
+        createOpen = true;
+        createError = message;
+        renderPage(true);
+        const h = document.getElementById('cb-handle-input');
+        const n = document.getElementById('cb-name-input');
+        if (h) { h.value = typed.handle; h.focus(); }
+        if (n) n.value = typed.name;
     }
 
     async function submitCreate() {
@@ -395,16 +755,21 @@
         const handle = handleInput.value.trim();
         const displayName = (nameInput ? nameInput.value.trim() : '') || handle;
         if (!HANDLE_RE.test(handle)) {
-            render({ state: 'error', error: t('handleInvalid') });
+            showCreateError(t('handleInvalid'));
             return;
         }
         try {
             await window.executeCommand('cbfriends-create-profile', { handle, displayName });
-            render({ state: 'creating' });
+            createOpen = false;
+            createError = '';
+            dismissedError = null;
+            lastState = 'creating';
+            lastStatus = Object.assign({}, lastStatus, { state: 'creating', error: null });
+            renderPage(true);
             startCreatingPoll();
         } catch (error) {
             console.warn('Failed to start profile creation:', error);
-            render({ state: 'error', error: 'Could not reach the launcher.' });
+            showCreateError('Could not reach the launcher.');
         }
     }
 
@@ -432,14 +797,14 @@
         try {
             await window.executeCommand('cbfriends-update-profile', { displayName, handle, bio, accent, favoriteGame, avatarUrl });
             editingProfile = false;
-            render(lastStatus);
+            renderPage(true);
             // The update runs async, so the outcome shows on the next poll.
             setTimeout(async () => {
                 await refresh();
                 if (lastStatus && lastStatus.error) {
                     if (window.showToast) window.showToast('Could not update profile (' + lastStatus.error + ')', 'error');
                     editingProfile = true;
-                    render(lastStatus);
+                    renderPage(true);
                 } else if (window.showToast) {
                     window.showToast(t('profileUpdated'), 'success');
                 }
@@ -475,8 +840,6 @@
             console.warn(command + ' failed:', error);
         }
     }
-
-    function tGlobal(k, v) { return window.LauncherI18n ? window.LauncherI18n.t(k, v) : k; }
 
     // Mirrors the Discord flow: confirm before a join can cold-launch the game, and
     // register the op so the shared invite-result toast knows join from knock.
@@ -521,10 +884,7 @@
                     const seen = await window.executeCommand('cbfriends-get-played-with');
                     playedWith = (seen && seen.people) || [];
                 } catch (error) { playedWith = []; }
-                if (activeSource === 'cb' && lastState === 'ready' && !editingProfile && !interacting()) {
-                    const list = document.getElementById('cb-friends-list');
-                    if (list) list.innerHTML = renderFriendsSection();
-                }
+                renderPage();
             }
         } catch (error) { /* offline / preview */ }
     }
@@ -562,9 +922,7 @@
         if (status.state === 'ready') await fetchFriends();
         announceRequests();
         refreshBadge();
-
-        // Don't rebuild the panel while the user is editing their profile or typing in a field.
-        if (activeSource === 'cb' && !editingProfile && !interacting()) render(status);
+        renderPage();
     }
 
     // Shows a count on a sidebar item, or hides it when there is nothing waiting.
@@ -602,51 +960,48 @@
     window.CbFriendsManager = {
         refresh,
         refreshBadge,
+        renderPage,
         start() {
             if (started) return;
             started = true;
 
-            const tabs = document.getElementById('friends-source-tabs');
-            if (tabs) {
-                tabs.addEventListener('click', (event) => {
-                    const tab = event.target.closest('.friends-source-tab');
-                    if (tab) switchSource(tab.getAttribute('data-source'));
-                });
-            }
-
-            const panel = document.getElementById('friends-cb-panel');
+            const panel = document.getElementById('friends-panel');
             if (panel) {
                 panel.addEventListener('click', (event) => {
-                    const t = event.target;
-                    if (t.closest('#cb-create-btn')) return submitCreate();
-                    if (t.closest('#cb-recovery-btn')) return showRecoveryCode();
-                    if (t.closest('#cb-view-btn')) {
-                        const me = lastStatus && lastStatus.profile;
-                        if (me && me.cbId && window.PersonMenu) {
-                            window.PersonMenu.showCard({ cbId: me.cbId, handle: me.handle, displayName: me.displayName });
-                        }
-                        return;
-                    }
-                    if (t.closest('#cb-edit-btn')) { editingProfile = true; return render(lastStatus); }
-                    if (t.closest('#cb-edit-save')) return submitEdit();
-                    if (t.closest('#cb-edit-cancel')) { editingProfile = false; return render(lastStatus); }
-                    if (t.closest('#cb-add-btn')) return submitAdd();
-                    const accept = t.closest('[data-cb-accept]');
+                    const target = event.target;
+                    if (target.closest('#friends-create-open')) return openCreateForm();
+                    if (target.closest('#friends-link-discord')) return linkDiscord();
+                    if (target.closest('#cb-create-btn')) return submitCreate();
+                    if (target.closest('#cb-create-cancel')) return closeCreateForm();
+                    if (target.closest('#cb-self-more')) return openSelfMenu(event);
+                    if (target.closest('[data-cb-view-self]')) return viewOwnProfile();
+                    if (target.closest('#cb-edit-btn')) return editOwnProfile();
+                    if (target.closest('#cb-edit-save')) return submitEdit();
+                    if (target.closest('#cb-edit-cancel')) { editingProfile = false; return renderPage(true); }
+                    if (target.closest('#cb-add-btn')) return submitAdd();
+                    const accept = target.closest('[data-cb-accept]');
                     if (accept) return friendAction('cbfriends-accept', accept.getAttribute('data-cb-accept'));
-                    const decline = t.closest('[data-cb-decline]');
+                    const decline = target.closest('[data-cb-decline]');
                     if (decline) return friendAction('cbfriends-decline', decline.getAttribute('data-cb-decline'));
-                    const cancel = t.closest('[data-cb-cancel]');
+                    const cancel = target.closest('[data-cb-cancel]');
                     if (cancel) return friendAction('cbfriends-cancel', cancel.getAttribute('data-cb-cancel'));
-                    const more = t.closest('[data-cb-more]');
+                    const friendMore = target.closest('[data-friend-more]');
+                    if (friendMore) return openFriendRowMenu(event, friendMore.getAttribute('data-friend-more'));
+                    const join = target.closest('[data-friend-join]');
+                    const joinTarget = join && rows.get(join.getAttribute('data-friend-join'));
+                    if (joinTarget) return joinRow(joinTarget);
+                    const invite = target.closest('[data-friend-invite]');
+                    const inviteTarget = invite && rows.get(invite.getAttribute('data-friend-invite'));
+                    if (inviteTarget) return inviteRow(inviteTarget);
+                    const more = target.closest('[data-cb-more]');
                     if (more) return openRowMenu(event, more.getAttribute('data-cb-more'));
-                    const join = t.closest('[data-cb-join]');
-                    if (join) return requestJoin(join.getAttribute('data-cb-join'));
-                    const invite = t.closest('[data-cb-invite]');
-                    if (invite) return sendInvite(invite.getAttribute('data-cb-invite'));
-                    const byHandle = t.closest('[data-cb-add-handle]');
+                    const byHandle = target.closest('[data-cb-add-handle]');
                     if (byHandle) return friendAction('cbfriends-add-friend', byHandle.getAttribute('data-cb-add-handle'));
                 });
                 panel.addEventListener('contextmenu', (event) => {
+                    if (event.target.closest('[data-cb-self-card]')) return openSelfMenu(event);
+                    const friendEl = event.target.closest('[data-friend-key]');
+                    if (friendEl) return openFriendRowMenu(event, friendEl.getAttribute('data-friend-key'));
                     const el = event.target.closest('[data-person-id]');
                     if (!el || !window.PersonMenu) return;
                     const cbId = el.getAttribute('data-person-id');
@@ -668,7 +1023,7 @@
 
             refresh();
             setInterval(refresh, POLL_INTERVAL_MS);
-            setInterval(() => { if (panelVisible()) refresh(); }, VISIBLE_POLL_MS);
+            setInterval(() => { if (pageVisible()) refresh(); }, VISIBLE_POLL_MS);
 
             if (window.InvitePrompt) {
                 window.InvitePrompt.register('cb', {

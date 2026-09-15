@@ -860,12 +860,16 @@ async function handleFriendDrop(env, cbId, body, kind) {
 const DISCORD_ID_RE = /^\d{5,32}$/;
 const MAX_DISCORD_FRIENDS = 200;
 
-async function handleFriendList(env, cbId, body) {
-    const edges = await graphGet(env, cbId);
-    // A CB friend's Discord id is echoed only when it is already in the caller's own set.
-    const knownDiscord = new Set(Array.isArray(body.discordFriends)
+// A person's Discord id is echoed only when it is already in the caller's own set.
+function knownDiscordSet(body) {
+    return new Set(Array.isArray(body.discordFriends)
         ? body.discordFriends.filter(id => typeof id === 'string' && DISCORD_ID_RE.test(id)).slice(0, MAX_DISCORD_FRIENDS)
         : []);
+}
+
+async function handleFriendList(env, cbId, body) {
+    const edges = await graphGet(env, cbId);
+    const knownDiscord = knownDiscordSet(body);
     const [f, i, o] = await Promise.all([
         peopleViews(env, edges.friends, knownDiscord),
         peopleViews(env, edges.incoming),
@@ -1270,14 +1274,16 @@ async function handleLfgJoin(env, cbId, body) {
 
 // People seen in the same match recently, minus anyone already connected to or blocked. Derived on
 // read from the directory's match rosters, so nothing is written per player per match.
-async function handlePlayedWith(env, cbId) {
+// Discord ids are echoed like the friends list, so the launcher can hide people it already lists as Discord friends.
+async function handlePlayedWith(env, cbId, body) {
     const [found, edges] = await Promise.all([
         dirCall(env, 'played-with', { cbId }),
         graphGet(env, cbId),
     ]);
     const known = new Set([...edges.friends, ...edges.incoming, ...edges.outgoing, ...edges.blocked, cbId]);
     const rows = (found.people || []).filter(p => !known.has(p.cbId));
-    const people = Object.fromEntries((await peopleViews(env, rows.map(p => p.cbId))).map(p => [p.cbId, p]));
+    const views = await peopleViews(env, rows.map(p => p.cbId), knownDiscordSet(body));
+    const people = Object.fromEntries(views.map(p => [p.cbId, p]));
     return json(200, {
         people: rows
             .map(r => ({ ...people[r.cbId], game: r.game || '', at: r.at }))
@@ -1561,7 +1567,7 @@ export default {
             case '/v1/lfg/list':
                 return handleLfgList(env, cbId, body);
             case '/v1/played-with':
-                return handlePlayedWith(env, cbId);
+                return handlePlayedWith(env, cbId, body);
             default:
                 return json(404, { error: 'not found' });
         }

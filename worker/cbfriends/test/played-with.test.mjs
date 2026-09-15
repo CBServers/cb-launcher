@@ -1,6 +1,6 @@
 // Recently played with: derived from the match rosters the directory already holds, so it costs
 // nothing per player per match. Anyone already connected to must not be suggested.
-import { makeEnv, makeClient, mk, sha256Hex, checks } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, checks, stubDiscord } from './harness.mjs';
 
 const { env, drop } = makeEnv();
 const call = makeClient(env);
@@ -26,6 +26,16 @@ check('everyone from my match is suggested', handles.join(',') === 'alpha,bravo'
 check('someone on another server is not', !handles.includes('charlie'));
 check('I am never suggested to myself', !found.b.people.some(p => p.cbId === meId));
 check('suggestions carry a full profile', found.b.people[0].handle && found.b.people[0].game === 'boiii');
+
+// Same rule as the friends list: the Discord id only comes back to a caller who already holds it.
+stubDiscord(token => token === 'tok-bravo' ? { id: '444444444444444444', username: 'bravo', avatar: null } : null);
+check('bravo links Discord', (await call(B, '/v1/account/sync-discord', { discordToken: 'tok-bravo' })).s === 200);
+const bravoIn = r => r.b.people.find(p => p.cbId === bId);
+check('no Discord id without the caller naming it', !('discordId' in bravoIn(await call(ME, '/v1/played-with'))));
+check('no Discord id for an id the caller does not hold',
+    !('discordId' in bravoIn(await call(ME, '/v1/played-with', { discordFriends: ['555555555555555555'] }))));
+check('Discord id echoed when it is in the caller\'s set',
+    bravoIn(await call(ME, '/v1/played-with', { discordFriends: ['444444444444444444'] })).discordId === '444444444444444444');
 
 // Already-connected people are noise, so they drop out.
 await call(ME, '/v1/friends/add', { handle: 'alpha' });

@@ -47,6 +47,9 @@ const mockCb = {
     modLog: [],
     modLookup: null
 };
+// Discord link state for the preview; flip status from the console to see each Friends card.
+const mockDiscord = { status: 'linked' };
+
 function mockPerson(handle, name, extra) {
     return Object.assign({ cbId: 'cb_' + handle, handle, displayName: name || handle, avatarUrl: '', online: false, game: '', mode: '', status: '', relation: '', note: '' }, extra || {});
 }
@@ -107,9 +110,12 @@ function mockCommand(command, data) {
             };
         case 'get-update-progress':
             return { active: false, progress: 100, message: 'Complete' };
-        case 'discord-get-status':
-            return { status: 'linked', profile: { id: '1', displayName: 'Preview', avatarUrl: '' }, error: null };
+        case 'discord-get-status': {
+            const linked = mockDiscord.status === 'linked';
+            return { status: mockDiscord.status, profile: linked ? { id: '1', displayName: 'Preview', avatarUrl: '' } : null, error: null, joinable: linked };
+        }
         case 'discord-get-friends':
+            if (mockDiscord.status !== 'linked') return { available: false, registryOk: true, friends: [] };
             return { available: true, registryOk: true, joinable: true, friends: [
                 { id: '2', displayName: 'Rook', avatarUrl: '', status: 'online', inLauncher: true, joinable: true, directJoin: true, openable: false, sameMatch: false, gameId: 'boiii', activityDetails: 'Black Ops 3 - Team Deathmatch on Nuketown', activityState: 'CB TDM 24/7' },
                 { id: '3', displayName: 'Vex', avatarUrl: '', status: 'online', inLauncher: true, joinable: false, directJoin: false, openable: true, sameMatch: false, gameId: 'iw4x', activityDetails: 'Modern Warfare 2', activityState: 'In Menu' },
@@ -117,21 +123,29 @@ function mockCommand(command, data) {
                 { id: '5', displayName: 'Ghost', avatarUrl: '', status: 'offline', inLauncher: false, joinable: false, directJoin: false, openable: false, sameMatch: false, gameId: '', activityDetails: '', activityState: '' }
             ] };
         case 'discord-link':
+            mockDiscord.status = 'linked';
+            return { started: true };
         case 'discord-unlink':
+            mockDiscord.status = 'unlinked';
             return { started: false };
         case 'cbfriends-get-status':
             return { state: mockCb.state, profile: mockCb.profile, error: null, hasRecoveryCode: !!mockCb.recoveryCode, joinable: !!(mockCb.presence && mockCb.presence.joinable), presence: mockCb.presence || { game: '' } };
         case 'cbfriends-create-profile':
             mockCb.state = 'ready';
             mockCb.profile = { cbId: 'cb_preview', handle: data.handle, displayName: data.displayName || data.handle, avatarUrl: '' };
-            mockCb.recoveryCode = 'AB12-CD34-EF56-7890';
+            mockCb.recoveryCode = '1A2B-3C4D-5E6F-7A8B-9C0D-1E2F-3A4B-5C6D';
             mockCb.presence = { game: 'boiii', mode: 'mp', mapDisplay: 'Nuketown', gametype: 'Team Deathmatch', serverName: 'CB TDM 24/7', players: 9, maxPlayers: 18, joinable: true };
             mockCb.friends.incoming = [mockPerson('reaper', 'Reaper', { online: false, lastSeen: Date.now() - 3 * 3600 * 1000 })];
+            // Ghost, Vex and Idle Ike are also Discord friends (ids 5, 3, 4), so they merge; Rook stays Discord-only.
             mockCb.friends.friends = [
                 mockPerson('nova', 'Nova', { online: true, game: 'boiii', mode: 'mp', mapDisplay: 'Nuketown', gametype: 'Team Deathmatch', serverName: 'CB TDM 24/7', players: 9, maxPlayers: 18, joinable: true, matchId: 'm1' }),
-                mockPerson('ghost', 'Ghost', { online: false, lastSeen: Date.now() - 2 * 86400 * 1000 }),
-                mockPerson('vex', 'Vex', { online: true, game: 'iw4x' }),
-                mockPerson('idle', 'Idle Ike', { online: true })
+                mockPerson('ghost', 'Ghost', { online: false, lastSeen: Date.now() - 2 * 86400 * 1000, discordId: '5' }),
+                mockPerson('vex', 'Vex', { online: true, game: 'iw4x', discordId: '3' }),
+                mockPerson('idle', 'Idle Ike', { online: true, discordId: '4' })
+            ];
+            mockCb.playedWith = [
+                mockPerson('rook', 'Rook', { online: true, game: 'boiii', discordId: '2' }),
+                mockPerson('kilo', 'Kilo', { online: false, lastSeen: Date.now() - 2 * 3600 * 1000 })
             ];
             return { started: true };
         case 'cbfriends-get-recovery-code':

@@ -1,4 +1,4 @@
-// Discord friends list — polls the launcher's Discord Social SDK bridge.
+// Discord friends data for the merged Friends page (rendered by cb-friends.js), polled from the SDK bridge.
 // Slow poll keeps the list fresh; a fast poll runs while an OAuth link
 // attempt is in flight so the UI reacts as soon as the user approves.
 
@@ -201,31 +201,6 @@
         start() {
             if (started) return;
             started = true;
-
-            const linkBtn = document.getElementById('friends-link-btn');
-            if (linkBtn) {
-                linkBtn.addEventListener('click', beginLink);
-            }
-
-            // Delegated handler for the per-friend Invite buttons (rows are re-rendered on each refresh).
-            const list = document.getElementById('friends-list');
-            if (list) {
-                list.addEventListener('click', (event) => {
-                    const moreBtn = event.target.closest('[data-friend-more]');
-                    if (moreBtn) { window.AppViews.openFriendMenu(event, moreBtn.getAttribute('data-friend-more')); return; }
-                    const inviteBtn = event.target.closest('[data-invite-user]');
-                    if (inviteBtn) { sendInvite(inviteBtn.getAttribute('data-invite-user')); return; }
-                    const joinBtn = event.target.closest('[data-join-user]');
-                    if (joinBtn) {
-                        requestJoin(joinBtn.getAttribute('data-join-user'), joinBtn.getAttribute('data-game-id'),
-                            joinBtn.getAttribute('data-knock') === '1');
-                    }
-                });
-                list.addEventListener('contextmenu', (event) => {
-                    const row = event.target.closest('[data-friend-id]');
-                    if (row && window.AppViews) window.AppViews.openFriendMenu(event, row.getAttribute('data-friend-id'));
-                });
-            }
 
             refresh();
             setInterval(refresh, POLL_INTERVAL_MS);

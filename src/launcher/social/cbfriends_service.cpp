@@ -152,6 +152,29 @@ namespace social
             add_string(body, "cbId", cb_id);
             return serialize(body);
         }
+
+        // Linked Discord friends; the worker echoes a CB person's Discord id only when it is in this set.
+        std::string discord_friends_body()
+        {
+            rapidjson::Document body;
+            body.SetObject();
+            auto& allocator = body.GetAllocator();
+            body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
+
+            auto& discord = discord::discord_service::instance();
+            if (discord.get_status() == discord::link_status::linked)
+            {
+                rapidjson::Value ids(rapidjson::kArrayType);
+                for (const auto& f : discord.get_friends())
+                {
+                    if (ids.Size() >= 200) break;
+                    if (!f.linked && !f.in_launcher) continue;
+                    ids.PushBack(rapidjson::Value(f.id.data(), allocator), allocator);
+                }
+                if (!ids.Empty()) body.AddMember("discordFriends", ids, allocator);
+            }
+            return serialize(body);
+        }
     }
 
     std::string profile_state_to_string(const profile_state state)
@@ -1084,26 +1107,7 @@ namespace social
             return;
         }
 
-        rapidjson::Document body;
-        body.SetObject();
-        auto& allocator = body.GetAllocator();
-        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), allocator);
-
-        // Linked Discord friends; the worker echoes a CB friend's Discord id only when it is in this set.
-        auto& discord = discord::discord_service::instance();
-        if (discord.get_status() == discord::link_status::linked)
-        {
-            rapidjson::Value ids(rapidjson::kArrayType);
-            for (const auto& f : discord.get_friends())
-            {
-                if (ids.Size() >= 200) break;
-                if (!f.linked && !f.in_launcher) continue;
-                ids.PushBack(rapidjson::Value(f.id.data(), allocator), allocator);
-            }
-            if (!ids.Empty()) body.AddMember("discordFriends", ids, allocator);
-        }
-
-        auto doc = post_json(base_url() + "/v1/friends/list", serialize(body));
+        auto doc = post_json(base_url() + "/v1/friends/list", discord_friends_body());
         if (!doc)
         {
             return;
@@ -1621,7 +1625,7 @@ namespace social
     void cbfriends_service::refresh_played_with()
     {
         if (get_state() != profile_state::ready) return;
-        auto doc = post_json(base_url() + "/v1/played-with", ts_body());
+        auto doc = post_json(base_url() + "/v1/played-with", discord_friends_body());
         if (!doc || !doc->HasMember("people") || !(*doc)["people"].IsArray()) return;
 
         auto people = parse_people((*doc)["people"]);

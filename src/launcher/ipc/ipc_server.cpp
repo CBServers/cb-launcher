@@ -233,9 +233,12 @@ namespace ipc
                         const bool cb_online = cb && cb->online;
                         const bool discord_online = entry.status == "online" || entry.status == "idle";
 
+                        // Same name as the launcher's merged list: the CB identity wins when there is one.
+                        const auto& name = cb && !cb->display_name.empty() ? cb->display_name : entry.display_name;
+
                         w.StartObject();
                         w.Key("id");         w.String(cb_online ? cb->cb_id.data() : entry.id.data());
-                        w.Key("name");       w.String(entry.display_name.data());
+                        w.Key("name");       w.String(name.data());
                         if (cb)
                         {
                             w.Key("handle");    w.String(cb->handle.data());

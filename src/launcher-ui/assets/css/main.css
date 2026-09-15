@@ -5289,48 +5289,6 @@ html[data-theme="dark"] .secondary-action:hover {
     gap: 8px;
 }
 
-.friends-link-cta {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    padding: 40px 24px;
-    text-align: center;
-    background: var(--surface-lo);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
-}
-
-.friends-link-cta p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 14px;
-    max-width: 420px;
-}
-
-.friends-link-btn {
-    padding: 10px 22px;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: var(--accent-grad);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    cursor: pointer;
-    transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
-}
-
-.friends-link-btn:hover:not(:disabled) {
-    filter: brightness(1.1);
-    transform: translateY(-1px);
-}
-
-.friends-link-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-}
-
 .friends-notice {
     padding: 10px 16px;
     margin-bottom: 10px;
@@ -5341,40 +5299,7 @@ html[data-theme="dark"] .secondary-action:hover {
     border-radius: var(--radius-sm);
 }
 
-/* CB Friends sub-tab */
-.friends-source-tabs {
-    display: inline-flex;
-    gap: 4px;
-    padding: 4px;
-    margin-bottom: 18px;
-    background: var(--surface-lo);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-}
-
-.friends-source-tab {
-    padding: 7px 18px;
-    border: none;
-    border-radius: 9px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s var(--ease), color 0.2s var(--ease);
-}
-
-.friends-source-tab:hover {
-    color: var(--text);
-}
-
-.friends-source-tab.active {
-    background: var(--chip-active-bg);
-    border: 1px solid var(--chip-active-border);
-    color: var(--text);
-    padding: 6px 17px;
-}
-
+/* Profile card */
 .cb-profile-card {
     display: flex;
     align-items: center;
@@ -5461,14 +5386,29 @@ html[data-theme="dark"] .secondary-action:hover {
     color: var(--text-muted);
 }
 
+.cb-profile-avatar[data-cb-view-self],
+.cb-profile-link {
+    cursor: pointer;
+}
+
+.cb-profile-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 .cb-profile-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
     flex-shrink: 0;
 }
 
-.cb-profile-recovery-btn {
-    padding: 8px 16px;
+.cb-profile-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 14px;
     border: 1px solid var(--border-hi);
     border-radius: var(--radius-sm);
     background: var(--surface-hi);
@@ -5476,7 +5416,82 @@ html[data-theme="dark"] .secondary-action:hover {
     font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
-    transition: border-color 0.2s var(--ease);
+    transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.cb-profile-btn:hover:not(:disabled) {
+    border-color: var(--interactive-hover-border);
+}
+
+.cb-profile-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.cb-profile-btn.is-primary {
+    border-color: transparent;
+    background: var(--accent-grad);
+    color: #fff;
+    font-weight: 700;
+}
+
+.cb-profile-btn.is-primary:hover {
+    border-color: transparent;
+    filter: brightness(1.1);
+}
+
+.cb-profile-btn-icon,
+.cb-profile-btn .friend-source-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.cb-profile-avatar-icon {
+    width: 26px;
+    height: 26px;
+    color: #fff;
+}
+
+.cb-profile-linked {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.cb-profile-linked .friend-source-icon {
+    width: 13px;
+    height: 13px;
+}
+
+.cb-profile-text {
+    margin-top: 6px;
+    max-width: 560px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.friend-source {
+    display: inline-flex;
+    margin-left: 6px;
+    color: var(--text-dim);
+    vertical-align: -1px;
+}
+
+.friend-source-icon {
+    width: 13px;
+    height: 13px;
+}
+
+.cb-profile-more {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
 }
 
 .cb-profile-edit {
@@ -5499,10 +5514,6 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .cb-edit-actions .cb-add-btn {
     padding: 9px 22px;
-}
-
-.cb-profile-recovery-btn:hover {
-    border-color: var(--interactive-hover-border);
 }
 
 .cb-create {
@@ -5624,6 +5635,85 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 .cb-create-btn:hover {
     filter: brightness(1.1);
     transform: translateY(-1px);
+}
+
+.cb-recovery-text {
+    margin: 0 0 12px;
+}
+
+.cb-recovery-warning {
+    padding: 9px 12px;
+    margin-bottom: 14px;
+    font-size: 12.5px;
+    color: var(--warn);
+    background: rgba(255, 178, 63, 0.08);
+    border: 1px solid rgba(255, 178, 63, 0.3);
+    border-radius: var(--radius-sm);
+}
+
+.cb-recovery-value {
+    display: block;
+    padding: 11px 12px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 13.5px;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow-wrap: anywhere;
+    user-select: none;
+}
+
+.cb-recovery-value.is-revealed {
+    user-select: all;
+}
+
+.cb-recovery-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.cb-recovery-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius-sm);
+    background: var(--surface-hi);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.cb-recovery-btn:hover {
+    border-color: var(--interactive-hover-border);
+}
+
+.cb-recovery-btn.is-done {
+    color: var(--play);
+}
+
+.cb-recovery-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.cb-create-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.cb-create-actions .cb-create-btn {
+    margin-top: 0;
 }
 
 /* CB friends list */
