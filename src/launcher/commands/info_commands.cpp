@@ -46,6 +46,14 @@ namespace commands::info_commands
             response.AddMember("completedFiles", state.completed_files, allocator);
             response.AddMember("totalBytes", state.total_bytes, allocator);
             response.AddMember("downloadedBytes", state.downloaded_bytes, allocator);
+
+            response.AddMember("noticeSeq", state.notice_seq, allocator);
+            rapidjson::Value notice_kind;
+            notice_kind.SetString(state.notice_kind.data(), static_cast<rapidjson::SizeType>(state.notice_kind.length()), allocator);
+            response.AddMember("noticeKind", notice_kind, allocator);
+            rapidjson::Value notice_detail;
+            notice_detail.SetString(state.notice_detail.data(), static_cast<rapidjson::SizeType>(state.notice_detail.length()), allocator);
+            response.AddMember("noticeDetail", notice_detail, allocator);
         });
 
         cef_ui.add_command("cancel-update", [](const auto&, rapidjson::Document& response)

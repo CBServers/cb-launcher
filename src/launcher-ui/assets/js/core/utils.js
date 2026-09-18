@@ -761,6 +761,7 @@ class GameUtils {
             let cancelRequested = false;
             let lastBytes = 0, lastTime = 0, emaSpeed = 0; // bytes, ms, bytes/sec
             let startTime = 0, startBytes = 0;             // ms, bytes (download-start baseline)
+            let lastNoticeSeq = 0;
 
             const cancelOperation = async () => {
                 cancelRequested = true;
@@ -825,6 +826,11 @@ class GameUtils {
                                     resolve();
                                 }, 1000);
                                 return;
+                            }
+
+                            if (result.noticeSeq && result.noticeSeq !== lastNoticeSeq) {
+                                lastNoticeSeq = result.noticeSeq;
+                                GameUtils.showProgressNotice(result.noticeKind, result.noticeDetail);
                             }
 
                             // Paused: keep the bar alive at the current percent, just relabel.
@@ -913,6 +919,19 @@ class GameUtils {
             completeMessage,
             runFn
         });
+    }
+
+    // One toast per backend notice: a retry round or a mirror switch, never one per file
+    static showProgressNotice(kind, detail) {
+        if (typeof window.showToast !== 'function') return;
+        const t = (key, vars) => window.LauncherI18n ? window.LauncherI18n.t(key, vars) : null;
+        if (kind === 'retry') {
+            window.showToast(t('downloads.noticeRetry', { count: detail }) || `${detail} file(s) failed to download, retrying`, 'error', 6000);
+        } else if (kind === 'failover') {
+            let host = detail;
+            try { host = new URL(detail).host; } catch (_) { /* keep raw */ }
+            window.showToast(t('downloads.noticeFailover', { host }) || `Download server unreachable, switching to ${host}`, 'info', 6000);
+        }
     }
 
     static expandMissingToPackageIds(missingGroups) {

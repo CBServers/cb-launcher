@@ -32,6 +32,10 @@ namespace updater
             bool is_paused = false;
             float progress_percent = 0.0f;
             progress_mode mode = progress_mode::verifying;
+            // One-shot events for the UI (retry round, mirror switch); seq bumps so the poller sees each once
+            size_t notice_seq = 0;
+            std::string notice_kind;
+            std::string notice_detail;
         };
 
         static progress_tracker& instance();
@@ -54,6 +58,7 @@ namespace updater
         void set_current_file(const std::string& file_name);
         void file_completed(const std::string& file_name);
         void update_downloaded_bytes(size_t current_file_size);
+        void post_notice(const std::string& kind, const std::string& detail);
 
         // Called by UI to read progress
         progress_state get_progress() const;

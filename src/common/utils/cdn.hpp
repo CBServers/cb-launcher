@@ -1,8 +1,10 @@
 #pragma once
 
 #include <atomic>
-#include <string>
+#include <mutex>
 #include <optional>
+#include <set>
+#include <string>
 #include <vector>
 
 #include "property_keys.hpp"
@@ -32,6 +34,8 @@ namespace utils::cdn
         bool success{};
     };
 
+    // Each region is a list of mirrors with the same layout; the first reachable one is used and a
+    // mirror that dies mid-download is skipped for the rest of the session (see failover()).
     class cdn_manager
     {
     public:
@@ -39,6 +43,10 @@ namespace utils::cdn
 
         // Get the active CDN base URL based on current preference
         std::string get_active_cdn_url();
+
+        // Marks the mirror behind failed_url dead and returns the next one to try (same region first,
+        // then the other region), or nullopt when every mirror has been tried
+        std::optional<std::string> failover(const std::string& failed_url);
 
         // Test latency to a specific server URL (returns milliseconds, or nullopt on failure)
         std::optional<double> test_latency(const std::string& url);
@@ -57,7 +65,7 @@ namespace utils::cdn
         void save_preference();
 
         // Get cached latency results (from last test)
-        const latency_result& get_cached_latency() const;
+        latency_result get_cached_latency() const;
 
         // Clear cached latency results
         void clear_cached_latency();
@@ -79,14 +87,21 @@ namespace utils::cdn
         void load_custom_url();
         void save_custom_url();
 
+        static const std::vector<std::string>& hosts_for(cdn_region region);
+        // Probe-verified mirror for a region, or empty when untested / none reachable. Caller holds mutex_.
+        std::string working_host(cdn_region region) const;
+        // First live mirror in preference order, or empty when all are dead. Caller holds mutex_.
+        std::string resolve_locked() const;
+        cdn_region preferred_region_locked() const;
+
         cdn_region preference_{cdn_region::automatic};
         std::string custom_url_{};
         latency_result cached_latency_{};
+        std::set<std::string> dead_hosts_{};
+        mutable std::mutex mutex_;
         std::atomic<bool> latency_tested_{false};
         std::atomic<bool> latency_testing_{false};
 
-        static constexpr const char* CDN_NA_URL = "https://cdn-na.cbservers.xyz/";
-        static constexpr const char* CDN_EU_URL = "https://cdn-weu.cbservers.xyz/";
         static constexpr int LATENCY_TIMEOUT_SECONDS = 5;
     };
 }

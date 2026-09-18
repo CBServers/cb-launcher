@@ -209,6 +209,8 @@
                 statusQueued: 'Queued — #{{position}}',
                 statusPaused: 'Paused',
                 statusPausedAt: 'Paused — {{percent}}%',
+                noticeRetry: '{{count}} file(s) failed to download, retrying',
+                noticeFailover: 'Download server unreachable, switching to {{host}}',
                 pause: 'Pause',
                 resume: 'Resume',
                 etaLeft: '{{time}}'
@@ -904,6 +906,8 @@
                 statusQueued: 'En file - #{{position}}',
                 statusPaused: 'En pause',
                 statusPausedAt: 'En pause - {{percent}}%',
+                noticeRetry: '{{count}} fichier(s) n\'ont pas pu etre telecharges, nouvelle tentative',
+                noticeFailover: 'Serveur de telechargement injoignable, passage a {{host}}',
                 pause: 'Mettre en pause',
                 resume: 'Reprendre',
                 etaLeft: '{{time}}'
@@ -1599,6 +1603,8 @@
                 statusQueued: 'En cola - #{{position}}',
                 statusPaused: 'En pausa',
                 statusPausedAt: 'En pausa - {{percent}}%',
+                noticeRetry: '{{count}} archivo(s) no se pudieron descargar, reintentando',
+                noticeFailover: 'Servidor de descarga no disponible, cambiando a {{host}}',
                 pause: 'Pausar',
                 resume: 'Reanudar',
                 etaLeft: '{{time}}'
@@ -2294,6 +2300,8 @@
                 statusQueued: 'В очереди — #{{position}}',
                 statusPaused: 'Приостановлено',
                 statusPausedAt: 'Приостановлено — {{percent}}%',
+                noticeRetry: 'Не удалось загрузить файлов: {{count}}, повторная попытка',
+                noticeFailover: 'Сервер загрузки недоступен, переключение на {{host}}',
                 pause: 'Пауза',
                 resume: 'Продолжить',
                 etaLeft: '{{time}}'

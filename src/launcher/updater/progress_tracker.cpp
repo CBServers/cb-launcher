@@ -152,6 +152,14 @@ namespace updater
         this->recalculate_progress();
     }
 
+    void progress_tracker::post_notice(const std::string& kind, const std::string& detail)
+    {
+        std::lock_guard lock(this->mutex_);
+        this->state_.notice_seq++;
+        this->state_.notice_kind = kind;
+        this->state_.notice_detail = detail;
+    }
+
     void progress_tracker::recalculate_progress()
     {
         if (this->state_.total_bytes == 0)

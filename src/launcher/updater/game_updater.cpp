@@ -11,6 +11,7 @@
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
+#include <utils/cdn.hpp>
 
 //#define MULTITHREAD_DOWNLOAD
 
@@ -18,6 +19,9 @@ namespace game_updater
 {
     namespace
     {
+        // This many transport failures in a row with no success in between means the mirror, not the file
+        constexpr size_t MIRROR_FAILURE_THRESHOLD = 4;
+
         // Steam copies keep these manifest prefixes at the install root instead
         // Blizzard CASC storage: everything under the game's Data tree is repacked per install, so
         // two equally complete copies disagree on both file sizes and index names. Counting it made
@@ -283,7 +287,7 @@ namespace game_updater
 
         this->probe_layout();
         this->probe_casc_store();
-        this->base_url = game_config::get_resolved_base_url(config);
+        this->set_cdn_url(utils::cdn::cdn_manager::instance().get_active_cdn_url());
 
         const auto manifest_json = game_config::read_manifest(config);
         this->manifest_ = parse_manifest(manifest_json);
@@ -587,8 +591,14 @@ namespace game_updater
 
         if (result.code != CURLE_OK)
         {
-            throw std::runtime_error(utils::string::va("Failed to download: %s - CURL error (%d): %s",
-                url.data(), result.code, curl_easy_strerror(result.code)));
+            const auto message = utils::string::va("Failed to download: %s - CURL error (%d): %s",
+                url.data(), result.code, curl_easy_strerror(result.code));
+            // No HTTP status at all means we never reached the server
+            if (result.response_code == 0)
+            {
+                throw transport_error(message);
+            }
+            throw std::runtime_error(message);
         }
 
         if (!hasher)
@@ -805,10 +815,35 @@ namespace game_updater
                 this->progress_listener_->update_files(pending_files, updater::progress_mode::downloading);
             }
 
-            pending_files = this->download_files(pending_files);
+            auto round = this->download_files(pending_files);
+            pending_files = std::move(round.failed);
 
             check_cancelled();
+
+            if (round.mirror_unreachable)
+            {
+                // A dead mirror is not a retry; swap it and go again without burning an attempt
+                const auto next = utils::cdn::cdn_manager::instance().failover(this->cdn_url);
+                if (!next.has_value())
+                {
+                    throw std::runtime_error("Could not reach any download server (last tried " + this->cdn_url +
+                        "). Check your connection or firewall, or pick a different download server in Settings.");
+                }
+
+                printf("Download server %s unreachable, switching to %s\n", this->cdn_url.data(), next->data());
+                this->set_cdn_url(*next);
+                if (this->progress_listener_)
+                {
+                    this->progress_listener_->notice("failover", *next);
+                }
+                continue;
+            }
+
             ++attempt;
+            if (!pending_files.empty() && attempt < MAX_RETRIES && this->progress_listener_)
+            {
+                this->progress_listener_->notice("retry", std::to_string(pending_files.size()));
+            }
         }
 
         if (!pending_files.empty())
@@ -818,7 +853,13 @@ namespace game_updater
         }
     }
 
-    std::vector<updater::file_info> game_updater::download_files(const std::vector<updater::file_info>& files) const
+    void game_updater::set_cdn_url(const std::string& url) const
+    {
+        this->cdn_url = url;
+        this->base_url = url + this->config_.base_folder;
+    }
+
+    game_updater::download_round game_updater::download_files(const std::vector<updater::file_info>& files) const
     {
         printf("Downloading %zu files...\n", files.size());
 
@@ -826,6 +867,18 @@ namespace game_updater
         const auto record_failure = [&failed](const updater::file_info& file)
         {
             failed.access([&file](std::vector<updater::file_info>& list) { list.push_back(file); });
+        };
+
+        // Circuit breaker: consecutive transport failures with nothing succeeding in between
+        std::atomic<size_t> transport_streak{0};
+        std::atomic<bool> mirror_dead{false};
+        const auto on_success = [&transport_streak] { transport_streak = 0; };
+        const auto on_transport_failure = [&transport_streak, &mirror_dead]
+        {
+            if (++transport_streak >= MIRROR_FAILURE_THRESHOLD)
+            {
+                mirror_dead = true;
+            }
         };
 
 #ifdef MULTITHREAD_DOWNLOAD
@@ -850,12 +903,19 @@ namespace game_updater
                     if (index >= files.size()) break;
 
                     const auto& file = files[index];
+                    if (mirror_dead)
+                    {
+                        record_failure(file);
+                        break;
+                    }
+
                     try
                     {
                         if (this->progress_listener_)
                             this->progress_listener_->begin_file(file);
 
                         this->update_file(file);
+                        on_success();
 
                         if (this->progress_listener_)
                             this->progress_listener_->end_file(file);
@@ -863,6 +923,13 @@ namespace game_updater
                     catch (const updater::update_cancelled&)
                     {
                         break;  // Exit thread on cancellation
+                    }
+                    catch (const transport_error& e)
+                    {
+                        printf("Warning: Download failed for %s: %s (will retry)\n",
+                            file.name.data(), e.what());
+                        record_failure(file);
+                        on_transport_failure();
                     }
                     catch (const std::exception& e)
                     {
@@ -882,10 +949,23 @@ namespace game_updater
 
         check_cancelled();
 
+        // Files nobody claimed before the breaker tripped still need downloading
+        for (auto index = current_index.load(); index < files.size(); ++index)
+        {
+            record_failure(files[index]);
+        }
+
 #else
         // Single-threaded version
-        for (const auto& file : files)
+        for (size_t index = 0; index < files.size(); ++index)
         {
+            const auto& file = files[index];
+            if (mirror_dead)
+            {
+                record_failure(file);
+                continue;
+            }
+
             wait_if_paused_or_cancelled();
 
             if (this->progress_listener_)
@@ -894,10 +974,18 @@ namespace game_updater
             try
             {
                 this->update_file(file);
+                on_success();
             }
             catch (const updater::update_cancelled&)
             {
                 throw;
+            }
+            catch (const transport_error& e)
+            {
+                printf("Warning: Download failed for %s: %s (will retry)\n",
+                    file.name.data(), e.what());
+                record_failure(file);
+                on_transport_failure();
             }
             catch (const std::exception& e)
             {
@@ -913,8 +1001,11 @@ namespace game_updater
 
         printf("Finished downloading files\n");
 
-        return failed.access<std::vector<updater::file_info>>(
+        download_round round;
+        round.mirror_unreachable = mirror_dead;
+        round.failed = failed.access<std::vector<updater::file_info>>(
             [](std::vector<updater::file_info>& list) { return std::move(list); });
+        return round;
     }
 
     bool game_updater::is_outdated_file(const updater::file_info& file) const

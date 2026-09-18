@@ -52,6 +52,11 @@ namespace updater
         progress_tracker::instance().update_downloaded_bytes(progress);
     }
 
+    void ui_progress_listener::notice(const std::string& kind, const std::string& detail)
+    {
+        progress_tracker::instance().post_notice(kind, detail);
+    }
+
     void ui_progress_listener::reset(bool new_update)
     {
         progress_tracker::instance().reset(new_update);

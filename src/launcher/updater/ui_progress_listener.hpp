@@ -24,6 +24,7 @@ namespace updater
         void end_file(const file_info& file);
 
         void file_progress(const file_info& file, size_t progress);
+        void notice(const std::string& kind, const std::string& detail);
 
         void reset(bool new_update = false);
         void cancel_update();

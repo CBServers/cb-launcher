@@ -6,10 +6,18 @@
 #include <string>
 #include <filesystem>
 #include <optional>
+#include <stdexcept>
 #include <game_config.hpp>
 
 namespace game_updater
 {
+    // The server never answered (DNS, connect, TLS handshake), so the mirror is suspect, not the file
+    class transport_error : public std::runtime_error
+    {
+    public:
+        using std::runtime_error::runtime_error;
+    };
+
     class game_updater
     {
     public:
@@ -44,7 +52,9 @@ namespace game_updater
     private:
         const game_config::game_config_t& config_;
         std::filesystem::path install_path;
-        std::string base_url;
+        // Mutable so a dead mirror can be swapped between download rounds
+        mutable std::string cdn_url;
+        mutable std::string base_url;
         update_manifest manifest_;
         // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
         // True when this install already carries its own CASC store, so the manifest's copy of it
@@ -72,10 +82,17 @@ namespace game_updater
         void remove_all_parts(const std::vector<updater::file_info>& files) const;
         void remove_parts(const std::vector<updater::file_info>& files, bool keep_current) const;
 
+        struct download_round
+        {
+            std::vector<updater::file_info> failed;
+            bool mirror_unreachable{false};
+        };
+
         // Download with retry support
         void download_with_retry(const std::vector<updater::file_info>& files) const;
-        // Returns the files that failed, for the caller to retry
-        [[nodiscard]] std::vector<updater::file_info> download_files(const std::vector<updater::file_info>& files) const;
+        // Returns the files that failed, for the caller to retry. Stops early once the mirror looks dead
+        [[nodiscard]] download_round download_files(const std::vector<updater::file_info>& files) const;
+        void set_cdn_url(const std::string& url) const;
 
         std::size_t get_update_size(const std::vector<updater::file_info>& files) const;
         std::size_t get_available_drive_space() const;
