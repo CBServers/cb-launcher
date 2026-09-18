@@ -430,10 +430,11 @@ namespace commands::game_commands
             return name;
         }
 
-        // Returns the effective player name to inject for this game, or empty when nothing should be injected
-        std::string resolve_player_name(const game_config::game_config_t& config)
+        // Returns the effective player name to inject for this game, or empty when nothing should be injected.
+        // `ignore_name_argument` is for launch paths with their own name channel (Plutonium LAN).
+        std::string resolve_player_name(const game_config::game_config_t& config, const bool ignore_name_argument = false)
         {
-            if (config.name_argument.empty()) return "";
+            if (config.name_argument.empty() && !ignore_name_argument) return "";
 
             const auto override_val = config.get(property_keys::PLAYER_NAME_OVERRIDE);
             if (override_val && !override_val->empty())
@@ -506,7 +507,12 @@ namespace commands::game_commands
             return std::format("{} {}", base_args, extras);
         }
 
-        // Launches a Plutonium mode via plutonium://, or nullopt when this mode isn't a Plutonium target.
+        bool plutonium_lan_enabled(const game_config::game_config_t& config)
+        {
+            return config.get(property_keys::PLUTONIUM_LAN).value_or("") == "true";
+        }
+
+        // Launches a Plutonium mode via plutonium:// (or the bootstrapper directly in LAN mode), or nullopt when this mode isn't a Plutonium target.
         std::optional<bool> try_launch_plutonium(const game_config::game_config_t& config, const std::string& mode,
             cef::cef_ui& cef_ui, const uint64_t generation)
         {
@@ -550,27 +556,57 @@ namespace commands::game_commands
                 return false;
             }
 
-            if (plutonium::get_token().empty())
-            {
-                recover("You're not signed in to Plutonium.");
-                return false;
-            }
-
             const auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
-            const auto result = plutonium::launch_via_uri(name_it->second, elevate);
+            plutonium::launch_result result;
 
-            // Declining the prompt isn't a broken session, and re-opening their UI would only prompt again.
-            if (result.cancelled)
+            if (plutonium_lan_enabled(config))
             {
-                cef_ui.show_message_box("Game Launch Cancelled",
-                    "The Plutonium launcher requires administrator permission to start " + config.display_name + ".");
-                return false;
+                const auto install = config.get_install_path();
+                if (!install)
+                {
+                    cef_ui.show_message_box("Game Launch Error",
+                        "No installation folder is set for " + config.display_name + ".");
+                    return false;
+                }
+
+                result = plutonium::launch_lan(name_it->second, *install, resolve_player_name(config, true), elevate);
+                if (result.cancelled)
+                {
+                    cef_ui.show_message_box("Game Launch Cancelled",
+                        "Administrator permission is required to start " + config.display_name + ".");
+                    return false;
+                }
+
+                if (!result.success)
+                {
+                    cef_ui.show_message_box("Game Launch Error",
+                        "Plutonium couldn't start " + config.display_name + " in LAN mode. Check that Plutonium is installed.");
+                    return false;
+                }
             }
-
-            if (!result.success)
+            else
             {
-                recover("Plutonium couldn't start " + config.display_name + ". Your session may have expired.");
-                return false;
+                if (plutonium::get_token().empty())
+                {
+                    recover("You're not signed in to Plutonium.");
+                    return false;
+                }
+
+                result = plutonium::launch_via_uri(name_it->second, elevate);
+
+                // Declining the prompt isn't a broken session, and re-opening their UI would only prompt again.
+                if (result.cancelled)
+                {
+                    cef_ui.show_message_box("Game Launch Cancelled",
+                        "The Plutonium launcher requires administrator permission to start " + config.display_name + ".");
+                    return false;
+                }
+
+                if (!result.success)
+                {
+                    recover("Plutonium couldn't start " + config.display_name + ". Your session may have expired.");
+                    return false;
+                }
             }
 
             discord::discord_service::instance().set_game_activity(config.id, config.display_name, mode);
@@ -742,7 +778,9 @@ namespace commands::game_commands
                     client_updater::run_for_mode(config, mode, skip_files, &progress_listener);
 
                     // Revision-gated, so this only runs when behind. Wine gate disabled for testing: && !utils::nt::is_wine_environment()
-                    if (!config.plutonium_game_names.empty())
+                    // LAN launches need no account, so an offline launcher skips the updater's CDN check too.
+                    if (!config.plutonium_game_names.empty()
+                        && !(plutonium_lan_enabled(config) && utils::flags::has_flag("offline")))
                     {
                         if (const auto install = config.get_install_path())
                         {

@@ -32,6 +32,7 @@ const PROPERTY_KEYS = {
         SELECTED_CLIENT_PREFIX: 'selected-client-',
         SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
         LAUNCH_ADMIN: 'launch-admin',
+        PLUTONIUM_LAN: 'plutonium-lan',
         DISABLE_CB_EXTENSION: 'disable-cb-extension',
         DETECTED_COMPONENTS: 'detected-components',
         SELECTED_COMPONENTS: 'selected-components',

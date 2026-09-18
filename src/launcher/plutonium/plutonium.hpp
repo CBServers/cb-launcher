@@ -9,6 +9,7 @@ namespace plutonium
     // %LOCALAPPDATA%\Plutonium, or empty when it can't be resolved.
     std::filesystem::path get_root();
     std::filesystem::path get_launcher_exe();
+    std::filesystem::path get_bootstrapper_exe();
 
     // True when their launcher binary is present and a direct launch can be attempted.
     bool is_available();
@@ -38,4 +39,8 @@ namespace plutonium
     // Launches via plutonium://play/<game>, killing their launcher on failure before it can spawn a tokenless bootstrapper.
     // `elevate` forces the UAC path up front; a 740 from their exe elevates on its own regardless.
     launch_result launch_via_uri(const std::string& pluto_game, bool elevate = false);
+
+    // Spawns the bootstrapper directly: <game> "<game_path>" -lan [-name <name>]. No token, no session call, no launcher UI.
+    launch_result launch_lan(const std::string& pluto_game, const std::filesystem::path& game_path,
+        const std::string& player_name, bool elevate = false);
 }

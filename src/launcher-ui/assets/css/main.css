@@ -6939,6 +6939,12 @@ html:not([data-theme]) .mod-detail-popup {
     clip-path: var(--clip-chamfer);
 }
 
+/* Popup sections are transparent groupings, not surfaces; the chamfer would only clip their content */
+html:not([data-theme]) .game-settings-popup .settings-section,
+html:not([data-theme]) .inline-game-settings .settings-section {
+    clip-path: none;
+}
+
 /* The legacy glassmorphism glows read wrong on flat chamfered
    surfaces (and clip-path clips shadows anyway) */
 html:not([data-theme]) .sidebar,

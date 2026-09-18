@@ -187,6 +187,17 @@ namespace plutonium
         return root / "bin" / LAUNCHER_EXE;
     }
 
+    std::filesystem::path get_bootstrapper_exe()
+    {
+        const auto root = get_root();
+        if (root.empty())
+        {
+            return {};
+        }
+
+        return root / "bin" / BOOTSTRAPPER_EXE;
+    }
+
     bool is_available()
     {
         const auto exe = get_launcher_exe();
@@ -385,5 +396,50 @@ namespace plutonium
         utils::logger::write("[pluto] timed out waiting for '{}'", pluto_game);
         kill_process(pid, handle);
         return {false, 0, elevated, false};
+    }
+
+    launch_result launch_lan(const std::string& pluto_game, const std::filesystem::path& game_path,
+        const std::string& player_name, const bool elevate)
+    {
+        const auto exe = get_bootstrapper_exe();
+        if (exe.empty() || !utils::io::file_exists(exe))
+        {
+            utils::logger::write("[pluto] bootstrapper missing, cannot LAN launch '{}'", pluto_game);
+            return {};
+        }
+
+        if (const auto existing = utils::nt::find_process_id(BOOTSTRAPPER_EXE))
+        {
+            utils::logger::write("[pluto] bootstrapper already running (pid {}), refusing to LAN launch '{}'",
+                existing, pluto_game);
+            return {};
+        }
+
+        auto args = std::format("{} \"{}\" -lan", pluto_game, utils::string::path_to_utf8(game_path));
+        if (!player_name.empty())
+        {
+            args += player_name.find_first_of(" 	") == std::string::npos
+                ? std::format(" -name {}", player_name)
+                : std::format(" -name \"{}\"", player_name);
+        }
+
+        auto elevated = elevate;
+        HANDLE handle = nullptr;
+        const auto pid = elevate
+            ? utils::nt::launch_process_elevated(exe, args, get_root(), &handle)
+            : utils::nt::launch_process_maybe_elevated(exe, args, get_root(), &elevated, &handle);
+
+        if (handle) CloseHandle(handle);
+
+        if (!pid)
+        {
+            const auto error = GetLastError();
+            utils::logger::write("[pluto] failed to LAN launch '{}' (error {})", pluto_game, error);
+            return {false, 0, elevated, elevated && error == ERROR_CANCELLED};
+        }
+
+        utils::logger::write("[pluto] LAN launched '{}' (bootstrapper pid {}{})", pluto_game, pid,
+            elevated ? ", elevated" : "");
+        return {true, pid, elevated, false};
     }
 }

@@ -59,6 +59,8 @@ namespace property_keys
     constexpr const char* GAME_MODE = "game-mode";
     constexpr const char* SKIP_INTRO_CINEMATIC = "skip-intro-cinematic";
     constexpr const char* LAUNCH_ADMIN = "launch-admin";
+    // Plutonium games only: launch the bootstrapper directly with -lan, no account or token needed.
+    constexpr const char* PLUTONIUM_LAN = "plutonium-lan";
 
     // Game component settings (used with game config get/set)
     constexpr const char* DETECTED_COMPONENTS = "detected-components";
