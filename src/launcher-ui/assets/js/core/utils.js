@@ -21,7 +21,8 @@ const PROPERTY_KEYS = {
         CB_CHAT_SEEN: 'launcher-cb-chat-seen',
         DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
         REDUCE_MOTION: 'launcher-reduce-motion',
-        PLAYER_COUNT_MODE: 'launcher-player-count-mode'
+        PLAYER_COUNT_MODE: 'launcher-player-count-mode',
+        GRAYSCALE_UNINSTALLED: 'launcher-grayscale-uninstalled'
     },
     GAME: {
         INSTALL: 'install',

@@ -8043,11 +8043,11 @@ html:not([data-theme])[data-accent="mw"] {
 }
 
 /* ── Uninstalled games render in black and white (community rooms borrow the card, not the state) ── */
-.library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card) .library-card-art {
+html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card) .library-card-art {
     filter: grayscale(1) brightness(0.9);
 }
 
-.library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card):hover .library-card-art {
+html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-coming-soon):not(.community-room-card):hover .library-card-art {
     filter: grayscale(0) brightness(1.2) contrast(1.08);
 }
 

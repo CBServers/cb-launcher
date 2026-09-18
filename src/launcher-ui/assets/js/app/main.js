@@ -200,6 +200,14 @@ function adjustChannelElements() {
 
 // All game-specific functionality is now handled in individual page files
 
+function applyGrayscaleUninstalled(enabled) {
+    if (enabled) {
+        document.documentElement.removeAttribute('data-color-uninstalled');
+    } else {
+        document.documentElement.setAttribute('data-color-uninstalled', 'true');
+    }
+}
+
 function applyReduceMotion(enabled) {
     if (enabled) {
         document.documentElement.setAttribute('data-reduce-motion', 'true');
@@ -322,6 +330,9 @@ async function initialize() {
 
             const reduceMotion = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION);
             applyReduceMotion(reduceMotion === 'true');
+
+            const grayscaleUninstalled = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.GRAYSCALE_UNINSTALLED);
+            applyGrayscaleUninstalled(grayscaleUninstalled !== 'false');
         } catch (_) {}
     }
 
@@ -2189,6 +2200,18 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Gray out uninstalled games" setting (defaults to on)
+        const grayscaleUninstalled = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.GRAYSCALE_UNINSTALLED);
+        const grayscaleToggle = document.getElementById('grayscale-uninstalled-toggle');
+        if (grayscaleToggle) {
+            grayscaleToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const targetValue = (grayscaleUninstalled === 'false') ? 'false' : 'true';
+            const targetButton = grayscaleToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
+
         // Load CDN settings
         await initCdnSettings();
 
@@ -2633,6 +2656,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: clickedValue
                         });
                         console.log(`Reduce motion set to: ${clickedValue}`);
+                    } else if (settingId === 'grayscale-uninstalled-toggle') {
+                        applyGrayscaleUninstalled(clickedValue === 'true');
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.GRAYSCALE_UNINSTALLED]: clickedValue
+                        });
                     } else if (settingId === 'cb-community-toggle') {
                         applyCommunityVisible(clickedValue === 'true');
                         await window.executeCommand('set-property', {
@@ -2678,6 +2706,7 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.GRAYSCALE_UNINSTALLED]: 'true',
                     [PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS]: 'true',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_SELF_UPDATE]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.OFFLINE_MODE]: 'false',
@@ -2716,6 +2745,7 @@ async function handleResetAllSettings() {
                 }
                 applyTheme('tactical');
                 applyReduceMotion(false);
+                applyGrayscaleUninstalled(true);
                 applyPlayerCountMode('both');
                 const themeSelect = document.getElementById('theme-select');
                 if (themeSelect) themeSelect.value = 'tactical';
