@@ -196,7 +196,10 @@
             });
     }
 
-    function serverRowHTML(server, favorite) {
+    function serverRowHTML(server, favorite, canJoin) {
+        const action = canJoin
+            ? `<button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>`
+            : `<button class="mods-btn server-copy-btn" title="${escapeHtml(t('servers.copyConnectTitle'))}">${escapeHtml(t('servers.copyConnect'))}</button>`;
         const pinged = hasPing(server);
         const pingClass = !pinged ? 'is-off' : server.ping < 80 ? 'is-good' : server.ping < 150 ? 'is-mid' : 'is-bad';
         const playersTitle = server.bots > 0 ? ` title="${escapeHtml(t('servers.bots', { count: server.bots }))}"` : '';
@@ -209,7 +212,7 @@
                 <span class="server-region"${server.countryName ? ` title="${escapeHtml(server.countryName)}"` : ''}>${escapeHtml(server.region)}</span>
                 <span class="server-players"${playersTitle}>${server.players}/${server.maxPlayers}</span>
                 <span class="server-ping ${pingClass}">${pinged ? `${server.ping}ms` : '—'}</span>
-                <button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>
+                ${action}
             </div>`;
     }
 
@@ -256,7 +259,7 @@
                     <span>${escapeHtml(t('servers.colPing'))}</span>
                     <span></span>
                 </div>
-                ${shown.map(server => serverRowHTML(server, favorites.has(server.id))).join('')}
+                ${shown.map(server => serverRowHTML(server, favorites.has(server.id), !!s.caps.join)).join('')}
             </div>
         `;
     }
@@ -282,19 +285,24 @@
 
             if (event.target.closest('.server-join-btn')) {
                 joinServer(gameId, id);
+            } else if (event.target.closest('.server-copy-btn')) {
+                copyConnect(gameId, id);
             }
         });
+    }
+
+    async function copyConnect(gameId, id) {
+        const server = (getState(gameId).servers || []).find(entry => entry.id === id);
+        if (!server) return;
+        const command = window.ServersService.connectCommand(server);
+        const ok = await window.copyTextToClipboard(command);
+        window.showToast(ok ? t('servers.connectCopied', { command }) : t('servers.copyFailed'), ok ? 'success' : 'error');
     }
 
     async function joinServer(gameId, id) {
         const s = getState(gameId);
         const server = (s.servers || []).find(entry => entry.id === id);
-        if (!server) return;
-
-        if (!s.caps.join) {
-            window.showToast(t('servers.joinComingSoon'), 'info');
-            return;
-        }
+        if (!server || !s.caps.join) return;
 
         const gameState = window.GameStateManager && window.GameStateManager.gameStates[gameId];
         if (!gameState || gameState.installStatus !== 'installed') {

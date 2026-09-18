@@ -239,8 +239,10 @@ namespace commands::server_commands
                 }
             };
 
+            // Forks whose ipc component takes a direct connect transport.
+            static const std::unordered_set<std::string> joinable{"boiii", "iw6x", "s1x", "h1-mod", "iw7-mod"};
             const auto config = ctx.get_game_config_from_request(value);
-            if (!config || config->id != "boiii")
+            if (!config || !joinable.contains(config->id))
             {
                 set_result(false, "Joining is not supported for this game yet.");
                 return;

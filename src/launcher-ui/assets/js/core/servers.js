@@ -19,10 +19,10 @@
         iw5:       { modes: ['mp'] },
         t6:        { modes: ['mp', 'zm'] },
         boiii:     { modes: ['mp', 'zm'], join: true },
-        iw6x:      { modes: ['mp'] },
-        s1x:       { modes: ['mp'] },
-        'iw7-mod': { modes: ['mp'] },
-        'h1-mod':  { modes: ['mp'] },
+        iw6x:      { modes: ['mp'], join: true },
+        s1x:       { modes: ['mp'], join: true },
+        'iw7-mod': { modes: ['mp'], join: true },
+        'h1-mod':  { modes: ['mp'], join: true },
         'hmw-mod': { modes: ['mp'] }
     };
 
@@ -226,6 +226,11 @@
         });
     }
 
+    // Console command for games without an IPC join path.
+    function connectCommand(server) {
+        return `connect ${server.id}`;
+    }
+
     function getViewPrefs(game) {
         const prefs = readStore(VIEW_KEY)[game];
         return prefs && typeof prefs === 'object' ? prefs : {};
@@ -243,6 +248,7 @@
         supports,
         getServers,
         joinServer,
+        connectCommand,
         getFavorites,
         isFavorite,
         toggleFavorite,

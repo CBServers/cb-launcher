@@ -198,21 +198,7 @@
         renderPage(true);
     }
 
-    // execCommand first: CEF's HTTP origin has no navigator.clipboard, and the async API can stall.
-    function copyText(text) {
-        const area = document.createElement('textarea');
-        area.value = text;
-        area.setAttribute('readonly', '');
-        area.style.position = 'fixed';
-        area.style.opacity = '0';
-        document.body.appendChild(area);
-        area.select();
-        let ok = false;
-        try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
-        area.remove();
-        if (ok || !(navigator.clipboard && window.isSecureContext)) return Promise.resolve(ok);
-        return navigator.clipboard.writeText(text).then(() => true, () => false);
-    }
+    const copyText = (text) => window.copyTextToClipboard(text);
 
     async function copyOwnHandle() {
         const me = lastStatus && lastStatus.profile;
