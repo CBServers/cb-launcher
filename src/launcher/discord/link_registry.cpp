@@ -1,8 +1,8 @@
 #include "std_include.hpp"
 #include "link_registry.hpp"
-#include "discord_constants.hpp"
 
 #include <utils/http.hpp>
+#include <utils/service_hosts.hpp>
 
 namespace discord::link_registry
 {
@@ -23,9 +23,13 @@ namespace discord::link_registry
         bool post(const std::string& path, const std::string& access_token, const std::string& body,
                   std::string* response_body = nullptr)
         {
-            const auto result = utils::http::get_data(std::string{LINK_REGISTRY_URL} + path, body.empty() ? "{}" : body,
-                                                      make_headers(access_token), {}, REQUEST_TIMEOUT_SECONDS,
-                                                      REQUEST_RETRIES);
+            using utils::service_hosts::service;
+            const auto url = utils::service_hosts::active(service::auth) + path;
+            const auto result = utils::service_hosts::with_failover(service::auth, url, [&](const std::string& target)
+            {
+                return utils::http::get_data(target, body.empty() ? "{}" : body, make_headers(access_token), {},
+                                             REQUEST_TIMEOUT_SECONDS, REQUEST_RETRIES);
+            });
             if (!result || result->code != CURLE_OK || result->response_code < 200 || result->response_code >= 300)
             {
                 return false;

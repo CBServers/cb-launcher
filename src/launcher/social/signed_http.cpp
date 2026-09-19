@@ -1,23 +1,47 @@
 #include "std_include.hpp"
 #include "signed_http.hpp"
 #include "identity.hpp"
-#include "social_constants.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
+#include <utils/service_hosts.hpp>
 
 #include <rapidjson/writer.h>
 
 namespace social::signed_http
 {
+    namespace
+    {
+        using utils::service_hosts::service;
+
+        std::optional<std::string> override_url()
+        {
+            auto url = utils::flags::get_flag_value("cbfriends-url");
+            if (!url)
+            {
+                return std::nullopt;
+            }
+
+            while (!url->empty() && url->back() == '/')
+            {
+                url->pop_back();
+            }
+            return url;
+        }
+    }
+
     std::string base_url()
     {
-        std::string url = utils::flags::get_flag_value("cbfriends-url").value_or(CBFRIENDS_URL);
-        while (!url.empty() && url.back() == '/')
+        return override_url().value_or(utils::service_hosts::active(service::social));
+    }
+
+    std::vector<std::string> base_urls()
+    {
+        if (auto url = override_url())
         {
-            url.pop_back();
+            return {std::move(*url)};
         }
-        return url;
+        return utils::service_hosts::hosts(service::social);
     }
 
     std::string json_get(const rapidjson::Value& value, const char* key)
@@ -71,7 +95,10 @@ namespace social::signed_http
             return std::nullopt;
         }
 
-        return utils::http::get_data(url, body, *headers, std::move(abort), timeout, 1);
+        return utils::service_hosts::with_failover(service::social, url, [&](const std::string& target)
+        {
+            return utils::http::get_data(target, body, *headers, abort, timeout, 1);
+        });
     }
 
     std::optional<rapidjson::Document> post_json(const std::string& url, const std::string& body,

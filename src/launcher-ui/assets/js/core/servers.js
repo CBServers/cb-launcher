@@ -29,7 +29,6 @@
     const FAVORITES_KEY = 'cb_server_favorites';
     const VIEW_KEY = 'cb_server_view';
 
-    const SERVERS_API = 'https://servers.cbservers.xyz';
     const PING_POLL_INTERVAL = 100;
     const PING_POLL_TIMEOUT = 5000;
     const PREVIEW_MODE = window.location.protocol === 'file:'
@@ -148,8 +147,11 @@
             return mockServers(game);
         }
 
-        const api = window.__serversMock.api || SERVERS_API;
-        const res = await fetch(`${api}/v1/servers?game=${game}`, { cache: 'no-store' });
+        const path = `/v1/servers?game=${game}`;
+        const api = window.__serversMock.api;
+        const res = api
+            ? await fetch(`${api}${path}`, { cache: 'no-store' })
+            : await ServiceHosts.request('servers', path, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const servers = Array.isArray(data.servers) ? data.servers : [];

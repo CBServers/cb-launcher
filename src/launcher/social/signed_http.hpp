@@ -3,6 +3,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <rapidjson/document.h>
 #include <utils/http.hpp>
@@ -11,8 +12,11 @@
 // invite inbox so both speak the same wire format.
 namespace social::signed_http
 {
-    // The backend, honouring -cbfriends-url; trailing slashes stripped.
+    // The backend in use, honouring -cbfriends-url; trailing slashes stripped.
     std::string base_url();
+
+    // Every backend host, the one in use first; just the override under -cbfriends-url.
+    std::vector<std::string> base_urls();
 
     std::string json_get(const rapidjson::Value& value, const char* key);
     void add_string(rapidjson::Document& doc, const char* key, const std::string& value);

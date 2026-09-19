@@ -220,9 +220,6 @@ namespace social
         // The game we're currently in, or "" when idle. Published on the presence heartbeat.
         void set_activity(const std::string& game);
 
-        // The backend the frontend should read public stats from; honours -cbfriends-url.
-        std::string get_base_url() const { return base_url(); }
-
         // Fired when the friends snapshot changes, so the IPC layer can re-push it to a fork.
         void set_friends_changed_callback(std::function<void()> callback);
 

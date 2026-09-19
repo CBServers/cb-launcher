@@ -19,7 +19,6 @@
     const MB = 1024 * 1024;
     const GB = 1024 * MB;
 
-    const WORKSHOP_API = 'https://workshop.cbservers.xyz';
     const PREVIEW_MODE = window.location.protocol === 'file:'
         || window.location.hostname === 'localhost'
         || window.location.hostname === '127.0.0.1';
@@ -71,8 +70,11 @@
     }
 
     async function workshopFetch(path, params) {
-        const api = window.__modsMock.workshopApi || WORKSHOP_API;
-        const res = await fetch(`${api}${path}?${new URLSearchParams(params)}`, { cache: 'no-store' });
+        const query = `${path}?${new URLSearchParams(params)}`;
+        const api = window.__modsMock.workshopApi;
+        const res = api
+            ? await fetch(`${api}${query}`, { cache: 'no-store' })
+            : await ServiceHosts.request('workshop', query, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     }

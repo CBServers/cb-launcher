@@ -2,7 +2,6 @@
 #include "cbfriends_service.hpp"
 #include "identity.hpp"
 #include "hwid.hpp"
-#include "social_constants.hpp"
 #include "signed_http.hpp"
 #include "inbox_client.hpp"
 #include "ipc/ipc_server.hpp"

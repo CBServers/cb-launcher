@@ -20,13 +20,13 @@ namespace utils::cdn
 
         // Mirrors share one layout, so any of them can serve any file; order is preference
         const std::vector<std::string> NA_HOSTS = {
+            "https://cdn-na.cbservers.dev/",
             "https://cdn-na.cbservers.xyz/",
-            "https://cdn-na.brad.stream/",
         };
 
         const std::vector<std::string> EU_HOSTS = {
+            "https://cdn-eu.cbservers.dev/",
             "https://cdn-weu.cbservers.xyz/",
-            "https://cdn-weu.brad.stream/",
         };
 
         const std::vector<std::string> NO_HOSTS = {};

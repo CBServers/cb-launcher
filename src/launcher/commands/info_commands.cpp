@@ -6,12 +6,14 @@
 #include <utils/properties.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
+#include <utils/service_hosts.hpp>
 #include <game_config.hpp>
 #include <version.hpp>
 
 #include "updater/updater.hpp"
 #include "updater/progress_tracker.hpp"
 #include "deep_link.hpp"
+#include "social/signed_http.hpp"
 
 namespace commands::info_commands
 {
@@ -133,6 +135,27 @@ namespace commands::info_commands
                 url_value.SetString(url->data(), static_cast<rapidjson::SizeType>(url->length()), allocator);
             }
             response.AddMember("url", url_value, allocator);
+        });
+
+        cef_ui.add_command("get-service-hosts", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto add_hosts = [&](const char* key, const std::vector<std::string>& hosts)
+            {
+                rapidjson::Value list(rapidjson::kArrayType);
+                for (const auto& host : hosts)
+                {
+                    list.PushBack(rapidjson::Value(host.data(), static_cast<rapidjson::SizeType>(host.size()), allocator), allocator);
+                }
+                response.AddMember(rapidjson::StringRef(key), list, allocator);
+            };
+
+            using utils::service_hosts::service;
+            add_hosts("social", social::signed_http::base_urls());
+            add_hosts("workshop", utils::service_hosts::hosts(service::workshop));
+            add_hosts("servers", utils::service_hosts::hosts(service::servers));
         });
 
         cef_ui.add_command("get-offline-mode", [](const rapidjson::Value&, rapidjson::Document& response)

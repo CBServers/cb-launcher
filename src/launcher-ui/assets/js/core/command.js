@@ -99,8 +99,12 @@ function mockCommand(command, data) {
                     { region: 'eu', latency: 18 }
                 ]
             };
-        case 'cbfriends-get-url':
-            return { url: 'https://social.cbservers.xyz' };
+        case 'get-service-hosts':
+            return {
+                social: ['https://social.cbservers.dev', 'https://social.cbservers.xyz'],
+                workshop: ['https://workshop.cbservers.dev', 'https://workshop.cbservers.xyz'],
+                servers: ['https://servers.cbservers.dev', 'https://servers.cbservers.xyz']
+            };
         case 'get-version':
             return {
                 version: 'UI preview',

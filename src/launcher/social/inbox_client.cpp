@@ -4,6 +4,7 @@
 #include "discord/token_store.hpp"
 
 #include <utils/logger.hpp>
+#include <utils/service_hosts.hpp>
 
 #include <condition_variable>
 #include <ctime>
@@ -85,7 +86,6 @@ namespace social
 
     struct inbox_state
     {
-        std::string base_url{signed_http::base_url()};
         std::mutex mutex{};
         std::condition_variable cv{};
         std::string discord_token{}; // Discord bearer, presented at attach to bind the Discord address
@@ -159,7 +159,7 @@ namespace social
                 list = curl_slist_append(list, (key + ": " + value).data());
             }
 
-            const auto url = s->base_url + path;
+            const auto url = signed_http::base_url() + path;
             abort_context ctx{s.get(), abort_on_reattach};
 
             curl_easy_reset(curl);
@@ -187,6 +187,12 @@ namespace social
             out.code = curl_easy_perform(curl);
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &out.http_code);
             curl_slist_free_all(list);
+
+            // The backoff retries, so moving hosts is enough; the next attempt dials the new one.
+            if (utils::service_hosts::is_transport_error(out.code, static_cast<unsigned int>(out.http_code)))
+            {
+                utils::service_hosts::failover_url(utils::service_hosts::service::social, url);
+            }
             return out;
         }
 
@@ -349,7 +355,7 @@ namespace social
         {
             std::thread([s, body, on_result = std::move(on_result)]
             {
-                const auto result = signed_http::post_signed(s->base_url + "/v1/invite/send", body, SEND_TIMEOUT_SECONDS);
+                const auto result = signed_http::post_signed(signed_http::base_url() + "/v1/invite/send", body, SEND_TIMEOUT_SECONDS);
                 const auto out = classify_send(result);
                 if (s->alive && on_result)
                 {

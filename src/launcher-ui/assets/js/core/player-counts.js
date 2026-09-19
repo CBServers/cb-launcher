@@ -5,8 +5,6 @@
 // anonymous pulse is unaffected by that setting; it only decides what is drawn.
 
 (function () {
-    const SERVERS_URL = 'https://servers.cbservers.xyz/v1/player-counts';
-    const CBFRIENDS_URL = 'https://social.cbservers.xyz';
     const POLL_INTERVAL_MS = 30 * 1000;
     const MODES = ['both', 'servers', 'launcher', 'off'];
 
@@ -14,7 +12,6 @@
     const latestCounts = {};
     let mode = 'both';
     let started = false;
-    let statsUrl = CBFRIENDS_URL + '/v1/stats';
 
     function entry(uiId) {
         if (!latestCounts[uiId]) latestCounts[uiId] = { servers: null, launcher: null };
@@ -39,7 +36,7 @@
     }
 
     async function fetchServerCounts() {
-        const res = await fetch(SERVERS_URL, { cache: 'no-store' });
+        const res = await ServiceHosts.request('servers', '/v1/player-counts', { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const games = json && json.games;
@@ -51,7 +48,7 @@
     }
 
     async function fetchLauncherCounts() {
-        const res = await fetch(statsUrl, { cache: 'no-store' });
+        const res = await ServiceHosts.request('social', '/v1/stats', { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const launcher = json && json.launcher;
@@ -77,16 +74,6 @@
         applyToVisibleCards();
     }
 
-    async function resolveStatsUrl() {
-        if (typeof window.executeCommand !== 'function') return;
-        try {
-            const result = await window.executeCommand('cbfriends-get-url');
-            if (result && typeof result.url === 'string' && result.url) {
-                statsUrl = result.url.replace(/\/+$/, '') + '/v1/stats';
-            }
-        } catch (_) { /* production URL stays */ }
-    }
-
     window.PlayerCountManager = {
         MODES,
         applyToVisibleCards,
@@ -104,10 +91,9 @@
             return entry(uiId);
         },
 
-        async start() {
+        start() {
             if (started) return;
             started = true;
-            await resolveStatsUrl();
             fetchAndUpdate();
             setInterval(fetchAndUpdate, POLL_INTERVAL_MS);
         }
