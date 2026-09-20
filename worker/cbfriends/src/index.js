@@ -988,8 +988,12 @@ async function handleInviteSend(env, fpr, body) {
         const cbId = await requireAccount(env, fpr);
         if (!cbId) return json(401, { error: 'no account for this device key' });
         if (to === cbId) return json(400, { error: 'bad target' });
-        if (!(await graphGet(env, cbId)).friends.includes(to)) return json(403, { error: 'not friends' });
         if (await eitherBlocked(env, cbId, to)) return json(403, { error: 'not friends' });
+        // Sharing a live LFG group is consent enough: the host chose to broadcast and can end it.
+        if (!(await graphGet(env, cbId)).friends.includes(to)
+            && !(await dirCall(env, 'lfg/together', { a: cbId, b: to })).ok) {
+            return json(403, { error: 'not friends' });
+        }
         from = cbId;
         source = 'cb';
     } else if (SNOWFLAKE_RE.test(to)) {
@@ -2103,6 +2107,16 @@ export class Directory {
 
         if (pathname === '/lfg/leave') {
             return json(200, { ok: this.dropJoiner(body.cbId) });
+        }
+
+        // Two people count as grouped while one live post holds them both, host or joiner alike.
+        if (pathname === '/lfg/together') {
+            for (const [cbId, it] of this.people) {
+                if (!it.post || now - it.post.at > LFG_FRESH_MS) continue;
+                const members = [cbId, ...it.post.joiners];
+                if (members.includes(body.a) && members.includes(body.b)) return json(200, { ok: true });
+            }
+            return json(200, { ok: false });
         }
 
         if (pathname === '/lfg/list') {

@@ -959,9 +959,10 @@ namespace social
             }
         }
 
-        // Otherwise queue it for the user to answer.
+        // Otherwise queue it for the user to answer. A group member is not a friend yet, so this
+        // searches every list we hold rather than just the friends one.
         cb_person friend_info;
-        if (const auto f = find_friend(sender)) friend_info = *f;
+        if (const auto f = find_person(sender)) friend_info = *f;
 
         cb_invite invite;
         invite.id = id;

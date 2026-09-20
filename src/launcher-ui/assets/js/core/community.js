@@ -21,6 +21,9 @@
     let atChatBottom = true;
     let chatHasMore = false;
     let myHandle = '';
+    let myJoinable = false;
+    let roster = [];          // cbIds on my own post, to spot who just joined
+    let rosterPrimed = false;
     let chatHeads = {};   // room -> newest message id on the server
     let chatSeen = {};    // room -> newest id we have shown the user
 
@@ -81,6 +84,12 @@
         return head > (chatSeen[id] || 0);
     }
 
+    // A game nobody can play yet has nothing to coordinate, so it gets no room.
+    function roomIds() {
+        const ids = (window.GameUtils && window.GameUtils.getAllGameIds) ? window.GameUtils.getAllGameIds() : [];
+        return ids.filter(id => !(window.GameUtils && window.GameUtils.isComingSoon(id)));
+    }
+
     function hubCard(id) {
         const cfg = gameConfig(id);
         const count = countFor(id);
@@ -104,7 +113,7 @@
     }
 
     function renderHub() {
-        const ids = (window.GameUtils && window.GameUtils.getAllGameIds) ? window.GameUtils.getAllGameIds() : [];
+        const ids = roomIds();
         const total = allPosts.length;
         const allCard = `
             <article class="library-card community-room-card community-room-all" data-room="${ALL}">
@@ -142,11 +151,18 @@
         return `<div class="community-joiners">${chips}</div>`;
     }
 
+    // Your roster can be invited without being friends first, but only while you host a joinable match.
+    function inviteGroupHtml(p) {
+        if (!p.joiners || !p.joiners.length) return '';
+        const off = myJoinable ? '' : ` disabled title="${escapeHtml(t('inviteGroupHint'))}"`;
+        return `<button class="friend-invite-btn" type="button" id="community-invite-group"${off}>${escapeHtml(t('inviteGroup'))}</button>`;
+    }
+
     function postRow(p) {
         const isSelf = p.relation === 'self';
         const line = p.note ? escapeHtml(p.note) : (p.game ? escapeHtml(t('playing', { game: gameName(p.game) })) : t('lookingForGroupHead'));
         let action;
-        if (isSelf) action = `<button class="cb-ghost-btn" id="community-bc-stop" type="button">${escapeHtml(t('stop'))}</button>`;
+        if (isSelf) action = `${inviteGroupHtml(p)}<button class="cb-ghost-btn" id="community-bc-stop" type="button">${escapeHtml(t('stop'))}</button>`;
         else if (p.iJoined) action = `<button class="cb-ghost-btn" type="button" data-community-leave="1">${escapeHtml(t('leave'))}</button>`;
         else if (p.relation === 'requested') action = `<span class="cb-pending-label">${escapeHtml(t('requested'))}</span>`;
         else action = `<button class="friend-invite-btn" data-community-join="${escapeHtml(p.cbId)}">${escapeHtml(t('join'))}</button>`;
@@ -335,6 +351,7 @@
             const status = await window.executeCommand('cbfriends-get-status');
             profileReady = !!(status && status.state === 'ready');
             myHandle = (status && status.profile && status.profile.handle) || myHandle;
+            myJoinable = !!(status && status.joinable);
         } catch (error) {
             profileReady = false;
         }
@@ -370,6 +387,26 @@
         return Object.keys(chatHeads).some(id => (chatHeads[id] || 0) > (chatSeen[id] || 0));
     }
 
+    // A join only reaches the host as a bare friend request, which says nothing about their group.
+    function noteRoster(list) {
+        const mine = (list || []).find(p => p.relation === 'self');
+        const joiners = (mine && mine.joiners) || [];
+        const seen = new Set(roster);
+        roster = joiners.map(j => j.cbId);
+        if (!rosterPrimed) { rosterPrimed = true; return; }
+        for (const j of joiners) {
+            if (seen.has(j.cbId)) continue;
+            const name = j.displayName || (j.handle ? '@' + j.handle : t('someone'));
+            const body = t('joinedYourGroup', { name, game: gameName(mine.game) });
+            if (window.showToast) window.showToast(body, 'info');
+            window.executeCommand('cbfriends-show-person-notification', {
+                cbId: j.cbId,
+                title: t('joinedYourGroupTitle'),
+                body,
+            }).catch(() => {});
+        }
+    }
+
     async function fetchData() {
         if (!profileReady) return;
         try {
@@ -381,6 +418,7 @@
             ]);
             chatHeads = (headRes && headRes.rooms) || chatHeads;
             allPosts = (lfgRes && lfgRes.posts) || [];
+            noteRoster(allPosts);
             posts = (room && room !== ALL) ? allPosts.filter(p => p.game === room) : allPosts;
             broadcast = bcRes || broadcast;
             if (chatRes) { chat = chatRes.messages || []; chatHasMore = !!chatRes.hasMore; }
@@ -430,6 +468,7 @@
     // ---- actions ----
 
     async function openRoom(next) {
+        if (next && next !== ALL && !roomIds().includes(next)) return;
         room = next;
         chat = [];
         atChatBottom = true;
@@ -484,10 +523,25 @@
     async function joinLfg(cbId) {
         try {
             await window.executeCommand('cbfriends-lfg-join', { cbId });
-            if (window.showToast) window.showToast(t('joinedLfg'), 'success');
+            // What happens next depends on whether they can actually invite you, so say which it is.
+            const host = allPosts.find(p => p.cbId === cbId);
+            const line = host && host.joinable
+                ? t('joinedWaitInvite')
+                : t('joinedSayHi', { game: gameName((host && host.game) || room) });
+            if (window.showToast) window.showToast(line, 'success');
             setTimeout(refresh, 400);
         } catch (error) {
             console.warn('Join failed:', error);
+        }
+    }
+
+    async function inviteGroup() {
+        const mine = allPosts.find(p => p.relation === 'self');
+        const joiners = (mine && mine.joiners) || [];
+        if (!myJoinable || !joiners.length) return;
+        for (const j of joiners) {
+            if (window.DiscordFriendsManager) window.DiscordFriendsManager.markPending(j.cbId, 'invite');
+            await window.executeCommand('cbfriends-invite-friend', { cbId: j.cbId }).catch(() => {});
         }
     }
 
@@ -517,6 +571,7 @@
             if (t.closest('#community-be-first')) return applyBroadcast(true);
             if (t.closest('#community-bc-update')) return applyBroadcast(true);
             if (t.closest('#community-bc-stop')) return applyBroadcast(false);
+            if (t.closest('#community-invite-group')) return inviteGroup();
             if (t.closest('#community-chat-send')) return sendChat();
             if (t.closest('#community-chat-more')) {
                 // Keep the scroll anchored to what the user was reading, not the newly prepended page.
@@ -576,6 +631,7 @@
                     window.executeCommand('cbfriends-get-chat-heads'),
                 ]);
                 count = ((res && res.posts) || []).length;
+                noteRoster((res && res.posts) || []);
                 chatHeads = (headRes && headRes.rooms) || chatHeads;
             } catch (error) { count = 0; }
         }

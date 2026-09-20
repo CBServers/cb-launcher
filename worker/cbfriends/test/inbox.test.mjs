@@ -18,7 +18,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const A = await mk(), B = await mk(), C = await mk(), D = await mk();
 const aId = (await call(A, '/v1/account/bootstrap', { hwidHash: await sha256Hex('A'), handle: 'host', displayName: 'Host' })).b.cbId;
 const bId = (await call(B, '/v1/account/bootstrap', { hwidHash: await sha256Hex('B'), handle: 'joiner', displayName: 'Joiner' })).b.cbId;
-await call(C, '/v1/account/bootstrap', { hwidHash: await sha256Hex('C'), handle: 'stranger', displayName: 'Stranger' });
+const cId = (await call(C, '/v1/account/bootstrap', { hwidHash: await sha256Hex('C'), handle: 'stranger', displayName: 'Stranger' })).b.cbId;
 await call(A, '/v1/friends/add', { handle: 'joiner' });
 await call(B, '/v1/friends/accept', { cbId: aId });
 
@@ -71,6 +71,18 @@ check('discord send without a discord binding -> failed (SDK fallback)',
     (await call(C, '/v1/invite/send', { to: A_DISCORD, kind: 'invite' })).b.reason === 'failed');
 check('malformed target -> 400', (await call(A, '/v1/invite/send', { to: 'nope' })).s === 400);
 check('self target -> 400', (await call(A, '/v1/invite/send', { to: aId })).s === 400);
+
+// A live LFG group stands in for friendship, so a host can pull people in before anyone accepts.
+await call(A, '/v1/lfg/post', { game: 'boiii', slots: 4 });
+await call(C, '/v1/lfg/join', { cbId: aId });
+check('group member can invite the host',
+    (await call(C, '/v1/invite/send', { to: aId, kind: 'invite', joinSecret: 'g' })).s === 200);
+check('host can invite a group member',
+    (await call(A, '/v1/invite/send', { to: cId, kind: 'invite', joinSecret: 'g' })).s === 200);
+await call(C, '/v1/lfg/leave', {});
+check('leaving the group closes the invite path',
+    (await call(C, '/v1/invite/send', { to: aId, kind: 'invite', joinSecret: 'g' })).s === 403);
+await call(A, '/v1/lfg/clear', {});
 
 // Discord-only launcher: no account, still reachable by Discord id.
 const dat = await call(D, '/v1/inbox/attach', { discordToken: 'tok-' + D_DISCORD });

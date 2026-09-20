@@ -6599,10 +6599,16 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     transition: background 0.12s ease, color 0.12s ease;
 }
 
-.friend-invite-btn:hover,
-.friend-join-btn:hover {
+.friend-invite-btn:hover:not(:disabled),
+.friend-join-btn:hover:not(:disabled) {
     background: var(--accent, #5865f2);
     color: #fff;
+}
+
+.friend-invite-btn:disabled,
+.friend-join-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .friend-same-match {

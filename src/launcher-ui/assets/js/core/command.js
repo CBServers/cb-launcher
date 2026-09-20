@@ -25,7 +25,7 @@ const mockCb = {
     state: 'none', profile: null, recoveryCode: null,
     friends: { friends: [], incoming: [], outgoing: [] },
     lfg: [
-        { cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', avatarUrl: '', online: true, game: 'boiii', mode: 'zm', status: '', relation: 'none', note: 'need 2 for EE', slots: 3, joined: 1, iJoined: false },
+        { cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', avatarUrl: '', online: true, game: 'boiii', mode: 'zm', status: '', relation: 'none', note: 'need 2 for EE', slots: 3, joined: 1, iJoined: false, joinable: true, joiners: [{ cbId: 'cb_vex', handle: 'vex', displayName: 'Vex', avatarUrl: '', accent: '' }] },
         { cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', avatarUrl: '', online: true, game: 'iw4x', mode: '', status: '', relation: 'none', note: '', slots: 0, joined: 0, iJoined: false }
     ],
     broadcast: { on: false, game: '', note: '', slots: 0 },
@@ -247,9 +247,21 @@ function mockCommand(command, data) {
             return { posts: mockCb.lfg.filter(p => !mockCb.lfgFilter || p.game === mockCb.lfgFilter) };
         case 'cbfriends-lfg-join': {
             const post = mockCb.lfg.find(p => p.cbId === data.cbId);
-            if (post) { post.iJoined = true; post.joined = (post.joined || 0) + 1; }
+            if (post) {
+                post.iJoined = true;
+                post.joiners = (post.joiners || []).concat([mockPerson('divity', 'Divity')]);
+                post.joined = post.joiners.length;
+            }
             return { ok: true };
         }
+        case 'cbfriends-lfg-leave':
+            mockCb.lfg.forEach(p => {
+                if (!p.iJoined) return;
+                p.iJoined = false;
+                p.joiners = (p.joiners || []).filter(j => j.cbId !== 'cb_divity');
+                p.joined = p.joiners.length;
+            });
+            return { ok: true };
         case 'cbfriends-set-lfg-filter':
             mockCb.lfgFilter = (data && data.game) || '';
             return { ok: true };
@@ -271,8 +283,15 @@ function mockCommand(command, data) {
             if (mockCb.broadcast.on) {
                 mockCb.lfg.push(Object.assign(mockPerson('divity', 'Divity', {
                     online: true, game: mockCb.broadcast.game, note: mockCb.broadcast.note,
-                    slots: mockCb.broadcast.slots, joined: 0, iJoined: false
+                    slots: mockCb.broadcast.slots, joined: 0, iJoined: false, joiners: []
                 }), { relation: 'self' }));
+                // Someone turns up a few seconds later, so the host side is visible in the preview.
+                setTimeout(() => {
+                    const mine = mockCb.lfg.find(p => p.relation === 'self');
+                    if (!mine || mine.joiners.length) return;
+                    mine.joiners = [mockPerson('nova', 'Nova')];
+                    mine.joined = 1;
+                }, 6000);
             }
             return { ok: true };
         }
