@@ -7,15 +7,19 @@
 #include "game_config.hpp"
 #include "join_secret.hpp"
 #include "pipe_listener.hpp"
+#include "mods/mod_store.hpp"
 
 #include <utils/concurrency.hpp>
+#include <utils/finally.hpp>
 #include <utils/logger.hpp>
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <deque>
 #include <optional>
+#include <thread>
 #include <utility>
 
 namespace ipc
@@ -24,6 +28,7 @@ namespace ipc
     {
         constexpr auto* PIPE_NAME = L"\\\\.\\pipe\\cbservers-launcher";
         constexpr int PROTOCOL_VERSION = 1;
+        constexpr size_t MAX_WORKSHOP_ITEMS = 4;
 
         std::string json_string(const rapidjson::Value& value, const char* key)
         {
@@ -140,6 +145,7 @@ namespace ipc
         };
         utils::concurrency::container<std::optional<pending_join_entry>> pending_join{};
         std::atomic<unsigned int> connect_seq{0};
+        std::atomic<unsigned long> connection_generation{0};
 
         // Dedup the same accepted join when Discord delivers it via multiple SDK callbacks.
         struct recent_join_state
@@ -403,6 +409,7 @@ namespace ipc
         // Tracked launcher launch: drop to baseline (the exit watchdog owns the full clear); else clear fully.
         void on_disconnect()
         {
+            ++this->connection_generation;
             this->connected.access([](connected_state& c) { c = {}; });
 
             auto& service = discord::discord_service::instance();
@@ -535,7 +542,141 @@ namespace ipc
                     }
                 }
             }
+            else if (type == "workshop-install")
+            {
+                this->handle_workshop_install(doc);
+            }
             return true; // unknown types ignored (forward-compat)
+        }
+
+        void handle_workshop_install(const rapidjson::Document& doc)
+        {
+            const auto request_id = json_string(doc, "id");
+            std::vector<std::string> item_ids{};
+
+            const auto valid_request_id = !request_id.empty() && request_id.size() <= 64
+                && std::all_of(request_id.begin(), request_id.end(), [](const unsigned char c)
+                {
+                    return std::isalnum(c) != 0 || c == '-';
+                });
+            if (this->connection_game_id != "boiii"
+                || !commands::game_commands::is_launcher_started_game_pid(this->connection_pid, "boiii")
+                || !valid_request_id
+                || !doc.HasMember("items") || !doc["items"].IsArray())
+            {
+                return;
+            }
+
+            for (const auto& item : doc["items"].GetArray())
+            {
+                if (!item.IsString() || item_ids.size() >= MAX_WORKSHOP_ITEMS)
+                {
+                    item_ids.clear();
+                    break;
+                }
+
+                const std::string id = item.GetString();
+                const bool numeric = !id.empty() && id.size() <= 20
+                    && std::all_of(id.begin(), id.end(), [](const unsigned char c) { return std::isdigit(c) != 0; });
+                if (!numeric || std::find(item_ids.begin(), item_ids.end(), id) != item_ids.end())
+                {
+                    item_ids.clear();
+                    break;
+                }
+                item_ids.push_back(id);
+            }
+
+            const auto config = game_config::get_game_config_by_id("boiii");
+            if (item_ids.empty() || !config)
+            {
+                this->send_workshop_result(request_id, false, "Invalid Workshop install request.");
+                return;
+            }
+
+            if (!mods::try_claim_install(*config))
+            {
+                this->send_workshop_result(request_id, false, "Another install is already running for Black Ops III.");
+                return;
+            }
+
+            const auto generation = this->connection_generation.load();
+            try
+            {
+                std::thread([this, config = *config, request_id, item_ids = std::move(item_ids), generation]
+                {
+                    const auto release = utils::finally([&config] { mods::release_install(config); });
+                    auto success = true;
+                    std::string error{};
+
+                    try
+                    {
+                        for (size_t index = 0; index < item_ids.size(); ++index)
+                        {
+                            const auto progress = [this, request_id, generation, index, count = item_ids.size()]
+                                (const std::string& phase, const std::string& name, const int percent)
+                            {
+                                if (generation != this->connection_generation.load())
+                                {
+                                    return false;
+                                }
+
+                                const auto overall = static_cast<int>((index * 100 + std::clamp(percent, 0, 100)) / count);
+                                this->push_outbound(build_json_object([&](auto& w)
+                                {
+                                    w.Key("type");    w.String("workshop-progress");
+                                    w.Key("id");      w.String(request_id.data());
+                                    w.Key("phase");   w.String(phase.data());
+                                    w.Key("item");    w.String(name.data());
+                                    w.Key("percent"); w.Int(overall);
+                                }) + "\n");
+                                return true;
+                            };
+
+                            const auto result = mods::install_workshop_item(config, item_ids[index], 0, {}, progress);
+                            if (!result.success)
+                            {
+                                success = false;
+                                error = result.error;
+                                break;
+                            }
+                        }
+                    }
+                    catch (const std::exception& e)
+                    {
+                        success = false;
+                        error = e.what();
+                    }
+                    catch (...)
+                    {
+                        success = false;
+                        error = "Workshop install failed unexpectedly.";
+                    }
+
+                    if (generation == this->connection_generation.load())
+                    {
+                        this->send_workshop_result(request_id, success, error);
+                    }
+                }).detach();
+            }
+            catch (const std::exception& e)
+            {
+                mods::release_install(*config);
+                this->send_workshop_result(request_id, false, e.what());
+            }
+        }
+
+        void send_workshop_result(const std::string& request_id, const bool success, const std::string& error)
+        {
+            this->push_outbound(build_json_object([&](auto& w)
+            {
+                w.Key("type");    w.String("workshop-result");
+                w.Key("id");      w.String(request_id.data());
+                w.Key("success"); w.Bool(success);
+                if (!error.empty())
+                {
+                    w.Key("error"); w.String(error.data());
+                }
+            }) + "\n");
         }
 
         bool handle_hello(const HANDLE pipe, const rapidjson::Document& doc)
@@ -574,6 +715,7 @@ namespace ipc
             // Fixed launch mode from hello drives the relaunch decision; omitted by runtime-switchable forks.
             const auto hello_mode = json_string(doc, "mode");
             this->connection_game_id = game;
+            ++this->connection_generation;
             this->connected.access([&](connected_state& c) { c.game = game; c.launch_mode = hello_mode; });
 
             const auto* owner = discord::discord_service::instance().owns_presence() ? "launcher" : "client";

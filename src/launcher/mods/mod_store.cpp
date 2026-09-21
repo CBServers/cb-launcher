@@ -19,6 +19,9 @@ namespace mods
 {
     namespace
     {
+        std::mutex active_installs_mutex_;
+        std::unordered_set<std::string> active_installs_;
+
         constexpr auto FOLDER_USERMAPS = "usermaps";
         constexpr auto FOLDER_MODS = "mods";
         constexpr auto FOLDER_STEAM = "steam-workshop";
@@ -931,6 +934,18 @@ namespace mods
             utils::logger::write("[cbl-mods] installed override {} v{} into {}", entry.id, entry.version, utils::string::path_to_utf8(target));
             return {true, {}, mod};
         }
+    }
+
+    bool try_claim_install(const game_config::game_config_t& config)
+    {
+        std::lock_guard lock(active_installs_mutex_);
+        return active_installs_.insert(config.game_key).second;
+    }
+
+    void release_install(const game_config::game_config_t& config)
+    {
+        std::lock_guard lock(active_installs_mutex_);
+        active_installs_.erase(config.game_key);
     }
 
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size,
