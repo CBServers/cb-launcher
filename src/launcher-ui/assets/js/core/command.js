@@ -152,6 +152,11 @@ function mockCommand(command, data) {
                 mockPerson('kilo', 'Kilo', { online: false, lastSeen: Date.now() - 2 * 3600 * 1000 })
             ];
             return { started: true };
+        case 'cbfriends-recover-code':
+            mockCb.state = 'ready';
+            mockCb.profile = { cbId: 'cb_preview', handle: 'recovered', displayName: 'Recovered', avatarUrl: '' };
+            mockCb.recoveryCode = data.code;
+            return { started: true };
         case 'cbfriends-get-recovery-code':
             return { code: mockCb.recoveryCode || null };
         case 'cbfriends-update-profile':

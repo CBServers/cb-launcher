@@ -6,6 +6,7 @@
     function t(k, v) { return window.LauncherI18n ? window.LauncherI18n.t('cb.' + k, v) : k; }
     let menu = null;
     let card = null;
+    let cardPerson = null; // whoever the open profile card shows, for its own menu button
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -182,9 +183,12 @@
         ].filter(Boolean).join('');
         const played = playedRows(p.playtime);
 
+        const more = p.relation === 'self' ? '' :
+            `<button type="button" class="friend-more-btn cb-person-more" data-person-more title="${escapeHtml(t('more'))}" aria-label="${escapeHtml(t('more'))}">&#8943;</button>`;
         return `
             <div class="cb-person-card">
                 <div class="cb-person-banner" ${banner}></div>
+                ${more}
                 <div class="cb-person-avatar" ${accent ? `style="border-color:${accent}"` : ''}>${avatar}</div>
                 <div class="cb-person-body">
                     <div class="cb-person-name">${escapeHtml(p.displayName || p.handle)}</div>
@@ -208,6 +212,7 @@
     async function showCard(person) {
         const el = ensureCard();
         // Render what the caller already knows, then replace it with the full profile.
+        cardPerson = person || null;
         el.innerHTML = cardHtml(person && person.handle ? person : null, !(person && person.handle));
         el.hidden = false;
 
@@ -223,6 +228,7 @@
                 res = await window.executeCommand('cbfriends-get-viewed-profile');
             } catch (error) { break; }
             if (res && res.profile) {
+                cardPerson = res.profile;
                 if (!el.hidden) el.innerHTML = cardHtml(res.profile, false);
                 break;
             }
@@ -231,6 +237,10 @@
 
     function bindCardActions() {
         ensureCard().addEventListener('click', async (event) => {
+            if (event.target.closest('[data-person-more]')) {
+                if (cardPerson) window.PersonMenu.open(event, cardPerson, null, { fromCard: true });
+                return;
+            }
             const add = event.target.closest('[data-person-add]');
             if (add) {
                 const handle = add.getAttribute('data-person-add');
@@ -302,8 +312,10 @@
 
     window.PersonMenu = {
         // extra: { top, bottom } item groups or an array (bottom); items may set disabled, danger or separator.
-        open(event, person, extra) {
+        // opts.fromCard: opened from the profile card, so "View profile" is redundant and actions close the card.
+        open(event, person, extra, opts) {
             if (!person || !person.cbId) return;
+            const fromCard = !!(opts && opts.fromCard);
             event.preventDefault();
             // Keep it from reaching the document dismiss handler, which would close it immediately.
             event.stopPropagation();
@@ -312,7 +324,7 @@
             const known = person.relation === 'friend' || person.relation === 'requested' || person.relation === 'incoming';
             const items = [].concat(groups.top || [], [
                 { separator: true },
-                { label: t('viewProfile'), action: () => showCard(person) },
+                { label: t('viewProfile'), hidden: fromCard, action: () => showCard(person) },
                 { label: t('message'), hidden: isSelf || person.relation !== 'friend' || !window.DirectMessages,
                   action: () => window.DirectMessages.open(person.cbId) },
                 { label: t('addFriend'), hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
@@ -322,7 +334,9 @@
                 { label: t('report'), hidden: isSelf, danger: true, action: () => reportUser(person) },
             ]);
             const pos = positionFor(event);
-            showMenu(pos.x, pos.y, items);
+            showMenu(pos.x, pos.y, fromCard
+                ? items.map(i => i.action ? Object.assign({}, i, { action: () => { hideCard(); i.action(); } }) : i)
+                : items);
         },
         // A plain menu at the pointer, for rows that are not CB people (Discord friends).
         showMenuAt(event, items) {

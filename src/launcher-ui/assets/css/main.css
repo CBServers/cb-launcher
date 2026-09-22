@@ -5609,6 +5609,29 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     margin-top: 14px;
 }
 
+.cb-create-link {
+    display: block;
+    margin-top: 12px;
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color 0.2s var(--ease);
+}
+
+.cb-create-link:hover {
+    color: var(--text);
+}
+
+.cb-recover-input {
+    font-family: ui-monospace, Consolas, monospace;
+    letter-spacing: 0.04em;
+}
+
 .cb-create-error {
     padding: 9px 14px;
     margin-bottom: 16px;
@@ -5959,6 +5982,23 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 }
 
 /* The accent is a flat fill, so light-to-dark gives the banner depth without a second colour. */
+/* Always in its hovered look: a plain glyph disappears against a light accent banner. */
+.cb-person-card .cb-person-more {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    opacity: 1;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.cb-person-card .cb-person-more:hover {
+    background: rgba(0, 0, 0, 0.55);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
 .cb-person-banner {
     height: 84px;
     background-color: var(--card-accent, var(--accent));
@@ -6175,6 +6215,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     display: flex;
     align-items: center;
     gap: 14px;
+    flex: 0 0 132px;
     height: 132px;
     padding: 0 22px;
     margin-bottom: 20px;
@@ -6222,6 +6263,8 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
        column is not a short box in a sea of empty page. */
     flex: 1 1 auto;
     min-height: 340px;
+    /* An auto row sizes to its content, which is what let a long chat stretch the page. */
+    grid-template-rows: minmax(0, 1fr);
 }
 
 @media (max-width: 1100px) {
@@ -6233,6 +6276,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 .community-chat {
     display: flex;
     flex-direction: column;
+    min-height: 0;
     background: var(--surface-lo);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -6240,6 +6284,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 }
 
 .community-chat .cb-section-head {
+    flex-shrink: 0;
     margin-top: 0;
 }
 
@@ -6247,6 +6292,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     flex: 1 1 auto;
     min-height: 0;   /* lets the log scroll instead of stretching its parent */
     overflow-y: auto;
+    overflow-x: hidden;   /* the lines' negative side margins would otherwise add a horizontal bar */
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -6300,6 +6346,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 
 .community-chat-input {
     display: flex;
+    flex-shrink: 0;
     gap: 8px;
     margin-top: 12px;
 }
@@ -6517,6 +6564,9 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Room for the name link's underline, which the ellipsis clip would otherwise cut off. */
+    padding-bottom: 3px;
+    margin-bottom: -3px;
 }
 
 .friend-activity {
@@ -7920,6 +7970,11 @@ html:not([data-theme]) .toast {
 #community-page {
     flex-direction: column;
     min-height: 100%;
+}
+
+/* Inside a room the page is bounded so the chat log and LFG list scroll instead of the page. */
+#community-page.is-room {
+    height: 100%;
 }
 
 #community-body {

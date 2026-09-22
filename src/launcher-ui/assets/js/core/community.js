@@ -166,6 +166,7 @@
         else if (p.iJoined) action = `<button class="cb-ghost-btn" type="button" data-community-leave="1">${escapeHtml(t('leave'))}</button>`;
         else if (p.relation === 'requested') action = `<span class="cb-pending-label">${escapeHtml(t('requested'))}</span>`;
         else action = `<button class="friend-invite-btn" data-community-join="${escapeHtml(p.cbId)}">${escapeHtml(t('join'))}</button>`;
+        if (!isSelf) action += `<button class="friend-more-btn" type="button" data-person-more title="${escapeHtml(t('more'))}" aria-label="${escapeHtml(t('more'))}">&#8943;</button>`;
 
         // The all-games room mixes titles, so tag each row with its game.
         const gameTag = (room === ALL && p.game) ? `<span class="community-game-tag">${escapeHtml(gameName(p.game))}</span>` : '';
@@ -175,7 +176,7 @@
             <div class="friend-row${isSelf ? ' is-self' : ''}" data-status="${status}" data-person-id="${escapeHtml(p.cbId)}" data-person-handle="${escapeHtml(p.handle)}" data-person-name="${escapeHtml(p.displayName || p.handle)}" data-person-relation="${escapeHtml(p.relation || '')}">
                 <div class="friend-avatar">${avatarHtml(p)}<span class="friend-status-dot" data-status="${status}"></span></div>
                 <div class="friend-row-body">
-                    <div class="friend-name">${escapeHtml(p.displayName || p.handle)} <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span> ${gameTag}${youTag}</div>
+                    <div class="friend-name"><span class="cb-profile-link" data-person-link>${escapeHtml(p.displayName || p.handle)}</span> <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span> ${gameTag}${youTag}</div>
                     <div class="friend-activity">${line}</div>
                     ${joinersHtml(p)}
                 </div>
@@ -236,7 +237,7 @@
             const accent = /^#[0-9a-f]{6}$/i.test(m.accent || '') ? ` style="color:${m.accent}"` : '';
             const head = grouped ? '' : `
                 <div class="community-chat-head">
-                    <span class="community-chat-author"${accent}>${escapeHtml(m.displayName || m.handle)}</span>
+                    <span class="community-chat-author cb-profile-link" data-person-link${accent}>${escapeHtml(m.displayName || m.handle)}</span>
                     <span class="community-chat-when">${escapeHtml(chatTime(m.at))}</span>
                 </div>`;
             return `
@@ -334,6 +335,8 @@
     function render() {
         const body = document.getElementById('community-body');
         if (!body) return;
+        const page = document.getElementById('community-page');
+        if (page) page.classList.toggle('is-room', !!(profileReady && room));
         if (!profileReady) { body.innerHTML = renderNoProfile(); return; }
         body.innerHTML = room ? renderRoom() : renderHub();
         if (room) scrollChat();
@@ -589,6 +592,21 @@
 
         body.addEventListener('change', (event) => {
             if (event.target.id === 'community-broadcast-toggle') applyBroadcast(event.target.checked);
+        });
+
+        body.addEventListener('click', (event) => {
+            const more = event.target.closest('[data-person-more]');
+            const link = more || event.target.closest('[data-person-link]');
+            const el = link && link.closest('[data-person-id]');
+            if (!el || !window.PersonMenu) return;
+            const person = {
+                cbId: el.getAttribute('data-person-id'),
+                handle: el.getAttribute('data-person-handle'),
+                displayName: el.getAttribute('data-person-name'),
+                relation: el.getAttribute('data-person-relation') || '',
+            };
+            if (more) window.PersonMenu.open(event, person);
+            else window.PersonMenu.showCard(person);
         });
 
         body.addEventListener('contextmenu', (event) => {

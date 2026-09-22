@@ -255,6 +255,8 @@ namespace social
 
         // Opt-in creation, seeded from the linked Discord account if there is one. Non-blocking.
         void begin_create_profile(const std::string& handle, const std::string& display_name);
+        // Binds this device to an existing account using its recovery code. Non-blocking.
+        void begin_recover_with_code(const std::string& code);
         // Any field may be empty to leave it unchanged; a handle collision lands in get_last_error().
         void begin_update_profile(const std::string& display_name, const std::string& handle,
                                   const std::string& bio, const std::string& accent,
@@ -343,7 +345,7 @@ namespace social
         void do_update_profile(std::string display_name, std::string handle, std::string bio,
                                std::string accent, std::string favorite_game, std::string avatar_url);
         void do_request_profile(std::string cb_id);
-        void recover_and_store(const std::string& via, const std::string& hwid, const std::string& token);
+        void recover_and_store(const std::string& via, const std::string& anchor, const std::string& token);
         void store_from_response(const rapidjson::Value& doc);
 
         void ensure_worker();

@@ -162,6 +162,20 @@ namespace commands::social_commands
             response.AddMember("started", ok, allocator);
         });
 
+        cef_ui.add_command("cbfriends-recover-code", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto code = read_string(value, "code");
+            const bool ok = !code.empty();
+            if (ok)
+            {
+                social::cbfriends_service::instance().begin_recover_with_code(code);
+            }
+            response.AddMember("started", ok, allocator);
+        });
+
         cef_ui.add_command("cbfriends-get-recovery-code", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             response.SetObject();

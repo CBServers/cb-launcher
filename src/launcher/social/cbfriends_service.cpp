@@ -372,7 +372,33 @@ namespace social
         return fail(error.empty() ? "profile creation failed" : error);
     }
 
-    void cbfriends_service::recover_and_store(const std::string& via, const std::string& hwid,
+    void cbfriends_service::begin_recover_with_code(const std::string& code)
+    {
+        {
+            std::lock_guard lock(mutex_);
+            if (state_ == profile_state::creating || state_ == profile_state::ready)
+            {
+                return;
+            }
+            state_ = profile_state::creating;
+            last_error_.clear();
+        }
+
+        std::thread([this, code]
+        {
+            if (!identity::instance().ensure())
+            {
+                std::lock_guard lock(mutex_);
+                state_ = profile_state::error;
+                last_error_ = "identity unavailable";
+                return;
+            }
+            recover_and_store("code", code, {});
+        }).detach();
+    }
+
+    // anchor is the HWID hash for "hwid" and the recovery code for "code"; "discord" uses the token.
+    void cbfriends_service::recover_and_store(const std::string& via, const std::string& anchor,
                                               const std::string& token)
     {
         const auto fail = [this](const std::string& error)
@@ -388,7 +414,12 @@ namespace social
         body.SetObject();
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
 
-        if (via == "discord" && !token.empty())
+        if (via == "code")
+        {
+            endpoint = "/v1/recover/code";
+            add_string(body, "recoveryCode", anchor);
+        }
+        else if (via == "discord" && !token.empty())
         {
             endpoint = "/v1/recover/discord";
             add_string(body, "discordToken", token);
@@ -396,7 +427,7 @@ namespace social
         else
         {
             endpoint = "/v1/recover/hwid";
-            add_string(body, "hwidHash", hwid);
+            add_string(body, "hwidHash", anchor);
         }
 
         const auto response = post_signed(base + endpoint, serialize(body));

@@ -5,6 +5,7 @@
     const VISIBLE_POLL_MS = 5 * 1000;   // while the Friends page is open
     const CREATING_POLL_MS = 1500;
     const HANDLE_RE = /^[a-z0-9_]{2,32}$/i;
+    const RECOVERY_CODE_RE = /^[0-9A-F]{4}(-[0-9A-F]{4}){7}$/;
     const PENCIL_SVG = '<svg class="cb-profile-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
     const PERSON_SVG = '<svg class="cb-profile-avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
     const DISCORD_SVG = '<svg class="friend-source-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>';
@@ -24,6 +25,9 @@
     let editingProfile = false;
     let createOpen = false;       // the setup card was swapped for the create form
     let createError = '';         // a local validation or launcher error for the create form
+    let recoverOpen = false;      // the setup card was swapped for the recovery-code form
+    let recoverError = '';        // a local validation or launcher error for the recovery form
+    let lastAction = 'create';    // which form a service error belongs to
     let dismissedError = null;    // a service error the user closed the form on
     let myJoinable = false; // we're hosting a joinable match => can invite
     let friends = { friends: [], incoming: [], outgoing: [] };
@@ -163,6 +167,7 @@
                 <div class="cb-profile-body">
                     ${heading}
                     <div class="cb-profile-text">${escapeHtml(tf(dp ? 'setupCbBody' : 'setupBody'))}</div>
+                    <button class="cb-create-link" id="friends-recover-open" type="button">${escapeHtml(t('recoverLink'))}</button>
                 </div>
                 <div class="cb-profile-actions">
                     <button class="cb-profile-btn is-primary" id="friends-create-open" type="button">${escapeHtml(tf('createCb'))}</button>
@@ -181,7 +186,8 @@
         if (state === 'creating') {
             return `<div class="cb-create"><div class="cb-create-title">${escapeHtml(t('creating'))}</div></div>`;
         }
-        const serviceError = state === 'error' && status.error && status.error !== dismissedError ? status.error : '';
+        const serviceError = state === 'error' && status.error && status.error !== dismissedError ? friendlyError(status.error) : '';
+        if (recoverOpen || (serviceError && lastAction === 'recover')) return renderRecoverForm(recoverError || serviceError);
         if (createOpen || serviceError) return renderCreateForm(createError || serviceError);
         return renderSetupCard();
     }
@@ -307,6 +313,34 @@
                     <button id="cb-create-btn" class="cb-create-btn" type="button">${escapeHtml(t('createBtn'))}</button>
                     <button id="cb-create-cancel" class="cb-ghost-btn" type="button">${escapeHtml(t('cancel'))}</button>
                 </div>
+                <button class="cb-create-link" id="friends-recover-open" type="button">${escapeHtml(t('recoverLink'))}</button>
+            </div>
+        `;
+    }
+
+    // Server error strings are terse; the ones a user can act on get a fuller message.
+    function friendlyError(error) {
+        if (error === 'handle taken') return t('handleTaken');
+        if (error === 'no account for this anchor') return t('recoverNoAccount');
+        if (error === 'too many recovery attempts') return t('recoverRateLimited');
+        return error;
+    }
+
+    function renderRecoverForm(error) {
+        const errorHtml = error ? `<div class="cb-create-error">${escapeHtml(error)}</div>` : '';
+        return `
+            <div class="cb-create">
+                <div class="cb-create-title">${escapeHtml(t('recoverTitle'))}</div>
+                <div class="cb-create-sub">${escapeHtml(t('recoverSub'))}</div>
+                ${errorHtml}
+                <label class="cb-create-label">${escapeHtml(t('recoveryCode'))}</label>
+                <input id="cb-recover-input" class="cb-create-input cb-recover-input" type="text" maxlength="39"
+                    placeholder="1A2B-3C4D-5E6F-7A8B-9C0D-1E2F-3A4B-5C6D" autocomplete="off" spellcheck="false" />
+                <div class="cb-create-hint">${escapeHtml(t('recoverHint'))}</div>
+                <div class="cb-create-actions">
+                    <button id="cb-recover-btn" class="cb-create-btn" type="button">${escapeHtml(t('recoverBtn'))}</button>
+                    <button id="cb-recover-cancel" class="cb-ghost-btn" type="button">${escapeHtml(t('cancel'))}</button>
+                </div>
             </div>
         `;
     }
@@ -351,7 +385,7 @@
                     <span class="friend-status-dot" data-status="${status}"></span>
                 </div>
                 <div class="friend-row-body">
-                    <div class="friend-name">${escapeHtml(p.displayName || p.handle)} <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span>${presenceChip(p)}</div>
+                    <div class="friend-name"><span class="cb-profile-link" data-person-link>${escapeHtml(p.displayName || p.handle)}</span> <span class="cb-friend-handle">@${escapeHtml(p.handle)}</span>${presenceChip(p)}</div>
                     <div class="friend-activity">${escapeHtml(presenceLabel(p))}</div>
                     ${sub ? `<div class="friend-activity-sub">${escapeHtml(sub)}</div>` : ''}
                 </div>
@@ -490,14 +524,18 @@
             btns.push(`<button class="friend-more-btn" type="button" data-friend-more="${escapeHtml(key)}" title="${escapeHtml(tf('more'))}" aria-label="${escapeHtml(tf('more'))}">&#8943;</button>`);
         }
 
+        const personAttrs = cb
+            ? ` data-person-id="${escapeHtml(cb.cbId)}" data-person-handle="${escapeHtml(cb.handle)}" data-person-name="${escapeHtml(name)}" data-person-relation="friend"`
+            : '';
+        const nameHtml = cb ? `<span class="cb-profile-link" data-person-link>${escapeHtml(name)}</span>` : escapeHtml(name);
         return `
-            <div class="friend-row" data-status="${x.status}" data-friend-key="${escapeHtml(key)}">
+            <div class="friend-row" data-status="${x.status}" data-friend-key="${escapeHtml(key)}"${personAttrs}>
                 <div class="friend-avatar">
                     ${avatar}
                     <span class="friend-status-dot" data-status="${x.status}"></span>
                 </div>
                 <div class="friend-row-body">
-                    <div class="friend-name">${escapeHtml(name)}${handle}${source}${lines.chip}</div>
+                    <div class="friend-name">${nameHtml}${handle}${source}${lines.chip}</div>
                     <div class="friend-activity">${escapeHtml(lines.main)}</div>
                     ${lines.sub ? `<div class="friend-activity-sub">${escapeHtml(lines.sub)}</div>` : ''}
                 </div>
@@ -734,6 +772,63 @@
         if (n) n.value = typed.name;
     }
 
+    function openRecoverForm() {
+        recoverOpen = true;
+        recoverError = '';
+        createOpen = false;
+        createError = '';
+        renderPage(true);
+        const input = document.getElementById('cb-recover-input');
+        if (input) input.focus();
+    }
+
+    function closeRecoverForm() {
+        recoverOpen = false;
+        recoverError = '';
+        dismissedError = lastStatus && lastStatus.error;
+        renderPage(true);
+    }
+
+    function showRecoverError(message) {
+        const input = document.getElementById('cb-recover-input');
+        const typed = input ? input.value : '';
+        recoverOpen = true;
+        recoverError = message;
+        renderPage(true);
+        const again = document.getElementById('cb-recover-input');
+        if (again) { again.value = typed; again.focus(); }
+    }
+
+    // Accepts the code with or without dashes and in any case.
+    function normalizeRecoveryCode(raw) {
+        const hex = raw.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+        return hex.length === 32 ? hex.match(/.{4}/g).join('-') : raw.trim().toUpperCase();
+    }
+
+    async function submitRecover() {
+        const input = document.getElementById('cb-recover-input');
+        if (!input) return;
+        const code = normalizeRecoveryCode(input.value);
+        if (!RECOVERY_CODE_RE.test(code)) {
+            showRecoverError(t('recoverInvalid'));
+            return;
+        }
+        try {
+            await window.executeCommand('cbfriends-recover-code', { code });
+            recoverOpen = false;
+            recoverError = '';
+            dismissedError = null;
+            lastAction = 'recover';
+            lastState = 'creating';
+            lastStatus = Object.assign({}, lastStatus, { state: 'creating', error: null });
+            renderPage(true);
+            startCreatingPoll();
+        } catch (error) {
+            console.warn('Failed to start profile recovery:', error);
+            showRecoverError('Could not reach the launcher.');
+        }
+    }
+
     async function submitCreate() {
         const handleInput = document.getElementById('cb-handle-input');
         const nameInput = document.getElementById('cb-name-input');
@@ -749,6 +844,7 @@
             createOpen = false;
             createError = '';
             dismissedError = null;
+            lastAction = 'create';
             lastState = 'creating';
             lastStatus = Object.assign({}, lastStatus, { state: 'creating', error: null });
             renderPage(true);
@@ -959,8 +1055,24 @@
                     if (target.closest('#friends-link-discord')) return linkDiscord();
                     if (target.closest('#cb-create-btn')) return submitCreate();
                     if (target.closest('#cb-create-cancel')) return closeCreateForm();
+                    if (target.closest('#friends-recover-open')) return openRecoverForm();
+                    if (target.closest('#cb-recover-btn')) return submitRecover();
+                    if (target.closest('#cb-recover-cancel')) return closeRecoverForm();
                     if (target.closest('#cb-self-more')) return openSelfMenu(event);
                     if (target.closest('[data-cb-view-self]')) return viewOwnProfile();
+                    const personLink = target.closest('[data-person-link]');
+                    if (personLink) {
+                        const el = personLink.closest('[data-person-id]');
+                        if (el && window.PersonMenu) {
+                            window.PersonMenu.showCard({
+                                cbId: el.getAttribute('data-person-id'),
+                                handle: el.getAttribute('data-person-handle'),
+                                displayName: el.getAttribute('data-person-name'),
+                                relation: el.getAttribute('data-person-relation') || '',
+                            });
+                        }
+                        return;
+                    }
                     if (target.closest('#cb-edit-btn')) return editOwnProfile();
                     if (target.closest('#cb-edit-save')) return submitEdit();
                     if (target.closest('#cb-edit-cancel')) { editingProfile = false; return renderPage(true); }

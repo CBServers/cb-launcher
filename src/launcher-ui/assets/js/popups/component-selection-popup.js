@@ -96,8 +96,10 @@ class ComponentSelectionPopup {
         this.popup.querySelector('.btn-uninstall').textContent = this.t('popup.componentSelection.uninstall');
         this.popup.querySelector('.btn-cancel').textContent = this.t('common.cancel');
         const applyBtn = this.popup.querySelector('.btn-apply');
-        const isInstallMode = this.options && (this.options.startDownloadOnApply === true || this.options.finishSetup === true);
-        applyBtn.textContent = isInstallMode ? this.t('common.install') : this.t('common.applyChanges');
+        const applyKey = this.options?.finishSetup === true
+            ? 'common.finishSetup'
+            : this.options?.startDownloadOnApply === true ? 'common.install' : 'common.applyChanges';
+        applyBtn.textContent = this.t(applyKey);
     }
 
     bindEvents() {
