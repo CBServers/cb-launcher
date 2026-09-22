@@ -75,7 +75,6 @@ namespace commands::game_commands
             bool active{false};
             uint64_t generation{0};
             bool elevated{false};
-            bool launcher_started{false};
         };
 
         utils::concurrency::container<tracked_launch>& get_tracked_launch()
@@ -84,8 +83,7 @@ namespace commands::game_commands
             return tracked;
         }
 
-        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation,
-                                const bool elevated, const bool launcher_started = true)
+        void set_tracked_launch(unsigned long pid, const std::string& game_id, const uint64_t generation, const bool elevated)
         {
             get_tracked_launch().access([&](tracked_launch& t)
             {
@@ -94,7 +92,6 @@ namespace commands::game_commands
                 t.active = true;
                 t.generation = generation;
                 t.elevated = elevated;
-                t.launcher_started = launcher_started;
             });
         }
 
@@ -965,14 +962,6 @@ namespace commands::game_commands
         });
     }
 
-    bool is_launcher_started_game_pid(const unsigned long pid, const std::string_view game_id)
-    {
-        return get_tracked_launch().access<bool>([&](const tracked_launch& t)
-        {
-            return t.active && t.pid == pid && t.game_id == game_id && t.launcher_started;
-        });
-    }
-
     std::string tracked_game_id()
     {
         return get_tracked_launch().access<std::string>([](const tracked_launch& t)
@@ -1041,7 +1030,7 @@ namespace commands::game_commands
         }
 
         const auto generation = reserve_launch_generation();
-        set_tracked_launch(pid, config->id, generation, utils::nt::is_process_elevated(pid), false);
+        set_tracked_launch(pid, config->id, generation, utils::nt::is_process_elevated(pid));
         spawn_exit_watchdog(pid, *config, generation);
 
         utils::logger::write("[cbl-adopt] adopted running game '{}' (pid {})", game_id, pid);

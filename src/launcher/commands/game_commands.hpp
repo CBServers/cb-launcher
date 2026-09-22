@@ -13,9 +13,6 @@ namespace commands::game_commands
     // True if pid is the tracked launcher-launched game with matching id; used to validate IPC clients.
     bool is_tracked_game_pid(unsigned long pid, std::string_view game_id);
 
-    // Workshop installs require a process started by this launcher, not one adopted after startup.
-    bool is_launcher_started_game_pid(unsigned long pid, std::string_view game_id);
-
     // game_config.id of the game holding the launch barrier (authoritative "what's running"), or empty.
     std::string tracked_game_id();
 

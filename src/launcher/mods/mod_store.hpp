@@ -49,6 +49,7 @@ namespace mods
     rapidjson::Value to_json(const installed_mod& mod, rapidjson::Document::AllocatorType& allocator);
 
     bool supports(const game_config::game_config_t& config);
+    bool is_workshop_item_installed(const game_config::game_config_t& config, const std::string& workshop_id);
     std::optional<std::filesystem::path> content_root(const game_config::game_config_t& config);
     std::vector<content_folder> content_folders(const game_config::game_config_t& config);
     std::optional<std::filesystem::path> ensure_content_folder(const game_config::game_config_t& config, const std::string& folder);

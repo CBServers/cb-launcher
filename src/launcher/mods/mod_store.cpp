@@ -577,6 +577,13 @@ namespace mods
         return layout_for(config) != nullptr;
     }
 
+    bool is_workshop_item_installed(const game_config::game_config_t& config, const std::string& workshop_id)
+    {
+        const auto layout = layout_for(config);
+        const auto root = content_root(config);
+        return layout && root && is_workshop_id(workshop_id) && workshop_item_installed(*layout, *root, workshop_id);
+    }
+
     std::string extract_zip(const std::filesystem::path& archive, const std::filesystem::path& into)
     {
         return extract_archive_impl(archive, into);
