@@ -1163,7 +1163,7 @@ body.offline-mode #friends {
 
 .library-card-player-seg[hidden] { display: none; }
 
-.library-card-player-seg + .library-card-player-seg:not([hidden]) {
+.library-card-player-seg:not([hidden]) + .library-card-player-seg:not([hidden]) {
     padding-left: 8px;
     border-left: 1px solid rgba(255, 255, 255, 0.22);
 }
