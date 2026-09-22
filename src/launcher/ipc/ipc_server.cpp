@@ -7,15 +7,20 @@
 #include "game_config.hpp"
 #include "join_secret.hpp"
 #include "pipe_listener.hpp"
+#include "mods/mod_store.hpp"
+#include "mods/workshop_catalog.hpp"
 
 #include <utils/concurrency.hpp>
+#include <utils/finally.hpp>
 #include <utils/logger.hpp>
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <deque>
 #include <optional>
+#include <thread>
 #include <utility>
 
 namespace ipc
@@ -24,6 +29,7 @@ namespace ipc
     {
         constexpr auto* PIPE_NAME = L"\\\\.\\pipe\\cbservers-launcher";
         constexpr int PROTOCOL_VERSION = 1;
+        constexpr size_t MAX_WORKSHOP_ITEMS = 4;
 
         std::string json_string(const rapidjson::Value& value, const char* key)
         {
@@ -140,6 +146,24 @@ namespace ipc
         };
         utils::concurrency::container<std::optional<pending_join_entry>> pending_join{};
         std::atomic<unsigned int> connect_seq{0};
+        // Bumped on hello and disconnect so a workshop install can't report to (and is cancelled for) a later connection
+        std::atomic<unsigned long> connection_generation{0};
+
+        // The one launcher-driven workshop install in flight; workshop-cancel flips the flag mid-download.
+        struct workshop_job
+        {
+            std::string request_id;
+            std::atomic_bool cancelled{false};
+        };
+        utils::concurrency::container<std::shared_ptr<workshop_job>> workshop_job_{};
+
+        // Catalog details from workshop-query, reused by the install that usually follows it.
+        struct cached_workshop_item
+        {
+            mods::workshop_catalog::item item;
+            std::chrono::steady_clock::time_point fetched_at{};
+        };
+        utils::concurrency::container<std::unordered_map<std::string, cached_workshop_item>> workshop_cache{};
 
         // Dedup the same accepted join when Discord delivers it via multiple SDK callbacks.
         struct recent_join_state
@@ -403,6 +427,7 @@ namespace ipc
         // Tracked launcher launch: drop to baseline (the exit watchdog owns the full clear); else clear fully.
         void on_disconnect()
         {
+            ++this->connection_generation;
             this->connected.access([](connected_state& c) { c = {}; });
 
             auto& service = discord::discord_service::instance();
@@ -535,7 +560,407 @@ namespace ipc
                     }
                 }
             }
+            else if (type == "workshop-query")
+            {
+                this->handle_workshop_query(doc);
+            }
+            else if (type == "workshop-install")
+            {
+                this->handle_workshop_install(doc);
+            }
+            else if (type == "workshop-cancel")
+            {
+                this->handle_workshop_cancel(doc);
+            }
             return true; // unknown types ignored (forward-compat)
+        }
+
+        // Workshop requests are honoured only from the vetted pid that said hello, for a game with workshop support.
+        std::optional<game_config::game_config_t> workshop_request_config() const
+        {
+            if (this->connection_game_id.empty()
+                || !commands::game_commands::is_tracked_game_pid(this->connection_pid, this->connection_game_id))
+            {
+                return std::nullopt;
+            }
+
+            const auto config = game_config::get_game_config_by_id(this->connection_game_id);
+            if (!config || !mods::supports(*config))
+            {
+                return std::nullopt;
+            }
+
+            return config;
+        }
+
+        static bool valid_workshop_request_id(const std::string& request_id)
+        {
+            return !request_id.empty() && request_id.size() <= 64
+                && std::all_of(request_id.begin(), request_id.end(), [](const unsigned char c)
+                {
+                    return std::isalnum(c) != 0 || c == '-';
+                });
+        }
+
+        // The id list shared by workshop-query and workshop-install; empty when any entry is off.
+        static std::vector<std::string> parse_workshop_items(const rapidjson::Document& doc)
+        {
+            std::vector<std::string> item_ids{};
+            if (!doc.HasMember("items") || !doc["items"].IsArray())
+            {
+                return item_ids;
+            }
+
+            for (const auto& item : doc["items"].GetArray())
+            {
+                if (!item.IsString() || item_ids.size() >= MAX_WORKSHOP_ITEMS)
+                {
+                    return {};
+                }
+
+                const std::string id = item.GetString();
+                const bool numeric = !id.empty() && id.size() <= 20
+                    && std::all_of(id.begin(), id.end(), [](const unsigned char c) { return std::isdigit(c) != 0; });
+                if (!numeric || std::find(item_ids.begin(), item_ids.end(), id) != item_ids.end())
+                {
+                    return {};
+                }
+                item_ids.push_back(id);
+            }
+
+            return item_ids;
+        }
+
+        std::optional<mods::workshop_catalog::item> lookup_workshop_item(const game_config::game_config_t& config,
+                                                                          const std::string& workshop_id)
+        {
+            constexpr auto CACHE_TTL = std::chrono::minutes(30);
+            const auto now = std::chrono::steady_clock::now();
+
+            const auto cached = this->workshop_cache.access<std::optional<mods::workshop_catalog::item>>(
+                [&](std::unordered_map<std::string, cached_workshop_item>& cache) -> std::optional<mods::workshop_catalog::item>
+            {
+                const auto it = cache.find(workshop_id);
+                if (it != cache.end() && now - it->second.fetched_at < CACHE_TTL)
+                {
+                    return it->second.item;
+                }
+                return std::nullopt;
+            });
+            if (cached)
+            {
+                return cached;
+            }
+
+            auto item = mods::workshop_catalog::fetch(config, workshop_id);
+            if (item)
+            {
+                this->workshop_cache.access([&](std::unordered_map<std::string, cached_workshop_item>& cache)
+                {
+                    cache[workshop_id] = {*item, now};
+                });
+            }
+            return item;
+        }
+
+        struct workshop_info_item
+        {
+            std::string id;
+            std::string title;
+            std::string kind;
+            uint64_t size{};
+            bool installed{};
+        };
+
+        // Catalog lookup so the game can prompt with titles and a download size before committing.
+        void handle_workshop_query(const rapidjson::Document& doc)
+        {
+            const auto request_id = json_string(doc, "id");
+            if (!valid_workshop_request_id(request_id))
+            {
+                return;
+            }
+
+            const auto config = this->workshop_request_config();
+            const auto item_ids = parse_workshop_items(doc);
+            if (!config || item_ids.empty())
+            {
+                this->send_workshop_info(request_id, false, "Invalid Workshop request.", {});
+                return;
+            }
+
+            const auto generation = this->connection_generation.load();
+            std::thread([this, config = *config, request_id, item_ids, generation]
+            {
+                std::vector<workshop_info_item> items{};
+                for (const auto& id : item_ids)
+                {
+                    workshop_info_item info{};
+                    info.id = id;
+                    info.installed = mods::is_workshop_item_installed(config, id);
+                    if (const auto item = this->lookup_workshop_item(config, id))
+                    {
+                        info.title = item->title;
+                        info.kind = item->kind;
+                        info.size = item->size;
+                        for (const auto& child : item->children)
+                        {
+                            if (!mods::is_workshop_item_installed(config, child.id))
+                            {
+                                info.size += child.size;
+                            }
+                        }
+                    }
+                    items.push_back(std::move(info));
+                }
+
+                if (generation == this->connection_generation.load())
+                {
+                    this->send_workshop_info(request_id, true, {}, items);
+                }
+            }).detach();
+        }
+
+        void handle_workshop_install(const rapidjson::Document& doc)
+        {
+            const auto request_id = json_string(doc, "id");
+            if (!valid_workshop_request_id(request_id))
+            {
+                return;
+            }
+
+            const auto config = this->workshop_request_config();
+            const auto item_ids = parse_workshop_items(doc);
+            if (!config || item_ids.empty())
+            {
+                this->send_workshop_result(request_id, false, "Invalid Workshop install request.");
+                return;
+            }
+
+            if (!mods::try_claim_install(*config))
+            {
+                this->send_workshop_result(request_id, false, "Another install is already running in CB Launcher.");
+                return;
+            }
+
+            auto job = std::make_shared<workshop_job>();
+            job->request_id = request_id;
+            this->workshop_job_.access([&job](std::shared_ptr<workshop_job>& current) { current = job; });
+
+            utils::logger::write("[cbl-workshop] <- workshop-install {} ({} item(s))", request_id, item_ids.size());
+            const auto generation = this->connection_generation.load();
+            try
+            {
+                std::thread([this, config = *config, request_id, item_ids, generation, job]
+                {
+                    const auto release = utils::finally([&]
+                    {
+                        mods::release_install(config);
+                        this->workshop_job_.access([&job](std::shared_ptr<workshop_job>& current)
+                        {
+                            if (current == job)
+                            {
+                                current.reset();
+                            }
+                        });
+                    });
+
+                    auto success = true;
+                    std::string error{};
+
+                    try
+                    {
+                        const auto result = this->run_workshop_install(config, request_id, item_ids, generation, *job);
+                        success = result.success;
+                        error = result.error;
+                    }
+                    catch (const std::exception& e)
+                    {
+                        success = false;
+                        error = e.what();
+                    }
+                    catch (...)
+                    {
+                        success = false;
+                        error = "Workshop install failed unexpectedly.";
+                    }
+
+                    utils::logger::write("[cbl-workshop] {} {}{}", request_id, success ? "installed" : "failed",
+                                         error.empty() ? "" : ": " + error);
+                    if (generation == this->connection_generation.load())
+                    {
+                        this->send_workshop_result(request_id, success, error);
+                    }
+                }).detach();
+            }
+            catch (const std::exception& e)
+            {
+                mods::release_install(*config);
+                this->workshop_job_.access([](std::shared_ptr<workshop_job>& current) { current.reset(); });
+                this->send_workshop_result(request_id, false, e.what());
+            }
+        }
+
+        // Installs every missing item in turn; the reported percent is combined across them, weighted by size.
+        mods::import_result run_workshop_install(const game_config::game_config_t& config, const std::string& request_id,
+                                                 const std::vector<std::string>& item_ids, const unsigned long generation,
+                                                 workshop_job& job)
+        {
+            struct pending_item
+            {
+                std::string id;
+                uint64_t size{};
+                std::vector<mods::workshop_download> children;
+                std::unordered_map<std::string, std::string> titles;
+            };
+
+            std::vector<pending_item> pending{};
+            for (const auto& id : item_ids)
+            {
+                if (mods::is_workshop_item_installed(config, id))
+                {
+                    continue;
+                }
+
+                pending_item entry{};
+                entry.id = id;
+                if (const auto item = this->lookup_workshop_item(config, id))
+                {
+                    entry.size = item->size;
+                    entry.titles[id] = item->title;
+                    for (const auto& child : item->children)
+                    {
+                        entry.children.push_back({child.id, child.size});
+                        entry.titles[child.id] = child.title;
+                        if (!mods::is_workshop_item_installed(config, child.id))
+                        {
+                            entry.size += child.size;
+                        }
+                    }
+                }
+                pending.push_back(std::move(entry));
+            }
+
+            if (pending.empty())
+            {
+                return {true, {}, std::nullopt};
+            }
+
+            const auto all_sized = std::all_of(pending.begin(), pending.end(), [](const pending_item& e) { return e.size > 0; });
+            uint64_t total_weight = 0;
+            for (const auto& entry : pending)
+            {
+                total_weight += all_sized ? entry.size : 1;
+            }
+
+            uint64_t completed_weight = 0;
+            mods::import_result last{true, {}, std::nullopt};
+            for (const auto& entry : pending)
+            {
+                const auto weight = all_sized ? entry.size : 1;
+                const auto progress = [&](const std::string& phase, const std::string& name, const int percent)
+                {
+                    if (job.cancelled || generation != this->connection_generation.load())
+                    {
+                        return false;
+                    }
+
+                    const auto clamped = static_cast<uint64_t>(std::clamp(percent, 0, 100));
+                    const auto combined = static_cast<int>((completed_weight * 100 + weight * clamped) / total_weight);
+                    const auto title = entry.titles.find(name);
+                    const auto& label = title != entry.titles.end() && !title->second.empty() ? title->second : name;
+                    this->send_workshop_progress(request_id, phase, label, combined);
+                    return true;
+                };
+
+                last = mods::install_workshop_item(config, entry.id, entry.size, entry.children, progress);
+                if (!last.success)
+                {
+                    return last;
+                }
+
+                completed_weight += weight;
+            }
+
+            return last;
+        }
+
+        void handle_workshop_cancel(const rapidjson::Document& doc)
+        {
+            const auto request_id = json_string(doc, "id");
+            this->workshop_job_.access([&request_id](std::shared_ptr<workshop_job>& current)
+            {
+                if (current && current->request_id == request_id)
+                {
+                    utils::logger::write("[cbl-workshop] <- workshop-cancel {}", request_id);
+                    current->cancelled = true;
+                }
+            });
+        }
+
+        void send_workshop_info(const std::string& request_id, const bool ok, const std::string& error,
+                                const std::vector<workshop_info_item>& items)
+        {
+            uint64_t total_size = 0;
+            for (const auto& item : items)
+            {
+                if (!item.installed)
+                {
+                    total_size += item.size;
+                }
+            }
+
+            this->push_outbound(build_json_object([&](auto& w)
+            {
+                w.Key("type"); w.String("workshop-info");
+                w.Key("id");   w.String(request_id.data());
+                w.Key("ok");   w.Bool(ok);
+                if (!error.empty())
+                {
+                    w.Key("error"); w.String(error.data());
+                }
+                w.Key("totalSize"); w.Uint64(total_size);
+                w.Key("items");
+                w.StartArray();
+                for (const auto& item : items)
+                {
+                    w.StartObject();
+                    w.Key("id");        w.String(item.id.data());
+                    w.Key("title");     w.String(item.title.data());
+                    w.Key("kind");      w.String(item.kind.data());
+                    w.Key("size");      w.Uint64(item.size);
+                    w.Key("installed"); w.Bool(item.installed);
+                    w.EndObject();
+                }
+                w.EndArray();
+            }) + "\n");
+        }
+
+        void send_workshop_progress(const std::string& request_id, const std::string& phase, const std::string& item,
+                                    const int percent)
+        {
+            this->push_outbound(build_json_object([&](auto& w)
+            {
+                w.Key("type");    w.String("workshop-progress");
+                w.Key("id");      w.String(request_id.data());
+                w.Key("phase");   w.String(phase.data());
+                w.Key("item");    w.String(item.data());
+                w.Key("percent"); w.Int(std::clamp(percent, 0, 100));
+            }) + "\n");
+        }
+
+        void send_workshop_result(const std::string& request_id, const bool success, const std::string& error)
+        {
+            this->push_outbound(build_json_object([&](auto& w)
+            {
+                w.Key("type");    w.String("workshop-result");
+                w.Key("id");      w.String(request_id.data());
+                w.Key("success"); w.Bool(success);
+                if (!error.empty())
+                {
+                    w.Key("error"); w.String(error.data());
+                }
+            }) + "\n");
         }
 
         bool handle_hello(const HANDLE pipe, const rapidjson::Document& doc)
@@ -574,6 +999,7 @@ namespace ipc
             // Fixed launch mode from hello drives the relaunch decision; omitted by runtime-switchable forks.
             const auto hello_mode = json_string(doc, "mode");
             this->connection_game_id = game;
+            ++this->connection_generation;
             this->connected.access([&](connected_state& c) { c.game = game; c.launch_mode = hello_mode; });
 
             const auto* owner = discord::discord_service::instance().owns_presence() ? "launcher" : "client";

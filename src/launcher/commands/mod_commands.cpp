@@ -91,6 +91,11 @@ namespace commands::mod_commands
                     job.name = result.mod->name;
                 }
             });
+
+            if (const auto config = game_config::get_game_config(game))
+            {
+                mods::release_install(*config);
+            }
         }
 
         void run_import(const game_config::game_config_t config, const std::filesystem::path path, const bool is_zip)
@@ -114,6 +119,12 @@ namespace commands::mod_commands
             std::lock_guard lock(jobs_mutex_);
             auto& job = jobs_[config.game_key];
             if (job.active)
+            {
+                set_result(response, false, "Another install is already running for this game.");
+                return false;
+            }
+
+            if (!mods::try_claim_install(config))
             {
                 set_result(response, false, "Another install is already running for this game.");
                 return false;

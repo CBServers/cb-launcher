@@ -41,10 +41,15 @@ namespace mods
     // Return false to cancel the running operation (honoured during downloads).
     using progress_callback = std::function<bool(const std::string& phase, const std::string& name, int percent)>;
 
+    // Coordinates installs started by the launcher UI and trusted game IPC.
+    bool try_claim_install(const game_config::game_config_t& config);
+    void release_install(const game_config::game_config_t& config);
+
     std::string json_string(const rapidjson::Value& object, const char* key);
     rapidjson::Value to_json(const installed_mod& mod, rapidjson::Document::AllocatorType& allocator);
 
     bool supports(const game_config::game_config_t& config);
+    bool is_workshop_item_installed(const game_config::game_config_t& config, const std::string& workshop_id);
     std::optional<std::filesystem::path> content_root(const game_config::game_config_t& config);
     std::vector<content_folder> content_folders(const game_config::game_config_t& config);
     std::optional<std::filesystem::path> ensure_content_folder(const game_config::game_config_t& config, const std::string& folder);
