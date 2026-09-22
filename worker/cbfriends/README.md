@@ -88,6 +88,29 @@ list since the server holds no Discord graph.
 Set the KV key `relayEnabled` to `false` to push every Discord invite back onto the SDK without
 redeploying; CB invites have no other path and ignore it.
 
+## Reports and moderation
+
+`/v1/report` takes `{ cbId, category, note, room?, messageId? }`, where `category` is one of
+`harassment`, `spam`, `cheating`, `profile` or `other`. A message report names a public room and a
+message id; the worker reads that line and the five before it out of the `ChatRoom` itself and
+refuses one the target did not write, so the queue never holds text a reporter typed on someone
+else's behalf. DM rooms cannot be named, which keeps direct messages out of reports. A `profile`
+report snapshots the target's profile, since it can be edited afterwards. Reports are capped at 10
+an hour per reporter and deduplicated per reporter and message.
+
+Moderator endpoints answer `404` to everyone else. Besides the queue, lookup, audit log and roles:
+
+| Endpoint | Body | Effect |
+|---|---|---|
+| `/v1/mod/mute` | `{ cbId, minutes, permanent?, reason }` | Blocks chat, DMs and board posts, and takes the current board post down. `permanent` stores `until: 0`, lifted only by `minutes: 0`. Refused for moderators |
+| `/v1/mod/remove-message` | `{ room, id, reportId? }` | Deletes one line from a public room; `reportId` marks that report `messageRemoved` |
+| `/v1/mod/purge` | `{ room, cbId }` | Deletes every line an account still has in a room's history. Refused for moderators |
+
+A removed id is kept (last 100) in the room's `removed` list, returned on every poll, and a removal
+wakes held polls, so launchers drop a line they already hold within a second. `/v1/mod/status`
+returns the caller's own `mute` alongside its role, and every refused send answers
+`403 { muted: true, until, reason }`, so the launcher can show the mute before and after a send.
+
 ## Durable Objects
 
 Four classes, because KV can neither hold a request open, serialise appends, nor be read back

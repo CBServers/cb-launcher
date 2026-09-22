@@ -277,13 +277,55 @@
         }
     }
 
-    async function reportUser(person) {
+    // A name or profile problem is about the account, so a message report does not offer it.
+    const ACCOUNT_CATEGORIES = ['harassment', 'spam', 'cheating', 'profile', 'other'];
+    const MESSAGE_CATEGORIES = ['harassment', 'spam', 'cheating', 'other'];
+
+    function reportFormHtml(message) {
+        const categories = message ? MESSAGE_CATEGORIES : ACCOUNT_CATEGORIES;
+        const quote = message ? `
+            <div class="cb-report-quote">
+                <span class="cb-report-quote-who">${escapeHtml(message.displayName || message.handle || '')}</span>
+                ${escapeHtml(message.text || '')}
+            </div>` : '';
+        return `
+            <div class="cb-report-form">
+                <div>${escapeHtml(message ? t('reportMessageBody') : t('reportBody'))}</div>
+                ${quote}
+                <div class="cb-report-label">${escapeHtml(t('reportWhy'))}</div>
+                <div class="cb-report-options">
+                    ${categories.map(c => `
+                        <label class="cb-report-option">
+                            <input type="radio" name="cb-report-category" value="${c}" />
+                            <span>${escapeHtml(t('reportCategories.' + c))}</span>
+                        </label>`).join('')}
+                </div>
+                <textarea class="cb-create-input cb-report-note" maxlength="300" rows="3"
+                    placeholder="${escapeHtml(t('reportNotePlaceholder'))}"></textarea>
+            </div>`;
+    }
+
+    // message: { id, room, text, handle, displayName } when a chat line is being reported.
+    async function reportUser(person, message) {
         try {
-            const idx = await window.showMessageBox(
-                t('reportTitle', { handle: person.handle }), t('reportBody'),
+            const title = message
+                ? t('reportMessageTitle', { handle: person.handle })
+                : t('reportTitle', { handle: person.handle });
+            const idx = await window.showMessageBox(escapeHtml(title), reportFormHtml(message),
                 [{ label: t('reportConfirm'), danger: true }, t('cancel')]);
             if (idx !== 0) return;
-            await window.executeCommand('cbfriends-report', { cbId: person.cbId, reason: '' });
+
+            // The box keeps its content until the next one opens, so the answers are still readable.
+            const box = document.getElementById('message-box');
+            const picked = box && box.querySelector('input[name="cb-report-category"]:checked');
+            const note = box && box.querySelector('.cb-report-note');
+            await window.executeCommand('cbfriends-report', {
+                cbId: person.cbId,
+                category: picked ? picked.value : 'other',
+                note: note ? note.value.trim() : '',
+                room: message ? message.room : '',
+                messageId: message ? message.id : 0,
+            });
             if (window.showToast) window.showToast(t('reportedToast'), 'success');
         } catch (error) {
             console.warn('Report failed:', error);
@@ -346,6 +388,7 @@
             showMenu(pos.x, pos.y, items);
         },
         showCard,
+        report: reportUser,
         matchContext,
         formatAgo: ago,
         init() { bindCardActions(); }

@@ -13,6 +13,8 @@
     let conversations = [];
     let unread = 0;
     let myHandle = '';
+    let mute = { muted: false, until: 0, reason: '' };
+    let lastSent = null;    // { text, at }, put back in the box if the send turns out to be muted
     let timer = null;
     let bound = false;
     const announced = new Map();
@@ -85,6 +87,7 @@
         if (!peer) return listHtml();
         return `
             <div class="dm-log" id="dm-log">${messages.map(messageHtml).join('')}</div>
+            <div class="dm-mute-banner" id="dm-mute-banner" hidden></div>
             <div class="dm-compose">
                 <input type="text" id="dm-text" maxlength="300" placeholder="${escapeHtml(t('messagePlaceholder'))}" />
                 <button class="dm-send" id="dm-send" type="button">${escapeHtml(t('send'))}</button>
@@ -123,6 +126,7 @@
                 ${bodyHtml()}
             </div>`;
         scrollLog();
+        applyMute();
     }
 
     // Patches only the moving parts, so the compose box keeps focus and text on the timer.
@@ -144,6 +148,7 @@
         if (peer) {
             const log = document.getElementById('dm-log');
             if (log) { log.innerHTML = messages.map(messageHtml).join(''); scrollLog(); }
+            applyMute();
             return;
         }
         const list = el.querySelector('.dm-list, .dm-empty');
@@ -155,11 +160,33 @@
         if (log) log.scrollTop = log.scrollHeight;
     }
 
+    // The box stays (read-only) while muted, so a line that bounced is still there to copy or resend.
+    function applyMute() {
+        const input = document.getElementById('dm-text');
+        const send = document.getElementById('dm-send');
+        const banner = document.getElementById('dm-mute-banner');
+        if (!input || !send || !banner) return;
+        input.readOnly = mute.muted;
+        send.disabled = mute.muted;
+        banner.hidden = !mute.muted;
+        if (mute.muted) {
+            const head = mute.until
+                ? t('mutedBanner', { when: new Date(mute.until).toLocaleString() })
+                : t('mutedBannerPermanent');
+            banner.textContent = mute.reason ? `${head} ${t('mutedReason', { reason: mute.reason })}` : head;
+        }
+        if (mute.muted && lastSent && !input.value && Date.now() - lastSent.at < 10000) {
+            input.value = lastSent.text;
+            lastSent = null;
+        }
+    }
+
     async function fetchAll() {
         try {
             const status = await window.executeCommand('cbfriends-get-status');
             ready = !!(status && status.state === 'ready');
             myHandle = (status && status.profile && status.profile.handle) || myHandle;
+            mute = (status && status.mute) || { muted: false, until: 0, reason: '' };
             if (!ready) { conversations = []; unread = 0; return; }
 
             const [list, thread] = await Promise.all([
@@ -218,8 +245,9 @@
     async function send() {
         const input = document.getElementById('dm-text');
         const text = input ? input.value.trim() : '';
-        if (!text || !peer) return;
+        if (!text || !peer || mute.muted) return;
         input.value = '';
+        lastSent = { text, at: Date.now() };
         try { await window.executeCommand('cbfriends-send-dm', { cbId: peer, text }); } catch (error) { return; }
         chase();
     }

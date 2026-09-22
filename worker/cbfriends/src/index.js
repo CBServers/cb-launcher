@@ -440,21 +440,61 @@ async function handleBlockList(env, cbId) {
     return json(200, { blocked: await peopleViews(env, (await graphGet(env, cbId)).blocked) });
 }
 
+const REPORT_CATEGORIES = new Set(['harassment', 'spam', 'cheating', 'profile', 'other']);
+const REPORT_CONTEXT_LINES = 5;
+const REPORTS_PER_HOUR = 10;
+const REPORT_DEDUP_SECONDS = 7 * 86400;
+
 // Reports queue for a moderator; nothing is actioned automatically.
 async function handleReport(env, cbId, body) {
     const target = String(body.cbId || '');
     if (!target || target === cbId) return json(400, { error: 'bad target' });
-    const id = 'rep_' + crypto.randomUUID().replace(/-/g, '');
-    await env.CB.put(`report:${id}`, JSON.stringify({
-        id,
+    if (!withinRate(`report:${cbId}`, REPORTS_PER_HOUR, 3600_000)) return json(429, { error: 'too many reports' });
+
+    const note = typeof body.note === 'string' ? body.note : (typeof body.reason === 'string' ? body.reason : '');
+    const rec = {
+        id: 'rep_' + crypto.randomUUID().replace(/-/g, ''),
         reporter: cbId,
         target,
-        reason: typeof body.reason === 'string' ? body.reason.slice(0, 300) : '',
-        context: typeof body.context === 'string' ? body.context.slice(0, 300) : '',
+        category: REPORT_CATEGORIES.has(body.category) ? body.category : 'other',
+        reason: note.trim().slice(0, 300),
         at: Date.now(),
         status: 'open',
-    }));
-    return json(200, { ok: true, id });
+    };
+
+    // The message is read from the room, never taken from the client, so a report cannot put words in
+    // anyone's mouth. chatRoomName refuses DM rooms, which keeps direct messages out of reports.
+    if (body.messageId !== undefined) {
+        const room = chatRoomName(body.room);
+        const messageId = Number(body.messageId);
+        if (!room || !Number.isInteger(messageId) || messageId <= 0) return json(400, { error: 'bad message' });
+
+        const dedup = `repmsg:${cbId}:${room}:${messageId}`;
+        const earlier = await env.CB.get(dedup);
+        if (earlier) return json(200, { ok: true, id: earlier, duplicate: true });
+
+        const found = await (await toChatRoom(env, room, 'get', { id: messageId, context: REPORT_CONTEXT_LINES })).json();
+        if (!found.message || found.message.cbId !== target) return json(404, { error: 'no such message' });
+        rec.room = room;
+        rec.message = found.message;
+        rec.lines = found.before || [];
+        await env.CB.put(dedup, rec.id, { expirationTtl: REPORT_DEDUP_SECONDS });
+    }
+
+    // A profile can be edited after the fact, so keep what the reporter actually saw.
+    if (rec.category === 'profile') {
+        const account = await getAccount(env, target);
+        const profile = (account && account.profile) || {};
+        rec.profile = {
+            handle: profile.handle || '',
+            displayName: profile.displayName || '',
+            bio: profile.bio || '',
+            avatarUrl: profile.avatarUrl || '',
+        };
+    }
+
+    await env.CB.put(`report:${rec.id}`, JSON.stringify(rec));
+    return json(200, { ok: true, id: rec.id });
 }
 
 // ---- moderation ----
@@ -490,6 +530,7 @@ async function modLog(env, cbId, action, target, detail) {
 }
 
 // A mute is a record with an expiry rather than a flag, so temporary mutes lapse on their own.
+// `until` 0 is a permanent mute, lifted only by a moderator.
 async function activeMute(env, cbId) {
     const raw = await env.CB.get(`muted:${cbId}`);
     if (!raw) return null;
@@ -502,8 +543,17 @@ async function activeMute(env, cbId) {
     return mute;
 }
 
+function mutedResponse(mute) {
+    return json(403, { error: 'you are muted', muted: true, until: mute.until || 0, reason: mute.reason || '' });
+}
+
+// The caller's own mute rides along, so the launcher can say so before a send fails.
 async function handleModStatus(env, cbId) {
-    return json(200, { role: await roleOf(env, cbId) });
+    const mute = await activeMute(env, cbId);
+    return json(200, {
+        role: await roleOf(env, cbId),
+        mute: mute ? { until: mute.until || 0, reason: mute.reason || '' } : null,
+    });
 }
 
 // Newest first, so the queue opens on what just came in.
@@ -554,7 +604,7 @@ async function handleModResolve(env, cbId, body) {
     return json(200, { ok: true });
 }
 
-// minutes <= 0 unmutes, so one endpoint covers both directions.
+// minutes <= 0 without `permanent` unmutes, so one endpoint covers both directions.
 async function handleModMute(env, cbId, body) {
     const gate = await requireRole(env, cbId, 'mod');
     if (gate.error) return gate.error;
@@ -563,18 +613,61 @@ async function handleModMute(env, cbId, body) {
     if (!target) return json(400, { error: 'cbId required' });
     if (await roleOf(env, target)) return json(403, { error: 'cannot mute a moderator' });
 
+    const permanent = body.permanent === true;
     const minutes = Number.isFinite(body.minutes) ? Math.trunc(body.minutes) : 0;
-    if (minutes <= 0) {
+    if (!permanent && minutes <= 0) {
         await env.CB.delete(`muted:${target}`);
         await modLog(env, cbId, 'unmute', target, '');
         return json(200, { ok: true, muted: false });
     }
 
     const reason = typeof body.reason === 'string' ? body.reason.slice(0, 200) : '';
-    const until = Date.now() + minutes * 60_000;
+    const until = permanent ? 0 : Date.now() + minutes * 60_000;
     await env.CB.put(`muted:${target}`, JSON.stringify({ until, reason, by: cbId, at: Date.now() }));
-    await modLog(env, cbId, 'mute', target, `${minutes}m ${reason}`);
+    // A board post is text too, so a mute takes it down rather than leaving it up for 15 minutes.
+    await dirCall(env, 'lfg/clear', { cbId: target });
+    await modLog(env, cbId, 'mute', target, `${permanent ? 'permanent' : minutes + 'm'} ${reason}`);
     return json(200, { ok: true, muted: true, until });
+}
+
+// Takes one message out of a public room. Any author, moderators included, since it is one line.
+async function handleModRemoveMessage(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const room = chatRoomName(body.room);
+    const id = Number(body.id);
+    if (!room || !Number.isInteger(id) || id <= 0) return json(400, { error: 'bad message' });
+
+    const res = await (await toChatRoom(env, room, 'remove', { id })).json();
+    if (!res.message) return json(404, { error: 'no such message' });
+    await modLog(env, cbId, 'remove-message', res.message.cbId, `${room}: ${res.message.text}`.slice(0, 300));
+
+    if (typeof body.reportId === 'string' && body.reportId) {
+        const raw = await env.CB.get(`report:${body.reportId}`);
+        if (raw) {
+            const rec = JSON.parse(raw);
+            rec.messageRemoved = true;
+            await env.CB.put(`report:${rec.id}`, JSON.stringify(rec));
+        }
+    }
+    return json(200, { ok: true });
+}
+
+// Removes everything one account still has in a room's history. Refused for moderators, like mute.
+async function handleModPurge(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'mod');
+    if (gate.error) return gate.error;
+
+    const room = chatRoomName(body.room);
+    const target = String(body.cbId || '');
+    if (!room || !target) return json(400, { error: 'room and cbId required' });
+    if (await roleOf(env, target)) return json(403, { error: 'cannot purge a moderator' });
+
+    const res = await (await toChatRoom(env, room, 'purge', { cbId: target })).json();
+    const removed = res.removed || 0;
+    await modLog(env, cbId, 'purge', target, `${room}: ${removed} message(s)`);
+    return json(200, { ok: true, removed });
 }
 
 // The moderator's view of one account: profile, mute state, and who they have been reported by.
@@ -690,6 +783,7 @@ const CHAT_MAX_LENGTH = 300;
 const CHAT_HISTORY = 200;
 const CHAT_PER_MINUTE = 12;
 const CHAT_HOLD_MS = 25_000;   // shorter than the client's read timeout
+const CHAT_REMOVED_KEEP = 100; // removed ids echoed on every poll
 
 // Zero-padded so storage keys sort in message order.
 function msgKey(id) {
@@ -1119,7 +1213,7 @@ async function handleDmSend(env, cbId, body) {
     if (!text) return json(400, { error: 'empty message' });
 
     const mute = await activeMute(env, cbId);
-    if (mute) return json(403, { error: 'you are muted', until: mute.until, reason: mute.reason });
+    if (mute) return mutedResponse(mute);
 
     const account = await getAccount(env, cbId);
     const profile = (account && account.profile) || {};
@@ -1183,7 +1277,7 @@ async function handleChatSend(env, cbId, body) {
     if (!text) return json(400, { error: 'empty message' });
 
     const mute = await activeMute(env, cbId);
-    if (mute) return json(403, { error: 'you are muted', until: mute.until, reason: mute.reason });
+    if (mute) return mutedResponse(mute);
 
     const account = await getAccount(env, cbId);
     const profile = (account && account.profile) || {};
@@ -1231,6 +1325,9 @@ async function handleChatPoll(env, cbId, body) {
 async function handleLfgPost(env, cbId, body) {
     const game = typeof body.game === 'string' ? body.game.slice(0, 32) : '';
     if (!game) return json(400, { error: 'game required' });
+
+    const mute = await activeMute(env, cbId);
+    if (mute) return mutedResponse(mute);
 
     const account = await getAccount(env, cbId);
     await dirCall(env, 'lfg/set', {
@@ -1524,6 +1621,10 @@ export default {
                 return handleModResolve(env, cbId, body);
             case '/v1/mod/mute':
                 return handleModMute(env, cbId, body);
+            case '/v1/mod/remove-message':
+                return handleModRemoveMessage(env, cbId, body);
+            case '/v1/mod/purge':
+                return handleModPurge(env, cbId, body);
             case '/v1/mod/lookup':
                 return handleModLookup(env, cbId, body);
             case '/v1/mod/log':
@@ -1589,6 +1690,7 @@ export class ChatRoom {
         this.state = state;
         this.messages = [];
         this.seq = 0;
+        this.removed = []; // ids a moderator took out, sent with every poll so clients drop them too
         this.rate = new Map();
         this.ready = null;
         this.waiters = [];
@@ -1604,6 +1706,18 @@ export class ChatRoom {
         const stored = await this.state.storage.list({ prefix: 'msg:', limit: CHAT_HISTORY, reverse: true });
         this.messages = [...stored.values()].reverse();
         this.seq = (await this.state.storage.get('seq')) || 0;
+        this.removed = (await this.state.storage.get('removed')) || [];
+    }
+
+    // Drops messages from history and storage, then wakes held polls so every client drops them now.
+    async drop(victims) {
+        if (!victims.length) return;
+        const ids = new Set(victims.map(m => m.id));
+        this.messages = this.messages.filter(m => !ids.has(m.id));
+        this.removed = this.removed.concat([...ids]).slice(-CHAT_REMOVED_KEEP);
+        await this.state.storage.delete(victims.map(m => msgKey(m.id)));
+        await this.state.storage.put('removed', this.removed);
+        this.wake();
     }
 
     // Loading is normally done in the constructor; this covers runtimes without it.
@@ -1686,7 +1800,29 @@ export class ChatRoom {
                     this.waiters.push(finish);
                 });
             }
-            return json(200, { messages: since(), seq: this.seq });
+            return json(200, { messages: since(), seq: this.seq, removed: this.removed });
+        }
+
+        // A message and the lines just before it, for a report to snapshot.
+        if (pathname === '/get') {
+            const id = Number(body.id);
+            const at = this.messages.findIndex(m => m.id === id);
+            if (at < 0) return json(200, { message: null });
+            const context = Math.max(0, Math.min(20, Number(body.context) || 0));
+            return json(200, { message: this.messages[at], before: this.messages.slice(Math.max(0, at - context), at) });
+        }
+
+        if (pathname === '/remove') {
+            const message = this.messages.find(m => m.id === Number(body.id));
+            if (!message) return json(200, { message: null });
+            await this.drop([message]);
+            return json(200, { message });
+        }
+
+        if (pathname === '/purge') {
+            const victims = this.messages.filter(m => m.cbId === body.cbId);
+            await this.drop(victims);
+            return json(200, { removed: victims.length });
         }
 
         return json(404, { error: 'not found' });

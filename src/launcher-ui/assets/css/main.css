@@ -7691,6 +7691,180 @@ html:not([data-theme]) .toast {
     color: var(--text-dim);
 }
 
+.mod-report {
+    align-items: flex-start;
+}
+
+.mod-report .mod-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 300px;
+}
+
+.mod-tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--warn);
+    background: var(--warn-soft, rgba(255, 178, 63, 0.12));
+    border-radius: var(--chamfer-sm);
+    vertical-align: middle;
+}
+
+.mod-tag.is-muted {
+    margin-left: 0;
+    color: var(--text-dim);
+    background: var(--surface-lo);
+}
+
+.mod-evidence {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    border-radius: var(--chamfer-sm);
+}
+
+.mod-evidence-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+}
+
+.mod-evidence-actions {
+    display: flex;
+    gap: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.mod-evidence-line {
+    display: flex;
+    gap: 8px;
+    padding: 3px 6px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.mod-evidence-line.is-reported {
+    color: var(--text-bright);
+    background: rgba(255, 77, 94, 0.1);
+    border-left: 2px solid var(--danger);
+}
+
+.mod-evidence-who {
+    flex: 0 0 auto;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.mod-evidence-text {
+    min-width: 0;
+}
+
+/* Report dialog, drawn inside the shared message box */
+.cb-report-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cb-report-quote {
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--surface-lo);
+    border-left: 2px solid var(--danger);
+    overflow-wrap: anywhere;
+}
+
+.cb-report-quote-who {
+    margin-right: 6px;
+    font-weight: 700;
+    color: var(--text-bright);
+}
+
+.cb-report-label {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.cb-report-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cb-report-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.cb-report-option:hover {
+    border-color: var(--border-hi);
+}
+
+.cb-report-option input {
+    accent-color: var(--danger);
+}
+
+.cb-report-note {
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* Muted: the input stays readable but inert, with the reason above it */
+.community-mute-banner,
+.dm-mute-banner {
+    padding: 8px 12px;
+    font-size: 12.5px;
+    color: var(--warn);
+    background: var(--warn-soft, rgba(255, 178, 63, 0.12));
+    border: 1px solid var(--warn-border, rgba(255, 178, 63, 0.3));
+    border-radius: var(--radius-sm);
+}
+
+.community-mute-banner {
+    margin-top: 12px;
+}
+
+.dm-mute-banner {
+    margin: 8px 12px 0;
+}
+
+.community-mute-banner[hidden],
+.dm-mute-banner[hidden] {
+    display: none;
+}
+
+#community-chat-text:read-only,
+#dm-text:read-only {
+    opacity: 0.6;
+}
+
+#community-chat-send:disabled,
+.dm-send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* ---- Direct messages: a dock, not a page ---- */
 
 /* Collapsed it is a small bar; toasts sit at bottom 88px so the two never collide. */

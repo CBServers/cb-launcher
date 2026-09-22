@@ -38,18 +38,91 @@
         return person.handle ? '@' + person.handle : (person.displayName || t('unknownAccount'));
     }
 
-    // A row carries the target's id so the actions do not need a second lookup.
-    function reportHtml(r) {
+    function roomName(id) {
+        if (id === 'all') return t('allGames');
+        const cfg = window.GameUtils && window.GameUtils.getGameConfigByUIId ? window.GameUtils.getGameConfigByUIId(id) : null;
+        return (cfg && cfg.displayName) || id || '';
+    }
+
+    function categoryLabel(category) {
+        return category ? t('reportCategories.' + category) : '';
+    }
+
+    function evidenceLine(m, reported) {
         return `
-            <div class="mod-row" data-report="${escapeHtml(r.id)}" data-target="${escapeHtml(r.target.cbId || '')}">
+            <div class="mod-evidence-line${reported ? ' is-reported' : ''}">
+                <span class="mod-evidence-who">${escapeHtml(m.displayName || m.handle || '')}</span>
+                <span class="mod-evidence-text">${escapeHtml(m.text)}</span>
+            </div>`;
+    }
+
+    // The reported line with what led up to it, as the worker read it from the room.
+    function evidenceHtml(r) {
+        if (!r.message) return '';
+        const actions = r.messageRemoved
+            ? `<span class="mod-tag is-muted">${escapeHtml(t('messageDeleted'))}</span>`
+            : `<button class="mod-btn" data-remove-message="${escapeHtml(r.message.id)}">${escapeHtml(t('deleteMessage'))}</button>`;
+        return `
+            <div class="mod-evidence">
+                <div class="mod-evidence-head">
+                    <span>${escapeHtml(t('inRoomChat', { room: roomName(r.room) }))}</span>
+                    <span class="mod-evidence-actions">
+                        ${actions}
+                        <button class="mod-btn" data-purge>${escapeHtml(t('purgeRoom'))}</button>
+                    </span>
+                </div>
+                ${(r.lines || []).map(m => evidenceLine(m, false)).join('')}
+                ${evidenceLine(r.message, true)}
+            </div>`;
+    }
+
+    // A profile report keeps what the reporter saw, since the account can edit it afterwards.
+    function profileHtml(r) {
+        if (!r.profile) return '';
+        const p = r.profile;
+        const fields = [
+            [t('handle'), p.handle ? '@' + p.handle : ''],
+            [t('displayName'), p.displayName],
+            [t('aboutMe'), p.bio],
+            [t('avatarUrl'), p.avatarUrl],
+        ].filter(([, v]) => v);
+        return `
+            <div class="mod-evidence">
+                <div class="mod-evidence-head"><span>${escapeHtml(t('profileAsReported'))}</span></div>
+                ${fields.map(([k, v]) => `
+                    <div class="mod-evidence-line">
+                        <span class="mod-evidence-who">${escapeHtml(k)}</span>
+                        <span class="mod-evidence-text">${escapeHtml(v)}</span>
+                    </div>`).join('')}
+            </div>`;
+    }
+
+    function muteButtons() {
+        return `
+            <button class="mod-btn" data-mute="60">${escapeHtml(t('mute1h'))}</button>
+            <button class="mod-btn" data-mute="1440">${escapeHtml(t('mute1d'))}</button>
+            <button class="mod-btn" data-mute="10080">${escapeHtml(t('mute1w'))}</button>
+            <button class="mod-btn" data-mute-permanent>${escapeHtml(t('mutePermanent'))}</button>`;
+    }
+
+    // A row carries the target, room and a ready-made mute reason, so the actions need no second lookup.
+    function reportHtml(r) {
+        const category = categoryLabel(r.category);
+        const muteReason = [category, r.reason].filter(Boolean).join(': ');
+        return `
+            <div class="mod-row mod-report" data-report="${escapeHtml(r.id)}" data-target="${escapeHtml(r.target.cbId || '')}"
+                 data-target-handle="${escapeHtml(r.target.handle || '')}" data-room="${escapeHtml(r.room || '')}"
+                 data-mute-reason="${escapeHtml(muteReason)}">
                 <div class="mod-row-main">
-                    <div class="mod-row-title">${escapeHtml(name(r.target))}</div>
-                    <div class="mod-row-reason">${escapeHtml(r.reason || t('noReasonGiven'))}</div>
+                    <div class="mod-row-title">${escapeHtml(name(r.target))}
+                        ${category ? `<span class="mod-tag">${escapeHtml(category)}</span>` : ''}</div>
+                    ${r.reason || !category ? `<div class="mod-row-reason">${escapeHtml(r.reason || t('noReasonGiven'))}</div>` : ''}
+                    ${evidenceHtml(r)}
+                    ${profileHtml(r)}
                     <div class="mod-row-meta">${escapeHtml(t('reportedBy', { name: name(r.reporter) }))} &middot; ${escapeHtml(when(r.at))}</div>
                 </div>
                 <div class="mod-row-actions">
-                    <button class="mod-btn" data-mute="60">${escapeHtml(t('mute1h'))}</button>
-                    <button class="mod-btn" data-mute="1440">${escapeHtml(t('mute1d'))}</button>
+                    ${muteButtons()}
                     <button class="mod-btn is-primary" data-resolve>${escapeHtml(t('resolve'))}</button>
                 </div>
             </div>`;
@@ -69,22 +142,24 @@
     function lookupHtml() {
         if (!lookup) return `<div class="mod-empty">${escapeHtml(t('lookupHint'))}</div>`;
         const p = lookup.person || {};
-        const muted = lookup.mutedUntil && lookup.mutedUntil > Date.now();
+        const permanent = lookup.muted && !lookup.mutedUntil;
+        const muted = permanent || (lookup.mutedUntil && lookup.mutedUntil > Date.now());
+        const muteLine = permanent
+            ? t('mutedPermanently', { reason: lookup.muteReason || '' })
+            : t('mutedUntil', { when: new Date(lookup.mutedUntil).toLocaleString(), reason: lookup.muteReason || '' });
         return `
-            <div class="mod-card" data-target="${escapeHtml(p.cbId || '')}">
+            <div class="mod-card" data-target="${escapeHtml(p.cbId || '')}" data-target-handle="${escapeHtml(p.handle || '')}">
                 <div class="mod-card-title">${escapeHtml(name(p))}</div>
                 <div class="mod-card-meta">
                     ${escapeHtml(t('memberSince'))} ${escapeHtml(p.createdAt ? new Date(p.createdAt * 1000).toLocaleDateString() : '?')}
                     &middot; ${escapeHtml(t('deviceCount', { n: lookup.deviceCount || 0 }))}
                     ${lookup.role ? ' &middot; <strong>' + escapeHtml(lookup.role) + '</strong>' : ''}
                 </div>
-                ${muted ? `<div class="mod-card-mute">${escapeHtml(t('mutedUntil', { when: new Date(lookup.mutedUntil).toLocaleString(), reason: lookup.muteReason || '' }))}</div>` : ''}
+                ${muted ? `<div class="mod-card-mute">${escapeHtml(muteLine)}</div>` : ''}
                 <div class="mod-row-actions">
                     ${muted
                         ? `<button class="mod-btn is-primary" data-mute="0">${escapeHtml(t('unmute'))}</button>`
-                        : `<button class="mod-btn" data-mute="60">${escapeHtml(t('mute1h'))}</button>
-                           <button class="mod-btn" data-mute="1440">${escapeHtml(t('mute1d'))}</button>
-                           <button class="mod-btn" data-mute="10080">${escapeHtml(t('mute1w'))}</button>`}
+                        : muteButtons()}
                     ${role === 'admin' && lookup.role !== 'admin'
                         ? `<button class="mod-btn" data-role="${lookup.role === 'mod' ? 'none' : 'mod'}">${escapeHtml(lookup.role === 'mod' ? t('revokeMod') : t('grantMod'))}</button>`
                         : ''}
@@ -172,6 +247,12 @@
         setTimeout(async () => { await fetchAll(); patch(); }, 400);
     }
 
+    async function confirmThen(title, body, confirmLabel, run) {
+        const idx = await window.showMessageBox(escapeHtml(title), escapeHtml(body),
+            [{ label: confirmLabel, danger: true }, t('cancel')]);
+        if (idx === 0) run();
+    }
+
     function bind() {
         if (bound) return;
         const body = document.getElementById('moderation-body');
@@ -192,11 +273,33 @@
             const row = event.target.closest('[data-target]');
             const target = row ? row.getAttribute('data-target') : '';
 
+            const reason = row ? row.getAttribute('data-mute-reason') || '' : '';
+            const handle = row ? row.getAttribute('data-target-handle') || '' : '';
+
             const mute = event.target.closest('[data-mute]');
             if (mute && target) {
                 const minutes = parseInt(mute.getAttribute('data-mute'), 10) || 0;
-                const reasonEl = row.querySelector('.mod-row-reason');
-                return act('cbfriends-mod-mute', { cbId: target, minutes, reason: reasonEl ? reasonEl.textContent : '' });
+                return act('cbfriends-mod-mute', { cbId: target, minutes, reason });
+            }
+
+            if (event.target.closest('[data-mute-permanent]') && target) {
+                return confirmThen(t('mutePermanentTitle', { handle }), t('mutePermanentBody'), t('mutePermanent'),
+                    () => act('cbfriends-mod-mute', { cbId: target, minutes: 0, permanent: true, reason }));
+            }
+
+            const removeBtn = event.target.closest('[data-remove-message]');
+            if (removeBtn && row) {
+                return act('cbfriends-mod-remove-message', {
+                    room: row.getAttribute('data-room'),
+                    id: Number(removeBtn.getAttribute('data-remove-message')),
+                    reportId: row.getAttribute('data-report') || '',
+                });
+            }
+
+            if (event.target.closest('[data-purge]') && row && target) {
+                const room = row.getAttribute('data-room');
+                return confirmThen(t('purgeTitle', { handle }), t('purgeBody', { room: roomName(room) }), t('purgeConfirm'),
+                    () => act('cbfriends-mod-purge', { room, cbId: target }));
             }
 
             const roleBtn = event.target.closest('[data-role]');
@@ -219,6 +322,7 @@
     }
 
     window.ModerationManager = {
+        getRole() { return role; },
         start() {
             if (roleTimer) return;
             refreshRole();

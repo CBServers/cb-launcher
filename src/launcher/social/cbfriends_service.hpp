@@ -128,16 +128,36 @@ namespace social
         std::string match_id;
     };
 
+    struct chat_message
+    {
+        int64_t id{0};
+        int64_t at{0};
+        std::string cb_id;
+        std::string handle;
+        std::string display_name;
+        std::string accent;
+        std::string text;
+    };
+
     // A queued report, with both sides resolved so the queue reads without extra lookups.
     struct mod_report
     {
         std::string id;
-        std::string reason;
-        std::string context;
+        std::string category; // "harassment" | "spam" | "cheating" | "profile" | "other"
+        std::string reason;   // the reporter's own note
         std::string status;
         int64_t at{0};
         cb_person reporter;
         cb_person target;
+
+        // Set when a chat message was reported: the room, the line itself and the lines before it.
+        std::string room;
+        std::optional<chat_message> message;
+        std::vector<chat_message> lines;
+        bool message_removed{false};
+
+        // The target's profile as the reporter saw it, for "profile" reports.
+        std::optional<cb_profile> profile;
     };
 
     // One moderator action, for the audit trail.
@@ -155,8 +175,9 @@ namespace social
     {
         cb_person person;
         std::string role;
+        bool muted{false};
         std::string mute_reason;
-        int64_t muted_until{0};
+        int64_t muted_until{0}; // 0 while muted means permanent
         int64_t created_at{0};
         int device_count{0};
     };
@@ -185,15 +206,12 @@ namespace social
         int64_t at{0};
     };
 
-    struct chat_message
+    // Our own mute, learned from the status poll or a refused send.
+    struct mute_state
     {
-        int64_t id{0};
-        int64_t at{0};
-        std::string cb_id;
-        std::string handle;
-        std::string display_name;
-        std::string accent;
-        std::string text;
+        bool muted{false};
+        int64_t until{0}; // 0 while muted means permanent
+        std::string reason;
     };
 
     // Opt-in discovery: while on, we publish what we're playing so non-friends can find us.
@@ -306,8 +324,14 @@ namespace social
         std::optional<mod_account> get_mod_lookup() const;
         void mod_lookup(const std::string& handle);
         void mod_resolve(const std::string& report_id);
-        void mod_mute(const std::string& cb_id, int minutes, const std::string& reason);
+        // minutes <= 0 without `permanent` unmutes.
+        void mod_mute(const std::string& cb_id, int minutes, const std::string& reason, bool permanent);
         void mod_set_role(const std::string& cb_id, const std::string& role);
+        // report_id may be empty; when set, the report is marked as having had its message removed.
+        void mod_remove_message(const std::string& room, int64_t id, const std::string& report_id);
+        void mod_purge(const std::string& room, const std::string& cb_id);
+
+        mute_state get_own_mute() const;
 
         void set_lfg_filter(const std::string& game); // "" = all games
         std::vector<cb_person> get_lfg() const;
@@ -332,7 +356,10 @@ namespace social
         void block_user(const std::string& cb_id);
         void unblock_user(const std::string& cb_id);
         std::vector<cb_person> get_blocked() const;
-        void report_user(const std::string& cb_id, const std::string& reason);
+        // room/message_id name a public chat line (message_id 0 = an account report); the worker
+        // reads the message from the room itself.
+        void report_user(const std::string& cb_id, const std::string& category, const std::string& note,
+                         const std::string& room, int64_t message_id);
 
         // Device binds and blocked recovery attempts on this account.
         std::vector<security_event> get_security_events() const;
@@ -378,6 +405,8 @@ namespace social
         std::optional<cb_person> find_friend(const std::string& cb_id) const;
         // Fire-and-forget signed POST on a detached thread, then run `after`.
         void post_action(std::string endpoint, std::string body, std::function<void()> after);
+        // A send refused with `muted` records the mute; one that lands clears it.
+        void note_send_result(unsigned int status, const std::string& body);
 
         mutable std::mutex mutex_;
         profile_state state_{profile_state::none};
@@ -432,6 +461,7 @@ namespace social
         std::vector<security_event> security_;
 
         std::string mod_role_;
+        mute_state own_mute_;
         std::vector<mod_report> mod_reports_;
         std::vector<mod_log_entry> mod_log_;
         std::optional<mod_account> mod_lookup_;

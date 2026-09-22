@@ -21,7 +21,11 @@
     let atChatBottom = true;
     let chatHasMore = false;
     let myHandle = '';
+    let myCbId = '';
     let myJoinable = false;
+    let mute = { muted: false, until: 0, reason: '' };
+    let muteKey = '';
+    let lastSent = null;       // { text, at }, put back in the box if the send turns out to be muted
     let roster = [];          // cbIds on my own post, to spot who just joined
     let rosterPrimed = false;
     let chatHeads = {};   // room -> newest message id on the server
@@ -242,17 +246,45 @@
                 </div>`;
             return `
             <div class="community-chat-line${grouped ? ' is-grouped' : ''}${mentionsMe(m.text) ? ' is-mention' : ''}"
-                 data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}" data-person-name="${escapeHtml(m.displayName || m.handle)}">
+                 data-message-id="${escapeHtml(m.id)}"
+                 data-person-id="${escapeHtml(m.cbId)}" data-person-handle="${escapeHtml(m.handle)}" data-person-name="${escapeHtml(m.displayName || m.handle)}"
+                 data-person-relation="${m.cbId && m.cbId === myCbId ? 'self' : ''}">
                 ${head}
                 <div class="community-chat-text">${escapeHtml(m.text)}</div>
             </div>`;
         }).join('');
     }
 
+    function muteText() {
+        const head = mute.until
+            ? t('mutedBanner', { when: new Date(mute.until).toLocaleString() })
+            : t('mutedBannerPermanent');
+        return mute.reason ? `${head} ${t('mutedReason', { reason: mute.reason })}` : head;
+    }
+
+    // The input stays (read-only) while muted, so a line that bounced is still there to copy or resend.
+    function applyMute() {
+        const input = document.getElementById('community-chat-text');
+        const send = document.getElementById('community-chat-send');
+        const banner = document.getElementById('community-mute-banner');
+        if (!input || !send || !banner) return;
+        input.readOnly = mute.muted;
+        send.disabled = mute.muted;
+        banner.hidden = !mute.muted;
+        banner.textContent = mute.muted ? muteText() : '';
+        if (mute.muted && lastSent && !input.value && Date.now() - lastSent.at < 10000) {
+            input.value = lastSent.text;
+            lastSent = null;
+        }
+    }
+
     // The all-games room aggregates posts, so it has no post form of its own.
     function postFormHtml() {
         if (room === ALL) {
             return `<div class="community-hub-lead">${escapeHtml(t('postFromGameRoom'))}</div>`;
+        }
+        if (mute.muted) {
+            return `<div class="community-broadcast-card"><div class="community-broadcast-sub">${escapeHtml(t('mutedNoPost'))}</div></div>`;
         }
 
         const on = broadcast.on && broadcast.game === room;
@@ -322,6 +354,7 @@
                 <div class="community-chat">
                     <div class="cb-section-head">${escapeHtml(t('chat', { game: gameName(room) }))}</div>
                     <div class="community-chat-log" id="community-chat-log">${chatListHtml()}</div>
+                    <div class="community-mute-banner" id="community-mute-banner" hidden></div>
                     <div class="community-chat-input">
                         <input id="community-chat-text" class="cb-create-input" type="text" maxlength="300" placeholder="${escapeHtml(t('chatPlaceholder', { game: gameName(room) }))}" />
                         <span class="community-chat-count" id="community-chat-count"></span>
@@ -339,7 +372,7 @@
         if (page) page.classList.toggle('is-room', !!(profileReady && room));
         if (!profileReady) { body.innerHTML = renderNoProfile(); return; }
         body.innerHTML = room ? renderRoom() : renderHub();
-        if (room) scrollChat();
+        if (room) { scrollChat(); applyMute(); }
     }
 
     function scrollChat() {
@@ -354,7 +387,9 @@
             const status = await window.executeCommand('cbfriends-get-status');
             profileReady = !!(status && status.state === 'ready');
             myHandle = (status && status.profile && status.profile.handle) || myHandle;
+            myCbId = (status && status.profile && status.profile.cbId) || myCbId;
             myJoinable = !!(status && status.joinable);
+            mute = (status && status.mute) || { muted: false, until: 0, reason: '' };
         } catch (error) {
             profileReady = false;
         }
@@ -447,6 +482,14 @@
         if (!profileReady) { if (!interacting()) render(); return; }
         await fetchData();
 
+        // Muting reshapes the post form too, so rebuild unless that would clobber typing.
+        const nextMuteKey = mute.muted ? `${mute.until}|${mute.reason}` : '';
+        if (nextMuteKey !== muteKey) {
+            muteKey = nextMuteKey;
+            if (!interacting()) { render(); return; }
+            applyMute();
+        }
+
         const list = document.getElementById('community-lfg');
         const log = document.getElementById('community-chat-log');
         if (!room || !list) {
@@ -508,10 +551,11 @@
 
     async function sendChat() {
         const input = document.getElementById('community-chat-text');
-        if (!input) return;
+        if (!input || mute.muted) return;
         const text = input.value.trim();
         if (!text) return;
         input.value = '';
+        lastSent = { text, at: Date.now() };
         atChatBottom = true;
         try {
             await window.executeCommand('cbfriends-send-chat', { room, text });
@@ -555,6 +599,34 @@
         } catch (error) {
             console.warn('Leave failed:', error);
         }
+    }
+
+    // Report for anyone else's line; delete and purge only for moderators, which the worker re-checks.
+    function messageMenu(person, messageId) {
+        const message = chat.find(m => m.id === messageId);
+        if (!message) return [];
+        const isSelf = person.relation === 'self';
+        const isMod = !!(window.ModerationManager && window.ModerationManager.getRole());
+        const chatRoom = room;
+        const refreshSoon = () => { setTimeout(pollTick, 400); setTimeout(pollTick, 1200); };
+        return [
+            { label: t('reportMessage'), hidden: isSelf, danger: true,
+              action: () => window.PersonMenu.report(person, Object.assign({ room: chatRoom }, message)) },
+            { separator: true },
+            { label: t('deleteMessage'), hidden: !isMod, danger: true, action: async () => {
+                await window.executeCommand('cbfriends-mod-remove-message', { room: chatRoom, id: messageId }).catch(() => {});
+                refreshSoon();
+            } },
+            { label: t('purgeMessages'), hidden: !isMod || isSelf, danger: true, action: async () => {
+                const idx = await window.showMessageBox(
+                    escapeHtml(t('purgeTitle', { handle: person.handle })),
+                    escapeHtml(t('purgeBody', { room: gameName(chatRoom) })),
+                    [{ label: t('purgeConfirm'), danger: true }, t('cancel')]);
+                if (idx !== 0) return;
+                await window.executeCommand('cbfriends-mod-purge', { room: chatRoom, cbId: person.cbId }).catch(() => {});
+                refreshSoon();
+            } },
+        ];
     }
 
     function bind() {
@@ -612,12 +684,14 @@
         body.addEventListener('contextmenu', (event) => {
             const el = event.target.closest('[data-person-id]');
             if (!el || !window.PersonMenu) return;
-            window.PersonMenu.open(event, {
+            const person = {
                 cbId: el.getAttribute('data-person-id'),
                 handle: el.getAttribute('data-person-handle'),
                 displayName: el.getAttribute('data-person-name'),
                 relation: el.getAttribute('data-person-relation') || '',
-            });
+            };
+            const messageId = el.hasAttribute('data-message-id') ? Number(el.getAttribute('data-message-id')) : 0;
+            window.PersonMenu.open(event, person, messageId ? { top: messageMenu(person, messageId) } : null);
         });
 
         body.addEventListener('keydown', (event) => {

@@ -31,9 +31,14 @@ const mockCb = {
     broadcast: { on: false, game: '', note: '', slots: 0 },
     chatRoom: '',
     chat: {
-        all: [{ id: 1, cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', accent: '#F3751B', text: 'anyone on tonight?' }],
-        boiii: [{ id: 1, cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', accent: '', text: 'running EE in 10' }]
+        all: [{ id: 1, cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', accent: '#F3751B', text: 'anyone on tonight?', at: Date.now() - 600000 }],
+        boiii: [
+            { id: 1, cbId: 'cb_nova', handle: 'nova', displayName: 'Nova', accent: '', text: 'running EE in 10', at: Date.now() - 900000 },
+            { id: 2, cbId: 'cb_spam', handle: 'spammer', displayName: 'Spammer', accent: '', text: 'cheap unlock-all at example.com', at: Date.now() - 300000 }
+        ]
     },
+    // Flip from the console ({ muted: true, until: 0, reason: 'spam' }) to preview the muted state.
+    mute: { muted: false, until: 0, reason: '' },
     viewedProfile: null,
     blocked: [],
     securityEvents: [],
@@ -133,7 +138,7 @@ function mockCommand(command, data) {
             mockDiscord.status = 'unlinked';
             return { started: false };
         case 'cbfriends-get-status':
-            return { state: mockCb.state, profile: mockCb.profile, error: null, hasRecoveryCode: !!mockCb.recoveryCode, joinable: !!(mockCb.presence && mockCb.presence.joinable), presence: mockCb.presence || { game: '' } };
+            return { state: mockCb.state, profile: mockCb.profile, error: null, hasRecoveryCode: !!mockCb.recoveryCode, joinable: !!(mockCb.presence && mockCb.presence.joinable), presence: mockCb.presence || { game: '' }, mute: mockCb.mute };
         case 'cbfriends-create-profile':
             mockCb.state = 'ready';
             mockCb.profile = { cbId: 'cb_preview', handle: data.handle, displayName: data.displayName || data.handle, avatarUrl: '' };
@@ -200,14 +205,38 @@ function mockCommand(command, data) {
             return { entries: mockCb.modLog };
         case 'cbfriends-mod-get-lookup':
             return { account: mockCb.modLookup };
+        case 'cbfriends-report': {
+            // Files into the mock queue the way the worker would, reading the message from the room.
+            const lines = mockCb.chat[data.room] || [];
+            const at = lines.findIndex(m => m.id === data.messageId);
+            const target = mockPerson(String(data.cbId).replace(/^cb_/, ''));
+            mockCb.modReports.unshift({
+                id: 'rep_' + Date.now(), category: data.category, reason: data.note, status: 'open', at: Date.now(),
+                reporter: mockPerson('divity', 'Divity'), target,
+                room: at >= 0 ? data.room : '', message: at >= 0 ? lines[at] : null,
+                lines: at >= 0 ? lines.slice(Math.max(0, at - 5), at) : [], messageRemoved: false,
+                profile: data.category === 'profile' ? { handle: target.handle, displayName: target.displayName, bio: 'visit example.com', avatarUrl: '' } : null
+            });
+            return { ok: true };
+        }
+        case 'cbfriends-mod-remove-message': {
+            mockCb.chat[data.room] = (mockCb.chat[data.room] || []).filter(m => m.id !== data.id);
+            const rep = mockCb.modReports.find(r => r.id === data.reportId);
+            if (rep) rep.messageRemoved = true;
+            return { ok: true };
+        }
+        case 'cbfriends-mod-purge':
+            mockCb.chat[data.room] = (mockCb.chat[data.room] || []).filter(m => m.cbId !== data.cbId);
+            return { ok: true };
+        case 'cbfriends-mod-resolve':
+            mockCb.modReports = mockCb.modReports.filter(r => r.id !== data.id);
+            return { ok: true };
         case 'cbfriends-set-mod-active':
         case 'cbfriends-mod-lookup':
-        case 'cbfriends-mod-resolve':
         case 'cbfriends-mod-mute':
         case 'cbfriends-mod-set-role':
         case 'cbfriends-set-activity':
         case 'cbfriends-load-older-chat':
-        case 'cbfriends-report':
         case 'cbfriends-show-person-notification':
         case 'cbfriends-show-invite-notification':
         case 'cbfriends-dismiss-invite-notification':
@@ -277,7 +306,7 @@ function mockCommand(command, data) {
             return { messages: mockCb.chat[mockCb.chatRoom] || [], hasMore: false };
         case 'cbfriends-send-chat': {
             const list = mockCb.chat[data.room] || (mockCb.chat[data.room] = []);
-            list.push({ id: list.length + 1, cbId: 'cb_preview', handle: 'divity', displayName: 'Divity', text: data.text });
+            list.push({ id: list.length ? list[list.length - 1].id + 1 : 1, cbId: 'cb_preview', handle: 'divity', displayName: 'Divity', text: data.text, at: Date.now() });
             return { ok: true };
         }
         case 'cbfriends-get-broadcast':

@@ -64,6 +64,24 @@ namespace social
             return (v.IsObject() && v.HasMember(key) && v[key].IsInt()) ? v[key].GetInt() : 0;
         }
 
+        int64_t json_int64(const rapidjson::Value& v, const char* key)
+        {
+            return (v.IsObject() && v.HasMember(key) && v[key].IsInt64()) ? v[key].GetInt64() : 0;
+        }
+
+        chat_message parse_message(const rapidjson::Value& m)
+        {
+            chat_message message;
+            message.id = json_int64(m, "id");
+            message.at = json_int64(m, "at");
+            message.cb_id = json_get(m, "cbId");
+            message.handle = json_get(m, "handle");
+            message.display_name = json_get(m, "displayName");
+            message.accent = json_get(m, "accent");
+            message.text = json_get(m, "text");
+            return message;
+        }
+
         cb_person parse_person(const rapidjson::Value& v)
         {
             cb_person p;
@@ -1287,7 +1305,11 @@ namespace social
         if (!mode.empty()) add_string(body, "mode", mode);
         if (!note.empty()) add_string(body, "note", note);
         if (slots > 0) body.AddMember("slots", slots, body.GetAllocator());
-        post_action("/v1/lfg/post", serialize(body), [this] { refresh_lfg(); });
+        std::thread([this, url = base_url() + "/v1/lfg/post", payload = serialize(body)]
+        {
+            if (const auto resp = post_signed(url, payload)) note_send_result(resp->response_code, resp->buffer);
+            refresh_lfg();
+        }).detach();
     }
 
     void cbfriends_service::clear_lfg()
@@ -1445,7 +1467,38 @@ namespace social
         add_string(body, "room", room);
         add_string(body, "text", text);
         // The room wakes every held poll on delivery, including ours, so there is nothing to chase.
-        post_action("/v1/chat/send", serialize(body), {});
+        std::thread([this, url = base_url() + "/v1/chat/send", payload = serialize(body)]
+        {
+            if (const auto resp = post_signed(url, payload)) note_send_result(resp->response_code, resp->buffer);
+        }).detach();
+    }
+
+    void cbfriends_service::note_send_result(const unsigned int status, const std::string& body)
+    {
+        if (status == 200)
+        {
+            std::lock_guard lock(mutex_);
+            own_mute_ = {};
+            return;
+        }
+        if (status != 403) return;
+
+        rapidjson::Document doc;
+        doc.Parse(body.data());
+        if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("muted") || !doc["muted"].IsTrue()) return;
+
+        std::lock_guard lock(mutex_);
+        own_mute_ = {true, json_int64(doc, "until"), json_get(doc, "reason")};
+    }
+
+    mute_state cbfriends_service::get_own_mute() const
+    {
+        std::lock_guard lock(mutex_);
+        // A timed mute lapses on the server by itself, so don't wait for the next status poll to say so.
+        const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        if (own_mute_.muted && own_mute_.until > 0 && now_ms > own_mute_.until) return {};
+        return own_mute_;
     }
 
     void cbfriends_service::poll_chat(const bool hold)
@@ -1497,17 +1550,22 @@ namespace social
         }
         for (const auto& m : (*doc)["messages"].GetArray())
         {
-            chat_message message;
-            message.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
-            message.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
-            message.cb_id = json_get(m, "cbId");
-            message.handle = json_get(m, "handle");
-            message.display_name = json_get(m, "displayName");
-            message.accent = json_get(m, "accent");
-            message.text = json_get(m, "text");
-            chat_.push_back(std::move(message));
+            chat_.push_back(parse_message(m));
             chat_after_ = (std::max)(chat_after_, chat_.back().id);
             if (chat_oldest_ == 0) chat_oldest_ = chat_.front().id;
+        }
+        // A moderator's removal arrives as ids, since the lines are already in our cache.
+        if (doc->HasMember("removed") && (*doc)["removed"].IsArray())
+        {
+            std::vector<int64_t> removed;
+            for (const auto& id : (*doc)["removed"].GetArray())
+            {
+                if (id.IsInt64()) removed.push_back(id.GetInt64());
+            }
+            std::erase_if(chat_, [&](const chat_message& m)
+            {
+                return std::find(removed.begin(), removed.end(), m.id) != removed.end();
+            });
         }
         if (chat_.size() > 200)
         {
@@ -1545,15 +1603,7 @@ namespace social
             std::vector<chat_message> older;
             for (const auto& m : (*doc)["messages"].GetArray())
             {
-                chat_message msg;
-                msg.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
-            msg.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
-                msg.cb_id = json_get(m, "cbId");
-                msg.handle = json_get(m, "handle");
-                msg.display_name = json_get(m, "displayName");
-                msg.accent = json_get(m, "accent");
-                msg.text = json_get(m, "text");
-                older.push_back(std::move(msg));
+                older.push_back(parse_message(m));
             }
 
             std::lock_guard lock(mutex_);
@@ -1594,13 +1644,20 @@ namespace social
         return blocked_;
     }
 
-    void cbfriends_service::report_user(const std::string& cb_id, const std::string& reason)
+    void cbfriends_service::report_user(const std::string& cb_id, const std::string& category,
+                                        const std::string& note, const std::string& room, const int64_t message_id)
     {
         rapidjson::Document body;
         body.SetObject();
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
         add_string(body, "cbId", cb_id);
-        add_string(body, "reason", reason);
+        add_string(body, "category", category);
+        add_string(body, "note", note);
+        if (message_id > 0 && !room.empty())
+        {
+            add_string(body, "room", room);
+            body.AddMember("messageId", message_id, body.GetAllocator());
+        }
         post_action("/v1/report", serialize(body), {});
     }
 
@@ -1756,7 +1813,11 @@ namespace social
         add_string(body, "text", text);
         // The room wakes our own held poll for the message itself; the conversation list is separate
         // state, so refresh it or a brand new conversation waits for the next tick to show up.
-        post_action("/v1/dm/send", serialize(body), [this] { refresh_dm_list(); });
+        std::thread([this, url = base_url() + "/v1/dm/send", payload = serialize(body)]
+        {
+            if (const auto resp = post_signed(url, payload)) note_send_result(resp->response_code, resp->buffer);
+            refresh_dm_list();
+        }).detach();
     }
 
     void cbfriends_service::poll_dm(const bool hold)
@@ -1790,15 +1851,7 @@ namespace social
 
         for (const auto& m : (*doc)["messages"].GetArray())
         {
-            chat_message message;
-            message.id = (m.IsObject() && m.HasMember("id") && m["id"].IsInt64()) ? m["id"].GetInt64() : 0;
-            message.at = (m.IsObject() && m.HasMember("at") && m["at"].IsInt64()) ? m["at"].GetInt64() : 0;
-            message.cb_id = json_get(m, "cbId");
-            message.handle = json_get(m, "handle");
-            message.display_name = json_get(m, "displayName");
-            message.accent = json_get(m, "accent");
-            message.text = json_get(m, "text");
-            dm_.push_back(std::move(message));
+            dm_.push_back(parse_message(m));
             dm_after_ = (std::max)(dm_after_, dm_.back().id);
         }
         if (dm_.size() > 200)
@@ -1874,6 +1927,12 @@ namespace social
 
         std::lock_guard lock(mutex_);
         mod_role_ = json_get(*doc, "role");
+        own_mute_ = {};
+        if (doc->HasMember("mute") && (*doc)["mute"].IsObject())
+        {
+            const auto& mute = (*doc)["mute"];
+            own_mute_ = {true, json_int64(mute, "until"), json_get(mute, "reason")};
+        }
     }
 
     void cbfriends_service::refresh_mod_queue()
@@ -1886,14 +1945,32 @@ namespace social
         {
             for (const auto& r : (*doc)["reports"].GetArray())
             {
+                if (!r.IsObject()) continue;
                 mod_report rep;
                 rep.id = json_get(r, "id");
+                rep.category = json_get(r, "category");
                 rep.reason = json_get(r, "reason");
-                rep.context = json_get(r, "context");
                 rep.status = json_get(r, "status");
-                rep.at = (r.IsObject() && r.HasMember("at") && r["at"].IsInt64()) ? r["at"].GetInt64() : 0;
-                if (r.IsObject() && r.HasMember("reporterProfile")) rep.reporter = parse_person(r["reporterProfile"]);
-                if (r.IsObject() && r.HasMember("targetProfile")) rep.target = parse_person(r["targetProfile"]);
+                rep.at = json_int64(r, "at");
+                if (r.HasMember("reporterProfile")) rep.reporter = parse_person(r["reporterProfile"]);
+                if (r.HasMember("targetProfile")) rep.target = parse_person(r["targetProfile"]);
+                rep.room = json_get(r, "room");
+                if (r.HasMember("message") && r["message"].IsObject()) rep.message = parse_message(r["message"]);
+                if (r.HasMember("lines") && r["lines"].IsArray())
+                {
+                    for (const auto& line : r["lines"].GetArray()) rep.lines.push_back(parse_message(line));
+                }
+                rep.message_removed = r.HasMember("messageRemoved") && r["messageRemoved"].IsTrue();
+                if (r.HasMember("profile") && r["profile"].IsObject())
+                {
+                    const auto& p = r["profile"];
+                    cb_profile snapshot;
+                    snapshot.handle = json_get(p, "handle");
+                    snapshot.display_name = json_get(p, "displayName");
+                    snapshot.bio = json_get(p, "bio");
+                    snapshot.avatar_url = json_get(p, "avatarUrl");
+                    rep.profile = std::move(snapshot);
+                }
                 reports.push_back(std::move(rep));
             }
         }
@@ -1947,9 +2024,9 @@ namespace social
             if (doc->HasMember("mute") && (*doc)["mute"].IsObject())
             {
                 const auto& mute = (*doc)["mute"];
+                account.muted = true;
                 account.mute_reason = json_get(mute, "reason");
-                account.muted_until = (mute.HasMember("until") && mute["until"].IsInt64())
-                    ? mute["until"].GetInt64() : 0;
+                account.muted_until = json_int64(mute, "until");
             }
 
             std::lock_guard lock(mutex_);
@@ -1966,15 +2043,38 @@ namespace social
         post_action("/v1/mod/resolve", serialize(body), [this] { refresh_mod_queue(); });
     }
 
-    void cbfriends_service::mod_mute(const std::string& cb_id, const int minutes, const std::string& reason)
+    void cbfriends_service::mod_mute(const std::string& cb_id, const int minutes, const std::string& reason,
+                                     const bool permanent)
     {
         rapidjson::Document body;
         body.SetObject();
         body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
         add_string(body, "cbId", cb_id);
         body.AddMember("minutes", minutes, body.GetAllocator());
+        if (permanent) body.AddMember("permanent", true, body.GetAllocator());
         add_string(body, "reason", reason);
         post_action("/v1/mod/mute", serialize(body), [this] { refresh_mod_queue(); });
+    }
+
+    void cbfriends_service::mod_remove_message(const std::string& room, const int64_t id, const std::string& report_id)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "room", room);
+        body.AddMember("id", id, body.GetAllocator());
+        if (!report_id.empty()) add_string(body, "reportId", report_id);
+        post_action("/v1/mod/remove-message", serialize(body), [this] { refresh_mod_queue(); });
+    }
+
+    void cbfriends_service::mod_purge(const std::string& room, const std::string& cb_id)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "room", room);
+        add_string(body, "cbId", cb_id);
+        post_action("/v1/mod/purge", serialize(body), [this] { refresh_mod_queue(); });
     }
 
     void cbfriends_service::mod_set_role(const std::string& cb_id, const std::string& role)

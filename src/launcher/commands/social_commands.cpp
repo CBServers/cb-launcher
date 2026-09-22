@@ -25,6 +25,29 @@ namespace commands::social_commands
             return {};
         }
 
+        int64_t read_int64(const rapidjson::Value& value, const char* key)
+        {
+            return (value.IsObject() && value.HasMember(key) && value[key].IsInt64()) ? value[key].GetInt64() : 0;
+        }
+
+        bool read_bool(const rapidjson::Value& value, const char* key)
+        {
+            return value.IsObject() && value.HasMember(key) && value[key].IsBool() && value[key].GetBool();
+        }
+
+        rapidjson::Value message_value(const social::chat_message& m, rapidjson::Document::AllocatorType& allocator)
+        {
+            rapidjson::Value obj(rapidjson::kObjectType);
+            obj.AddMember("id", m.id, allocator);
+            obj.AddMember("at", m.at, allocator);
+            add_string(obj, "cbId", m.cb_id, allocator);
+            add_string(obj, "handle", m.handle, allocator);
+            add_string(obj, "displayName", m.display_name, allocator);
+            add_string(obj, "accent", m.accent, allocator);
+            add_string(obj, "text", m.text, allocator);
+            return obj;
+        }
+
         // Builds the JSON shape for one person; add_person pushes it into an array.
         rapidjson::Value person_value(const social::cb_person& person,
                                       rapidjson::Document::AllocatorType& allocator)
@@ -128,6 +151,13 @@ namespace commands::social_commands
             }
 
             response.AddMember("hasRecoveryCode", service.has_recovery_code(), allocator);
+
+            const auto mute = service.get_own_mute();
+            rapidjson::Value mute_obj(rapidjson::kObjectType);
+            mute_obj.AddMember("muted", mute.muted, allocator);
+            mute_obj.AddMember("until", mute.until, allocator);
+            add_string(mute_obj, "reason", mute.reason, allocator);
+            response.AddMember("mute", mute_obj, allocator);
             // Gates the Invite button.
             response.AddMember("joinable", service.is_joinable(), allocator);
 
@@ -476,15 +506,7 @@ namespace commands::social_commands
             rapidjson::Value messages(rapidjson::kArrayType);
             for (const auto& m : service.get_dm_messages())
             {
-                rapidjson::Value obj(rapidjson::kObjectType);
-                obj.AddMember("id", m.id, allocator);
-                obj.AddMember("at", m.at, allocator);
-                add_string(obj, "cbId", m.cb_id, allocator);
-                add_string(obj, "handle", m.handle, allocator);
-                add_string(obj, "displayName", m.display_name, allocator);
-                add_string(obj, "accent", m.accent, allocator);
-                add_string(obj, "text", m.text, allocator);
-                messages.PushBack(obj, allocator);
+                messages.PushBack(message_value(m, allocator), allocator);
             }
             response.AddMember("messages", messages, allocator);
         });
@@ -550,12 +572,41 @@ namespace commands::social_commands
             {
                 rapidjson::Value obj(rapidjson::kObjectType);
                 add_string(obj, "id", r.id, allocator);
+                add_string(obj, "category", r.category, allocator);
                 add_string(obj, "reason", r.reason, allocator);
-                add_string(obj, "context", r.context, allocator);
                 add_string(obj, "status", r.status, allocator);
                 obj.AddMember("at", r.at, allocator);
                 obj.AddMember("reporter", person_value(r.reporter, allocator), allocator);
                 obj.AddMember("target", person_value(r.target, allocator), allocator);
+                add_string(obj, "room", r.room, allocator);
+                if (r.message)
+                {
+                    obj.AddMember("message", message_value(*r.message, allocator), allocator);
+                }
+                else
+                {
+                    obj.AddMember("message", rapidjson::Value(rapidjson::kNullType), allocator);
+                }
+                rapidjson::Value lines(rapidjson::kArrayType);
+                for (const auto& line : r.lines)
+                {
+                    lines.PushBack(message_value(line, allocator), allocator);
+                }
+                obj.AddMember("lines", lines, allocator);
+                obj.AddMember("messageRemoved", r.message_removed, allocator);
+                if (r.profile)
+                {
+                    rapidjson::Value profile(rapidjson::kObjectType);
+                    add_string(profile, "handle", r.profile->handle, allocator);
+                    add_string(profile, "displayName", r.profile->display_name, allocator);
+                    add_string(profile, "bio", r.profile->bio, allocator);
+                    add_string(profile, "avatarUrl", r.profile->avatar_url, allocator);
+                    obj.AddMember("profile", profile, allocator);
+                }
+                else
+                {
+                    obj.AddMember("profile", rapidjson::Value(rapidjson::kNullType), allocator);
+                }
                 reports.PushBack(obj, allocator);
             }
             response.AddMember("reports", reports, allocator);
@@ -601,6 +652,7 @@ namespace commands::social_commands
             rapidjson::Value obj(rapidjson::kObjectType);
             obj.AddMember("person", person_value(found->person, allocator), allocator);
             add_string(obj, "role", found->role, allocator);
+            obj.AddMember("muted", found->muted, allocator);
             add_string(obj, "muteReason", found->mute_reason, allocator);
             obj.AddMember("mutedUntil", found->muted_until, allocator);
             obj.AddMember("createdAt", found->created_at, allocator);
@@ -620,7 +672,38 @@ namespace commands::social_commands
             const auto minutes = (value.IsObject() && value.HasMember("minutes") && value["minutes"].IsInt())
                 ? value["minutes"].GetInt() : 0;
             social::cbfriends_service::instance().mod_mute(read_string(value, "cbId"), minutes,
-                                                           read_string(value, "reason"));
+                                                           read_string(value, "reason"),
+                                                           read_bool(value, "permanent"));
+        });
+
+        cef_ui.add_command("cbfriends-mod-remove-message", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto room = read_string(value, "room");
+            const auto id = read_int64(value, "id");
+            const bool ok = !room.empty() && id > 0;
+            if (ok)
+            {
+                social::cbfriends_service::instance().mod_remove_message(room, id, read_string(value, "reportId"));
+            }
+            response.AddMember("ok", ok, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-mod-purge", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto room = read_string(value, "room");
+            const auto cb_id = read_string(value, "cbId");
+            const bool ok = !room.empty() && !cb_id.empty();
+            if (ok)
+            {
+                social::cbfriends_service::instance().mod_purge(room, cb_id);
+            }
+            response.AddMember("ok", ok, allocator);
         });
 
         cef_ui.add_command("cbfriends-mod-set-role", [](const rapidjson::Value& value, rapidjson::Document& response)
@@ -695,15 +778,7 @@ namespace commands::social_commands
             rapidjson::Value messages(rapidjson::kArrayType);
             for (const auto& m : social::cbfriends_service::instance().get_chat())
             {
-                rapidjson::Value obj(rapidjson::kObjectType);
-                obj.AddMember("id", m.id, allocator);
-                obj.AddMember("at", m.at, allocator);
-                add_string(obj, "cbId", m.cb_id, allocator);
-                add_string(obj, "handle", m.handle, allocator);
-                add_string(obj, "displayName", m.display_name, allocator);
-                add_string(obj, "accent", m.accent, allocator);
-                add_string(obj, "text", m.text, allocator);
-                messages.PushBack(obj, allocator);
+                messages.PushBack(message_value(m, allocator), allocator);
             }
             response.AddMember("messages", messages, allocator);
             response.AddMember("hasMore", social::cbfriends_service::instance().has_more_chat(), allocator);
@@ -749,7 +824,10 @@ namespace commands::social_commands
             const bool ok = !cb_id.empty();
             if (ok)
             {
-                social::cbfriends_service::instance().report_user(cb_id, read_string(value, "reason"));
+                social::cbfriends_service::instance().report_user(cb_id, read_string(value, "category"),
+                                                                  read_string(value, "note"),
+                                                                  read_string(value, "room"),
+                                                                  read_int64(value, "messageId"));
             }
             response.AddMember("ok", ok, allocator);
         });
