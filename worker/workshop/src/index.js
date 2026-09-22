@@ -25,10 +25,11 @@ const GAMES = {
 };
 
 const PAGE_SIZE = 60;
-const SCRAPE_INTERVAL_MS = 12 * 3600_000;
+const SCRAPE_INTERVAL_MS = 3600_000;
 const UPDATED_IDS_MAX = 100;
 const SCRAPE_ABANDON_MS = 6 * 3600_000;
 const PAGES_PER_RUN = 30;
+const MIN_RESCRAPE_RATIO = 0.5;
 const AUTHOR_CALLS_PER_RUN = 8;
 const CATALOG_CACHE_TTL_MS = 300_000;
 const RATE_LIMIT_PER_MINUTE = 60;
@@ -348,6 +349,15 @@ async function runScrape(env, game) {
     const items = state.items
         .map(details => toCatalogItem(details, state.authors))
         .filter(Boolean);
+
+    // A Steam outage yields an empty or truncated page set; never let it replace a good catalog.
+    const previous = await getCatalog(env, game);
+    const previousCount = previous ? previous.items.length : 0;
+    if (items.length < previousCount * MIN_RESCRAPE_RATIO) {
+        await env.WORKSHOP.delete(`scrape:${game}`);
+        console.warn(`scrape for ${game} returned ${items.length} items vs ${previousCount} cached, keeping cached catalog`);
+        return;
+    }
 
     await env.WORKSHOP.put(`catalog:${game}`, JSON.stringify({ scrapedAt: new Date().toISOString(), items }));
     await env.WORKSHOP.put('authors', JSON.stringify(state.authors));

@@ -22,8 +22,10 @@ each run fetches up to 30 `QueryFiles` pages plus a few `GetPlayerSummaries`
 batches for new author names, then persists its cursor in `scrape:<game>`.
 A finished sweep writes `catalog:<game>` (one value, well under the 25 MB cap)
 and the shared `authors` name cache, and starts again once the catalog is
-older than 12 hours — a few hundred Steam calls and under 30 KV writes per
-day, independent of user count.
+older than an hour — a few hundred Steam calls per sweep (sized for the VPS,
+not the Workers free plan), independent of user count. A sweep that returns
+fewer than half the cached items is discarded so a Steam outage cannot empty
+the catalog.
 
 Search requests are memory-first: a warm isolate serves them with zero KV
 operations (the catalog is cached in memory for 5 minutes); a cold isolate
@@ -31,7 +33,7 @@ does one KV read. Item detail is one Steam call per item per hour per edge
 POP (Cache API). Rate limiting is per-isolate per-IP, i.e. best-effort.
 
 Consequence: a newly published Workshop item appears in the launcher within
-~13 hours (12h interval + sweep time), and `scrapedAt` in every response
+~1-2 hours (1h interval + sweep time), and `scrapedAt` in every response
 tells the client how fresh the data is.
 
 ## Deploying
