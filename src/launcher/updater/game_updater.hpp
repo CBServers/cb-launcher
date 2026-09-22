@@ -56,10 +56,9 @@ namespace game_updater
         mutable std::string cdn_url;
         mutable std::string base_url;
         update_manifest manifest_;
+        // Install carries a CASC store packed by someone else, so the manifest's copy must not be verified or fetched
+        bool foreign_casc_store_{false};
         // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
-        // True when this install already carries its own CASC store, so the manifest's copy of it
-        // must not be verified or re-fetched. A fresh install has none and downloads normally.
-        bool casc_store_present_{false};
         bool remap_zone_{false};
         bool remap_video_{false};
         bool skip_hash_check_;

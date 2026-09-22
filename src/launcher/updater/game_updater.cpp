@@ -52,6 +52,7 @@ namespace game_updater
             return false;
         }
 
+        constexpr std::string_view casc_index_dir = "data/data/";
         constexpr std::string_view zone_prefix = "zone/";
         constexpr std::string_view video_prefix = "raw/video/";
 
@@ -286,7 +287,6 @@ namespace game_updater
         }
 
         this->probe_layout();
-        this->probe_casc_store();
         this->set_cdn_url(utils::cdn::cdn_manager::instance().get_active_cdn_url());
 
         const auto manifest_json = game_config::read_manifest(config);
@@ -295,6 +295,8 @@ namespace game_updater
         {
             throw std::runtime_error("Failed to parse manifest for " + config.display_name + ".");
         }
+
+        this->probe_casc_store();
     }
 
     void game_updater::run() const
@@ -1013,7 +1015,7 @@ namespace game_updater
         // The local CASC store is a valid packing of the same content, just not the manifest's one,
         // so every archive in it mismatches on size and hash. Verifying it asked this user to
         // re-download 120 GB of a game they already had complete.
-        if (this->casc_store_present_ && is_repacked_content(file.name))
+        if (this->foreign_casc_store_ && is_repacked_content(file.name))
         {
             return false;
         }
@@ -1039,12 +1041,25 @@ namespace game_updater
         return false;
     }
 
-    // A Blizzard title keeps its content in Data/data, repacked per install. Its presence decides
-    // whether we trust the local store or fetch the manifest's, and that is an install-wide call:
-    // mixing our index files into someone else's archives would corrupt a working game.
+    // An index the manifest doesn't list means another packing; ours, even half downloaded, verifies normally
     void game_updater::probe_casc_store()
     {
         if (this->install_path.empty())
+        {
+            return;
+        }
+
+        std::unordered_set<std::string> manifest_indexes;
+        for (const auto& file : this->manifest_.files)
+        {
+            const auto lower = utils::string::to_lower(file.name);
+            if (lower.starts_with(casc_index_dir) && lower.ends_with(".idx"))
+            {
+                manifest_indexes.insert(lower.substr(casc_index_dir.size()));
+            }
+        }
+
+        if (manifest_indexes.empty())
         {
             return;
         }
@@ -1058,9 +1073,15 @@ namespace game_updater
 
         for (const auto& entry : std::filesystem::directory_iterator(store, ec))
         {
-            if (!ec && entry.is_regular_file(ec))
+            if (ec || !entry.is_regular_file(ec))
             {
-                this->casc_store_present_ = true;
+                continue;
+            }
+
+            const auto name = utils::string::to_lower(utils::string::path_to_utf8(entry.path().filename()));
+            if (name.ends_with(".idx") && !manifest_indexes.contains(name))
+            {
+                this->foreign_casc_store_ = true;
                 return;
             }
         }
