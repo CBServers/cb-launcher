@@ -133,6 +133,13 @@ namespace utils::http
                 return false;
             }
 
+            // Client errors are deterministic; only timeouts and rate limits are worth another attempt
+            if (code == CURLE_OK && response_code >= 400 && response_code < 500 &&
+                response_code != 408 && response_code != 429)
+            {
+                return false;
+            }
+
             return true;
         }
     }
@@ -178,6 +185,7 @@ namespace utils::http
 
         CURLcode last_code = CURLE_OK;
         unsigned int last_response_code = 0;
+        std::string last_buffer{};
 
         // Retry loop
         for (auto i = 0u; i < retries + 1; ++i)
@@ -215,6 +223,8 @@ namespace utils::http
                 return result;
             }
 
+            last_buffer = std::move(buffer);
+
             // If we have more retries left, wait a bit before trying again
             if (i < retries)
             {
@@ -224,10 +234,11 @@ namespace utils::http
             }
         }
 
-        // All retries failed - return the actual last error
+        // All retries failed - return the last error with its body so callers can read the server's reason
         result result;
         result.code = last_code;
         result.response_code = last_response_code;
+        result.buffer = std::move(last_buffer);
         return result;
     }
 
