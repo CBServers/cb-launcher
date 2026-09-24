@@ -30,4 +30,8 @@ namespace utils::io
     void copy_folder(const std::filesystem::path& src, const std::filesystem::path& target);
     // True for the folder itself too; false across volumes or when either path can't be resolved.
     bool is_inside_folder(const std::filesystem::path& file, const std::filesystem::path& folder);
+    // False whenever unsure: network paths, RAID/USB bridges, or any disk of a spanned volume that isn't NVMe.
+    bool is_nvme_drive(const std::filesystem::path& path);
+    // SATA or NVMe; same rule, false whenever unsure.
+    bool is_solid_state_drive(const std::filesystem::path& path);
 }

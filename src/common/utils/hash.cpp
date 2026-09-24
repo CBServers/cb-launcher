@@ -1,12 +1,14 @@
 #include "hash.hpp"
 
-#include <fstream>
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 
 #include <xxhash.h>
 #include <utils/cryptography.hpp>
+#include <utils/finally.hpp>
+#include <utils/nt.hpp>
 #include <utils/string.hpp>
 
 namespace utils::hash
@@ -14,45 +16,6 @@ namespace utils::hash
     namespace
     {
         constexpr auto read_buffer_size = 16ull * 1024ull * 1024ull; // 16MB
-
-        std::string get_file_hash_generic(std::ifstream& file_stream, const std::size_t file_size, const cancel_check& check)
-        {
-            XXH3_state_t* state = XXH3_createState();
-            if (!state)
-            {
-                return {};
-            }
-
-            XXH3_64bits_reset(state);
-            auto bytes_to_read = file_size;
-
-            std::string buffer;
-            buffer.resize(read_buffer_size);
-
-            try
-            {
-                while (bytes_to_read > 0)
-                {
-                    if (check) check();
-                    const auto read_size = std::min(bytes_to_read, read_buffer_size);
-                    file_stream.read(buffer.data(), read_size);
-                    XXH3_64bits_update(state, buffer.data(), read_size);
-                    bytes_to_read -= read_size;
-                }
-            }
-            catch (...)
-            {
-                XXH3_freeState(state);
-                throw;
-            }
-
-            const auto hash_value = XXH3_64bits_digest(state);
-            XXH3_freeState(state);
-
-            std::string hash;
-            hash.append(reinterpret_cast<const char*>(&hash_value), sizeof(hash_value));
-            return utils::string::dump_hex(hash, "");
-        }
 
         std::string get_generic_buffer_hash(const std::string& buffer)
         {
@@ -65,17 +28,48 @@ namespace utils::hash
 
     std::string get_file_hash(const std::filesystem::path& file, const cancel_check& check)
     {
-        std::ifstream file_stream(file, std::ios::binary);
-        if (!file_stream.is_open())
+        const auto handle = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+        if (handle == INVALID_HANDLE_VALUE)
         {
             return {};
         }
 
-        file_stream.seekg(0, std::ios::end);
-        const auto file_size = static_cast<std::size_t>(file_stream.tellg());
-        file_stream.seekg(0, std::ios::beg);
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(handle);
+        });
 
-        return get_file_hash_generic(file_stream, file_size, check);
+        LARGE_INTEGER file_size{};
+        if (!GetFileSizeEx(handle, &file_size))
+        {
+            return {};
+        }
+
+        // Sized to the file so small files don't pay for a 16MB allocation each
+        const auto buffer_size = static_cast<DWORD>(std::min(static_cast<std::uint64_t>(file_size.QuadPart), read_buffer_size));
+        const auto buffer = std::make_unique_for_overwrite<char[]>(std::max(buffer_size, 1ul));
+
+        stream_hasher hasher{};
+        while (true)
+        {
+            if (check) check();
+
+            DWORD read = 0;
+            if (!ReadFile(handle, buffer.get(), buffer_size, &read, nullptr))
+            {
+                return {};
+            }
+
+            if (read == 0)
+            {
+                break;
+            }
+
+            hasher.update(buffer.get(), read);
+        }
+
+        return hasher.digest();
     }
 
     std::string get_buffer_hash(std::string& buffer)

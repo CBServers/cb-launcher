@@ -7,6 +7,8 @@ namespace property_keys
     constexpr const char* SKIP_HASH_VERIFICATION = "launcher-skip-hash-verification";
     constexpr const char* SKIP_CLIENT_UPDATE = "launcher-skip-client-update";
     constexpr const char* SKIP_REDIST_CHECK = "launcher-skip-redist-check";
+    // Default on; only SSD/NVMe installs ever download in parallel
+    constexpr const char* PARALLEL_DOWNLOADS = "launcher-parallel-downloads";
     constexpr const char* SHORTCUT_CREATED = "launcher-shortcut-created";
     constexpr const char* START_MENU_SHORTCUT_CREATED = "launcher-start-menu-shortcut-created";
     constexpr const char* AUTO_SHORTCUTS = "launcher-auto-shortcuts";

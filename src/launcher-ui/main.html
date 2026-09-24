@@ -490,6 +490,16 @@
                             <h3 data-i18n="settings.advanced">Advanced</h3>
                             <div class="setting-item inline-setting">
                                 <div class="setting-info">
+                                    <label data-i18n="settings.parallelDownloads">Parallel downloads</label>
+                                    <span class="setting-description" data-i18n="settings.parallelDownloadsBody">Downloads several game files at once on SSD installs. Turn this off if downloads fail or stall on your network. Hard drives always download one file at a time.</span>
+                                </div>
+                                <div class="toggle-group small" id="parallel-downloads-toggle">
+                                    <button class="toggle-btn" data-value="false">OFF</button>
+                                    <button class="toggle-btn active" data-value="true">ON</button>
+                                </div>
+                            </div>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
                                     <label data-i18n="settings.skipHashVerification">Skip hash verification</label>
                                     <span class="setting-description" data-i18n="settings.skipHashVerificationBody">When enabled, game file verification will skip hash checks for much faster validation at the cost of file integrity.</span>
                                 </div>

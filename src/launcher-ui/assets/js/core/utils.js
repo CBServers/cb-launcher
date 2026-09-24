@@ -7,6 +7,7 @@ const PROPERTY_KEYS = {
         CLOSE_ON_LAUNCH: 'launcher-close-on-launch',
         SKIP_CLIENT_UPDATE: 'launcher-skip-client-update',
         SKIP_REDIST_CHECK: 'launcher-skip-redist-check',
+        PARALLEL_DOWNLOADS: 'launcher-parallel-downloads',
         LANGUAGE: 'launcher-language',
         THEME: 'launcher-theme',
         GLOBAL_PLAYER_NAME: 'launcher-global-player-name',

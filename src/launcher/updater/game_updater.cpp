@@ -13,14 +13,16 @@
 #include <utils/property_keys.hpp>
 #include <utils/cdn.hpp>
 
-//#define MULTITHREAD_DOWNLOAD
-
 namespace game_updater
 {
     namespace
     {
         // This many transport failures in a row with no success in between means the mirror, not the file
         constexpr size_t MIRROR_FAILURE_THRESHOLD = 4;
+        // Benchmarked on a WD SN750: 4 readers saturate it, 8 add nothing
+        constexpr size_t NVME_VERIFY_THREADS = 4;
+        // 4 connections cut small-file time ~3x over one reused connection; HDDs stay at 1 to avoid seek thrash
+        constexpr size_t SSD_DOWNLOAD_THREADS = 4;
 
         // Steam copies keep these manifest prefixes at the install root instead
         // Blizzard CASC storage: everything under the game's Data tree is repacked per install, so
@@ -267,13 +269,6 @@ namespace game_updater
             }
 
             return manifest;
-        }
-
-        size_t get_optimal_concurrent_download_count(const size_t file_count)
-        {
-            size_t cores = std::thread::hardware_concurrency();
-            cores = (cores * 2) / 3;
-            return std::max(1ull, std::min(cores, file_count));
         }
     }
 
@@ -734,34 +729,81 @@ namespace game_updater
 
     std::vector<updater::file_info> game_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
     {
-        printf("Verifying %zu files, please wait...\n", files.size());
+        // NVMe reads ~2x faster with several readers; SATA SSDs barely gain and HDDs slow down from seeking
+        const auto thread_count = utils::io::is_nvme_drive(this->install_path)
+            ? std::min(NVME_VERIFY_THREADS, files.size())
+            : 1;
+        printf("Verifying %zu files on %zu thread(s), please wait...\n", files.size(), thread_count);
+
+        // char, not bool: threads write neighbouring elements concurrently
+        std::vector<char> outdated(files.size());
+        std::atomic<size_t> next_index{0};
+        std::exception_ptr failure{};
+        std::mutex failure_mutex{};
+
+        const auto verify_worker = [&]()
+        {
+            try
+            {
+                for (auto index = next_index++; index < files.size(); index = next_index++)
+                {
+                    wait_if_paused_or_cancelled();
+
+                    const auto& info = files[index];
+                    if (this->progress_listener_)
+                    {
+                        this->progress_listener_->begin_file(info);
+                    }
+
+                    outdated[index] = this->is_outdated_file(info);
+
+                    if (this->progress_listener_)
+                    {
+                        this->progress_listener_->file_progress(info, info.size);
+                        this->progress_listener_->end_file(info);
+                    }
+                }
+            }
+            catch (...)
+            {
+                std::lock_guard lock(failure_mutex);
+                if (!failure)
+                {
+                    failure = std::current_exception();
+                }
+                next_index = files.size();
+            }
+        };
+
+        if (thread_count <= 1)
+        {
+            verify_worker();
+        }
+        else
+        {
+            std::vector<std::thread> threads{};
+            for (size_t i = 0; i < thread_count; ++i)
+            {
+                threads.emplace_back(verify_worker);
+            }
+
+            for (auto& thread : threads)
+            {
+                thread.join();
+            }
+        }
+
+        if (failure)
+        {
+            std::rethrow_exception(failure);
+        }
 
         std::vector<updater::file_info> outdated_files{};
-        for (const auto& info : files)
+        for (size_t index = 0; index < files.size(); ++index)
         {
-            wait_if_paused_or_cancelled();
-
-            // Report that we're starting to verify this file
-            if (this->progress_listener_)
+            if (outdated[index])
             {
-                this->progress_listener_->begin_file(info);
-            }
-
-            if (this->is_outdated_file(info))
-            {
-                outdated_files.emplace_back(info);
-            }
-
-            // Mark file as verified by adding its size to progress
-            if (this->progress_listener_)
-            {
-                this->progress_listener_->file_progress(info, info.size);
-            }
-
-            // Report that we've finished verifying this file
-            if (this->progress_listener_)
-            {
-                this->progress_listener_->end_file(info);
+                outdated_files.emplace_back(files[index]);
             }
         }
 
@@ -863,8 +905,6 @@ namespace game_updater
 
     game_updater::download_round game_updater::download_files(const std::vector<updater::file_info>& files) const
     {
-        printf("Downloading %zu files...\n", files.size());
-
         utils::concurrency::container<std::vector<updater::file_info>> failed{};
         const auto record_failure = [&failed](const updater::file_info& file)
         {
@@ -883,70 +923,81 @@ namespace game_updater
             }
         };
 
-#ifdef MULTITHREAD_DOWNLOAD
-        // Thread pool version - catches exceptions per-file instead of storing and rethrowing
-        // Allows download to continue even if individual files fail
-        const auto thread_count = get_optimal_concurrent_download_count(files.size());
-        std::vector<std::thread> threads{};
+        // Parallel downloads hide per-file latency; on a seeking disk, interleaved writes halved throughput in testing
+        const auto parallel_enabled = utils::properties::load(property_keys::PARALLEL_DOWNLOADS) != "false";
+        const auto thread_count = parallel_enabled && utils::io::is_solid_state_drive(this->install_path)
+            ? std::min(SSD_DOWNLOAD_THREADS, files.size())
+            : 1;
+        printf("Downloading %zu files on %zu thread(s)...\n", files.size(), thread_count);
+
+        // Catches exceptions per file so one failure doesn't stop the rest; failures are retried next round
         std::atomic<size_t> current_index{0};
-
-        for (size_t i = 0; i < thread_count; ++i)
+        const auto download_worker = [&]()
         {
-            threads.emplace_back([&]()
+            while (true)
             {
-                while (true)
+                // Block here while paused; wakes on resume or cancel.
+                if (this->progress_listener_)
+                    this->progress_listener_->wait_if_paused();
+                if (is_update_cancelled()) break;
+
+                const auto index = current_index++;
+                if (index >= files.size()) break;
+
+                const auto& file = files[index];
+                if (mirror_dead)
                 {
-                    // Block here while paused; wakes on resume or cancel.
-                    if (this->progress_listener_)
-                        this->progress_listener_->wait_if_paused();
-                    if (is_update_cancelled()) break;
-
-                    const auto index = current_index++;
-                    if (index >= files.size()) break;
-
-                    const auto& file = files[index];
-                    if (mirror_dead)
-                    {
-                        record_failure(file);
-                        break;
-                    }
-
-                    try
-                    {
-                        if (this->progress_listener_)
-                            this->progress_listener_->begin_file(file);
-
-                        this->update_file(file);
-                        on_success();
-
-                        if (this->progress_listener_)
-                            this->progress_listener_->end_file(file);
-                    }
-                    catch (const updater::update_cancelled&)
-                    {
-                        break;  // Exit thread on cancellation
-                    }
-                    catch (const transport_error& e)
-                    {
-                        printf("Warning: Download failed for %s: %s (will retry)\n",
-                            file.name.data(), e.what());
-                        record_failure(file);
-                        on_transport_failure();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        printf("Warning: Download failed for %s: %s (will retry)\n",
-                            file.name.data(), e.what());
-                        record_failure(file);
-                    }
+                    record_failure(file);
+                    break;
                 }
-            });
-        }
 
-        for (auto& thread : threads)
+                if (this->progress_listener_)
+                    this->progress_listener_->begin_file(file);
+
+                try
+                {
+                    this->update_file(file);
+                    on_success();
+                }
+                catch (const updater::update_cancelled&)
+                {
+                    break;
+                }
+                catch (const transport_error& e)
+                {
+                    printf("Warning: Download failed for %s: %s (will retry)\n",
+                        file.name.data(), e.what());
+                    record_failure(file);
+                    on_transport_failure();
+                }
+                catch (const std::exception& e)
+                {
+                    printf("Warning: Download failed for %s: %s (will retry)\n",
+                        file.name.data(), e.what());
+                    record_failure(file);
+                }
+
+                if (this->progress_listener_)
+                    this->progress_listener_->end_file(file);
+            }
+        };
+
+        if (thread_count <= 1)
         {
-            if (thread.joinable())
+            download_worker();
+        }
+        else
+        {
+            std::vector<std::thread> threads{};
+            for (size_t i = 0; i < thread_count; ++i)
+            {
+                threads.emplace_back(download_worker);
+            }
+
+            for (auto& thread : threads)
+            {
                 thread.join();
+            }
         }
 
         check_cancelled();
@@ -956,50 +1007,6 @@ namespace game_updater
         {
             record_failure(files[index]);
         }
-
-#else
-        // Single-threaded version
-        for (size_t index = 0; index < files.size(); ++index)
-        {
-            const auto& file = files[index];
-            if (mirror_dead)
-            {
-                record_failure(file);
-                continue;
-            }
-
-            wait_if_paused_or_cancelled();
-
-            if (this->progress_listener_)
-                this->progress_listener_->begin_file(file);
-
-            try
-            {
-                this->update_file(file);
-                on_success();
-            }
-            catch (const updater::update_cancelled&)
-            {
-                throw;
-            }
-            catch (const transport_error& e)
-            {
-                printf("Warning: Download failed for %s: %s (will retry)\n",
-                    file.name.data(), e.what());
-                record_failure(file);
-                on_transport_failure();
-            }
-            catch (const std::exception& e)
-            {
-                printf("Warning: Download failed for %s: %s (will retry)\n",
-                    file.name.data(), e.what());
-                record_failure(file);
-            }
-
-            if (this->progress_listener_)
-                this->progress_listener_->end_file(file);
-        }
-#endif
 
         printf("Finished downloading files\n");
 

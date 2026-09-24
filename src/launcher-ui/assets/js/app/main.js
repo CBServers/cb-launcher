@@ -2117,6 +2117,16 @@ async function loadLauncherSettings() {
             }
         }
 
+        // Load "Parallel downloads" setting (default on)
+        const parallelDownloads = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.PARALLEL_DOWNLOADS);
+        const parallelDownloadsToggle = document.getElementById('parallel-downloads-toggle');
+        if (parallelDownloadsToggle) {
+            parallelDownloadsToggle.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            const targetValue = (parallelDownloads === 'false') ? 'false' : 'true';
+            const targetButton = parallelDownloadsToggle.querySelector(`[data-value="${targetValue}"]`);
+            if (targetButton) targetButton.classList.add('active');
+        }
+
         // Load "Create launcher shortcuts" setting (default on)
         const autoShortcuts = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS);
         const autoShortcutsToggle = document.getElementById('auto-shortcuts-toggle');
@@ -2646,6 +2656,11 @@ function setupLauncherSettingsToggles() {
                             [PROPERTY_KEYS.LAUNCHER.PORTABLE_MODE]: clickedValue
                         });
                         syncPortableRestartButton(clickedValue);
+                    } else if (settingId === 'parallel-downloads-toggle') {
+                        await window.executeCommand('set-property', {
+                            [PROPERTY_KEYS.LAUNCHER.PARALLEL_DOWNLOADS]: clickedValue
+                        });
+                        console.log(`Parallel downloads set to: ${clickedValue}`);
                     } else if (settingId === 'auto-shortcuts-toggle') {
                         await window.executeCommand('set-property', {
                             [PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS]: clickedValue
@@ -2706,6 +2721,7 @@ async function handleResetAllSettings() {
                     [PROPERTY_KEYS.LAUNCHER.CLOSE_ON_LAUNCH]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_CLIENT_UPDATE]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.SKIP_REDIST_CHECK]: 'false',
+                    [PROPERTY_KEYS.LAUNCHER.PARALLEL_DOWNLOADS]: 'true',
                     [PROPERTY_KEYS.LAUNCHER.REDUCE_MOTION]: 'false',
                     [PROPERTY_KEYS.LAUNCHER.GRAYSCALE_UNINSTALLED]: 'true',
                     [PROPERTY_KEYS.LAUNCHER.AUTO_SHORTCUTS]: 'true',

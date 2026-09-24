@@ -1,6 +1,7 @@
 #include "http.hpp"
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 #include <thread>
 #include "finally.hpp"
 
@@ -111,6 +112,37 @@ namespace utils::http
             }
 
             return total_size;
+        }
+
+        // Pools connections, DNS and TLS sessions across downloads so each file skips the handshake. Never freed:
+        // a download thread still running at exit would otherwise hit a destroyed share.
+        CURLSH* get_download_share()
+        {
+            static auto* share = []()
+            {
+                static auto* locks = new std::mutex[CURL_LOCK_DATA_LAST];
+
+                auto* handle = curl_share_init();
+                if (!handle)
+                {
+                    return handle;
+                }
+
+                curl_share_setopt(handle, CURLSHOPT_LOCKFUNC, +[](CURL*, curl_lock_data data, curl_lock_access, void*)
+                {
+                    locks[data].lock();
+                });
+                curl_share_setopt(handle, CURLSHOPT_UNLOCKFUNC, +[](CURL*, curl_lock_data data, void*)
+                {
+                    locks[data].unlock();
+                });
+                curl_share_setopt(handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
+                curl_share_setopt(handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+                curl_share_setopt(handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+                return handle;
+            }();
+
+            return share;
         }
 
         bool should_retry_request(const CURLcode code, const unsigned int response_code)
@@ -268,6 +300,10 @@ namespace utils::http
         }
 
         // Set common curl options
+        if (auto* share = get_download_share())
+        {
+            curl_easy_setopt(curl, CURLOPT_SHARE, share);
+        }
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
         curl_easy_setopt(curl, CURLOPT_URL, url.data());
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
