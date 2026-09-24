@@ -69,6 +69,10 @@ const cap = 'x'.repeat(40);
 await call(C, '/v1/pulse', { game: cap });
 check('game ids are clamped', Object.keys(dir.stats(Date.now()).launcher).every(g => g.length <= 32));
 
+await call(C, '/v1/pulse', { game: 's2x' });
+const soon = dir.stats(Date.now());
+check('a coming-soon game is not counted', !soon.launcher.s2x && soon.online >= 1);
+
 // The worker answers from a short cache, so a burst of launchers polling costs one directory pass.
 const again = await stats();
 check('a quick second read is served from cache', again.b.fetchedAt === first.b.fetchedAt);

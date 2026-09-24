@@ -878,7 +878,8 @@ window.GameStateManager = {
     },
 
     async updateAllGameStates() {
-        const gameIds = GameUtils.getAllGameIds();
+        // A coming-soon page has no play state, and polling it would report a stray exe as its activity.
+        const gameIds = GameUtils.getAllGameIds().filter(id => !GameUtils.isComingSoon(id));
 
         // Find which game page is currently visible
         let visibleGameId = null;

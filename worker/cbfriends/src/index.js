@@ -26,6 +26,16 @@ const SECURITY_EVENTS = 20;
 const CHAT_PAGE = 50;         // scrollback page size
 const DM_PREFIX = 'dm-';      // reserved room-id prefix; the open chat endpoints refuse it
 const TS_SKEW_SECONDS = 300;
+// Launcher UI ids a client may report as its game. Coming-soon titles (s2x) stay off until they ship.
+const GAMES = new Set([
+    'cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6',
+    'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod',
+]);
+
+// An unknown or disabled game reads as idle rather than failing the request.
+function gameId(value) {
+    return typeof value === 'string' && GAMES.has(value) ? value : '';
+}
 
 function json(status, body) {
     return new Response(JSON.stringify(body), {
@@ -986,7 +996,7 @@ async function handlePresence(env, cbId, body, fpr) {
         bye: !!body.bye,
         pres: {
             status: typeof body.status === 'string' ? body.status.slice(0, 64) : '',
-            game: typeof body.game === 'string' ? body.game.slice(0, 32) : '',
+            game: gameId(body.game),
             mode: typeof body.mode === 'string' ? body.mode.slice(0, 16) : '',
             map: typeof body.map === 'string' ? body.map.slice(0, 64) : '',
             gametype: typeof body.gametype === 'string' ? body.gametype.slice(0, 32) : '',
@@ -1000,7 +1010,7 @@ async function handlePresence(env, cbId, body, fpr) {
             matchId: typeof body.matchId === 'string' ? body.matchId.slice(0, 128) : '',
         },
     });
-    if (!body.bye) noteSighting(env, fpr, typeof body.game === 'string' ? body.game.slice(0, 32) : '');
+    if (!body.bye) noteSighting(env, fpr, gameId(body.game));
 
     // Presence is memory-only, so last seen rides the writes that already happen.
     if (account && (beat.flush || body.bye)) {
@@ -1323,7 +1333,7 @@ async function handleChatPoll(env, cbId, body) {
 
 // A post carries a profile snapshot so the board can be listed without a KV read per poster.
 async function handleLfgPost(env, cbId, body) {
-    const game = typeof body.game === 'string' ? body.game.slice(0, 32) : '';
+    const game = gameId(body.game);
     if (!game) return json(400, { error: 'game required' });
 
     const mute = await activeMute(env, cbId);
@@ -1425,7 +1435,7 @@ async function handleLfgList(env, cbId, body) {
 // key fingerprint and a game id is kept, and only for the presence window.
 
 async function handlePulse(env, fpr, body) {
-    const game = typeof body.game === 'string' ? body.game.slice(0, 32) : '';
+    const game = gameId(body.game);
     await dirCall(env, 'pulse', { fpr, bye: !!body.bye, game });
     if (!body.bye) noteSighting(env, fpr, game);
     return json(200, { ok: true });
