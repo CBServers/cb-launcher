@@ -67,6 +67,11 @@
         return !!(body && el && body.contains(el) && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
     }
 
+    function hasSelectionIn(el) {
+        const sel = window.getSelection();
+        return !!(el && sel && !sel.isCollapsed && el.contains(sel.anchorNode));
+    }
+
     function renderNoProfile() {
         return `
             <div class="cb-create" style="max-width:460px">
@@ -504,7 +509,8 @@
             count.style.display = posts.length ? '' : 'none';
         }
 
-        if (log) {
+        // Rebuilding the log would drop a highlight the user is about to copy.
+        if (log && !hasSelectionIn(log)) {
             atChatBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
             log.innerHTML = chatListHtml();
             scrollChat();
@@ -683,7 +689,7 @@
 
         body.addEventListener('contextmenu', (event) => {
             const el = event.target.closest('[data-person-id]');
-            if (!el || !window.PersonMenu) return;
+            if (!el || !window.PersonMenu || hasSelectionIn(el)) return;
             const person = {
                 cbId: el.getAttribute('data-person-id'),
                 handle: el.getAttribute('data-person-handle'),

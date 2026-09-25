@@ -160,11 +160,34 @@ namespace cef
     }
 
     void cef_ui_handler::OnBeforeContextMenu(CefRefPtr<CefBrowser> /*browser*/, CefRefPtr<CefFrame> /*frame*/,
-                                             CefRefPtr<CefContextMenuParams> /*params*/, CefRefPtr<CefMenuModel> model)
+                                             CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model)
     {
         model->Clear();
 
+        const auto type = params->GetTypeFlags();
+        const auto edit = params->GetEditStateFlags();
+        if (type & CM_TYPEFLAG_EDITABLE)
+        {
+            model->AddItem(MENU_ID_CUT, "Cut");
+            model->SetEnabled(MENU_ID_CUT, (edit & CM_EDITFLAG_CAN_CUT) != 0);
+            model->AddItem(MENU_ID_COPY, "Copy");
+            model->SetEnabled(MENU_ID_COPY, (edit & CM_EDITFLAG_CAN_COPY) != 0);
+            model->AddItem(MENU_ID_PASTE, "Paste");
+            model->SetEnabled(MENU_ID_PASTE, (edit & CM_EDITFLAG_CAN_PASTE) != 0);
+            model->AddSeparator();
+            model->AddItem(MENU_ID_SELECT_ALL, "Select All");
+            model->SetEnabled(MENU_ID_SELECT_ALL, (edit & CM_EDITFLAG_CAN_SELECT_ALL) != 0);
+        }
+        else if (type & CM_TYPEFLAG_SELECTION)
+        {
+            model->AddItem(MENU_ID_COPY, "Copy");
+        }
+
 #if DEBUG
+        if (model->GetCount() > 0)
+        {
+            model->AddSeparator();
+        }
         model->AddItem(MENU_ID_USER_FIRST + 1, "Inspect Element");
         model->AddSeparator();
         model->AddItem(MENU_ID_USER_FIRST + 2, "Reload");

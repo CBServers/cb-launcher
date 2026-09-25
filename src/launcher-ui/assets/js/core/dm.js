@@ -147,12 +147,18 @@
 
         if (peer) {
             const log = document.getElementById('dm-log');
-            if (log) { log.innerHTML = messages.map(messageHtml).join(''); scrollLog(); }
+            // Rebuilding the log would drop a highlight the user is about to copy.
+            if (log && !hasSelectionIn(log)) { log.innerHTML = messages.map(messageHtml).join(''); scrollLog(); }
             applyMute();
             return;
         }
         const list = el.querySelector('.dm-list, .dm-empty');
         if (list) list.outerHTML = listHtml();
+    }
+
+    function hasSelectionIn(el) {
+        const sel = window.getSelection();
+        return !!(el && sel && !sel.isCollapsed && el.contains(sel.anchorNode));
     }
 
     function scrollLog() {
@@ -274,7 +280,7 @@
 
         el.addEventListener('contextmenu', (event) => {
             const m = event.target.closest('[data-person-id]');
-            if (!m || !window.PersonMenu) return;
+            if (!m || !window.PersonMenu || hasSelectionIn(m)) return;
             window.PersonMenu.open(event, {
                 cbId: m.getAttribute('data-person-id'),
                 handle: m.getAttribute('data-person-handle'),
