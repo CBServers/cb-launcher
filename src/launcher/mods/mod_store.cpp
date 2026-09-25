@@ -538,6 +538,22 @@ namespace mods
             std::random_device device{};
             return staging_root() / std::format("{:08x}", device());
         }
+
+        // SteamCMD downloads beside the content folders so the install is a same-volume rename, not a copy.
+        std::filesystem::path workshop_staging_dir(const game_config::game_config_t& config, const std::filesystem::path& root)
+        {
+            std::error_code code{};
+            const auto beside_content = root / "cbl_workshop";
+            if (std::filesystem::create_directories(beside_content, code) || std::filesystem::is_directory(beside_content, code))
+            {
+                return beside_content;
+            }
+
+            utils::logger::write("[cbl-mods] cannot stage in {}, falling back to appdata", utils::string::path_to_utf8(beside_content));
+            auto fallback = utils::properties::get_appdata_path() / "mods" / "workshop-staging" / config.game_key;
+            std::filesystem::create_directories(fallback, code);
+            return fallback;
+        }
     }
 
     std::string json_string(const rapidjson::Value& object, const char* key)
@@ -751,7 +767,8 @@ namespace mods
         return result;
     }
 
-    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress, const std::string& origin)
+    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress,
+                                const std::string& origin, const bool move_source)
     {
         const auto layout = layout_for(config);
         const auto root = content_root(config);
@@ -801,7 +818,16 @@ namespace mods
             std::error_code code{};
             std::filesystem::remove_all(target, code);
             utils::io::create_directory(*root / folder);
-            utils::io::copy_folder(source, target);
+
+            code.clear();
+            if (move_source)
+            {
+                std::filesystem::rename(source, target, code);
+            }
+            if (!move_source || code)
+            {
+                utils::io::copy_folder(source, target);
+            }
         }
         catch (const std::exception& e)
         {
@@ -1008,12 +1034,23 @@ namespace mods
             }
         }
 
-        // SteamCMD stages one item at a time; the target volume holds them all.
-        std::error_code code{};
-        const auto steamcmd_space = std::filesystem::space(utils::properties::get_appdata_path(), code);
-        if (!code && largest_size && steamcmd_space.available < largest_size)
+        const auto staging = workshop_staging_dir(config, *root);
+        const auto remove_staging = utils::finally([&staging]
         {
-            return fail("Not enough free disk space for this item.");
+            std::error_code ignored{};
+            std::filesystem::remove_all(staging, ignored);
+        });
+
+        // SteamCMD stages one item at a time; staging beside the content is renamed into place, so only
+        // the appdata fallback needs room for a second copy. The target volume holds them all.
+        std::error_code code{};
+        if (staging.parent_path() != *root)
+        {
+            const auto staging_space = std::filesystem::space(utils::properties::get_appdata_path(), code);
+            if (!code && largest_size && staging_space.available < largest_size)
+            {
+                return fail("Not enough free disk space for this item.");
+            }
         }
 
         code.clear();
@@ -1080,7 +1117,7 @@ namespace mods
                 continue;
             }
 
-            const auto staged = steamcmd::download_item(layout->steam_appid, item.id, item.size, scaled, error);
+            const auto staged = steamcmd::download_item(staging, layout->steam_appid, item.id, item.size, scaled, error);
             if (!staged)
             {
                 if (error == "cancelled" || is_parent)
@@ -1094,11 +1131,11 @@ namespace mods
                 continue;
             }
 
-            // The copy into place is unmeasured, so hold the bar where the download left it.
+            // The move into place is unmeasured (a real copy only on the appdata fallback), so hold the bar.
             scaled("installing", item.id, 99);
 
-            auto result = import_folder(config, *staged, {}, "workshop");
-            steamcmd::cleanup_downloads(layout->steam_appid, item.id);
+            auto result = import_folder(config, *staged, {}, "workshop", true);
+            steamcmd::cleanup_downloads(staging, layout->steam_appid, item.id);
 
             if (is_parent)
             {

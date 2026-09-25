@@ -685,7 +685,7 @@ namespace ipc
             const auto item_ids = parse_workshop_items(doc);
             if (!config || item_ids.empty())
             {
-                this->send_workshop_info(request_id, false, "Invalid Workshop request.", {});
+                this->send_workshop_info(request_id, false, "Invalid Workshop request.", {}, 0);
                 return;
             }
 
@@ -693,6 +693,7 @@ namespace ipc
             std::thread([this, config = *config, request_id, item_ids, generation]
             {
                 std::vector<workshop_info_item> items{};
+                std::vector<mods::workshop_catalog::item> found{};
                 for (const auto& id : item_ids)
                 {
                     workshop_info_item info{};
@@ -710,13 +711,35 @@ namespace ipc
                                 info.size += child.size;
                             }
                         }
+                        if (!info.installed)
+                        {
+                            found.push_back(*item);
+                        }
                     }
                     items.push_back(std::move(info));
                 }
 
+                // Counted once each, so a mod that is also the map's dependency isn't summed twice.
+                std::unordered_set<std::string> counted{};
+                uint64_t total_size = 0;
+                for (const auto& item : found)
+                {
+                    if (counted.insert(item.id).second)
+                    {
+                        total_size += item.size;
+                    }
+                    for (const auto& child : item.children)
+                    {
+                        if (counted.insert(child.id).second && !mods::is_workshop_item_installed(config, child.id))
+                        {
+                            total_size += child.size;
+                        }
+                    }
+                }
+
                 if (generation == this->connection_generation.load())
                 {
-                    this->send_workshop_info(request_id, true, {}, items);
+                    this->send_workshop_info(request_id, true, {}, items, total_size);
                 }
             }).detach();
         }
@@ -809,30 +832,35 @@ namespace ipc
             struct pending_item
             {
                 std::string id;
+                uint64_t own_size{};
                 uint64_t size{};
                 std::vector<mods::workshop_download> children;
                 std::unordered_map<std::string, std::string> titles;
             };
 
+            // A requested id that is also another item's dependency (a map requiring the server's mod) is planned once.
+            std::unordered_set<std::string> planned{};
             std::vector<pending_item> pending{};
             for (const auto& id : item_ids)
             {
-                if (mods::is_workshop_item_installed(config, id))
+                if (planned.contains(id) || mods::is_workshop_item_installed(config, id))
                 {
                     continue;
                 }
 
                 pending_item entry{};
                 entry.id = id;
+                planned.insert(id);
                 if (const auto item = this->lookup_workshop_item(config, id))
                 {
+                    entry.own_size = item->size;
                     entry.size = item->size;
                     entry.titles[id] = item->title;
                     for (const auto& child : item->children)
                     {
                         entry.children.push_back({child.id, child.size});
                         entry.titles[child.id] = child.title;
-                        if (!mods::is_workshop_item_installed(config, child.id))
+                        if (planned.insert(child.id).second && !mods::is_workshop_item_installed(config, child.id))
                         {
                             entry.size += child.size;
                         }
@@ -873,7 +901,14 @@ namespace ipc
                     return true;
                 };
 
-                last = mods::install_workshop_item(config, entry.id, entry.size, entry.children, progress);
+                // Already installed as an earlier entry's dependency.
+                if (mods::is_workshop_item_installed(config, entry.id))
+                {
+                    completed_weight += weight;
+                    continue;
+                }
+
+                last = mods::install_workshop_item(config, entry.id, entry.own_size, entry.children, progress);
                 if (!last.success)
                 {
                     return last;
@@ -899,17 +934,8 @@ namespace ipc
         }
 
         void send_workshop_info(const std::string& request_id, const bool ok, const std::string& error,
-                                const std::vector<workshop_info_item>& items)
+                                const std::vector<workshop_info_item>& items, const uint64_t total_size)
         {
-            uint64_t total_size = 0;
-            for (const auto& item : items)
-            {
-                if (!item.installed)
-                {
-                    total_size += item.size;
-                }
-            }
-
             this->push_outbound(build_json_object([&](auto& w)
             {
                 w.Key("type"); w.String("workshop-info");

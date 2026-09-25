@@ -26,14 +26,14 @@ namespace mods::steamcmd
             return root() / "steamcmd.exe";
         }
 
-        std::filesystem::path workshop_path()
+        std::filesystem::path workshop_path(const std::filesystem::path& install_dir)
         {
-            return root() / "steamapps" / "workshop";
+            return install_dir / "steamapps" / "workshop";
         }
 
-        std::filesystem::path item_path(const uint32_t appid, const std::string& workshop_id)
+        std::filesystem::path item_path(const std::filesystem::path& install_dir, const uint32_t appid, const std::string& workshop_id)
         {
-            return workshop_path() / "content" / std::to_string(appid) / workshop_id;
+            return workshop_path(install_dir) / "content" / std::to_string(appid) / workshop_id;
         }
 
         std::filesystem::path content_log_path()
@@ -178,23 +178,29 @@ namespace mods::steamcmd
             utils::io::write_file(updated_marker, "1");
         }
 
+        // Items used to stage here before force_install_dir; drop anything an interrupted old install left behind.
+        std::error_code code{};
+        std::filesystem::remove_all(workshop_path(root()), code);
+
         return true;
     }
 
-    std::optional<std::filesystem::path> download_item(const uint32_t appid, const std::string& workshop_id, const uint64_t expected_size,
-                                                       const progress_callback& progress, std::string& error)
+    std::optional<std::filesystem::path> download_item(const std::filesystem::path& install_dir, const uint32_t appid, const std::string& workshop_id,
+                                                       const uint64_t expected_size, const progress_callback& progress, std::string& error)
     {
-        const auto item = item_path(appid, workshop_id);
+        const auto item = item_path(install_dir, appid, workshop_id);
 
         std::error_code code{};
         std::filesystem::remove_all(item, code);
         // The manifest claims content from past installs that cleanup deleted; starting
         // with it present makes chunk reuse abort with "Missing game files" (Failure).
-        std::filesystem::remove(workshop_path() / utils::string::va("appworkshop_%u.acf", appid), code);
+        std::filesystem::remove(workshop_path(install_dir) / utils::string::va("appworkshop_%u.acf", appid), code);
 
         auto runs_before = count_content_runs(appid);
 
-        const auto handle = run_hidden(utils::string::va("+login anonymous +workshop_download_item %u %s +quit", appid, workshop_id.data()));
+        // force_install_dir must precede +login or SteamCMD ignores it with a warning.
+        const auto handle = run_hidden(utils::string::va("+force_install_dir \"%s\" +login anonymous +workshop_download_item %u %s +quit",
+                                                         utils::string::path_to_utf8(install_dir).data(), appid, workshop_id.data()));
         if (!handle)
         {
             error = "Failed to start the Steam downloader.";
@@ -218,7 +224,7 @@ namespace mods::steamcmd
         {
             utils::nt::terminate_process_handle(handle);
             close_handles();
-            cleanup_downloads(appid, workshop_id);
+            cleanup_downloads(install_dir, appid, workshop_id);
             error = reason;
         };
 
@@ -307,10 +313,10 @@ namespace mods::steamcmd
         return item;
     }
 
-    void cleanup_downloads(const uint32_t appid, const std::string& workshop_id)
+    void cleanup_downloads(const std::filesystem::path& install_dir, const uint32_t appid, const std::string& workshop_id)
     {
         std::error_code code{};
-        std::filesystem::remove_all(item_path(appid, workshop_id), code);
-        std::filesystem::remove_all(workshop_path() / "downloads", code);
+        std::filesystem::remove_all(item_path(install_dir, appid, workshop_id), code);
+        std::filesystem::remove_all(workshop_path(install_dir) / "downloads", code);
     }
 }

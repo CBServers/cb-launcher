@@ -58,7 +58,9 @@ namespace mods
     uint64_t folder_size(const std::filesystem::path& directory);
 
     std::vector<installed_mod> list_installed(const game_config::game_config_t& config);
-    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {}, const std::string& origin = "import");
+    // move_source renames the folder into place when it is on the same volume (consuming it); never set for user folders.
+    import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress = {},
+                                const std::string& origin = "import", bool move_source = false);
     import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress = {});
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, uint64_t expected_size,
                                         const std::vector<workshop_download>& children = {}, const progress_callback& progress = {});
