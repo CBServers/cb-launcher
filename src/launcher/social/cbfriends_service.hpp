@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -402,6 +403,17 @@ namespace social
         void refresh_mod_queue();
         void send_reply(const std::string& to, const std::string& reply_to, const std::string& game,
                         const std::string& match, const std::string& secret);
+
+        using joinable_action = std::function<void(const std::string& game, const std::string& match,
+                                                   const std::string& secret)>;
+        struct deferred_action
+        {
+            std::string label;
+            std::chrono::steady_clock::time_point deadline;
+            joinable_action run;
+        };
+        // Queues `run` until the fork publishes a join secret; caller holds mutex_.
+        void defer_until_joinable_locked(std::string label, joinable_action run);
         std::optional<cb_person> find_friend(const std::string& cb_id) const;
         // Fire-and-forget signed POST on a detached thread, then run `after`.
         void post_action(std::string endpoint, std::string body, std::function<void()> after);
@@ -437,6 +449,7 @@ namespace social
         std::string activity_server_;
         int activity_players_{0};
         int activity_max_players_{0};
+        std::vector<deferred_action> deferred_joinable_;
 
         std::vector<cb_invite> invites_;
         std::function<void(std::string)> join_secret_cb_;

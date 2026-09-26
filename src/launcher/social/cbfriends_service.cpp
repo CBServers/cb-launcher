@@ -818,6 +818,7 @@ namespace social
 
     void cbfriends_service::set_rich_activity(const cb_rich_activity& activity)
     {
+        std::vector<deferred_action> ready;
         {
             std::lock_guard lock(mutex_);
             activity_game_ = activity.game;
@@ -831,6 +832,27 @@ namespace social
             activity_server_ = activity.server_name;
             activity_players_ = activity.players;
             activity_max_players_ = activity.max_players;
+
+            const auto now = std::chrono::steady_clock::now();
+            std::erase_if(deferred_joinable_, [now](const deferred_action& action)
+            {
+                const bool expired = now > action.deadline;
+                if (expired)
+                {
+                    utils::logger::write("[cbl-invite] deferred '{}' timed out (match never became joinable)", action.label);
+                }
+                return expired;
+            });
+            if (!activity_secret_.empty())
+            {
+                ready.swap(deferred_joinable_);
+            }
+        }
+
+        for (const auto& action : ready)
+        {
+            utils::logger::write("[cbl-invite] running deferred '{}'", action.label);
+            action.run(activity.game, activity.match_id, activity.join_secret);
         }
         std::thread(&cbfriends_service::send_presence, this, false).detach();
     }
@@ -850,6 +872,7 @@ namespace social
             activity_server_.clear();
             activity_players_ = 0;
             activity_max_players_ = 0;
+            deferred_joinable_.clear();
         }
         std::thread(&cbfriends_service::send_presence, this, false).detach();
     }
@@ -895,30 +918,55 @@ namespace social
         return std::nullopt;
     }
 
+    void cbfriends_service::defer_until_joinable_locked(std::string label, joinable_action run)
+    {
+        utils::logger::write("[cbl-invite] deferring '{}' until the match publishes a join secret", label);
+        deferred_joinable_.push_back({std::move(label), std::chrono::steady_clock::now() + std::chrono::seconds(15), std::move(run)});
+    }
+
     void cbfriends_service::send_invite(const std::string& cb_id, action_reporter on_result)
     {
+        auto send = [cb_id, on_result](const std::string& game, const std::string& match, const std::string& secret)
+        {
+            utils::logger::write("[cbl-invite] -> invite {} ({})", cb_id, game);
+            inbox_client::instance().send_async(cb_id, "invite", game, match, secret,
+                [cb_id, on_result](const inbox_client::outcome out)
+                {
+                    utils::logger::write("[cbl-invite] invite -> {}: {}", cb_id, outcome_status(out));
+                    if (on_result) on_result(outcome_status(out), {});
+                });
+        };
+
         std::string game, match, secret;
+        bool deferred = false;
         {
             std::lock_guard lock(mutex_);
             game = activity_game_.empty() ? current_game_ : activity_game_;
             match = activity_match_;
             secret = activity_secret_;
+
+            // The game opens its match as the user clicks invite in-game; wait for that presence.
+            if (secret.empty() && activity_openable_)
+            {
+                defer_until_joinable_locked("invite to " + cb_id, send);
+                deferred = true;
+            }
         }
-        if (secret.empty())
+
+        if (!secret.empty())
+        {
+            send(game, match, secret);
+        }
+        else if (deferred)
+        {
+            if (on_result) on_result("deferred", {});
+        }
+        else
         {
             // Silent until now, which hid a fork publishing a transport the launcher couldn't read.
             utils::logger::write("[cbl-invite] -> drop invite to {}: no join secret for '{}'", cb_id, game);
             if (on_result) on_result("dropped", {});
-            return;
         }
-
-        utils::logger::write("[cbl-invite] -> invite {} ({})", cb_id, game);
-        inbox_client::instance().send_async(cb_id, "invite", game, match, secret,
-            [cb_id, on_result = std::move(on_result)](const inbox_client::outcome out)
-            {
-                utils::logger::write("[cbl-invite] invite -> {}: {}", cb_id, outcome_status(out));
-                if (on_result) on_result(outcome_status(out), {});
-            });
     }
 
     void cbfriends_service::request_join(const std::string& cb_id, action_reporter on_result)
@@ -1088,6 +1136,17 @@ namespace social
                 my_game = activity_game_.empty() ? current_game_ : activity_game_;
                 my_match = activity_match_;
                 my_secret = activity_secret_;
+
+                // Opening is async, so the reply waits for the presence that carries the new secret.
+                if (my_secret.empty() && open_cb)
+                {
+                    defer_until_joinable_locked("join-request reply to " + invite.sender_cb_id,
+                        [this, to = invite.sender_cb_id, reply_to = invite.id](const std::string& game,
+                            const std::string& match, const std::string& secret)
+                        {
+                            send_reply(to, reply_to, game, match, secret);
+                        });
+                }
             }
             if (open_cb) open_cb();
             if (!my_secret.empty())
