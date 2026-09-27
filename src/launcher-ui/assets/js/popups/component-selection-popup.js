@@ -36,6 +36,7 @@ class ComponentSelectionPopup {
                         <button class="browse-button" id="component-install-browse" type="button">Browse</button>
                     </div>
                 </div>
+                <p class="install-note component-setup-note" id="component-setup-note" hidden></p>
                 <div class="component-selection-section">
                     <div class="section-header">
                         <label id="component-manage-label">Manage Install</label>
@@ -53,8 +54,12 @@ class ComponentSelectionPopup {
                     <label id="component-download-info-label">Download Info</label>
                     <div class="install-info-section">
                         <div class="install-info-row">
-                            <span class="install-info-label" id="component-projected-size-label">Projected Size:</span>
+                            <span class="install-info-label" id="component-to-download-label">To Download:</span>
                             <span class="install-info-value loading" id="download-size">Calculating...</span>
+                        </div>
+                        <div class="install-info-row" id="component-total-size-row" hidden>
+                            <span class="install-info-label" id="component-total-size-label">Total Size on Disk:</span>
+                            <span class="install-info-value" id="total-size"></span>
                         </div>
                         <div class="install-info-row">
                             <span class="install-info-label" id="component-available-space-label">Available Space:</span>
@@ -85,8 +90,16 @@ class ComponentSelectionPopup {
     refreshTexts() {
         this.popup.querySelector('#component-manage-label').textContent = this.t('popup.componentSelection.header');
         this.popup.querySelector('#btn-refresh').title = this.t('popup.componentSelection.refreshTitle');
-        this.popup.querySelector('#component-download-info-label').textContent = this.t('popup.componentSelection.downloadInfo');
-        this.popup.querySelector('#component-projected-size-label').textContent = this.t('popup.componentSelection.projectedSize');
+        const finishSetup = this.options?.finishSetup === true;
+        const setupNote = this.popup.querySelector('#component-setup-note');
+        setupNote.textContent = this.t('popup.componentSelection.setupNote');
+        setupNote.hidden = !finishSetup;
+        this.popup.querySelector('#component-download-info-label').textContent = this.t(finishSetup
+            ? 'popup.componentSelection.summary'
+            : 'popup.componentSelection.downloadInfo');
+        this.popup.querySelector('#component-to-download-label').textContent = this.t('popup.componentSelection.toDownload');
+        this.popup.querySelector('#component-total-size-label').textContent = this.t('popup.componentSelection.totalSize');
+        this.popup.querySelector('#component-total-size-row').hidden = true;
         this.popup.querySelector('#component-available-space-label').textContent = this.t('popup.componentSelection.availableSpace');
         this.popup.querySelector('#component-install-location-label').textContent = this.t('popup.componentSelection.installLocation');
         this.popup.querySelector('#component-install-browse').textContent = this.t('common.browse');
@@ -96,7 +109,7 @@ class ComponentSelectionPopup {
         this.popup.querySelector('.btn-uninstall').textContent = this.t('popup.componentSelection.uninstall');
         this.popup.querySelector('.btn-cancel').textContent = this.t('common.cancel');
         const applyBtn = this.popup.querySelector('.btn-apply');
-        const applyKey = this.options?.finishSetup === true
+        const applyKey = finishSetup
             ? 'common.finishSetup'
             : this.options?.startDownloadOnApply === true ? 'common.install' : 'common.applyChanges';
         applyBtn.textContent = this.t(applyKey);
@@ -524,15 +537,21 @@ class ComponentSelectionPopup {
         // Actual download = what we need to fetch from CDN
         const actualDownloadSize = projectedSize - alreadyInstalledSize;
 
-        const projectedSizeGB = (projectedSize / (1024 * 1024 * 1024)).toFixed(2);
-        const availableSpaceGB = (this.availableSpace / (1024 * 1024 * 1024)).toFixed(2);
+        const toGB = (bytes) => (bytes / (1024 * 1024 * 1024)).toFixed(2);
+        const availableSpaceGB = toGB(this.availableSpace);
 
         const downloadSizeEl = this.popup.querySelector('#download-size');
         const availableSpaceEl = this.popup.querySelector('#available-space');
         const applyBtn = this.popup.querySelector('.btn-apply');
 
-        downloadSizeEl.textContent = `${projectedSizeGB} GB`;
+        downloadSizeEl.textContent = actualDownloadSize > 0
+            ? `${toGB(actualDownloadSize)} GB`
+            : this.t('popup.componentSelection.nothingToDownload');
         downloadSizeEl.classList.remove('loading');
+
+        // Only worth a second row when part of the selection is already on disk
+        this.popup.querySelector('#component-total-size-row').hidden = alreadyInstalledSize === 0;
+        this.popup.querySelector('#total-size').textContent = `${toGB(projectedSize)} GB`;
 
         availableSpaceEl.textContent = `${availableSpaceGB} GB`;
         availableSpaceEl.classList.remove('loading');

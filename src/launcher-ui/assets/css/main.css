@@ -3029,6 +3029,9 @@ html[data-theme="dark"] .game-status-badge.path-set { background: rgba(0,120,212
 }
 
 .component-selection-popup .component-selection-section { margin-bottom: 18px; }
+.component-selection-popup .component-setup-note { margin: 0 0 16px; }
+.component-selection-popup .component-setup-note[hidden],
+.component-selection-popup .install-info-row[hidden] { display: none; }
 
 .component-selection-popup .section-header {
     display: flex;
