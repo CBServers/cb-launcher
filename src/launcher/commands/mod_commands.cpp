@@ -112,21 +112,22 @@ namespace commands::mod_commands
             finish_job(config.game_key, mods::install_workshop_item(config, workshop_id, size, children, job_progress(config.game_key)));
         }
 
+        // busy lets the frontend queue wait and retry instead of failing the install.
+        void set_busy(rapidjson::Document& response)
+        {
+            set_result(response, false, "Another install is already running for this game.");
+            response.AddMember("busy", true, response.GetAllocator());
+        }
+
         // One import/install job per game at a time; returns false (and answers the
         // request) when one is already running.
         bool claim_job(const game_config::game_config_t& config, rapidjson::Document& response)
         {
             std::lock_guard lock(jobs_mutex_);
             auto& job = jobs_[config.game_key];
-            if (job.active)
+            if (job.active || !mods::try_claim_install(config))
             {
-                set_result(response, false, "Another install is already running for this game.");
-                return false;
-            }
-
-            if (!mods::try_claim_install(config))
-            {
-                set_result(response, false, "Another install is already running for this game.");
+                set_busy(response);
                 return false;
             }
 

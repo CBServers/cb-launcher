@@ -2105,6 +2105,39 @@ html[data-theme="dark"] .setup-button {
     color: #fff;
 }
 
+.downloads-section-title {
+    margin-top: 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.downloads-section-title:first-child {
+    margin-top: 0;
+}
+
+.mod-row .download-row-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mod-row .download-row-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.download-row-cancel:disabled {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+}
+
 .download-row-status {
     font-size: 12px;
     color: var(--text-muted);
@@ -4067,22 +4100,30 @@ button { font-family: inherit; cursor: pointer; }
     cursor: default;
 }
 
-.mods-install-btn[data-state="installing"] {
+.mods-install-btn[data-state="installing"],
+.mods-install-btn[data-state="queued"] {
     background: var(--surface-hi);
     border-color: var(--border);
     color: #fff;
 }
 
+.mods-install-btn[data-state="queued"] {
+    color: var(--text-muted);
+}
+
 .mods-install-btn .mods-cancel-label { display: none; }
 
-.mods-install-btn[data-state="installing"]:hover {
+.mods-install-btn[data-state="installing"]:hover:not(:disabled),
+.mods-install-btn[data-state="queued"]:hover:not(:disabled) {
     border-color: rgba(255, 77, 94, 0.5);
     background: rgba(255, 77, 94, 0.14);
     color: #FFB2BA;
 }
 
-.mods-install-btn[data-state="installing"]:hover .mods-install-label { display: none; }
-.mods-install-btn[data-state="installing"]:hover .mods-cancel-label { display: inline; }
+.mods-install-btn[data-state="installing"]:hover:not(:disabled) .mods-install-label,
+.mods-install-btn[data-state="queued"]:hover:not(:disabled) .mods-install-label { display: none; }
+.mods-install-btn[data-state="installing"]:hover:not(:disabled) .mods-cancel-label,
+.mods-install-btn[data-state="queued"]:hover:not(:disabled) .mods-cancel-label { display: inline; }
 
 .mods-card .mods-progress { height: 3px; }
 
@@ -6881,6 +6922,7 @@ html:not([data-theme]) .download-row-status,
 html:not([data-theme]) .download-progress-meta,
 html:not([data-theme]) .friend-activity,
 html:not([data-theme]) .friends-group-head,
+html:not([data-theme]) .downloads-section-title,
 html:not([data-theme]) .settings-footer .footer-version,
 html:not([data-theme]) .detail-stat span,
 html:not([data-theme]) .detail-stat strong,
@@ -7447,7 +7489,8 @@ html:not([data-theme]) .friend-status-dot[data-status="online"] {
     box-shadow: 0 0 8px var(--success-border);
 }
 
-html:not([data-theme]) .friends-group-head {
+html:not([data-theme]) .friends-group-head,
+html:not([data-theme]) .downloads-section-title {
     font-size: 10.5px;
     font-weight: 500;
     letter-spacing: 0.16em;

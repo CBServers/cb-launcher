@@ -1193,7 +1193,7 @@ window.DownloadQueueManager = {
 
     _processNext: function() {
         if (this.active) return;
-        const idx = this.queue.findIndex(q => !q.paused);
+        const idx = this.queue.findIndex(q => !q.paused && !this._heldByMods(q));
         if (idx < 0) return;
         const item = this.queue.splice(idx, 1)[0];
         this.active = item;
@@ -1309,6 +1309,11 @@ window.DownloadQueueManager = {
         }
     },
 
+    // File ops wait while a mod is installing into the same game's folders.
+    _heldByMods: function(item) {
+        return !!(item.blocksGameButtons && window.ModQueue && window.ModQueue.isActiveFor(item.gameId));
+    },
+
     isBusy: function(gameId) {
         if (this.active && this.active.gameId === gameId && this.active.blocksGameButtons) return true;
         return this.queue.some(q => q.gameId === gameId && q.blocksGameButtons);
@@ -1410,17 +1415,39 @@ function applyDownloadQueueButtonState() {
         btn.textContent = setupButtonLabel(installStatus, busyKindFor(gameId), gameId);
     });
 
-    const downloadsBadge = document.getElementById('downloads-badge');
-    if (downloadsBadge) {
-        const entries = queue.getDownloadEntries();
-        if (entries.length > 0) {
-            downloadsBadge.textContent = String(entries.length);
-            downloadsBadge.style.display = '';
-        } else {
-            downloadsBadge.style.display = 'none';
-        }
-    }
+    updateDownloadsBadge();
 }
+
+function updateDownloadsBadge() {
+    const downloadsBadge = document.getElementById('downloads-badge');
+    if (!downloadsBadge) return;
+    const games = window.DownloadQueueManager ? window.DownloadQueueManager.getDownloadEntries().length : 0;
+    const mods = window.ModQueue ? window.ModQueue.count() : 0;
+    const count = games + mods;
+    downloadsBadge.textContent = String(count);
+    downloadsBadge.style.display = count > 0 ? '' : 'none';
+}
+
+function isDownloadsPageVisible() {
+    const downloadsPage = document.getElementById('downloads-page');
+    return !!(downloadsPage && downloadsPage.style.display !== 'none');
+}
+
+window.addEventListener('cb-mod-queue-changed', () => {
+    updateDownloadsBadge();
+    // A finished mod job can release a game op it was holding.
+    if (window.DownloadQueueManager) window.DownloadQueueManager._processNext();
+    if (isDownloadsPageVisible() && window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
+        window.AppViews.renderDownloads();
+    }
+});
+
+window.addEventListener('cb-mod-queue-progress', (event) => {
+    const detail = event.detail || {};
+    if (isDownloadsPageVisible() && window.AppViews && typeof window.AppViews.refreshModDownloadRow === 'function') {
+        window.AppViews.refreshModDownloadRow(detail.gameId, detail.id);
+    }
+});
 
 window.addEventListener('cb-download-queue-changed', () => {
     applyDownloadQueueButtonState();
@@ -1447,7 +1474,7 @@ window.addEventListener('cb-progress-tick', (event) => {
     const downloadsPage = document.getElementById('downloads-page');
     if (!downloadsPage || downloadsPage.style.display === 'none') return;
 
-    const activeRow = downloadsPage.querySelector('.download-row.active');
+    const activeRow = downloadsPage.querySelector('.download-row.active:not(.mod-row)');
     if (!activeRow) return;
 
     const detail = event.detail || {};

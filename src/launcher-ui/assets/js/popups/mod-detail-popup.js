@@ -160,26 +160,26 @@ class ModDetailPopup {
         this.installButton.addEventListener('click', () => {
             if (!window.ModsView) return;
             const state = window.ModsView.cardButtonFor(this.gameId, this.item.id);
-            if (state && state.stateName === 'installing') {
-                window.ModsService.cancelInstall(this.gameId);
+            if (state && (state.stateName === 'installing' || state.stateName === 'queued')) {
+                window.ModQueue.cancel(this.gameId, this.item.id);
             } else {
-                window.ModsView.installFromDetail(this.gameId, this.item.id);
+                window.ModsView.installFromDetail(this.gameId, this.item.id, {
+                    title: detail.title,
+                    size: detail.size,
+                    kind: detail.kind,
+                    preview: detail.preview
+                });
             }
         });
         this.syncInstallButton();
     }
 
     // Mirrors the card's install state; ModsView calls this while a transfer runs.
-    syncInstallButton(label, disabled) {
-        if (!this.installButton || !this.installButton.isConnected) return;
-        if (label === undefined && window.ModsView) {
-            const state = window.ModsView.cardButtonFor(this.gameId, this.item.id);
-            if (!state) return;
-            label = state.label;
-            disabled = state.disabled;
-        }
-        this.installButton.textContent = label || this.t('mods.install');
-        this.installButton.disabled = !!disabled;
+    syncInstallButton() {
+        if (!this.installButton || !this.installButton.isConnected || !window.ModsView) return;
+        const state = window.ModsView.cardButtonFor(this.gameId, this.item.id);
+        this.installButton.textContent = state.label || this.t('mods.install');
+        this.installButton.disabled = !!state.disabled;
     }
 
     close() {

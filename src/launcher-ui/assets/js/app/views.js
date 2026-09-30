@@ -1332,14 +1332,107 @@
         return t('downloads.statusQueued', { position: entry.queuePosition });
     }
 
+    function modDownloadStatus(entry) {
+        if (!entry.isActive) {
+            return entry.waiting ? t('downloads.statusWaiting') : t('downloads.statusQueued', { position: entry.queuePosition });
+        }
+        if (entry.cancelled) return t('downloads.statusCancelling');
+        if (entry.phase === 'downloading') {
+            return entry.detail && entry.detail !== entry.id ? t('downloads.statusRequiredItems') : t('downloads.statusDownloading');
+        }
+        if (entry.phase === 'preparing') return t('downloads.statusPreparing');
+        return t('downloads.statusInstalling');
+    }
+
+    function modDownloadRowHTML(entry) {
+        const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
+        const key = `${entry.gameId}:${entry.id}`;
+        const meta = [config.displayName || entry.gameId, entry.size ? GameUtils.formatBytes(entry.size) : ''];
+        if (!entry.isActive) meta.push(modDownloadStatus(entry));
+        const badge = window.ModsView ? window.ModsView.kindBadge(entry.kind) : '';
+
+        const progressBlock = entry.isActive ? `
+                <div class="download-progress">
+                    <div class="download-progress-bar">
+                        <div class="download-progress-fill"></div>
+                    </div>
+                    <div class="download-progress-meta">
+                        <span class="download-progress-message">${escapeHtml(modDownloadStatus(entry))}</span>
+                        <span class="download-progress-percent">${entry.percent}%</span>
+                    </div>
+                </div>` : '';
+
+        return `
+                <div class="download-row mod-row ${entry.isActive ? 'active' : 'queued'}" data-game="${escapeHtml(entry.gameId)}" data-mod-key="${escapeHtml(key)}">
+                    <div class="download-row-icon"></div>
+                    <div class="download-row-body">
+                        <div class="download-row-title"><span class="download-row-name">${escapeHtml(entry.title)}</span>${badge}</div>
+                        <div class="download-row-status">${meta.filter(Boolean).map(escapeHtml).join(' · ')}</div>
+                        ${progressBlock}
+                    </div>
+                    <button class="download-row-cancel" title="${escapeHtml(t('common.cancel'))}"${entry.cancelled ? ' disabled' : ''}><span class="control-icon close-icon"></span></button>
+                </div>
+            `;
+    }
+
+    function bindModDownloadRows(list, modEntries) {
+        list.querySelectorAll('.download-row.mod-row').forEach(row => {
+            const entry = modEntries.find(e => `${e.gameId}:${e.id}` === row.dataset.modKey);
+            if (!entry) return;
+            const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
+            const accent = config.accent || '#6C63FF';
+            const iconEl = row.querySelector('.download-row-icon');
+            if (/^https?:/.test(entry.preview)) {
+                iconEl.style.backgroundImage = cssUrl(entry.preview);
+            } else if (entry.preview) {
+                iconEl.style.background = entry.preview;
+            } else {
+                iconEl.style.backgroundColor = accent;
+                const iconPath = config.iconPath || config.capsulePath || '';
+                if (iconPath) iconEl.style.backgroundImage = cssUrl(iconPath);
+            }
+
+            const fill = row.querySelector('.download-progress-fill');
+            if (fill) {
+                fill.style.width = `${entry.percent}%`;
+                fill.style.background = accent;
+                fill.style.boxShadow = `0 0 12px ${accent}80`;
+            }
+
+            row.querySelector('.download-row-cancel').addEventListener('click', event => {
+                event.stopPropagation();
+                if (window.ModQueue) window.ModQueue.cancel(entry.gameId, entry.id);
+            });
+            row.addEventListener('click', event => {
+                if (event.target.closest('.download-row-cancel')) return;
+                navigateTo(entry.gameId);
+                if (window.ModsView) window.ModsView.openTab(entry.gameId, entry.op === 'update' ? 'installed' : 'workshop');
+            });
+        });
+    }
+
+    // In-place progress update for one mod row, so ticks don't rebuild the list.
+    function refreshModDownloadRow(gameId, id) {
+        const row = document.querySelector(`#downloads-list .download-row.mod-row[data-mod-key="${CSS.escape(`${gameId}:${id}`)}"]`);
+        const entry = row && window.ModQueue ? window.ModQueue.get(gameId, id) : null;
+        if (!entry || !entry.isActive) return;
+        const fill = row.querySelector('.download-progress-fill');
+        const percentEl = row.querySelector('.download-progress-percent');
+        const messageEl = row.querySelector('.download-progress-message');
+        if (fill) fill.style.width = `${entry.percent}%`;
+        if (percentEl) percentEl.textContent = `${entry.percent}%`;
+        if (messageEl) messageEl.textContent = modDownloadStatus(entry);
+    }
+
     function renderDownloads() {
         const list = document.getElementById('downloads-list');
         if (!list) return;
 
         const queue = window.DownloadQueueManager;
         const entries = queue ? queue.getDownloadEntries() : [];
+        const modEntries = window.ModQueue ? window.ModQueue.getEntries() : [];
 
-        if (entries.length === 0) {
+        if (entries.length === 0 && modEntries.length === 0) {
             list.innerHTML = `<div class="downloads-empty">${escapeHtml(t('downloads.empty'))}</div>`;
             return;
         }
@@ -1349,7 +1442,8 @@
         const activeMessage = window.ProgressManager && typeof window.ProgressManager.getProgressMessage === 'function'
             ? window.ProgressManager.getProgressMessage() : '';
 
-        list.innerHTML = entries.map(entry => {
+        const sectionTitle = key => `<div class="downloads-section-title">${escapeHtml(t(key))}</div>`;
+        const gameRows = entries.map(entry => {
             const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
             const displayName = config.displayName || entry.gameId;
             const status = downloadStatusLabel(entry, activePercent);
@@ -1405,8 +1499,14 @@
             `;
         }).join('');
 
+        list.innerHTML = (entries.length && modEntries.length ? sectionTitle('downloads.sectionGames') : '')
+            + gameRows
+            + (modEntries.length ? sectionTitle('downloads.sectionMods') + modEntries.map(modDownloadRowHTML).join('') : '');
+
+        bindModDownloadRows(list, modEntries);
+
         // Set icon and accent backgrounds via JS to avoid HTML attribute quoting issues.
-        list.querySelectorAll('.download-row').forEach(row => {
+        list.querySelectorAll('.download-row:not(.mod-row)').forEach(row => {
             const gameId = row.dataset.game;
             const config = GameUtils.getGameConfigByUIId(gameId) || {};
             const accent = config.accent || '#6C63FF';
@@ -1427,7 +1527,7 @@
             }
         });
 
-        list.querySelectorAll('.download-row-cancel').forEach(btn => {
+        list.querySelectorAll('.download-row:not(.mod-row) .download-row-cancel').forEach(btn => {
             btn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 if (window.DownloadQueueManager) {
@@ -1448,7 +1548,7 @@
             });
         });
 
-        list.querySelectorAll('.download-row').forEach(row => {
+        list.querySelectorAll('.download-row:not(.mod-row)').forEach(row => {
             row.addEventListener('click', (event) => {
                 if (event.target.closest('.download-row-cancel')) return;
                 if (event.target.closest('.download-row-pause')) return;
@@ -1555,6 +1655,7 @@
         renderGamePages,
         renderSettingsDirectories,
         renderDownloads,
+        refreshModDownloadRow,
         renderFriends,
         refreshFriends,
         getFriendsState,
