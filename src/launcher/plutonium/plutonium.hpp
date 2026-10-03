@@ -34,11 +34,25 @@ namespace plutonium
         bool elevated{false};
         // True when that prompt was declined; distinct from a real launch failure.
         bool cancelled{false};
+        // launch_and_connect only: the bootstrapper was relaunched with +connect. False with success means the game is up unconnected.
+        bool connected{false};
     };
 
     // Launches via plutonium://play/<game>, killing their launcher on failure before it can spawn a tokenless bootstrapper.
     // `elevate` forces the UAC path up front; a 740 from their exe elevates on its own regardless.
     launch_result launch_via_uri(const std::string& pluto_game, bool elevate = false);
+
+    // Launches via the URI, then relaunches the bootstrapper with its session token and +connect <endpoint>, since their launcher can't pass args.
+    launch_result launch_and_connect(const std::string& pluto_game, const std::string& endpoint, bool elevate = false);
+
+    // Plutonium game name (t6mp, ...) of the running bootstrapper and its pid; empty name when none runs or its command line is unreadable.
+    std::string running_game(unsigned long* pid = nullptr);
+
+    // Types `connect <endpoint>` into a running bootstrapper's console through a -pluto-connect child. Blocks until the child exits.
+    bool send_connect(unsigned long bootstrapper_pid, const std::string& endpoint);
+
+    // The -pluto-connect child: attach to the bootstrapper's console and submit the connect. 0 on success.
+    int run_connect_worker(unsigned long bootstrapper_pid, const std::string& endpoint);
 
     // Spawns the bootstrapper directly: <game> "<game_path>" -lan [-name <name>]. No token, no session call, no launcher UI.
     launch_result launch_lan(const std::string& pluto_game, const std::filesystem::path& game_path,

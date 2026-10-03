@@ -125,6 +125,8 @@ namespace utils::nt
     bool is_elevated();
     bool is_process_elevated(unsigned long pid);
     std::filesystem::path get_process_path(unsigned long pid);
+    // UTF-8 command line of another process, or empty when it can't be read.
+    std::string get_process_command_line(unsigned long pid);
     bool is_process_running(const std::string& processName);
     // One process-table snapshot for the whole set; per-name calls take a snapshot each.
     // max_age_ms lets a polling caller reuse a recent snapshot; 0 always takes a fresh one.

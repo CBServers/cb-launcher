@@ -5,6 +5,7 @@
 #include "discord/avatar_cache.hpp"
 #include "discord/discord_service.hpp"
 #include "ipc/ipc_server.hpp"
+#include "plutonium/plutonium.hpp"
 #include "redist/redist_worker.hpp"
 #include "social/cbfriends_service.hpp"
 #include "social/inbox_client.hpp"
@@ -360,6 +361,13 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         if (const auto redist_ids = utils::flags::get_flag_value("redist-worker"))
         {
             return redist::run_worker(*redist_ids);
+        }
+
+        // Types a connect into a running Plutonium game's console, from a child so the launcher's own console is never swapped.
+        if (const auto endpoint = utils::flags::get_flag_value("pluto-connect"))
+        {
+            const auto pid = utils::flags::get_flag_value("pluto-pid");
+            return plutonium::run_connect_worker(pid ? std::strtoul(pid->data(), nullptr, 10) : 0, *endpoint);
         }
 
         // Headless identity check: no singleton, no updater, no CEF.

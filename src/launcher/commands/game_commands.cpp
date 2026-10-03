@@ -513,8 +513,9 @@ namespace commands::game_commands
         }
 
         // Launches a Plutonium mode via plutonium:// (or the bootstrapper directly in LAN mode), or nullopt when this mode isn't a Plutonium target.
+        // A non-empty `connect` (validated ip:port) joins that server; it always takes the online path, whatever the LAN toggle says.
         std::optional<bool> try_launch_plutonium(const game_config::game_config_t& config, const std::string& mode,
-            cef::cef_ui& cef_ui, const uint64_t generation)
+            cef::cef_ui& cef_ui, const uint64_t generation, const std::string& connect)
         {
             const auto name_it = config.plutonium_game_names.find(mode);
             if (name_it == config.plutonium_game_names.end())
@@ -530,6 +531,12 @@ namespace commands::game_commands
 
             if (!plutonium::is_available())
             {
+                if (!connect.empty())
+                {
+                    cef_ui.show_message_box("Server Join Error",
+                        "Plutonium isn't installed. Install it and sign in to join " + config.display_name + " servers.");
+                    return false;
+                }
                 return std::nullopt;
             }
 
@@ -559,7 +566,35 @@ namespace commands::game_commands
             const auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
             plutonium::launch_result result;
 
-            if (plutonium_lan_enabled(config))
+            if (!connect.empty())
+            {
+                if (plutonium::get_token().empty())
+                {
+                    recover("You're not signed in to Plutonium.");
+                    return false;
+                }
+
+                result = plutonium::launch_and_connect(name_it->second, connect, elevate);
+                if (result.cancelled)
+                {
+                    cef_ui.show_message_box("Game Launch Cancelled",
+                        "The Plutonium launcher requires administrator permission to start " + config.display_name + ".");
+                    return false;
+                }
+
+                if (!result.success)
+                {
+                    recover("Plutonium couldn't start " + config.display_name + ". Your session may have expired.");
+                    return false;
+                }
+
+                if (!result.connected)
+                {
+                    cef_ui.show_message_box("Server Join",
+                        config.display_name + " started, but couldn't join the server automatically. Open the in-game console and enter:\n\nconnect " + connect);
+                }
+            }
+            else if (plutonium_lan_enabled(config))
             {
                 const auto install = config.get_install_path();
                 if (!install)
@@ -627,7 +662,8 @@ namespace commands::game_commands
         }
 
         // Assumes the caller already holds the launch barrier and reserved `generation`.
-        bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui, const uint64_t generation)
+        bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui, const uint64_t generation,
+            const std::string& connect = {})
         {
             if (config.mode_arguments.size() > 0 && !mode.empty())
             {
@@ -672,7 +708,7 @@ namespace commands::game_commands
                 }
             }
 
-            if (const auto handled = try_launch_plutonium(config, mode, cef_ui, generation))
+            if (const auto handled = try_launch_plutonium(config, mode, cef_ui, generation, connect))
             {
                 return *handled;
             }
@@ -746,7 +782,7 @@ namespace commands::game_commands
 
         // Update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
         void run_launch_worker(game_config::game_config_t config, std::string game, std::string mode,
-            cef::cef_ui& cef_ui, command_context& ctx, const uint64_t generation)
+            cef::cef_ui& cef_ui, command_context& ctx, const uint64_t generation, const std::string& connect = {})
         {
             updater::ui_progress_listener progress_listener;
             progress_listener.reset(true);
@@ -790,7 +826,7 @@ namespace commands::game_commands
                 }
                 progress_listener.done_update();
 
-                launched = launch_game(config, game, mode, cef_ui, generation);
+                launched = launch_game(config, game, mode, cef_ui, generation, connect);
             }
             catch (const updater::update_cancelled&)
             {
@@ -805,7 +841,7 @@ namespace commands::game_commands
                 printf("Launch error: %s\n", e.what());
                 cef_ui.show_message_box("Game Launch Error", e.what());
 
-                launched = launch_game(config, game, mode, cef_ui, generation); //Attempt to launch game even if error in update
+                launched = launch_game(config, game, mode, cef_ui, generation, connect); //Attempt to launch game even if error in update
             }
             catch (...)
             {
@@ -814,7 +850,7 @@ namespace commands::game_commands
                 printf("Unknown launch error\n");
                 cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
 
-                launched = launch_game(config, game, mode, cef_ui, generation); //Attempt to launch game even if error in update
+                launched = launch_game(config, game, mode, cef_ui, generation, connect); //Attempt to launch game even if error in update
             }
 
             // Release the barrier unless a game process is now running (the exit watchdog or stop-game owns it).
@@ -952,6 +988,60 @@ namespace commands::game_commands
             }
             run_launch_worker(cfg, game, mode, *cef, *ctx, generation);
         }).detach();
+    }
+
+    std::string join_plutonium_server(const std::string& game_id, const std::string& mode, const std::string& endpoint)
+    {
+        if (!g_cef_ui || !g_ctx)
+        {
+            return "The launcher isn't ready yet.";
+        }
+
+        const auto config = game_config::get_game_config_by_id(game_id);
+        if (!config || !config->plutonium_game_names.contains(mode))
+        {
+            return "Joining is not supported for this game yet.";
+        }
+
+        // A Plutonium game already up, ours or started from their launcher, takes the connect on its console instead.
+        unsigned long running_pid = 0;
+        const auto running = plutonium::running_game(&running_pid);
+        if (running_pid)
+        {
+            if (running != config->plutonium_game_names.at(mode))
+            {
+                return "Another Plutonium game or mode is running. Close it before joining this server.";
+            }
+
+            std::thread([running_pid, endpoint, cef = g_cef_ui]()
+            {
+                if (!plutonium::send_connect(running_pid, endpoint))
+                {
+                    cef->show_message_box("Server Join",
+                        "Couldn't join the server automatically. Open the in-game console and enter:\n\nconnect " + endpoint);
+                }
+            }).detach();
+            return {};
+        }
+
+        if (!config->get_install_path())
+        {
+            return config->display_name + " isn't installed. Install it from the library to join.";
+        }
+
+        if (!try_lock_launch_barrier())
+        {
+            return "A game is already launching or running. Close it before joining a server.";
+        }
+
+        ipc::ipc_server::instance().clear_pending_join();
+        const auto generation = reserve_launch_generation();
+        std::thread([cfg = *config, game = config->game_key, mode, endpoint, cef = g_cef_ui, ctx = g_ctx, generation]()
+        {
+            run_launch_worker(cfg, game, mode, *cef, *ctx, generation, endpoint);
+        }).detach();
+
+        return {};
     }
 
     bool is_tracked_game_pid(const unsigned long pid, const std::string_view game_id)

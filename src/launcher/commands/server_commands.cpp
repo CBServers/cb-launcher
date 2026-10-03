@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "server_commands.hpp"
 #include "cef/cef_ui.hpp"
+#include "game_commands.hpp"
 #include "ipc/ipc_server.hpp"
 
 #include <atomic>
@@ -242,7 +243,9 @@ namespace commands::server_commands
             // Forks whose ipc component takes a direct connect transport.
             static const std::unordered_set<std::string> joinable{"boiii", "iw6x", "s1x", "h1-mod", "iw7-mod"};
             const auto config = ctx.get_game_config_from_request(value);
-            if (!config || !joinable.contains(config->id))
+            const std::string mode = value.HasMember("mode") && value["mode"].IsString() ? value["mode"].GetString() : "";
+            const auto plutonium = config && config->plutonium_game_names.contains(mode);
+            if (!config || (!plutonium && !joinable.contains(config->id)))
             {
                 set_result(false, "Joining is not supported for this game yet.");
                 return;
@@ -250,9 +253,18 @@ namespace commands::server_commands
 
             const std::string ip = value.HasMember("ip") && value["ip"].IsString() ? value["ip"].GetString() : "";
             const auto port = value.HasMember("port") && value["port"].IsInt() ? value["port"].GetInt() : 0;
-            if (!parse_endpoint(ip + ":" + std::to_string(port)))
+            const auto endpoint = ip + ":" + std::to_string(port);
+            // Also what keeps the endpoint safe to append to a bootstrapper command line: a numeric IPv4 and a port.
+            if (!parse_endpoint(endpoint))
             {
                 set_result(false, "Invalid server address.");
+                return;
+            }
+
+            if (plutonium)
+            {
+                const auto error = game_commands::join_plutonium_server(config->id, mode, endpoint);
+                set_result(error.empty(), error);
                 return;
             }
 

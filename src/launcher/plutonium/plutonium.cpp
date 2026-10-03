@@ -26,6 +26,8 @@ namespace plutonium
         constexpr auto LAUNCH_POLL_INTERVAL = std::chrono::milliseconds(100);
         // Covers the snapshot gap between the launcher exiting and its bootstrapper becoming visible.
         constexpr auto HANDOFF_GRACE = std::chrono::seconds(2);
+        constexpr auto STOP_TIMEOUT = std::chrono::seconds(5);
+        constexpr DWORD CONNECT_WORKER_TIMEOUT_MS = 10000;
 
         constexpr auto UPDATE_TIMEOUT = std::chrono::minutes(20);
         constexpr auto UPDATE_POLL_INTERVAL = std::chrono::milliseconds(500);
@@ -148,6 +150,46 @@ namespace plutonium
         bool is_alive(const unsigned long pid, HANDLE handle)
         {
             return handle ? utils::nt::is_process_alive_handle(handle) : utils::nt::is_process_alive(pid);
+        }
+
+        // Drops argv[0], quoted or not, leaving the arguments exactly as their launcher built them.
+        std::string strip_program(const std::string& command_line)
+        {
+            const auto end = command_line.starts_with('"') ? command_line.find('"', 1) : command_line.find(' ');
+            if (end == std::string::npos)
+            {
+                return {};
+            }
+
+            const auto start = command_line.find_first_not_of(' ', end + 1);
+            return start == std::string::npos ? std::string{} : command_line.substr(start);
+        }
+
+        // Their launcher falls through to a bare "-token " when create_session fails.
+        bool has_session_token(const std::string& args)
+        {
+            constexpr std::string_view flag = " -token ";
+            const auto pos = args.find(flag);
+            return pos != std::string::npos && pos + flag.size() < args.size() && args[pos + flag.size()] != ' ';
+        }
+
+        bool stop_and_wait(const unsigned long pid)
+        {
+            if (!utils::nt::terminate_process(pid))
+            {
+                return false;
+            }
+
+            const auto deadline = std::chrono::steady_clock::now() + STOP_TIMEOUT;
+            while (utils::nt::is_process_alive(pid))
+            {
+                if (std::chrono::steady_clock::now() >= deadline)
+                {
+                    return false;
+                }
+                std::this_thread::sleep_for(LAUNCH_POLL_INTERVAL);
+            }
+            return true;
         }
 
         // Diagnostics only - nothing branches on this text. Comes back blank for an elevated launcher (UIPI blocks WM_GETTEXT).
@@ -396,6 +438,149 @@ namespace plutonium
         utils::logger::write("[pluto] timed out waiting for '{}'", pluto_game);
         kill_process(pid, handle);
         return {false, 0, elevated, false};
+    }
+
+    launch_result launch_and_connect(const std::string& pluto_game, const std::string& endpoint, const bool elevate)
+    {
+        auto result = launch_via_uri(pluto_game, elevate);
+        if (!result.success)
+        {
+            return result;
+        }
+
+        // A high-IL bootstrapper would cost two more UAC prompts (kill and relaunch), so it stays up unconnected.
+        if (result.elevated && !utils::nt::is_elevated())
+        {
+            utils::logger::write("[pluto] bootstrapper pid {} is elevated, not relaunching to connect", result.bootstrapper_pid);
+            return result;
+        }
+
+        // Never logged: it carries the session token.
+        const auto args = strip_program(utils::nt::get_process_command_line(result.bootstrapper_pid));
+        if (!has_session_token(args))
+        {
+            utils::logger::write("[pluto] no session token readable on bootstrapper pid {}, not relaunching to connect",
+                result.bootstrapper_pid);
+            return result;
+        }
+
+        if (!stop_and_wait(result.bootstrapper_pid))
+        {
+            utils::logger::write("[pluto] could not stop bootstrapper pid {}, leaving it unconnected", result.bootstrapper_pid);
+            return result;
+        }
+
+        bool elevated = false;
+        const auto pid = utils::nt::launch_process_maybe_elevated(get_bootstrapper_exe(), args + " +connect " + endpoint,
+            get_root(), &elevated);
+        if (!pid)
+        {
+            const auto error = GetLastError();
+            utils::logger::write("[pluto] failed to relaunch '{}' to connect (error {})", pluto_game, error);
+            return {false, 0, elevated, elevated && error == ERROR_CANCELLED, false};
+        }
+
+        utils::logger::write("[pluto] relaunched '{}' connecting to {} (bootstrapper pid {})", pluto_game, endpoint, pid);
+        return {true, pid, elevated, false, true};
+    }
+
+    std::string running_game(unsigned long* pid)
+    {
+        const auto bootstrapper = utils::nt::find_process_id(BOOTSTRAPPER_EXE);
+        if (pid) *pid = bootstrapper;
+        if (!bootstrapper)
+        {
+            return {};
+        }
+
+        const auto args = strip_program(utils::nt::get_process_command_line(bootstrapper));
+        return args.substr(0, args.find(' '));
+    }
+
+    bool send_connect(const unsigned long bootstrapper_pid, const std::string& endpoint)
+    {
+        const auto self = utils::nt::library{}.get_path();
+        auto command_line = std::format(L"\"{}\" -pluto-connect {} -pluto-pid {}", self.wstring(),
+            utils::string::convert(endpoint), bootstrapper_pid);
+
+        STARTUPINFOW startup_info{};
+        startup_info.cb = sizeof(startup_info);
+        PROCESS_INFORMATION process_info{};
+        if (!CreateProcessW(self.wstring().data(), command_line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+            &startup_info, &process_info))
+        {
+            utils::logger::write("[pluto] failed to start connect worker (error {})", GetLastError());
+            return false;
+        }
+
+        CloseHandle(process_info.hThread);
+        const auto close_process = utils::finally([&]()
+        {
+            CloseHandle(process_info.hProcess);
+        });
+
+        if (WaitForSingleObject(process_info.hProcess, CONNECT_WORKER_TIMEOUT_MS) != WAIT_OBJECT_0)
+        {
+            TerminateProcess(process_info.hProcess, 1);
+            utils::logger::write("[pluto] connect worker timed out for pid {}", bootstrapper_pid);
+            return false;
+        }
+
+        DWORD code = 1;
+        GetExitCodeProcess(process_info.hProcess, &code);
+        utils::logger::write("[pluto] connect worker for pid {} to {} exited {}", bootstrapper_pid, endpoint, code);
+        return code == 0;
+    }
+
+    int run_connect_worker(const unsigned long bootstrapper_pid, const std::string& endpoint)
+    {
+        // Re-checked here since anything local can start this mode: a console line must stay a single connect.
+        if (!bootstrapper_pid || endpoint.empty() || endpoint.find_first_not_of("0123456789.:") != std::string::npos)
+        {
+            return 1;
+        }
+
+        // A process holds one console at a time, so drop ours (if any) before taking the game's.
+        FreeConsole();
+        if (!AttachConsole(bootstrapper_pid))
+        {
+            return 2;
+        }
+
+        const auto detach = utils::finally([]()
+        {
+            FreeConsole();
+        });
+
+        auto* const input = CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            nullptr, OPEN_EXISTING, 0, nullptr);
+        if (input == INVALID_HANDLE_VALUE)
+        {
+            return 3;
+        }
+
+        const auto close_input = utils::finally([&]()
+        {
+            CloseHandle(input);
+        });
+
+        std::vector<INPUT_RECORD> events;
+        for (const auto character : "connect " + endpoint + "\r")
+        {
+            INPUT_RECORD event{};
+            event.EventType = KEY_EVENT;
+            event.Event.KeyEvent.bKeyDown = TRUE;
+            event.Event.KeyEvent.wRepeatCount = 1;
+            event.Event.KeyEvent.wVirtualKeyCode = character == '\r' ? VK_RETURN : 0;
+            event.Event.KeyEvent.uChar.UnicodeChar = static_cast<wchar_t>(character);
+            events.push_back(event);
+            event.Event.KeyEvent.bKeyDown = FALSE;
+            events.push_back(event);
+        }
+
+        DWORD written = 0;
+        return WriteConsoleInputW(input, events.data(), static_cast<DWORD>(events.size()), &written)
+            && written == events.size() ? 0 : 4;
     }
 
     launch_result launch_lan(const std::string& pluto_game, const std::filesystem::path& game_path,

@@ -1,6 +1,7 @@
 #include "nt.hpp"
 #include <TlHelp32.h>
 #include <shellapi.h>
+#include <winternl.h>
 #include <delayimp.h>
 #pragma comment(lib, "delayimp.lib")
 
@@ -458,6 +459,46 @@ namespace utils::nt
         }
 
         return std::filesystem::path(std::wstring(buffer, size));
+    }
+
+    std::string get_process_command_line(const unsigned long pid)
+    {
+        auto* const process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!process)
+        {
+            return {};
+        }
+
+        const auto _ = utils::finally([&]()
+        {
+            CloseHandle(process);
+        });
+
+        // ProcessCommandLineInformation (Windows 8.1+) returns a UNICODE_STRING followed by its buffer.
+        constexpr auto process_command_line_information = static_cast<PROCESSINFOCLASS>(60);
+        const library ntdll("ntdll.dll");
+
+        ULONG size = 0;
+        ntdll.invoke_pascal<NTSTATUS>("NtQueryInformationProcess", process, process_command_line_information, static_cast<void*>(nullptr), 0UL, &size);
+        if (size < sizeof(UNICODE_STRING))
+        {
+            return {};
+        }
+
+        std::vector<std::uint8_t> buffer(size);
+        if (ntdll.invoke_pascal<NTSTATUS>("NtQueryInformationProcess", process, process_command_line_information,
+            static_cast<void*>(buffer.data()), size, &size) < 0)
+        {
+            return {};
+        }
+
+        const auto* const command_line = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
+        if (!command_line->Buffer || !command_line->Length)
+        {
+            return {};
+        }
+
+        return utils::string::convert(std::wstring(command_line->Buffer, command_line->Length / sizeof(wchar_t)));
     }
 
     namespace

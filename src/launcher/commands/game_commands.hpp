@@ -22,6 +22,9 @@ namespace commands::game_commands
     // Cold-launch a fork to accept a Discord invite; mode picks the play mode for non-switchable forks. No-op if a game holds the barrier.
     void launch_for_join(const std::string& game_id, const std::string& mode = {});
 
+    // Join ip:port (already validated) on a Plutonium mode: a running game gets it on its console, otherwise launch straight into the server. Returns an error for the UI, or empty once under way.
+    std::string join_plutonium_server(const std::string& game_id, const std::string& mode, const std::string& endpoint);
+
     // Stop whatever game holds the barrier and launch game_id in mode (mode switch or different game); connect completes via the IPC pending-join.
     void relaunch_for_join(const std::string& game_id, const std::string& mode);
 }
