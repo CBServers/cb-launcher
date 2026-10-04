@@ -47,6 +47,9 @@ namespace property_keys
     // Newest chat id seen per room, as JSON, so unread survives a restart.
     constexpr const char* CB_CHAT_SEEN = "launcher-cb-chat-seen";
 
+    // Early-access features from the last status poll, as a JSON array, so startup draws them unlocked.
+    constexpr const char* CB_BETA_FEATURES = "launcher-cb-beta-features";
+
     constexpr const char* CB_BROADCAST = "launcher-cb-broadcast";
     constexpr const char* CB_BROADCAST_GAME = "launcher-cb-broadcast-game";
     constexpr const char* CB_BROADCAST_NOTE = "launcher-cb-broadcast-note";

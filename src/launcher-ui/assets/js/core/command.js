@@ -48,6 +48,8 @@ const mockCb = {
     dmMessages: [],
     dmPeer: '',
     modRole: '',
+    // Set to ['ww2'] from the console to preview early access (picked up on the next status poll).
+    betaFeatures: [],
     modReports: [],
     modLog: [],
     modLookup: null
@@ -198,7 +200,7 @@ function mockCommand(command, data) {
         case 'cbfriends-send-dm':
             return { ok: true };
         case 'cbfriends-mod-status':
-            return { role: mockCb.modRole };
+            return { role: mockCb.modRole, features: mockCb.betaFeatures };
         case 'cbfriends-mod-get-reports':
             return { reports: mockCb.modReports };
         case 'cbfriends-mod-get-log':
@@ -231,6 +233,14 @@ function mockCommand(command, data) {
         case 'cbfriends-mod-resolve':
             mockCb.modReports = mockCb.modReports.filter(r => r.id !== data.id);
             return { ok: true };
+        case 'cbfriends-mod-set-beta': {
+            const apply = list => (list || []).filter(f => f !== data.feature).concat(data.enabled ? [data.feature] : []);
+            if (mockCb.modLookup && mockCb.modLookup.person.cbId === data.cbId) {
+                mockCb.modLookup.features = apply(mockCb.modLookup.features);
+            }
+            if (mockCb.profile && mockCb.profile.cbId === data.cbId) mockCb.betaFeatures = apply(mockCb.betaFeatures);
+            return { ok: true };
+        }
         case 'cbfriends-set-mod-active':
         case 'cbfriends-mod-lookup':
         case 'cbfriends-mod-mute':

@@ -821,9 +821,10 @@ namespace game_config
                 .display_name = "World War II",
                 .id = "s2x",
                 .exe_name = "s2x.exe",
-                // Placeholder until an S2x payload is published; these 404 today.
-                .update_manifest_url = CLIENT_UPDATE_SERVER "s2x.json",
-                .update_folder_url = CLIENT_UPDATE_SERVER "s2x/",
+                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "s2x.json",
+                                                     CLIENT_UPDATE_SERVER "s2x-dev.json"),
+                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "s2x/",
+                                                   CLIENT_UPDATE_SERVER "s2x-dev/"),
                 .manifest_path = "manifest/ww2.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s2_mp64_ship.exe", "s2_sp64_ship.exe"},
@@ -831,8 +832,16 @@ namespace game_config
                 .mode_arguments = {
                     {"mp", "-multiplayer"},
                     {"sp", "-singleplayer"},
-                    {"zm", "-zombies"}
+                    // Without +zombiesMode 1, S2x relaunches itself to add it.
+                    {"zm", "-zombies +zombiesMode 1"}
                 },
+                // The CDN manifest ships MP and Zombies together in "mp"; base alone launches neither mode.
+                .mode_components = {
+                    {"mp", "mp"},
+                    {"zm", "mp"},
+                    {"sp", "sp"}
+                },
+                .default_args = "-noupdate",
                 // S2x reads the player name from its own config, not argv.
                 .name_argument = "",
                 .base_folder = "ww2_game_files",

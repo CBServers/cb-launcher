@@ -130,6 +130,12 @@ async function refreshLocalizedUI(targetPage) {
     }
 }
 
+// Early access granted or revoked mid-session; redraws everything that drew the game as coming soon.
+window.applyBetaFeatures = async function (features) {
+    if (!GameUtils.setBetaFeatures(features)) return;
+    await refreshLocalizedUI();
+};
+
 // Game data is now handled individually in each page's HTML file
 
 function sleep(milliseconds) {
@@ -337,6 +343,14 @@ async function initialize() {
     }
 
     await initializeLanguage();
+
+    // Last known early access, so a tester's unlocked game draws unlocked from the first frame, offline too.
+    if (typeof window.executeCommand === 'function') {
+        try {
+            const raw = await window.executeCommand('get-property', PROPERTY_KEYS.LAUNCHER.CB_BETA_FEATURES);
+            if (raw) GameUtils.setBetaFeatures(JSON.parse(raw));
+        } catch (_) {}
+    }
 
     if (window.LauncherI18n) {
         window.LauncherI18n.applyStaticTranslations();
@@ -1891,6 +1905,7 @@ function launchGame(gameId) {
         console.error(`No configuration found for game: ${gameId}`);
         return;
     }
+    if (GameUtils.isComingSoon(gameId)) return;
 
     addRecentGame(gameId);
 
@@ -1927,6 +1942,7 @@ function showGameSettings(gameId) {
 
 function showManageInstall(gameId, options = {}) {
     console.log(`Manage install button clicked for ${gameId}`);
+    if (GameUtils.isComingSoon(gameId)) return;
 
     const popups = ensureGamePopups(gameId);
 
@@ -2024,6 +2040,8 @@ function stopGame(gameId) {
 
 async function showSetupFlow(gameId) {
     console.log(`Setup button clicked for ${gameId}`);
+    // -install, -launch and cbservers:// links reach here without passing a coming-soon button.
+    if (GameUtils.isComingSoon(gameId)) return;
 
     // Both branches of the flow need the network: a download, or client files for an existing install.
     if (!await window.guardOnline()) return;
@@ -2056,7 +2074,7 @@ async function checkGameInstallation(gameId) {
     const gameMapping = GameUtils.getGameMapping(gameId);
     const config = GameUtils.getGameConfigByUIId(gameId);
     if (!config) return { hasAnySetup: false, status: 'not-setup' };
-    if (config.comingSoon) return { hasAnySetup: false, status: 'not-setup' };
+    if (GameUtils.isComingSoon(gameId)) return { hasAnySetup: false, status: 'not-setup' };
 
     try {
         if (typeof window.executeCommand === 'function') {

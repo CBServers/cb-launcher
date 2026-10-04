@@ -557,12 +557,26 @@ function mutedResponse(mute) {
     return json(403, { error: 'you are muted', muted: true, until: mute.until || 0, reason: mute.reason || '' });
 }
 
+// Early access to unreleased games, keyed by cbId like roles so a rename cannot pass it on. It only
+// decides what the launcher draws; the game files themselves are public.
+const BETA_FEATURES = ['ww2'];
+
+async function betaOf(env, cbId) {
+    const raw = await env.CB.get(`beta:${cbId}`);
+    if (!raw) return [];
+    try {
+        const list = JSON.parse(raw);
+        return Array.isArray(list) ? list.filter(f => BETA_FEATURES.includes(f)) : [];
+    } catch { return []; }
+}
+
 // The caller's own mute rides along, so the launcher can say so before a send fails.
 async function handleModStatus(env, cbId) {
     const mute = await activeMute(env, cbId);
     return json(200, {
         role: await roleOf(env, cbId),
         mute: mute ? { until: mute.until || 0, reason: mute.reason || '' } : null,
+        features: await betaOf(env, cbId),
     });
 }
 
@@ -698,6 +712,7 @@ async function handleModLookup(env, cbId, body) {
         person: await personView(env, target),
         role: await roleOf(env, target),
         mute: await activeMute(env, target),
+        features: await betaOf(env, target),
         // Deliberately not the Discord id, HWID or recovery hashes: moderation does not need them.
         createdAt: account.createdAt,
         deviceCount: (account.deviceKeys || []).length,
@@ -737,6 +752,28 @@ async function handleModSetRole(env, cbId, body) {
     }
     await modLog(env, cbId, 'set-role', target, body.role === 'mod' ? 'mod' : 'none');
     return json(200, { ok: true });
+}
+
+// Only an admin opens or closes early access; unlike roles, it may grant itself.
+async function handleModSetBeta(env, cbId, body) {
+    const gate = await requireRole(env, cbId, 'admin');
+    if (gate.error) return gate.error;
+
+    const target = String(body.cbId || '');
+    const feature = String(body.feature || '');
+    if (!target || !BETA_FEATURES.includes(feature)) return json(400, { error: 'bad request' });
+    if (!(await getAccount(env, target))) return json(404, { error: 'no such account' });
+
+    const enabled = body.enabled === true;
+    const features = (await betaOf(env, target)).filter(f => f !== feature);
+    if (enabled) features.push(feature);
+    if (features.length) {
+        await env.CB.put(`beta:${target}`, JSON.stringify(features));
+    } else {
+        await env.CB.delete(`beta:${target}`);
+    }
+    await modLog(env, cbId, 'set-beta', target, `${feature} ${enabled ? 'on' : 'off'}`);
+    return json(200, { ok: true, features });
 }
 
 // Friends, presence and LFG. Edges live in a SocialGraph object per account; presence and LFG posts
@@ -1641,6 +1678,8 @@ export default {
                 return handleModLog(env, cbId);
             case '/v1/mod/set-role':
                 return handleModSetRole(env, cbId, body);
+            case '/v1/mod/set-beta':
+                return handleModSetBeta(env, cbId, body);
             case '/v1/account/sync-discord':
                 return handleDiscordSync(env, cbId, body);
             case '/v1/friends/add':

@@ -69,6 +69,36 @@ namespace social
             return (v.IsObject() && v.HasMember(key) && v[key].IsInt64()) ? v[key].GetInt64() : 0;
         }
 
+        std::vector<std::string> string_array(const rapidjson::Value& v)
+        {
+            std::vector<std::string> out;
+            if (v.IsArray())
+            {
+                for (const auto& e : v.GetArray())
+                {
+                    if (e.IsString()) out.emplace_back(e.GetString(), e.GetStringLength());
+                }
+            }
+            return out;
+        }
+
+        std::vector<std::string> json_strings(const rapidjson::Value& v, const char* key)
+        {
+            return (v.IsObject() && v.HasMember(key)) ? string_array(v[key]) : std::vector<std::string>{};
+        }
+
+        void store_beta_features(const std::vector<std::string>& features)
+        {
+            rapidjson::Document doc;
+            doc.SetArray();
+            for (const auto& feature : features)
+            {
+                doc.PushBack(rapidjson::Value(feature.data(), doc.GetAllocator()), doc.GetAllocator());
+            }
+            const auto guard = utils::properties::lock();
+            utils::properties::store(property_keys::CB_BETA_FEATURES, serialize(doc));
+        }
+
         chat_message parse_message(const rapidjson::Value& m)
         {
             chat_message message;
@@ -224,10 +254,12 @@ namespace social
     {
         std::string account_id;
         std::optional<std::string> profile_json;
+        std::optional<std::string> features_json;
         {
             const auto guard = utils::properties::lock();
             account_id = utils::properties::load(property_keys::CB_ACCOUNT_ID).value_or("");
             profile_json = utils::properties::load(property_keys::CB_PROFILE);
+            features_json = utils::properties::load(property_keys::CB_BETA_FEATURES);
         }
 
         // The worker needs the keypair loaded to sign this session's requests, and a launcher with
@@ -256,10 +288,20 @@ namespace social
         profile.accent = json_get(doc, "accent");
         profile.favorite_game = json_get(doc, "favoriteGame");
 
+        // Seeded from the cache so the getter has the last answer before the first status poll lands.
+        std::vector<std::string> features;
+        if (features_json)
+        {
+            rapidjson::Document cached;
+            cached.Parse(features_json->data());
+            if (!cached.HasParseError()) features = string_array(cached);
+        }
+
         {
             std::lock_guard lock(mutex_);
             profile_ = std::move(profile);
             state_ = profile_state::ready;
+            beta_features_ = std::move(features);
         }
         ensure_worker();
         inbox_client::instance().reattach(); // binds the cb address; harmless before the inbox starts
@@ -1984,14 +2026,27 @@ namespace social
         auto doc = post_json(base_url() + "/v1/mod/status", ts_body());
         if (!doc) return;
 
-        std::lock_guard lock(mutex_);
-        mod_role_ = json_get(*doc, "role");
-        own_mute_ = {};
-        if (doc->HasMember("mute") && (*doc)["mute"].IsObject())
+        auto features = json_strings(*doc, "features");
+        bool features_changed = false;
         {
-            const auto& mute = (*doc)["mute"];
-            own_mute_ = {true, json_int64(mute, "until"), json_get(mute, "reason")};
+            std::lock_guard lock(mutex_);
+            mod_role_ = json_get(*doc, "role");
+            own_mute_ = {};
+            if (doc->HasMember("mute") && (*doc)["mute"].IsObject())
+            {
+                const auto& mute = (*doc)["mute"];
+                own_mute_ = {true, json_int64(mute, "until"), json_get(mute, "reason")};
+            }
+            features_changed = features != beta_features_;
+            if (features_changed) beta_features_ = features;
         }
+        if (features_changed) store_beta_features(features);
+    }
+
+    std::vector<std::string> cbfriends_service::get_beta_features() const
+    {
+        std::lock_guard lock(mutex_);
+        return beta_features_;
     }
 
     void cbfriends_service::refresh_mod_queue()
@@ -2076,6 +2131,7 @@ namespace social
             mod_account account;
             if (doc->HasMember("person")) account.person = parse_person((*doc)["person"]);
             account.role = json_get(*doc, "role");
+            account.features = json_strings(*doc, "features");
             account.created_at = (doc->HasMember("createdAt") && (*doc)["createdAt"].IsInt64())
                 ? (*doc)["createdAt"].GetInt64() : 0;
             account.device_count = (doc->HasMember("deviceCount") && (*doc)["deviceCount"].IsInt())
@@ -2144,6 +2200,35 @@ namespace social
         add_string(body, "cbId", cb_id);
         add_string(body, "role", role);
         post_action("/v1/mod/set-role", serialize(body), [this] { refresh_mod_queue(); });
+    }
+
+    void cbfriends_service::mod_set_beta(const std::string& cb_id, const std::string& feature, const bool enabled)
+    {
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "cbId", cb_id);
+        add_string(body, "feature", feature);
+        body.AddMember("enabled", enabled, body.GetAllocator());
+
+        std::thread([this, cb_id, payload = serialize(body)]
+        {
+            auto doc = post_json(base_url() + "/v1/mod/set-beta", payload);
+            if (!doc) return;
+
+            // The open lookup card shows the grant without another lookup blanking it in between.
+            bool self = false;
+            {
+                std::lock_guard lock(mutex_);
+                if (mod_lookup_ && mod_lookup_->person.cb_id == cb_id)
+                {
+                    mod_lookup_->features = json_strings(*doc, "features");
+                }
+                self = profile_ && profile_->cb_id == cb_id;
+            }
+            if (self) refresh_mod_role();
+            refresh_mod_queue();
+        }).detach();
     }
 
     void cbfriends_service::refresh_security()

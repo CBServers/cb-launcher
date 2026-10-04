@@ -139,9 +139,26 @@
             </div>`;
     }
 
+    // Coming-soon games an admin can open to named testers.
+    function betaGames() {
+        const gu = window.GameUtils;
+        return gu ? gu.getAllGameConfigs().filter(c => c.betaFeature) : [];
+    }
+
+    function betaButtons(features) {
+        if (role !== 'admin') return '';
+        return betaGames().map(c => {
+            const on = features.includes(c.betaFeature);
+            return `<button class="mod-btn" data-beta="${escapeHtml(c.betaFeature)}" data-enable="${on ? 'false' : 'true'}">${
+                escapeHtml(t(on ? 'revokeBeta' : 'grantBeta', { game: c.shortName || c.displayName }))}</button>`;
+        }).join('');
+    }
+
     function lookupHtml() {
         if (!lookup) return `<div class="mod-empty">${escapeHtml(t('lookupHint'))}</div>`;
         const p = lookup.person || {};
+        const features = lookup.features || [];
+        const betaNames = betaGames().filter(c => features.includes(c.betaFeature)).map(c => c.shortName || c.displayName);
         const permanent = lookup.muted && !lookup.mutedUntil;
         const muted = permanent || (lookup.mutedUntil && lookup.mutedUntil > Date.now());
         const muteLine = permanent
@@ -154,6 +171,7 @@
                     ${escapeHtml(t('memberSince'))} ${escapeHtml(p.createdAt ? new Date(p.createdAt * 1000).toLocaleDateString() : '?')}
                     &middot; ${escapeHtml(t('deviceCount', { n: lookup.deviceCount || 0 }))}
                     ${lookup.role ? ' &middot; <strong>' + escapeHtml(lookup.role) + '</strong>' : ''}
+                    ${betaNames.length ? ' &middot; ' + escapeHtml(t('earlyAccess', { games: betaNames.join(', ') })) : ''}
                 </div>
                 ${muted ? `<div class="mod-card-mute">${escapeHtml(muteLine)}</div>` : ''}
                 <div class="mod-row-actions">
@@ -163,6 +181,7 @@
                     ${role === 'admin' && lookup.role !== 'admin'
                         ? `<button class="mod-btn" data-role="${lookup.role === 'mod' ? 'none' : 'mod'}">${escapeHtml(lookup.role === 'mod' ? t('revokeMod') : t('grantMod'))}</button>`
                         : ''}
+                    ${betaButtons(features)}
                 </div>
             </div>`;
     }
@@ -224,6 +243,9 @@
     async function refreshRole() {
         let res;
         try { res = await window.executeCommand('cbfriends-mod-status'); } catch (error) { return; }
+        if (res && Array.isArray(res.features) && typeof window.applyBetaFeatures === 'function') {
+            window.applyBetaFeatures(res.features);
+        }
         const next = (res && res.role) || '';
         if (next === role) return;
         role = next;
@@ -305,6 +327,18 @@
             const roleBtn = event.target.closest('[data-role]');
             if (roleBtn && target) {
                 return act('cbfriends-mod-set-role', { cbId: target, role: roleBtn.getAttribute('data-role') });
+            }
+
+            const betaBtn = event.target.closest('[data-beta]');
+            if (betaBtn && target) {
+                act('cbfriends-mod-set-beta', {
+                    cbId: target,
+                    feature: betaBtn.getAttribute('data-beta'),
+                    enabled: betaBtn.getAttribute('data-enable') === 'true',
+                });
+                // Granting yourself unlocks here without waiting for the next status poll.
+                setTimeout(refreshRole, 1500);
+                return;
             }
 
             const resolve = event.target.closest('[data-resolve]');

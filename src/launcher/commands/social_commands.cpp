@@ -16,6 +16,18 @@ namespace commands::social_commands
             target.AddMember(rapidjson::StringRef(key), str, allocator);
         }
 
+        void add_strings(rapidjson::Value& target, const char* key, const std::vector<std::string>& values,
+                         rapidjson::Document::AllocatorType& allocator)
+        {
+            rapidjson::Value list(rapidjson::kArrayType);
+            for (const auto& value : values)
+            {
+                list.PushBack(rapidjson::Value(value.data(), static_cast<rapidjson::SizeType>(value.size()), allocator),
+                              allocator);
+            }
+            target.AddMember(rapidjson::StringRef(key), list, allocator);
+        }
+
         std::string read_string(const rapidjson::Value& value, const char* key)
         {
             if (value.IsObject() && value.HasMember(key) && value[key].IsString())
@@ -552,6 +564,7 @@ namespace commands::social_commands
             response.SetObject();
             auto& allocator = response.GetAllocator();
             add_string(response, "role", social::cbfriends_service::instance().get_mod_role(), allocator);
+            add_strings(response, "features", social::cbfriends_service::instance().get_beta_features(), allocator);
         });
 
         cef_ui.add_command("cbfriends-set-mod-active", [](const rapidjson::Value& value, rapidjson::Document& response)
@@ -652,6 +665,7 @@ namespace commands::social_commands
             rapidjson::Value obj(rapidjson::kObjectType);
             obj.AddMember("person", person_value(found->person, allocator), allocator);
             add_string(obj, "role", found->role, allocator);
+            add_strings(obj, "features", found->features, allocator);
             obj.AddMember("muted", found->muted, allocator);
             add_string(obj, "muteReason", found->mute_reason, allocator);
             obj.AddMember("mutedUntil", found->muted_until, allocator);
@@ -711,6 +725,14 @@ namespace commands::social_commands
             response.SetObject();
             social::cbfriends_service::instance().mod_set_role(read_string(value, "cbId"),
                                                                read_string(value, "role"));
+        });
+
+        cef_ui.add_command("cbfriends-mod-set-beta", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().mod_set_beta(read_string(value, "cbId"),
+                                                               read_string(value, "feature"),
+                                                               read_bool(value, "enabled"));
         });
 
         cef_ui.add_command("cbfriends-set-community-active", [](const rapidjson::Value& value, rapidjson::Document& response)

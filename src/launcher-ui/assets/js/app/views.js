@@ -206,7 +206,7 @@
         }
         if (sub) sub.textContent = gameDescription(config);
         if (cta) {
-            if (config.comingSoon) {
+            if (GameUtils.isComingSoon(config.uiId)) {
                 cta.classList.remove('is-installing', 'is-running');
                 cta.classList.add('setup-button', 'is-coming-soon');
                 cta.innerHTML = escapeHtml(t('common.comingSoon'));
@@ -559,8 +559,9 @@
             const config = GameUtils.getGameConfigByUIId(gameId);
             if (!config) return;
 
+            const comingSoon = GameUtils.isComingSoon(gameId);
             item.style.setProperty('--game-accent', config.accent || '#8AA4FF');
-            item.classList.toggle('is-coming-soon', !!config.comingSoon);
+            item.classList.toggle('is-coming-soon', comingSoon);
             const thumbFallback = config.capsulePath || config.logoPath || '';
             item.innerHTML = `
                 <div class="game-item-thumb">
@@ -571,7 +572,7 @@
                     <span class="game-item-title">${escapeHtml(config.displayName)}</span>
                     <small class="game-item-sub">${escapeHtml(config.client)}</small>
                 </div>
-                ${config.comingSoon ? `<span class="game-item-soon-chip">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
+                ${comingSoon ? `<span class="game-item-soon-chip">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
             `;
             item.setAttribute('title', config.displayName);
             item.setAttribute('aria-label', config.displayName);
@@ -773,7 +774,7 @@
         loadHiddenGames().then(() => applyHiddenGames());
 
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => {
-            const comingSoon = !!config.comingSoon;
+            const comingSoon = GameUtils.isComingSoon(config.uiId);
             const cardCls = `library-card${comingSoon ? ' is-coming-soon' : ''}`;
             const buttonHtml = comingSoon
                 ? `<button class="library-install-btn is-coming-soon" disabled title="${escapeHtml(t('library.comingSoonHint'))}">
@@ -1122,7 +1123,7 @@
         if (!host) return;
 
         host.innerHTML = GameUtils.getAllGameConfigs().map(config => {
-            const comingSoon = !!config.comingSoon;
+            const comingSoon = GameUtils.isComingSoon(config.uiId);
             const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}`;
             const credits = gameCredits(config);
             const hasCredits = credits && String(credits).trim().length > 0;
@@ -1273,7 +1274,7 @@
         if (!list) return;
 
         const allConfigs = GameUtils.getAllGameConfigs();
-        const playableConfigs = allConfigs.filter(c => !c.comingSoon);
+        const playableConfigs = allConfigs.filter(c => !GameUtils.isComingSoon(c.uiId));
         const installPaths = {};
 
         if (typeof window.executeCommand === 'function') {

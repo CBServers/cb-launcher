@@ -20,6 +20,7 @@ const PROPERTY_KEYS = {
         PORTABLE_MODE: 'launcher-portable-mode',
         CB_COMMUNITY_ENABLED: 'launcher-cb-community-enabled',
         CB_CHAT_SEEN: 'launcher-cb-chat-seen',
+        CB_BETA_FEATURES: 'launcher-cb-beta-features',
         DESKTOP_NOTIFICATIONS: 'launcher-desktop-notifications',
         REDUCE_MOTION: 'launcher-reduce-motion',
         PLAYER_COUNT_MODE: 'launcher-player-count-mode',
@@ -347,6 +348,7 @@ class GameUtils {
             provider: '',
             clientKey: 'others',
             comingSoon: true,
+            betaFeature: 'ww2',
             hasMultipleModes: true,
             supportedModes: ['mp', 'sp', 'zm'],
             supportsName: false,
@@ -527,9 +529,21 @@ class GameUtils {
         return this.getGameConfig(backendId);
     }
 
+    // Early access granted to this CB account; a coming-soon game naming one of these is playable.
+    static betaFeatures = new Set();
+
+    // Returns whether the set changed, so the caller knows to redraw.
+    static setBetaFeatures(features) {
+        const next = new Set(Array.isArray(features) ? features.filter(f => typeof f === 'string') : []);
+        const changed = next.size !== this.betaFeatures.size || [...next].some(f => !this.betaFeatures.has(f));
+        this.betaFeatures = next;
+        return changed;
+    }
+
     static isComingSoon(uiId) {
         const config = this.getGameConfigByUIId(uiId);
-        return !!(config && config.comingSoon);
+        if (!config || !config.comingSoon) return false;
+        return !(config.betaFeature && this.betaFeatures.has(config.betaFeature));
     }
 
     /**
@@ -1020,6 +1034,9 @@ class GameUtils {
         if (!gameConfig) {
             console.error(`No configuration found for game: ${backendGame}`);
             throw new Error('Game configuration not found');
+        }
+        if (this.isComingSoon(uiGameId)) {
+            throw new Error('Game is not available yet');
         }
 
         // Guard against launching while another game is updating (singleton progress_tracker).

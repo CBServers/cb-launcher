@@ -176,6 +176,7 @@ namespace social
     {
         cb_person person;
         std::string role;
+        std::vector<std::string> features; // early access
         bool muted{false};
         std::string mute_reason;
         int64_t muted_until{0}; // 0 while muted means permanent
@@ -328,11 +329,14 @@ namespace social
         // minutes <= 0 without `permanent` unmutes.
         void mod_mute(const std::string& cb_id, int minutes, const std::string& reason, bool permanent);
         void mod_set_role(const std::string& cb_id, const std::string& role);
+        void mod_set_beta(const std::string& cb_id, const std::string& feature, bool enabled);
         // report_id may be empty; when set, the report is marked as having had its message removed.
         void mod_remove_message(const std::string& room, int64_t id, const std::string& report_id);
         void mod_purge(const std::string& room, const std::string& cb_id);
 
         mute_state get_own_mute() const;
+        // Unreleased games this account may see, from the status poll (cached across restarts).
+        std::vector<std::string> get_beta_features() const;
 
         void set_lfg_filter(const std::string& game); // "" = all games
         std::vector<cb_person> get_lfg() const;
@@ -474,6 +478,7 @@ namespace social
         std::vector<security_event> security_;
 
         std::string mod_role_;
+        std::vector<std::string> beta_features_;
         mute_state own_mute_;
         std::vector<mod_report> mod_reports_;
         std::vector<mod_log_entry> mod_log_;

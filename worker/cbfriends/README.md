@@ -105,11 +105,13 @@ Moderator endpoints answer `404` to everyone else. Besides the queue, lookup, au
 | `/v1/mod/mute` | `{ cbId, minutes, permanent?, reason }` | Blocks chat, DMs and board posts, and takes the current board post down. `permanent` stores `until: 0`, lifted only by `minutes: 0`. Refused for moderators |
 | `/v1/mod/remove-message` | `{ room, id, reportId? }` | Deletes one line from a public room; `reportId` marks that report `messageRemoved` |
 | `/v1/mod/purge` | `{ room, cbId }` | Deletes every line an account still has in a room's history. Refused for moderators |
+| `/v1/mod/set-beta` | `{ cbId, feature, enabled }` | Admin only. Grants or revokes early access (`feature` from `BETA_FEATURES`, currently `ww2`), stored as `beta:<cbId>` = JSON array. Returns the target's new `features`. An admin may grant itself |
 
 A removed id is kept (last 100) in the room's `removed` list, returned on every poll, and a removal
 wakes held polls, so launchers drop a line they already hold within a second. `/v1/mod/status`
-returns the caller's own `mute` alongside its role, and every refused send answers
+returns the caller's own `mute` and early-access `features` alongside its role, and every refused send answers
 `403 { muted: true, until, reason }`, so the launcher can show the mute before and after a send.
+Early access only unlocks a coming-soon game in the launcher UI; the game files stay public.
 
 ## Durable Objects
 
