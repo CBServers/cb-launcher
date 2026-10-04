@@ -10,7 +10,11 @@ const mockMods = {
             { id: 'mods:ugx_mod', name: 'ugx_mod', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-06-15T10:00:00Z', size: 251658240 }
         ],
         t5: [
-            { id: 'mods:zm_sumpf_remake', name: 'zm_sumpf_remake', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-08-09T10:00:00Z', size: 429916160 }
+            { id: 'mods:zm_sumpf_remake', name: 'zm_sumpf_remake', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-08-09T10:00:00Z', size: 429916160 },
+            { id: 'usermaps:zombie_moon_remix', name: 'zombie_moon_remix', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-08-11T10:00:00Z', size: 287309824 }
+        ],
+        iw4x: [
+            { id: 'usermaps:mp_bloc', name: 'mp_bloc', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-09-02T10:00:00Z', size: 96468992 }
         ],
         t6: [
             { id: 'usermaps:zm_buried_lite', name: 'zm_buried_lite', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-08-14T10:00:00Z', size: 398458880 },

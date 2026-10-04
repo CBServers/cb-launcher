@@ -3794,7 +3794,8 @@ button { font-family: inherit; cursor: pointer; }
     font-size: 12px;
 }
 
-.mods-refresh[hidden] { display: none; }
+.mods-refresh[hidden],
+.mods-open-folder[hidden] { display: none; }
 .mods-refresh.is-spinning .reload-icon { animation: cdn-spin 1s linear infinite; }
 
 .mods-view { display: none; }

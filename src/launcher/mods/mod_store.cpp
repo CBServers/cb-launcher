@@ -37,10 +37,16 @@ namespace mods
         };
 
         const std::unordered_map<std::string, game_layout> layouts_ = {
-            {"bo3", {false, {FOLDER_USERMAPS, FOLDER_MODS}, 311210}},
-            {"t4",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
-            {"t5",  {true,  {FOLDER_MODS}, 0}},
-            {"t6",  {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"bo3",   {false, {FOLDER_USERMAPS, FOLDER_MODS}, 311210}},
+            {"cod4x", {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"iw4x",  {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"mwr",   {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"iw",    {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"mw2r",  {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"t4",    {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"t5",    {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"iw5",   {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            {"t6",    {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
         };
 
         const game_layout* layout_for(const game_config::game_config_t& config)
@@ -350,7 +356,8 @@ namespace mods
 
         std::string detect_kind(const game_layout& layout, const std::filesystem::path& directory)
         {
-            if (!layout.plutonium)
+            // Workshop items describe themselves in workshop.json; everything else is told apart by its fastfiles.
+            if (layout.steam_appid)
             {
                 const auto info = read_workshop_json(directory);
                 if (info && (info->type == KIND_MAP || info->type == KIND_MOD))
@@ -377,6 +384,12 @@ namespace mods
                 {
                     return KIND_MAP;
                 }
+            }
+
+            // IW-engine mods can be .iwd archives alone, with no mod.ff.
+            if (has_file_with_suffix(directory, ".iwd"))
+            {
+                return KIND_MOD;
             }
 
             return {};
@@ -767,6 +780,168 @@ namespace mods
         return result;
     }
 
+    namespace
+    {
+        struct import_item
+        {
+            std::filesystem::path source;
+            std::string folder;
+            std::string dirname;
+            std::string kind;
+        };
+
+        // Workshop items install under their numeric id, like Steam does: FolderName
+        // is author-chosen and two items can share one, silently clobbering each other.
+        std::string install_dirname(const std::filesystem::path& source)
+        {
+            if (const auto info = read_workshop_json(source); info && is_workshop_id(info->publisher_id))
+            {
+                return info->publisher_id;
+            }
+
+            return utils::string::path_to_utf8(source.filename());
+        }
+
+        std::string check_item(const game_layout& layout, const std::filesystem::path& root, const import_item& item)
+        {
+            if (!is_safe_dirname(item.dirname))
+            {
+                return "The folder name \"" + item.dirname + "\" contains characters the game cannot load.";
+            }
+
+            if (!has_folder(layout, item.folder))
+            {
+                return "This game does not support custom " + std::string(item.kind == KIND_MAP ? "maps." : "mods.");
+            }
+
+            // The copy clears its target first, so a source already in place would be deleted.
+            for (const auto& folder : layout.folders)
+            {
+                if (utils::io::is_inside_folder(item.source, root / folder))
+                {
+                    return "\"" + item.dirname + "\" is already in this game's " + folder + " folder.";
+                }
+            }
+
+            if (utils::io::is_inside_folder(root / item.folder / item.dirname, item.source))
+            {
+                return "The selected folder contains this game's content folders. Pick the map or mod folder itself.";
+            }
+
+            return {};
+        }
+
+        import_result place_item(const game_config::game_config_t& config, const game_layout& layout, const std::filesystem::path& root,
+            const import_item& item, const std::string& origin, const bool move_source, const progress_callback& progress)
+        {
+            const auto target = root / item.folder / item.dirname;
+            if (progress)
+            {
+                progress("copying", item.dirname, 0);
+            }
+
+            try
+            {
+                std::error_code code{};
+                std::filesystem::remove_all(target, code);
+                utils::io::create_directory(root / item.folder);
+
+                code.clear();
+                if (move_source)
+                {
+                    std::filesystem::rename(item.source, target, code);
+                }
+                if (!move_source || code)
+                {
+                    utils::io::copy_folder(item.source, target);
+                }
+            }
+            catch (const std::exception& e)
+            {
+                utils::logger::write("[cbl-mods] failed to copy {} to {}: {}", utils::string::path_to_utf8(item.source), utils::string::path_to_utf8(target), e.what());
+                return fail("Failed to copy the mod files: " + std::string(e.what()));
+            }
+
+            installed_mod mod{};
+            mod.id = make_id(item.folder, item.dirname);
+            mod.name = item.dirname;
+            mod.kind = item.kind;
+            mod.folder = item.folder;
+            mod.source = origin;
+            mod.installed_at = now_iso8601();
+            apply_workshop_info(mod, target);
+            remove_stale_copies(config, layout, root, mod.workshop_id, item.folder, item.dirname);
+            mod.size = directory_size(target);
+            upsert_index(config, mod);
+
+            utils::logger::write("[cbl-mods] imported {} into {}", mod.id, utils::string::path_to_utf8(target));
+            return {true, {}, mod};
+        }
+
+        // A release shipping its own usermaps/ and mods/, at the top or under one wrapper folder.
+        std::optional<std::filesystem::path> find_package(const std::filesystem::path& directory)
+        {
+            const auto is_package = [](const std::filesystem::path& candidate)
+            {
+                return !subdirectories(candidate / FOLDER_USERMAPS).empty() || !subdirectories(candidate / FOLDER_MODS).empty();
+            };
+
+            if (is_package(directory))
+            {
+                return directory;
+            }
+
+            const auto top_level = subdirectories(directory);
+            if (top_level.size() == 1 && is_package(top_level.front()))
+            {
+                return top_level.front();
+            }
+
+            return std::nullopt;
+        }
+
+        // The package's own folders decide what each item is; maps go first so the result names the map.
+        import_result import_package(const game_config::game_config_t& config, const game_layout& layout, const std::filesystem::path& root,
+            const std::filesystem::path& package, const std::string& origin, const progress_callback& progress)
+        {
+            std::vector<import_item> items{};
+            for (const auto& [folder, kind] : {std::pair{FOLDER_USERMAPS, KIND_MAP}, std::pair{FOLDER_MODS, KIND_MOD}})
+            {
+                for (const auto& directory : subdirectories(package / folder))
+                {
+                    items.push_back({directory, folder, install_dirname(directory), kind});
+                }
+            }
+
+            // Checked up front so a bad entry doesn't leave half the release installed.
+            for (const auto& item : items)
+            {
+                if (const auto error = check_item(layout, root, item); !error.empty())
+                {
+                    return fail(error);
+                }
+            }
+
+            import_result first{};
+            for (const auto& item : items)
+            {
+                auto result = place_item(config, layout, root, item, origin, false, progress);
+                if (!result.success)
+                {
+                    return result;
+                }
+
+                if (!first.success)
+                {
+                    first = std::move(result);
+                }
+            }
+
+            utils::logger::write("[cbl-mods] imported {} items from package {}", items.size(), utils::string::path_to_utf8(package));
+            return first;
+        }
+    }
+
     import_result import_folder(const game_config::game_config_t& config, const std::filesystem::path& source, const progress_callback& progress,
                                 const std::string& origin, const bool move_source)
     {
@@ -782,17 +957,9 @@ namespace mods
             return fail("The selected folder does not exist.");
         }
 
-        // Workshop items install under their numeric id, like Steam does: FolderName
-        // is author-chosen and two items can share one, silently clobbering each other.
-        auto dirname = utils::string::path_to_utf8(source.filename());
-        if (const auto info = read_workshop_json(source); info && is_workshop_id(info->publisher_id))
+        if (const auto package = find_package(source))
         {
-            dirname = info->publisher_id;
-        }
-
-        if (!is_safe_dirname(dirname))
-        {
-            return fail("The folder name contains characters the game cannot load.");
+            return import_package(config, *layout, *root, *package, origin, progress);
         }
 
         const auto kind = detect_kind(*layout, source);
@@ -801,54 +968,13 @@ namespace mods
             return fail("The selected folder is not a recognised map or mod.");
         }
 
-        const std::string folder = kind == KIND_MAP ? FOLDER_USERMAPS : FOLDER_MODS;
-        if (!has_folder(*layout, folder))
+        const import_item item{source, kind == KIND_MAP ? FOLDER_USERMAPS : FOLDER_MODS, install_dirname(source), kind};
+        if (const auto error = check_item(*layout, *root, item); !error.empty())
         {
-            return fail("This game does not support custom " + std::string(kind == KIND_MAP ? "maps." : "mods."));
+            return fail(error);
         }
 
-        const auto target = *root / folder / dirname;
-        if (progress)
-        {
-            progress("copying", dirname, 0);
-        }
-
-        try
-        {
-            std::error_code code{};
-            std::filesystem::remove_all(target, code);
-            utils::io::create_directory(*root / folder);
-
-            code.clear();
-            if (move_source)
-            {
-                std::filesystem::rename(source, target, code);
-            }
-            if (!move_source || code)
-            {
-                utils::io::copy_folder(source, target);
-            }
-        }
-        catch (const std::exception& e)
-        {
-            utils::logger::write("[cbl-mods] failed to copy {} to {}: {}", utils::string::path_to_utf8(source), utils::string::path_to_utf8(target), e.what());
-            return fail("Failed to copy the mod files: " + std::string(e.what()));
-        }
-
-        installed_mod mod{};
-        mod.id = make_id(folder, dirname);
-        mod.name = dirname;
-        mod.kind = kind;
-        mod.folder = folder;
-        mod.source = origin;
-        mod.installed_at = now_iso8601();
-        apply_workshop_info(mod, target);
-        remove_stale_copies(config, *layout, *root, mod.workshop_id, folder, dirname);
-        mod.size = directory_size(target);
-        upsert_index(config, mod);
-
-        utils::logger::write("[cbl-mods] imported {} into {}", mod.id, utils::string::path_to_utf8(target));
-        return {true, {}, mod};
+        return place_item(config, *layout, *root, item, origin, move_source, progress);
     }
 
     import_result import_zip(const game_config::game_config_t& config, const std::filesystem::path& archive, const progress_callback& progress)
@@ -884,10 +1010,11 @@ namespace mods
             return fail(error);
         }
 
-        // A zip that wraps everything in one top-level folder is the folder; otherwise the zip itself is.
+        // A lone top-level folder is the item, unless the zip is a package (a lone usermaps/ is not a map).
         const auto top_level = subdirectories(extracted);
         const auto loose_files = utils::io::list_files(extracted).size() - top_level.size();
-        const auto source = (top_level.size() == 1 && loose_files == 0) ? top_level.front() : extracted;
+        const auto unwrap = top_level.size() == 1 && loose_files == 0 && !find_package(extracted);
+        const auto source = unwrap ? top_level.front() : extracted;
 
         return import_folder(config, source, progress, "import");
     }

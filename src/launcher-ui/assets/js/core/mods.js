@@ -10,10 +10,16 @@
     'use strict';
 
     const CAPABILITIES = {
-        boiii: { workshop: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
-        t4:    { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        t5:    { workshop: false, import: true, folders: ['mods'] },
-        t6:    { workshop: false, import: true, folders: ['mods', 'usermaps'] }
+        boiii:     { workshop: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
+        cod4x:     { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        iw4x:      { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        'h1-mod':  { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        'iw7-mod': { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        mw2r:      { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        t4:        { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        t5:        { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        iw5:       { workshop: false, import: true, folders: ['mods', 'usermaps'] },
+        t6:        { workshop: false, import: true, folders: ['mods', 'usermaps'] }
     };
 
     const MB = 1024 * 1024;

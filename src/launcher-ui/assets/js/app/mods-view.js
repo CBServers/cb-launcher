@@ -11,8 +11,9 @@
 
     function getState(gameId) {
         if (!state[gameId]) {
+            const caps = window.ModsService.supports(gameId) || {};
             state[gameId] = {
-                view: 'installed',
+                view: caps.workshop ? 'workshop' : 'installed',
                 query: '',
                 kind: 'all',
                 sort: 'popular',
@@ -20,7 +21,8 @@
                 installed: null,
                 results: null,
                 searching: false,
-                caps: window.ModsService.supports(gameId) || {}
+                installStatus: null,
+                caps
             };
         }
         return state[gameId];
@@ -65,8 +67,8 @@
         panel.innerHTML = `
             <div class="mods-toolbar">
                 <div class="mods-subnav">
-                    ${subtab('installed', `${escapeHtml(t('mods.installed'))} <span class="badge mods-count" hidden></span>`)}
                     ${caps.workshop ? subtab('workshop', escapeHtml(t('mods.workshop'))) : ''}
+                    ${subtab('installed', `${escapeHtml(t('mods.installed'))} <span class="badge mods-count" hidden></span>`)}
                     ${caps.import ? subtab('import', escapeHtml(t('mods.import'))) : ''}
                 </div>
                 <div class="mods-folder-actions">
@@ -75,14 +77,14 @@
                         ${escapeHtml(t('mods.refresh'))}
                     </button>
                     ${(caps.folders || []).map(folder => `
-                    <button class="secondary-action mods-open-folder" data-folder="${escapeHtml(folder)}">
+                    <button class="secondary-action mods-open-folder" data-folder="${escapeHtml(folder)}"${isInstalled(s) ? '' : ' hidden'}>
                         <span class="secondary-action-icon folder-icon"></span>
                         ${escapeHtml(t('mods.openFolder', { folder }))}
                     </button>`).join('')}
                 </div>
             </div>
-            ${viewHost('installed')}
             ${caps.workshop ? viewHost('workshop') : ''}
+            ${viewHost('installed')}
             ${caps.import ? viewHost('import') : ''}
         `;
 
@@ -99,7 +101,40 @@
         if (caps.import) renderImport(gameId);
 
         loadInstalled(gameId);
+        loadInstallStatus(gameId);
         if (caps.workshop && s.results === null) runSearch(gameId);
+    }
+
+    function isInstalled(s) {
+        return s.installStatus === 'installed';
+    }
+
+    // Content goes into the game's own folders, so imports and installs wait until the game is installed.
+    async function loadInstallStatus(gameId) {
+        const s = getState(gameId);
+        let status = 'not-setup';
+        try {
+            status = (await checkGameInstallation(gameId)).status;
+        } catch (error) {
+            console.error(error);
+        }
+        if (status === s.installStatus) return;
+
+        s.installStatus = status;
+        const panel = query(gameId);
+        if (!panel) return;
+        panel.querySelectorAll('.mods-open-folder').forEach(button => button.hidden = !isInstalled(s));
+        renderImport(gameId);
+    }
+
+    window.addEventListener('gameInstallationUpdated', () => {
+        Object.keys(state).forEach(gameId => {
+            if (query(gameId)) loadInstallStatus(gameId);
+        });
+    });
+
+    function needsInstallHTML(gameId) {
+        return `<div class="mods-empty">${escapeHtml(t('mods.needsInstall', { game: gameName(gameId) }))}</div>`;
     }
 
     function switchView(gameId, view) {
@@ -554,6 +589,10 @@
     // fallback: the detail popup's item, for items opened by deep link that aren't in the search results.
     function installItem(gameId, id, fallback) {
         const s = getState(gameId);
+        if (s.installStatus !== null && !isInstalled(s)) {
+            window.showToast(t('mods.needsInstall', { game: gameName(gameId) }), 'info');
+            return;
+        }
         const installed = (s.installed || []).find(mod => mod.workshopId === id);
         const item = (s.results && s.results.items.find(entry => entry.id === id)) || fallback;
         if (!item) {
@@ -575,6 +614,15 @@
         const s = getState(gameId);
         const host = query(gameId, '.mods-view[data-view="import"]');
         if (!host) return;
+
+        if (s.installStatus === null) {
+            host.innerHTML = loadingHTML();
+            return;
+        }
+        if (!isInstalled(s)) {
+            host.innerHTML = needsInstallHTML(gameId);
+            return;
+        }
 
         const card = (cls, title, body, icon, label) => `
                 <div class="mods-import-card">
