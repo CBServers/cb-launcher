@@ -47,7 +47,7 @@
     }
 
     function query(gameId, selector) {
-        const panel = document.getElementById(`${gameId}-servers-panel`);
+        const panel = document.querySelector(`.servers-panel[data-game="${gameId}"]`);
         if (!panel) return null;
         return selector ? panel.querySelector(selector) : panel;
     }
@@ -341,13 +341,13 @@
         }
     }
 
-    // Refresh only while a servers panel is the visible tab of the visible page;
-    // polling for that beats having views.js signal tab deactivation.
+    // Refresh only while the Servers page is showing a game; polling for that beats
+    // having the page signal deactivation.
     function activeServersGame() {
         if (document.visibilityState !== 'visible') return null;
-        const panel = document.querySelector('.tab-panel.servers-panel.active');
+        const panel = document.querySelector('.servers-panel[data-game]');
         if (!panel || panel.offsetParent === null) return null;
-        return panel.id.replace(/-servers-panel$/, '');
+        return panel.dataset.game;
     }
 
     function ensureTimers() {

@@ -893,6 +893,10 @@
         };
         setChip('servers', safePlayerCount(source.servers), 'common.inServers', 'common.inServersHint');
         setChip('launcher', safePlayerCount(source.launcher), 'common.inLauncher', 'common.inLauncherHint');
+        const inServers = safePlayerCount(source.servers);
+        setShortcutDetail(gameId, 'servers', inServers > 0
+            ? t('hub.serversShortcutCount', { count: inServers.toLocaleString() })
+            : t('hub.serversShortcutIdle'));
     }
 
     function updateGamePageInstallSize(gameId, bytes) {
@@ -1098,24 +1102,35 @@
         renderHomeFromStates(states);
     }
 
-    // Active detail tab per game (uiId -> 'overview' | 'mods' | 'servers'), kept
-    // across language-change re-renders.
-    const detailTabState = {};
-
-    function renderDetailTabView(gameId, tab) {
-        if (tab === 'mods' && window.ModsView) {
-            window.ModsView.render(gameId);
-        } else if (tab === 'servers' && window.ServersView) {
-            window.ServersView.render(gameId);
-        }
+    function shortcutCard(kind, gameId) {
+        return `
+            <button class="game-shortcut" type="button" data-shortcut="${kind}" data-game="${escapeHtml(gameId)}">
+                <span class="game-shortcut-icon ${kind}-icon"></span>
+                <span class="game-shortcut-text">
+                    <strong>${escapeHtml(t(`nav.${kind}`))}</strong>
+                    <small data-shortcut-detail>${escapeHtml(t(`hub.${kind}ShortcutIdle`))}</small>
+                </span>
+                <span class="game-shortcut-arrow"></span>
+            </button>`;
     }
 
-    function activateDetailTab(page, gameId, tab) {
-        if (!page) return;
-        detailTabState[gameId] = tab;
-        page.querySelectorAll('.detail-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-        page.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === tab));
-        renderDetailTabView(gameId, tab);
+    function setShortcutDetail(gameId, kind, text) {
+        const detail = document.querySelector(`#${CSS.escape(gameId)}-page .game-shortcut[data-shortcut="${kind}"] [data-shortcut-detail]`);
+        if (detail) detail.textContent = text;
+    }
+
+    // The Mods card counts installed items; updates are only known once the Mods page loaded the list.
+    async function refreshGameShortcuts(gameId) {
+        if (!window.ModsView || !window.ModsView.supports(gameId)) return;
+        try {
+            const summary = await window.ModsView.installedSummary(gameId);
+            let text = t('hub.modsShortcutIdle');
+            if (summary.updates > 0) text = t('hub.modsShortcutUpdates', { count: summary.updates });
+            else if (summary.count > 0) text = t('hub.modsShortcutCount', { count: summary.count });
+            setShortcutDetail(gameId, 'mods', text);
+        } catch (error) {
+            console.error(`Failed to count mods for ${gameId}:`, error);
+        }
     }
 
     function renderGamePages() {
@@ -1130,11 +1145,11 @@
             const hasProvider = config.provider && String(config.provider).trim().length > 0;
             const hasMods = !comingSoon && window.ModsView && window.ModsView.supports(config.uiId);
             const hasServers = !comingSoon && window.ServersView && window.ServersView.supports(config.uiId);
-            const hasTabs = hasMods || hasServers;
-            let activeTab = detailTabState[config.uiId] || 'overview';
-            if ((activeTab === 'mods' && !hasMods) || (activeTab === 'servers' && !hasServers)) {
-                activeTab = 'overview';
-            }
+            const shortcuts = (hasServers || hasMods) ? `
+                    <div class="game-shortcuts">
+                        ${hasServers ? shortcutCard('servers', config.uiId) : ''}
+                        ${hasMods ? shortcutCard('mods', config.uiId) : ''}
+                    </div>` : '';
 
             const descriptionSection = `
                         <section class="description">
@@ -1195,40 +1210,26 @@
 
                 <div class="game-details">
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
-
-                    ${hasTabs ? `
-                    <div class="detail-tabs is-visible" data-game="${escapeHtml(config.uiId)}">
-                        <button class="detail-tab${activeTab === 'overview' ? ' active' : ''}" data-tab="overview">${escapeHtml(t('detail.overview'))}</button>
-                        ${hasMods ? `<button class="detail-tab${activeTab === 'mods' ? ' active' : ''}" data-tab="mods">${escapeHtml(t('mods.tab'))}</button>` : ''}
-                        ${hasServers ? `<button class="detail-tab${activeTab === 'servers' ? ' active' : ''}" data-tab="servers">${escapeHtml(t('servers.tab'))}</button>` : ''}
-                    </div>
-                    <div class="tab-panel${activeTab === 'overview' ? ' active' : ''}" data-tab-panel="overview">
-                        <div class="detail-panel-grid">
-                            ${descriptionSection}
-                            ${actionsAside}
-                        </div>
-                    </div>
-                    ${hasMods ? `<div class="tab-panel mods-panel${activeTab === 'mods' ? ' active' : ''}" data-tab-panel="mods" id="${escapeHtml(config.uiId)}-mods-panel"></div>` : ''}
-                    ${hasServers ? `<div class="tab-panel servers-panel${activeTab === 'servers' ? ' active' : ''}" data-tab-panel="servers" id="${escapeHtml(config.uiId)}-servers-panel"></div>` : ''}
-                    ` : `
+                    ${shortcuts}
                     <div class="detail-panel-grid">
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
-                    `}
                 </div>
             </div>
         `;
         }).join('');
 
-        host.querySelectorAll('.detail-tabs').forEach(tabs => {
-            const page = tabs.closest('.game-page');
-            const gameId = tabs.dataset.game;
-            tabs.querySelectorAll('.detail-tab').forEach(button => {
-                button.addEventListener('click', () => activateDetailTab(page, gameId, button.dataset.tab));
+        host.querySelectorAll('.game-shortcut').forEach(button => {
+            button.addEventListener('click', () => {
+                const hub = button.dataset.shortcut === 'mods' ? window.ModsHub : window.ServersHub;
+                if (hub) hub.open(button.dataset.game);
             });
-            renderDetailTabView(gameId, detailTabState[gameId]);
         });
+
+        if (window.PlayerCountManager) {
+            window.PlayerCountManager.applyToVisibleCards();
+        }
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
             button.addEventListener('click', async () => {
@@ -1406,7 +1407,6 @@
             });
             row.addEventListener('click', event => {
                 if (event.target.closest('.download-row-cancel')) return;
-                navigateTo(entry.gameId);
                 if (window.ModsView) window.ModsView.openTab(entry.gameId, entry.op === 'update' ? 'installed' : 'workshop');
             });
         });
@@ -1598,6 +1598,8 @@
         renderLibrary();
         renderGamePages();
         renderSettingsDirectories();
+        if (window.ServersHub) window.ServersHub.refresh();
+        if (window.ModsHub) window.ModsHub.refresh();
     }
 
     function applyDownloadQueueInstallingState() {
@@ -1649,7 +1651,7 @@
 
     window.AppViews = {
         renderAll,
-        activateDetailTab,
+        refreshGameShortcuts,
         renderSidebarGames,
         renderHome,
         renderLibrary,

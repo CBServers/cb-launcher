@@ -27,7 +27,7 @@
     }
 
     function query(gameId, selector) {
-        const panel = document.getElementById(`${gameId}-mods-panel`);
+        const panel = document.querySelector(`.mods-panel[data-game="${gameId}"]`);
         if (!panel) return null;
         return selector ? panel.querySelector(selector) : panel;
     }
@@ -672,12 +672,12 @@
     }
 
     function openTab(gameId, view) {
-        if (window.AppViews) window.AppViews.activateDetailTab(document.getElementById(`${gameId}-page`), gameId, 'mods');
+        if (!window.ModsHub || !window.ModsHub.open(gameId)) return;
         switchView(gameId, view);
     }
 
     async function openDeepLink(gameId, id) {
-        if (window.AppViews) window.AppViews.activateDetailTab(document.getElementById(`${gameId}-page`), gameId, 'mods');
+        if (!window.ModsHub || !window.ModsHub.open(gameId)) return;
         if (!getState(gameId).caps.workshop) return;
         switchView(gameId, 'workshop');
         if (!id) return;
@@ -689,8 +689,19 @@
         }
     }
 
+    // Counts for the Mods hub and game page shortcut; updates are only known once the list was loaded.
+    async function installedSummary(gameId) {
+        const s = getState(gameId);
+        if (s.installed) {
+            return { count: s.installed.length, updates: s.installed.filter(mod => mod.updateAvailable).length };
+        }
+        const installed = await window.ModsService.getInstalled(gameId);
+        return { count: installed.length, updates: 0 };
+    }
+
     window.ModsView = {
         render,
+        installedSummary,
         refresh: loadInstalled,
         installFromDetail: installItem,
         openDeepLink,

@@ -93,10 +93,11 @@
         return head > (chatSeen[id] || 0);
     }
 
-    // A game nobody can play yet has nothing to coordinate, so it gets no room.
+    // A game nobody can play yet, or only alone, has nothing to coordinate, so it gets no room.
     function roomIds() {
-        const ids = (window.GameUtils && window.GameUtils.getAllGameIds) ? window.GameUtils.getAllGameIds() : [];
-        return ids.filter(id => !(window.GameUtils && window.GameUtils.isComingSoon(id)));
+        const gu = window.GameUtils;
+        const ids = (gu && gu.getAllGameIds) ? gu.getAllGameIds() : [];
+        return ids.filter(id => !gu.isComingSoon(id) && !gu.isCampaignOnly(id));
     }
 
     function hubCard(id) {
@@ -343,11 +344,14 @@
         const hero = cfg && cfg.heroImagePath
             ? `<img class="community-hero-art" src="${escapeHtml(cfg.heroImagePath)}" alt="" />`
             : '';
+        const options = [ALL, ...roomIds()]
+            .map(id => `<option value="${escapeHtml(id)}"${id === room ? ' selected' : ''}>${escapeHtml(gameName(id))}</option>`)
+            .join('');
         return `
             <div class="community-room-header">
                 ${hero}
                 <button class="cb-ghost-btn community-back" id="community-back" type="button">${escapeHtml(t('back'))}</button>
-                <div class="community-room-title">${escapeHtml(gameName(room))}</div>
+                <select class="game-hub-switch" id="community-room-switch" aria-label="${escapeHtml(window.LauncherI18n ? window.LauncherI18n.t('hub.switchGame') : '')}">${options}</select>
             </div>
             <div class="community-room-body">
                 <div class="community-room-main">
@@ -377,7 +381,11 @@
         if (page) page.classList.toggle('is-room', !!(profileReady && room));
         if (!profileReady) { body.innerHTML = renderNoProfile(); return; }
         body.innerHTML = room ? renderRoom() : renderHub();
-        if (room) { scrollChat(); applyMute(); }
+        if (room) {
+            GameUtils.fitSelectWidth(document.getElementById('community-room-switch'));
+            scrollChat();
+            applyMute();
+        }
     }
 
     function scrollChat() {
@@ -670,6 +678,7 @@
 
         body.addEventListener('change', (event) => {
             if (event.target.id === 'community-broadcast-toggle') applyBroadcast(event.target.checked);
+            if (event.target.id === 'community-room-switch') openRoom(event.target.value);
         });
 
         body.addEventListener('click', (event) => {
@@ -739,6 +748,9 @@
     }
 
     window.CommunityManager = {
+        backToHub() {
+            if (room) openRoom(null);
+        },
         startBadgePolling() {
             if (badgeTimer) return;
             loadSeen().then(pollBadge);

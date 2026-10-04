@@ -237,6 +237,8 @@
             nav: {
                 home: 'Home',
                 library: 'Library',
+                servers: 'Servers',
+                mods: 'Mods',
                 downloads: 'Downloads',
                 friends: 'Friends',
                 community: 'Community',
@@ -583,7 +585,6 @@
                 updateAvailable: 'Update available'
             },
             detail: {
-                overview: 'Overview',
                 clientSettings: 'Settings',
                 modsScripts: 'Mods/Scripts',
                 credits: 'Credits',
@@ -595,7 +596,6 @@
                 customClient: 'Custom client'
             },
             mods: {
-                tab: 'Mods',
                 installed: 'Installed',
                 workshop: 'Workshop',
                 import: 'Import',
@@ -661,7 +661,6 @@
                 requiredItemsNote: 'These are installed automatically with this item ({{size}} extra).'
             },
             servers: {
-                tab: 'Servers',
                 searchPlaceholder: 'Search servers or maps...',
                 filterAll: 'All',
                 favorites: 'Favorites',
@@ -700,6 +699,24 @@
                 loadFailed: 'Could not load the server list.',
                 retry: 'Retry',
                 loading: 'Loading...'
+            },
+            hub: {
+                serversSubtitle: 'Find a server and jump in.',
+                modsSubtitle: 'Install and manage maps and mods.',
+                pickServersGame: 'Pick a game to browse its servers.',
+                pickModsGame: 'Pick a game to manage its mods.',
+                back: 'Back',
+                gamePage: 'Game page',
+                switchGame: 'Switch game',
+                running: 'Running',
+                playersBadge: '{{count}} in servers',
+                modsInstalled: '{{count}} installed',
+                modsUpdates: '{{count}} to update',
+                serversShortcutIdle: 'Browse servers',
+                serversShortcutCount: '{{count}} players in servers',
+                modsShortcutIdle: 'Browse and manage mods',
+                modsShortcutCount: '{{count}} installed',
+                modsShortcutUpdates: 'Updates available: {{count}}'
             },
             popup: {
                 gameMode: {
@@ -957,6 +974,8 @@
             nav: {
                 home: 'Accueil',
                 library: 'Bibliotheque',
+                servers: 'Serveurs',
+                mods: 'Mods',
                 downloads: 'Telechargements',
                 friends: 'Amis',
                 community: 'Communaute',
@@ -1303,7 +1322,6 @@
                 updateAvailable: 'Mise a jour disponible'
             },
             detail: {
-                overview: 'Apercu',
                 clientSettings: 'Parametres',
                 modsScripts: 'Mods/Scripts',
                 credits: 'Credits',
@@ -1315,7 +1333,6 @@
                 customClient: 'Client personnalise'
             },
             mods: {
-                tab: 'Mods',
                 installed: 'Installes',
                 workshop: 'Workshop',
                 import: 'Importer',
@@ -1381,7 +1398,6 @@
                 requiredItemsNote: 'Ils sont installes automatiquement avec cet element ({{size}} en plus).'
             },
             servers: {
-                tab: 'Serveurs',
                 searchPlaceholder: 'Rechercher un serveur ou une carte...',
                 filterAll: 'Tous',
                 favorites: 'Favoris',
@@ -1420,6 +1436,24 @@
                 loadFailed: 'Impossible de charger la liste des serveurs.',
                 retry: 'Reessayer',
                 loading: 'Chargement...'
+            },
+            hub: {
+                serversSubtitle: 'Trouvez un serveur et lancez-vous.',
+                modsSubtitle: 'Installez et gerez cartes et mods.',
+                pickServersGame: 'Choisissez un jeu pour parcourir ses serveurs.',
+                pickModsGame: 'Choisissez un jeu pour gerer ses mods.',
+                back: 'Retour',
+                gamePage: 'Page du jeu',
+                switchGame: 'Changer de jeu',
+                running: 'En cours',
+                playersBadge: '{{count}} sur les serveurs',
+                modsInstalled: '{{count}} installe(s)',
+                modsUpdates: '{{count}} a mettre a jour',
+                serversShortcutIdle: 'Parcourir les serveurs',
+                serversShortcutCount: '{{count}} joueurs sur les serveurs',
+                modsShortcutIdle: 'Parcourir et gerer les mods',
+                modsShortcutCount: '{{count}} installe(s)',
+                modsShortcutUpdates: 'Mises a jour disponibles : {{count}}'
             },
             popup: {
                 gameMode: {
@@ -1677,6 +1711,8 @@
             nav: {
                 home: 'Inicio',
                 library: 'Biblioteca',
+                servers: 'Servidores',
+                mods: 'Mods',
                 downloads: 'Descargas',
                 friends: 'Amigos',
                 community: 'Comunidad',
@@ -2023,7 +2059,6 @@
                 updateAvailable: 'Actualizacion disponible'
             },
             detail: {
-                overview: 'Resumen',
                 clientSettings: 'Ajustes',
                 modsScripts: 'Mods/Scripts',
                 credits: 'Creditos',
@@ -2035,7 +2070,6 @@
                 customClient: 'Cliente personalizado'
             },
             mods: {
-                tab: 'Mods',
                 installed: 'Instalados',
                 workshop: 'Workshop',
                 import: 'Importar',
@@ -2101,7 +2135,6 @@
                 requiredItemsNote: 'Se instalan automaticamente junto con este elemento ({{size}} adicionales).'
             },
             servers: {
-                tab: 'Servidores',
                 searchPlaceholder: 'Buscar servidores o mapas...',
                 filterAll: 'Todos',
                 favorites: 'Favoritos',
@@ -2140,6 +2173,24 @@
                 loadFailed: 'No se pudo cargar la lista de servidores.',
                 retry: 'Reintentar',
                 loading: 'Cargando...'
+            },
+            hub: {
+                serversSubtitle: 'Encuentra un servidor y entra.',
+                modsSubtitle: 'Instala y gestiona mapas y mods.',
+                pickServersGame: 'Elige un juego para ver sus servidores.',
+                pickModsGame: 'Elige un juego para gestionar sus mods.',
+                back: 'Volver',
+                gamePage: 'Pagina del juego',
+                switchGame: 'Cambiar de juego',
+                running: 'En ejecucion',
+                playersBadge: '{{count}} en servidores',
+                modsInstalled: '{{count}} instalados',
+                modsUpdates: '{{count}} por actualizar',
+                serversShortcutIdle: 'Ver servidores',
+                serversShortcutCount: '{{count}} jugadores en servidores',
+                modsShortcutIdle: 'Ver y gestionar mods',
+                modsShortcutCount: '{{count}} instalados',
+                modsShortcutUpdates: 'Actualizaciones disponibles: {{count}}'
             },
             popup: {
                 gameMode: {
@@ -2397,6 +2448,8 @@
             nav: {
                 home: 'Главная',
                 library: 'Библиотека',
+                servers: 'Серверы',
+                mods: 'Моды',
                 downloads: 'Загрузки',
                 friends: 'Друзья',
                 community: 'Сообщество',
@@ -2742,7 +2795,6 @@
                 updateAvailable: 'Доступно обновление'
             },
             detail: {
-                overview: 'Обзор',
                 clientSettings: 'Настройки',
                 modsScripts: 'Моды/Скрипты',
                 credits: 'Авторы',
@@ -2754,7 +2806,6 @@
                 customClient: 'Пользовательский клиент'
             },
             mods: {
-                tab: 'Моды',
                 installed: 'Установлено',
                 workshop: 'Мастерская',
                 import: 'Импорт',
@@ -2820,7 +2871,6 @@
                 requiredItemsNote: 'Они устанавливаются автоматически вместе с этим элементом (еще {{size}}).'
             },
             servers: {
-                tab: 'Серверы',
                 searchPlaceholder: 'Поиск серверов или карт...',
                 filterAll: 'Все',
                 favorites: 'Избранное',
@@ -2859,6 +2909,24 @@
                 loadFailed: 'Не удалось загрузить список серверов.',
                 retry: 'Повторить',
                 loading: 'Загрузка...'
+            },
+            hub: {
+                serversSubtitle: 'Найдите сервер и присоединяйтесь.',
+                modsSubtitle: 'Устанавливайте карты и моды и управляйте ими.',
+                pickServersGame: 'Выберите игру, чтобы открыть её серверы.',
+                pickModsGame: 'Выберите игру, чтобы управлять её модами.',
+                back: 'Назад',
+                gamePage: 'Страница игры',
+                switchGame: 'Сменить игру',
+                running: 'Запущена',
+                playersBadge: '{{count}} на серверах',
+                modsInstalled: 'Установлено: {{count}}',
+                modsUpdates: 'Обновить: {{count}}',
+                serversShortcutIdle: 'Открыть серверы',
+                serversShortcutCount: 'На серверах: {{count}}',
+                modsShortcutIdle: 'Просмотр и управление модами',
+                modsShortcutCount: 'Установлено: {{count}}',
+                modsShortcutUpdates: 'Доступны обновления: {{count}}'
             },
             popup: {
                 gameMode: {

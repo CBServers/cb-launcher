@@ -395,6 +395,7 @@ class GameUtils {
             clientKey: 'others',
             hasMultipleModes: false,
             supportedModes: [],
+            campaignOnly: true,
             supportsName: false,
             specialSettings: [],
             version: 'H2',
@@ -546,6 +547,12 @@ class GameUtils {
         return !(config.betaFeature && this.betaFeatures.has(config.betaFeature));
     }
 
+    // No online play at all, so nothing social (community rooms) applies to it.
+    static isCampaignOnly(uiId) {
+        const config = this.getGameConfigByUIId(uiId);
+        return !!(config && config.campaignOnly);
+    }
+
     /**
      * Get the game mapping (UI ID to backend ID)
      * @param {string} gameId - The UI game identifier
@@ -687,6 +694,18 @@ class GameUtils {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // A select is as wide as its longest option; fit it to the selected name so the arrow sits beside it.
+    static fitSelectWidth(select) {
+        const probe = document.createElement('span');
+        const style = getComputedStyle(select);
+        probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${style.font};letter-spacing:${style.letterSpacing};text-transform:${style.textTransform}`;
+        probe.textContent = select.options[select.selectedIndex].text;
+        document.body.appendChild(probe);
+        const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) * 2;
+        select.style.width = `${Math.ceil(probe.getBoundingClientRect().width + padding)}px`;
+        probe.remove();
     }
 
     // CoD engines colour text with ^ followed by 0-9 or : (rainbow); mod titles carry them verbatim.

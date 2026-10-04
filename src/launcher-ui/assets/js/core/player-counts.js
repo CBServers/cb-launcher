@@ -33,6 +33,7 @@
                 window.AppViews.updateGamePagePlayerCount(uiId, counts);
             }
         }
+        window.dispatchEvent(new CustomEvent('cb-player-counts-changed'));
     }
 
     async function fetchServerCounts() {

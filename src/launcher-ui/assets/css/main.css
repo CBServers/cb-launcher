@@ -434,6 +434,18 @@ body.offline-mode #friends {
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>');
 }
 
+.nav-icon.servers-icon,
+.game-shortcut-icon.servers-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path stroke-linecap="round" d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path stroke-linecap="round" d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>');
+}
+
+.nav-icon.mods-icon,
+.game-shortcut-icon.mods-icon {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linejoin="round" d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path stroke-linejoin="round" d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linejoin="round" d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path stroke-linejoin="round" d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>');
+}
+
 .nav-icon.support-icon {
     -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9.5a2.5 2.5 0 015 0c0 1.2-.8 1.8-1.5 2.3-.8.5-1 1-1 1.7M12 17h.01"/></svg>');
     mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9.5a2.5 2.5 0 015 0c0 1.2-.8 1.8-1.5 2.3-.8.5-1 1-1 1.7M12 17h.01"/></svg>');
@@ -1491,9 +1503,6 @@ html[data-theme="dark"] .setup-button {
 .description a:hover { color: var(--link-hover); text-decoration: underline; }
 .description ul { margin: 14px 0 14px 20px; color: var(--text-muted); }
 .description li { margin-bottom: 6px; }
-
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
 
 /* ============================================================ */
 /* SUPPORT PAGE                                                 */
@@ -3714,31 +3723,6 @@ button { font-family: inherit; cursor: pointer; }
     box-shadow: 0 0 6px rgba(96, 165, 250, 0.75);
 }
 
-.detail-tabs { display: none; }
-
-.detail-tab {
-    border: 0;
-    border-radius: 10px;
-    padding: 9px 14px;
-    color: var(--text-muted);
-    background: transparent;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-    transition: all 0.22s var(--ease);
-}
-
-.detail-tab:hover {
-    color: #fff;
-    background: var(--surface-hi);
-}
-
-.detail-tab.active {
-    color: #fff;
-    background: var(--accent-grad);
-    box-shadow: 0 0 18px var(--accent-soft);
-}
-
 .detail-panel-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -3749,14 +3733,6 @@ button { font-family: inherit; cursor: pointer; }
 /* ═══════════════════════════════════════════════════════════════
    MODS TAB
    ═══════════════════════════════════════════════════════════════ */
-
-.detail-tabs.is-visible {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--title-border);
-}
 
 .mods-toolbar {
     display: flex;
@@ -6289,17 +6265,9 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     background: linear-gradient(90deg, var(--bg-base) 10%, rgba(10, 10, 15, 0.35) 100%);
 }
 
-.community-back,
-.community-room-title {
+.community-back {
     position: relative;
     z-index: 2;
-}
-
-.community-room-title {
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    color: var(--text);
 }
 
 .community-room-body {
@@ -6867,7 +6835,8 @@ html:not([data-theme]) .support-panel h2,
 html:not([data-theme]) .settings-content .settings-section h3,
 html:not([data-theme]) .popup-header h3,
 html:not([data-theme]) #message-box .mb-title,
-html:not([data-theme]) .detail-tab,
+html:not([data-theme]) .game-hub-switch,
+html:not([data-theme]) .game-shortcut-text strong,
 html:not([data-theme]) .mods-subtab,
 html:not([data-theme]) .mods-import-card h4 {
     font-family: var(--font-display);
@@ -6975,7 +6944,7 @@ html:not([data-theme]) .setup-actions button,
 html:not([data-theme]) .install-actions button,
 html:not([data-theme]) #message-box .mb-buttons button,
 html:not([data-theme]) .chip,
-html:not([data-theme]) .detail-tab,
+html:not([data-theme]) .game-hub-action,
 html:not([data-theme]) .mods-subnav,
 html:not([data-theme]) .mods-subtab,
 html:not([data-theme]) .mods-btn,
@@ -8333,6 +8302,171 @@ html:not([data-theme])[data-accent="mw"] {
     --interactive-hover-border: rgba(164, 210, 51, 0.35);
     --link-hover: #BFE35C;
     --checkbox-mark: #0F1407;
+}
+
+/* Servers and Mods pages: game grid, then one game with a switcher */
+.game-hub-body {
+    padding: 0 36px 24px 36px;
+}
+
+.game-hub-grid {
+    padding: 0;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.game-hub-card {
+    aspect-ratio: 2 / 3;
+    cursor: pointer;
+}
+
+.game-hub-switch,
+.game-hub-actions {
+    position: relative;
+    z-index: 2;
+}
+
+.game-hub-switch {
+    max-width: 55%;
+    padding: 4px 34px 4px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%238A8A9A" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>') no-repeat right 8px center / 18px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    appearance: none;
+    transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+
+.game-hub-switch:hover,
+.game-hub-switch:focus {
+    outline: none;
+    border-color: var(--border-hi);
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.game-hub-switch option {
+    padding: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #fff;
+    background: #222222;
+}
+
+.game-hub-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.game-hub-action {
+    padding: 8px 18px;
+    border: 1px solid var(--focus-border);
+    border-radius: 10px;
+    background: var(--accent-grad);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: box-shadow 0.2s var(--ease);
+}
+
+.game-hub-action:hover:not(:disabled) {
+    box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.game-hub-action:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* Game page shortcuts into the Servers and Mods pages */
+.game-shortcuts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.game-shortcut {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.game-shortcut:hover {
+    border-color: var(--card-hover-border);
+    box-shadow: 0 0 18px var(--accent-soft);
+}
+
+.game-shortcut-icon,
+.game-shortcut-arrow {
+    flex-shrink: 0;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+}
+
+.game-shortcut-icon {
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+}
+
+.game-shortcut-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.game-shortcut-text strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.game-shortcut-text small {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.game-shortcut-arrow {
+    width: 16px;
+    height: 16px;
+    background: var(--text-muted);
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 6l6 6-6 6"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 6l6 6-6 6"/></svg>');
+    transition: background-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.game-shortcut:hover .game-shortcut-arrow {
+    background: var(--accent);
+    transform: translateX(2px);
 }
 
 /* ── Uninstalled games render in black and white (community rooms borrow the card, not the state) ── */

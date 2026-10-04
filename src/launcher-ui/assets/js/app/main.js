@@ -565,6 +565,10 @@ async function initializeNavigation() {
     const libraryElement = document.querySelector("#library");
     libraryElement.addEventListener("click", handleLibraryClick);
 
+    document.querySelectorAll("#servers, #mods").forEach(el => {
+        el.addEventListener("click", handleGameHubClick);
+    });
+
     // Handle downloads navigation
     const downloadsElement = document.querySelector("#downloads");
     if (downloadsElement) {
@@ -658,6 +662,20 @@ function handleDownloadsClick(e) {
     loadNavigationPage("downloads");
 }
 
+// Servers and Mods; clicking the active item goes back to its game grid.
+function handleGameHubClick(e) {
+    const el = this;
+    const hub = el.id === 'mods' ? window.ModsHub : window.ServersHub;
+    if (el.classList.contains("active")) {
+        if (hub && hub.current()) hub.back();
+        return;
+    }
+
+    removeActiveNavigation();
+    el.classList.add("active");
+    loadNavigationPage(el.id);
+}
+
 function handleFriendsClick(e) {
     const el = this;
     if (el.classList.contains("active")) {
@@ -708,9 +726,11 @@ function handleSettingsClick(e) {
     loadNavigationPage("settings");
 }
 
+// Like Servers and Mods, clicking the active item goes back to the room grid.
 function handleCommunityClick(e) {
     const el = this;
     if (el.classList.contains("active")) {
+        if (window.CommunityManager) window.CommunityManager.backToHub();
         return;
     }
 
@@ -1556,6 +1576,10 @@ function loadNavigationPage(page) {
         if (window.AppViews && typeof window.AppViews.renderDownloads === 'function') {
             window.AppViews.renderDownloads();
         }
+    } else if (page === 'servers') {
+        if (window.ServersHub) window.ServersHub.show();
+    } else if (page === 'mods') {
+        if (window.ModsHub) window.ModsHub.show();
     } else if (page === 'friends') {
         if (window.AppViews && typeof window.AppViews.refreshFriends === 'function') {
             window.AppViews.renderFriends();
@@ -1603,6 +1627,8 @@ function initializeGamePage(gameId) {
 
     // Create buttons for the game
     createGameButtons(gameId);
+
+    if (window.AppViews) window.AppViews.refreshGameShortcuts(gameId);
 }
 
 async function createGameButtons(gameId) {
@@ -1811,7 +1837,7 @@ async function handleDeepLink(url) {
     const gameSlug = segments[1];
     const modeArg = segments[2];
 
-    if (!['play', 'game', 'install', 'mods'].includes(verb)) {
+    if (!['play', 'game', 'install', 'mods', 'servers'].includes(verb)) {
         console.warn(`deep link: unknown action "${verb}"`);
         if (typeof window.showToast === 'function') {
             window.showToast(t('deepLink.unknownAction', { action: verb }), 'error');
@@ -1837,6 +1863,15 @@ async function handleDeepLink(url) {
         await window.AppViews.unhideGame(uiId);
     }
 
+    // Mods and servers open their own page; a game without one falls through to its game page.
+    if (verb === 'mods' && window.ModsHub && window.ModsHub.supports(uiId)) {
+        await window.ModsView.openDeepLink(uiId, modeArg);
+        return;
+    }
+    if (verb === 'servers' && window.ServersHub && window.ServersHub.open(uiId)) {
+        return;
+    }
+
     try {
         await navigateToGamePage(uiId);
     } catch (e) {
@@ -1846,13 +1881,9 @@ async function handleDeepLink(url) {
 
     switch (verb) {
         case 'game':
-            // Navigate only.
-            return;
-
         case 'mods':
-            if (window.ModsView && window.ModsView.supports(uiId)) {
-                await window.ModsView.openDeepLink(uiId, modeArg);
-            }
+        case 'servers':
+            // Navigate only.
             return;
 
         case 'install':

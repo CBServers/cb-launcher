@@ -36,6 +36,7 @@
     <script src="./assets/js/popups/mod-detail-popup.js"></script>
     <script src="./assets/js/app/mods-view.js"></script>
     <script src="./assets/js/app/servers-view.js"></script>
+    <script src="./assets/js/app/game-hub.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -71,6 +72,14 @@
                     <div class="nav-item" id="library">
                         <div class="nav-icon library-icon"></div>
                         <span class="nav-label" data-i18n="nav.library">Library</span>
+                    </div>
+                    <div class="nav-item" id="servers">
+                        <div class="nav-icon servers-icon"></div>
+                        <span class="nav-label" data-i18n="nav.servers">Servers</span>
+                    </div>
+                    <div class="nav-item" id="mods">
+                        <div class="nav-icon mods-icon"></div>
+                        <span class="nav-label" data-i18n="nav.mods">Mods</span>
                     </div>
                     <div class="nav-item" id="downloads">
                         <div class="nav-icon downloads-icon"></div>
@@ -226,6 +235,22 @@
                         <div class="page-subtitle" data-i18n="cb.moderationSubtitle">Reports, mutes and the audit trail.</div>
                     </div>
                     <div id="moderation-body"></div>
+                </div>
+
+                <div class="page-section" id="servers-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="nav.servers">Servers</div>
+                        <div class="page-subtitle" data-i18n="hub.serversSubtitle">Find a server and jump in.</div>
+                    </div>
+                    <div id="servers-body" class="game-hub-body"></div>
+                </div>
+
+                <div class="page-section" id="mods-page" style="display: none;">
+                    <div class="page-header">
+                        <div class="page-title" data-i18n="nav.mods">Mods</div>
+                        <div class="page-subtitle" data-i18n="hub.modsSubtitle">Install and manage maps and mods.</div>
+                    </div>
+                    <div id="mods-body" class="game-hub-body"></div>
                 </div>
 
                 <div class="page-section" id="community-page" style="display: none;">
