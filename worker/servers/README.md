@@ -16,6 +16,19 @@ name), `mode` (`mp`/`zm`), `gametype`, `players`, `maxPlayers`, `bots`,
 `ping` (always `null` — the launcher measures it natively per user), `region`
 (NA/SA/EU/AS/OCE/AF from country), `country`, `countryName`.
 
+Servers listed in `src/tags.js` also carry `tag: { label, note, discord,
+featured }`. The launcher shows the label pill, note and Discord button on the
+server's row wherever it appears, and pins entries marked `featured: true` in a
+box at the top of the list; `featured` in the response is the server's position
+in that box, or `null` when it is only tagged. Labels are optional: `official`
+(run by CB Servers), `contributor` (run by a launcher contributor) or `event`,
+and any other value drops the entry. Featured servers are ordered official
+first, then config order, at most five per game, counted after matching so an
+offline entry frees its slot. `note` is cut at 80 characters, `discord` must be
+an https `discord.gg`/`discord.com` link or it is dropped, and an entry past
+its `until` date is ignored. Ids must be `ip:port` exactly as the list reports
+them. Editing the file needs a restart of the servers service to take effect.
+
 Plutonium games merge their separate mp/zm upstream ids (e.g. `T6` + `T6ZM`);
 `hmw-mod` merges `HMW` and `H2M`, which track different master servers.
 

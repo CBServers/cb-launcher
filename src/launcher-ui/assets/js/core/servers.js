@@ -137,6 +137,11 @@
         for (let i = 0; i < count; i++) {
             servers.push(buildServer(game, i, mulberry32(hash(`${game}:${i}`))));
         }
+        servers[6].tag = { label: 'official', note: 'Run by CB Servers, 24/7 rotation', discord: 'https://discord.gg/cbservers', featured: 0 };
+        servers[7].tag = { label: 'contributor', note: 'Hosted by a launcher contributor', discord: null, featured: 1 };
+        servers[8].tag = { label: 'contributor', note: null, discord: 'https://discord.gg/example', featured: 2 };
+        servers[10].tag = { label: 'contributor', note: 'Tagged but not featured', discord: 'https://discord.gg/example', featured: null };
+        servers[11].tag = { label: null, note: 'Note only, no label', discord: null, featured: null };
         return servers;
     }
 

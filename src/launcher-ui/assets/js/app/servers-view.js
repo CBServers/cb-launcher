@@ -24,6 +24,7 @@
                 hideEmpty: !!prefs.hideEmpty,
                 hideFull: !!prefs.hideFull,
                 favoritesOnly: !!prefs.favoritesOnly,
+                featuredCollapsed: !!prefs.featuredCollapsed,
                 servers: null,
                 loading: false,
                 error: null,
@@ -42,7 +43,8 @@
             region: s.region,
             hideEmpty: s.hideEmpty,
             hideFull: s.hideFull,
-            favoritesOnly: s.favoritesOnly
+            favoritesOnly: s.favoritesOnly,
+            featuredCollapsed: s.featuredCollapsed
         });
     }
 
@@ -54,8 +56,13 @@
 
     const hasPing = server => typeof server.ping === 'number';
 
+    const COPY_SVG = '<svg class="server-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
     const LOCK_SVG = '<svg class="server-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
     const STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.95 5.98 6.6.96-4.78 4.66 1.13 6.58L12 17.57l-5.9 3.11 1.13-6.58-4.78-4.66 6.6-.96z"/></svg>';
+    const DISCORD_SVG = '<svg class="server-discord-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>';
+
+    const TAG_KEYS = { official: 'servers.featuredOfficial', contributor: 'servers.featuredContributor', event: 'servers.featuredEvent' };
+    const DISCORD_HOSTS = ['discord.gg', 'discord.com', 'www.discord.com'];
 
     function emptyHTML(key) {
         return `<div class="mods-empty">${escapeHtml(t(key))}</div>`;
@@ -97,6 +104,9 @@
                     ${option(s.sort, 'name', t('servers.sortName'))}
                 </select>
                 <button class="mods-btn servers-refresh-btn">${escapeHtml(t('servers.refresh'))}</button>
+            </div>
+            <div class="servers-meta">
+                <span class="servers-count"></span>
                 <span class="servers-updated"></span>
             </div>
             <div class="servers-list-host"></div>
@@ -196,23 +206,51 @@
             });
     }
 
+    // The worker already vets these; checked again so a bad list can never open anything but Discord.
+    function discordLink(value) {
+        try {
+            const url = new URL(String(value));
+            return url.protocol === 'https:' && DISCORD_HOSTS.includes(url.hostname) ? url.href : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    const isFeatured = server => !!server.tag && typeof server.tag.featured === 'number';
+
+    function tagPillHTML(tag) {
+        const key = TAG_KEYS[tag.label];
+        if (!key) return '';
+        return `<span class="server-featured-tag is-${escapeHtml(tag.label)}" title="${escapeHtml(t(`${key}Hint`))}">${escapeHtml(t(key))}</span>`;
+    }
+
     function serverRowHTML(server, favorite, canJoin) {
+        const tag = server.tag || null;
+        const discord = tag && discordLink(tag.discord);
+        const name = tag && tag.note
+            ? `<span class="server-name-stack"><span>${escapeHtml(server.name)}</span><small class="server-note">${escapeHtml(tag.note)}</small></span>`
+            : `<span>${escapeHtml(server.name)}</span>`;
+        const copyTitle = escapeHtml(t('servers.copyConnectTitle'));
         const action = canJoin
-            ? `<button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>`
-            : `<button class="mods-btn server-copy-btn" title="${escapeHtml(t('servers.copyConnectTitle'))}">${escapeHtml(t('servers.copyConnect'))}</button>`;
+            ? `<button class="mods-btn mods-icon-btn server-copy-btn" title="${copyTitle}" aria-label="${copyTitle}">${COPY_SVG}</button>
+               <button class="mods-btn server-join-btn">${escapeHtml(t('servers.join'))}</button>`
+            : `<button class="mods-btn server-copy-btn" title="${copyTitle}">${escapeHtml(t('servers.copyConnect'))}</button>`;
         const pinged = hasPing(server);
         const pingClass = !pinged ? 'is-off' : server.ping < 80 ? 'is-good' : server.ping < 150 ? 'is-mid' : 'is-bad';
         const playersTitle = server.bots > 0 ? ` title="${escapeHtml(t('servers.bots', { count: server.bots }))}"` : '';
         return `
-            <div class="server-row" data-server-id="${escapeHtml(server.id)}">
+            <div class="server-row${tag && tag.note ? ' has-note' : ''}" data-server-id="${escapeHtml(server.id)}">
                 <button class="server-fav-btn${favorite ? ' is-fav' : ''}" title="${escapeHtml(favTitle(favorite))}">${STAR_SVG}</button>
-                <div class="server-name">${server.locked ? `<span title="${escapeHtml(t('servers.passworded'))}">${LOCK_SVG}</span>` : ''}<span>${escapeHtml(server.name)}</span></div>
+                <div class="server-name">${server.locked ? `<span title="${escapeHtml(t('servers.passworded'))}">${LOCK_SVG}</span>` : ''}${tag ? tagPillHTML(tag) : ''}${name}</div>
                 <span class="server-map">${escapeHtml(server.map)}</span>
                 <span class="server-mode"><span class="badge server-mode-badge">${escapeHtml(`${server.mode.toUpperCase()} · ${server.gametype.toUpperCase()}`)}</span></span>
                 <span class="server-region"${server.countryName ? ` title="${escapeHtml(server.countryName)}"` : ''}>${escapeHtml(server.region)}</span>
                 <span class="server-players"${playersTitle}>${server.players}/${server.maxPlayers}</span>
                 <span class="server-ping ${pingClass}">${pinged ? `${server.ping}ms` : '—'}</span>
-                ${action}
+                <span class="server-actions">
+                    ${discord ? `<button class="mods-btn mods-icon-btn server-discord-btn" title="${escapeHtml(t('servers.featuredDiscord'))}">${DISCORD_SVG}</button>` : ''}
+                    ${action}
+                </span>
             </div>`;
     }
 
@@ -221,6 +259,8 @@
         const host = query(gameId, '.servers-list-host');
         if (!host) return;
         renderUpdated(gameId);
+        const count = query(gameId, '.servers-count');
+        if (count) count.textContent = '';
 
         if (s.loading) return;
         if (s.error) {
@@ -246,8 +286,24 @@
         }
 
         const totalPlayers = shown.reduce((sum, server) => sum + server.players, 0);
+        if (count) count.textContent = `${t('servers.count', { shown: shown.length, total: s.servers.length })} · ${t('servers.countPlayers', { count: totalPlayers })}`;
+
+        // Pinned featured rows leave the main list; collapsed, they sit in it at their usual place.
+        const featured = shown.filter(isFeatured).sort((a, b) => a.tag.featured - b.tag.featured);
+        const pinned = featured.length > 0 && !s.featuredCollapsed;
+        const rest = pinned ? shown.filter(server => !isFeatured(server)) : shown;
+        const rows = list => list.map(server => serverRowHTML(server, favorites.has(server.id), !!s.caps.join)).join('');
+        const featuredBox = featured.length ? `
+                <section class="servers-featured${pinned ? '' : ' is-collapsed'}">
+                    <button class="servers-featured-head" type="button" aria-expanded="${pinned}" title="${escapeHtml(t(pinned ? 'servers.featuredCollapse' : 'servers.featuredExpand'))}">
+                        <span class="servers-featured-title">${escapeHtml(t('servers.featured'))}</span>
+                        <span class="servers-featured-count">${featured.length}</span>
+                        <span class="servers-featured-chevron"></span>
+                    </button>
+                    ${pinned ? rows(featured) : ''}
+                </section>` : '';
+
         host.innerHTML = `
-            <div class="servers-count">${escapeHtml(`${t('servers.count', { shown: shown.length, total: s.servers.length })} · ${t('servers.countPlayers', { count: totalPlayers })}`)}</div>
             <div class="servers-list">
                 <div class="servers-head">
                     <span></span>
@@ -259,7 +315,8 @@
                     <span>${escapeHtml(t('servers.colPing'))}</span>
                     <span></span>
                 </div>
-                ${shown.map(server => serverRowHTML(server, favorites.has(server.id), !!s.caps.join)).join('')}
+                ${featuredBox}
+                ${rows(rest)}
             </div>
         `;
     }
@@ -267,6 +324,14 @@
     // One delegated listener per panel instead of two per row.
     function bindListEvents(gameId, host) {
         host.addEventListener('click', event => {
+            if (event.target.closest('.servers-featured-head')) {
+                const s = getState(gameId);
+                s.featuredCollapsed = !s.featuredCollapsed;
+                saveView(gameId);
+                renderList(gameId);
+                return;
+            }
+
             const row = event.target.closest('.server-row');
             if (!row || !host.contains(row)) return;
             const id = row.dataset.serverId;
@@ -283,12 +348,20 @@
                 return;
             }
 
-            if (event.target.closest('.server-join-btn')) {
+            if (event.target.closest('.server-discord-btn')) {
+                openDiscord(gameId, id);
+            } else if (event.target.closest('.server-join-btn')) {
                 joinServer(gameId, id);
             } else if (event.target.closest('.server-copy-btn')) {
                 copyConnect(gameId, id);
             }
         });
+    }
+
+    function openDiscord(gameId, id) {
+        const server = (getState(gameId).servers || []).find(entry => entry.id === id);
+        const url = server && server.tag && discordLink(server.tag.discord);
+        if (url) window.executeCommand('open-url', { url });
     }
 
     async function copyConnect(gameId, id) {

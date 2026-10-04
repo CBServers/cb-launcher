@@ -4455,8 +4455,15 @@ html[data-theme="dark"] .secondary-action:hover {
     white-space: nowrap;
 }
 
+.servers-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
 .servers-count {
-    margin: 0 0 8px;
     font-size: 12px;
     color: var(--text-muted);
 }
@@ -4473,7 +4480,7 @@ html[data-theme="dark"] .secondary-action:hover {
     /* The head and each row are separate grids; an auto last track would size
        to the Join button in rows but to nothing in the head, skewing every
        fr column between them. Fixed width keeps both resolving identically. */
-    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px 100px;
+    grid-template-columns: 30px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 52px 70px 64px 164px;
     align-items: center;
     column-gap: 12px;
     padding: 8px 14px;
@@ -4535,6 +4542,122 @@ html[data-theme="dark"] .secondary-action:hover {
     white-space: nowrap;
 }
 
+/* Featured servers: a tinted box that lines its rows up with the column head via negative margins */
+.servers-featured {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 2px -8px 6px;
+    padding: 4px 7px 7px;
+    border: 1px solid var(--focus-border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.servers-featured.is-collapsed {
+    padding-bottom: 4px;
+    border-color: var(--border);
+    background: transparent;
+}
+
+.servers-featured-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+}
+
+.servers-featured-count {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-size: 10.5px;
+    letter-spacing: 0;
+}
+
+.servers-featured-chevron {
+    width: 12px;
+    height: 12px;
+    margin-left: auto;
+    background: currentColor;
+    -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/></svg>') center / contain no-repeat;
+    mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/></svg>') center / contain no-repeat;
+    transition: transform 0.2s var(--ease);
+}
+
+.servers-featured.is-collapsed .servers-featured-chevron { transform: rotate(180deg); }
+.servers-featured.is-collapsed .servers-featured-head { color: var(--text-muted); }
+
+.server-row.has-note { contain-intrinsic-size: auto 67px; }
+.servers-featured .server-row { border-color: var(--card-hover-border); }
+
+.server-featured-tag {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.server-featured-tag.is-official {
+    color: #fff;
+    background: var(--accent-grad);
+}
+
+.server-featured-tag.is-contributor {
+    color: var(--text);
+    border: 1px solid var(--border-hi);
+}
+
+.server-featured-tag.is-event {
+    color: var(--accent);
+    border: 1px solid var(--focus-border);
+}
+
+.server-name-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.server-name-stack > span,
+.server-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.server-note {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.server-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.server-discord-btn:hover { color: #fff; border-color: #5865F2; box-shadow: 0 0 14px rgba(88, 101, 242, 0.45); }
+.server-discord-icon { display: block; width: 15px; height: 15px; }
+
 .server-lock {
     display: block;
     width: 12px;
@@ -4559,6 +4682,8 @@ html[data-theme="dark"] .secondary-action:hover {
 .server-ping.is-bad { color: var(--danger); }
 
 .server-join-btn, .server-copy-btn { padding: 5px 14px; justify-self: end; }
+.server-copy-btn.mods-icon-btn { padding: 6px 8px; }
+.server-copy-icon { display: block; width: 15px; height: 15px; }
 
 .servers-error { flex-direction: column; }
 

@@ -10,10 +10,14 @@
 //   /v1/servers?game=<launcher game key, e.g. t6>
 //       -> { servers: [{id,name,map,mode,gametype,players,maxPlayers,bots,ping,region,country,countryName}], fetchedAt }
 //   Ping is always null here: the launcher measures it natively per user.
+//   Servers listed in tags.js also carry tag: { label, note, discord, featured }, where featured is
+//   the server's position in the Featured box or null when it is only tagged.
 //   /v1/player-counts
 //       -> { games: { <launcher game key>: { players, servers } }, fetchedAt }
 //   Players in public servers per game, from gameserve.rs's stats feed plus the BO4 lobby page.
 //   Games whose upstream failed are absent rather than reported as zero.
+
+import TAGS from './tags.js';
 
 const UPSTREAM = 'https://gameserve.rs/api/v1';
 
@@ -45,6 +49,11 @@ const T8_LOBBIES_RE = /LOBBYS ACTIVE.*?<h6[^>]*>\s*(\d+)\s*<\/h6>/is;
 
 const RATE_LIMIT_PER_MINUTE = 60;
 const CACHE_SECONDS = 30;
+
+const MAX_FEATURED = 5;
+const TAG_LABELS = ['official', 'contributor', 'event'];
+const TAG_NOTE_MAX = 80;
+const DISCORD_HOSTS = new Set(['discord.gg', 'discord.com', 'www.discord.com']);
 
 const rateBuckets = new Map(); // `${ip}:${minute}` -> count
 
@@ -115,6 +124,46 @@ function normalizeServer(server, upstreamId) {
     };
 }
 
+function discordLink(value) {
+    try {
+        const url = new URL(String(value));
+        return url.protocol === 'https:' && DISCORD_HOSTS.has(url.hostname) ? url.href : null;
+    } catch {
+        return null;
+    }
+}
+
+function labelOrder(label) {
+    const index = TAG_LABELS.indexOf(label);
+    return index < 0 ? TAG_LABELS.length : index;
+}
+
+// Tags the game's live servers in place, then ranks the featured ones: official first, config order
+// within a label, capped after matching so an offline entry frees its slot.
+function applyTags(game, servers, now) {
+    const byId = new Map(servers.map(server => [server.id, server]));
+    const featured = [];
+    for (const entry of TAGS[game] || []) {
+        if (!entry || typeof entry.id !== 'string') continue;
+        if (entry.label && !TAG_LABELS.includes(entry.label)) continue;
+        if (entry.until && Date.parse(entry.until) <= now) continue;
+        const server = byId.get(entry.id);
+        if (!server || server.tag) continue;
+        const note = typeof entry.note === 'string' ? entry.note.trim().slice(0, TAG_NOTE_MAX) : '';
+        server.tag = {
+            label: entry.label || null,
+            note: note || null,
+            discord: entry.discord ? discordLink(entry.discord) : null,
+            featured: null,
+        };
+        if (entry.featured === true) featured.push(server);
+    }
+    featured
+        .sort((a, b) => labelOrder(a.tag.label) - labelOrder(b.tag.label))
+        .slice(0, MAX_FEATURED)
+        .forEach((server, rank) => { server.tag.featured = rank; });
+}
+
 async function fetchUpstream(upstreamId) {
     const response = await fetch(`${UPSTREAM}/servers?game=${upstreamId}&limit=500`);
     if (!response.ok) {
@@ -145,8 +194,11 @@ async function handleServers(game) {
         }
     }
 
+    const servers = [...byAddress.values()];
+    applyTags(game, servers, Date.now());
+
     const result = json(200, {
-        servers: [...byAddress.values()],
+        servers,
         fetchedAt: new Date().toISOString(),
     }, { 'Cache-Control': `max-age=${CACHE_SECONDS}` });
     await caches.default.put(cacheKey, result.clone());
