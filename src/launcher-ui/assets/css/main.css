@@ -531,7 +531,34 @@ body.offline-mode #friends {
     padding-top: 4px;
     flex-shrink: 0;
     display: flex;
-    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-bottom #settings {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Same icon offset as a full nav item so it lines up when it stands alone in the collapsed rail. */
+.nav-item.nav-icon-only {
+    flex: 0 0 48px;
+    padding: 0 0 0 13px;
+}
+
+/* Collapsed rail has room for one icon: Settings, or Support while it's the open page. */
+.sidebar:not(:hover) .sidebar-bottom .nav-icon-only:not(.active),
+.sidebar:not(:hover) .sidebar-bottom:has(#support.active) #settings {
+    display: none;
+}
+
+.sidebar:hover .sidebar-bottom .nav-icon-only:not(.active),
+.sidebar:hover .sidebar-bottom:has(#support.active) #settings {
+    animation: nav-bottom-fade-in 0.2s var(--ease) 0.05s both;
+}
+
+@keyframes nav-bottom-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .game-item {

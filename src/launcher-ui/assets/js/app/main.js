@@ -1460,6 +1460,9 @@ function updateDownloadsBadge() {
     const count = games + mods;
     downloadsBadge.textContent = String(count);
     downloadsBadge.style.display = count > 0 ? '' : 'none';
+    // Only shown while something is active, paused or queued; stays put until the user leaves the page.
+    const nav = document.getElementById('downloads');
+    if (nav) nav.style.display = count > 0 || nav.classList.contains('active') ? '' : 'none';
 }
 
 function isDownloadsPageVisible() {
