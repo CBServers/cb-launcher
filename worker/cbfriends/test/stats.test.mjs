@@ -72,6 +72,20 @@ check('game ids are clamped', Object.keys(dir.stats(Date.now()).launcher).every(
 await call(C, '/v1/pulse', { game: 's2x' });
 const soon = dir.stats(Date.now());
 check('a coming-soon game is not counted', !soon.launcher.s2x && soon.online >= 1);
+check('nor kept in the stats history', !env.STATS.summary(Math.floor(Date.now() / 1000)).today.games.s2x);
+
+// Beta testers still see each other in it, which is what lets a friend join.
+const T1 = await mk(), T2 = await mk();
+await call(T1, '/v1/account/bootstrap', { hwidHash: await sha256Hex('T1'), handle: 'tester1' });
+await call(T2, '/v1/account/bootstrap', { hwidHash: await sha256Hex('T2'), handle: 'tester2' });
+await call(T1, '/v1/friends/add', { handle: 'tester2' });
+const t1Id = (await call(T2, '/v1/friends/list')).b.incoming.find(p => p.handle === 'tester1').cbId;
+await call(T2, '/v1/friends/accept', { cbId: t1Id });
+await call(T2, '/v1/presence', { game: 's2x', mode: 'mp', joinable: true, directJoin: true, players: 1, maxPlayers: 18 });
+const t2 = (await call(T1, '/v1/friends/list')).b.friends.find(p => p.handle === 'tester2');
+check('a coming-soon game shows in friend presence', t2 && t2.game === 's2x' && t2.joinable && t2.directJoin);
+check('an account in it is online but not counted', !dir.stats(Date.now()).launcher.s2x);
+check('a coming-soon game has no LFG board', (await call(T2, '/v1/lfg/post', { game: 's2x', note: 'test' })).s === 400);
 
 // The worker answers from a short cache, so a burst of launchers polling costs one directory pass.
 const again = await stats();

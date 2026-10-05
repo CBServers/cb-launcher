@@ -828,21 +828,17 @@ namespace game_config
                 .manifest_path = "manifest/ww2.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s2_mp64_ship.exe", "s2_sp64_ship.exe"},
-                // Without a mode flag s2x.exe opens its own picker and waits, so always pass one.
                 .mode_arguments = {
-                    {"mp", "-multiplayer"},
                     {"sp", "-singleplayer"},
-                    // Without +zombiesMode 1, S2x relaunches itself to add it.
+                    {"mp", "-multiplayer"},
                     {"zm", "-zombies +zombiesMode 1"}
                 },
-                // The CDN manifest ships MP and Zombies together in "mp"; base alone launches neither mode.
                 .mode_components = {
+                    {"sp", "sp"},
                     {"mp", "mp"},
-                    {"zm", "mp"},
-                    {"sp", "sp"}
+                    {"zm", "mp"}
                 },
                 .default_args = "-noupdate",
-                // S2x reads the player name from its own config, not argv.
                 .name_argument = "",
                 .base_folder = "ww2_game_files",
                 .base_properties_game = "",
@@ -850,8 +846,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("s2x"),
                 .client_install_path_files = {"s2x.exe"},
                 .client_data_folders = {"data"},
-                // From the ship exe's imports: MSVCP140/VCRUNTIME140_1, and no d3dx, so no June 2010 DX.
-                .required_redists = {"vcr2022"}
+                .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
         {

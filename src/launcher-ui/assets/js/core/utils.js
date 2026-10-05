@@ -350,7 +350,7 @@ class GameUtils {
             comingSoon: true,
             betaFeature: 'ww2',
             hasMultipleModes: true,
-            supportedModes: ['mp', 'sp', 'zm'],
+            supportedModes: ['sp', 'mp', 'zm'],
             supportsName: false,
             specialSettings: [],
             version: 'S2',

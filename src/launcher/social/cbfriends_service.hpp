@@ -105,6 +105,7 @@ namespace social
         std::string join_secret;
         bool direct_join{false};
         bool openable{false};
+        bool invite_only{false}; // join_secret rides outgoing invites only; never published as joinable
         std::string match_id;
         std::string mode;
         std::string map_display;
@@ -446,6 +447,7 @@ namespace social
         std::string activity_secret_;
         bool activity_direct_{false};
         bool activity_openable_{false};
+        bool activity_invite_only_{false};
         std::string activity_match_;
         std::string activity_mode_;
         std::string activity_map_;

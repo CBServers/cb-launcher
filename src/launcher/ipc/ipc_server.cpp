@@ -67,14 +67,14 @@ namespace ipc
         }
 
         // Reads a presence/connect transport object into a unified-secret transport. False => not joinable.
-        bool parse_transport(const rapidjson::Value& parent, join_secret::transport& out)
+        bool parse_transport(const rapidjson::Value& parent, join_secret::transport& out, const char* key = "transport")
         {
-            if (!parent.HasMember("transport") || !parent["transport"].IsObject())
+            if (!parent.HasMember(key) || !parent[key].IsObject())
             {
                 return false;
             }
 
-            const auto& t = parent["transport"];
+            const auto& t = parent[key];
             const auto kind = json_string(t, "kind");
             if (kind == "direct")
             {
@@ -1134,8 +1134,17 @@ namespace ipc
             if (join_secret::transport transport{}; parse_transport(doc, transport))
             {
                 info.join_secret = join_secret::build(this->connection_game_id, transport, mode, info.match_id);
-                // A session invite names one lobby and is only sent deliberately, so no approval step.
-                info.direct_join = transport.kind != join_secret::transport::kind_t::nat;
+                // The fork's own directJoin wins (a nat host whose privacy already admits friends); without it
+                // a session invite names one lobby and is only sent deliberately, so no approval step.
+                info.direct_join = doc.HasMember("directJoin") && doc["directJoin"].IsBool()
+                    ? doc["directJoin"].GetBool()
+                    : transport.kind != join_secret::transport::kind_t::nat;
+            }
+            // Invite only: a secret for outgoing invites that is never published as joinable.
+            else if (join_secret::transport invite{}; parse_transport(doc, invite, "inviteTransport"))
+            {
+                info.join_secret = join_secret::build(this->connection_game_id, invite, mode, info.match_id);
+                info.invite_only = !info.join_secret.empty();
             }
 
             // Discord caps the join secret, so an oversized one is dropped there but kept for CB.
@@ -1154,6 +1163,7 @@ namespace ipc
             cb_info.join_secret = info.join_secret;
             cb_info.direct_join = info.direct_join;
             cb_info.openable = info.openable;
+            cb_info.invite_only = info.invite_only;
             cb_info.match_id = info.match_id;
             cb_info.mode = mode;
             cb_info.map_display = info.map_display;

@@ -337,6 +337,7 @@ namespace discord
             std::string join_secret; // unified cbl: secret; empty => not joinable
             bool direct_join{false}; // joinable on a public/dedicated server (vs nat/private host)
             bool openable{false};    // hosting a private match not yet open to friends
+            bool invite_only{false}; // join_secret rides outgoing invites only; never published as joinable
             std::string map_raw;      // raw keys carried in the party-id presence flags
             std::string gametype_raw;
             std::string match_id;     // fork-derived match identity; doubles as the party id base
@@ -478,7 +479,8 @@ namespace discord
                 activity.SetDetails(clamp_field(build_rich_details(a.display_name, a.gametype, a.map_display)));
                 activity.SetState(clamp_field(build_rich_state(a.mode, a.map_display, a.server_name)));
 
-                const bool joinable = !a.join_secret.empty();
+                // An invite-only secret is kept for outgoing invites but never offered to friends.
+                const bool joinable = !a.join_secret.empty() && !a.invite_only;
                 // Closed private match we host; Ask to Join knocks and the host's approve opens it.
                 const bool knockable = !joinable && a.openable;
                 if (a.max_players > 0 || joinable || knockable)
@@ -944,7 +946,7 @@ namespace discord
             }
 
             // An open match (public server or open-to-friends) is standing consent: approve silently.
-            if (is_request && this->has_real_secret())
+            if (is_request && this->has_real_secret() && !this->current_activity->invite_only)
             {
                 utils::logger::write("[cbl-invite] auto-approving join-request from {} (match is open)", sender);
                 if (in.approve_cb)
@@ -1739,6 +1741,7 @@ namespace discord
         activity.join_secret = info.join_secret;
         activity.direct_join = info.direct_join;
         activity.openable = info.openable;
+        activity.invite_only = info.invite_only;
         activity.map_raw = info.map_raw;
         activity.gametype_raw = info.gametype_raw;
         activity.match_id = info.match_id;
@@ -1781,6 +1784,7 @@ namespace discord
             a.join_secret.clear();
             a.openable = false;
             a.direct_join = false;
+            a.invite_only = false;
             a.map_raw.clear();
             a.gametype_raw.clear();
             a.match_id.clear();
@@ -1887,6 +1891,14 @@ namespace discord
             {
                 i->send_through_relay(uid, "invite", on_result, [i, uid, on_result]
                 {
+                    // Discord only delivers a secret the activity publishes, and an invite-only match publishes none.
+                    if (i->current_activity && i->current_activity->invite_only)
+                    {
+                        utils::logger::write("[cbl-invite] invite to {} needs the CB inbox (match is invite only)", uid);
+                        report(on_result, {action_result::code::failed});
+                        return;
+                    }
+
                     i->client->SendActivityInvite(uid, "Join my game on CB Servers",
                                                   [uid, on_result](const discordpp::ClientResult& result)
                     {

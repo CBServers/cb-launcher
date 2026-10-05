@@ -26,15 +26,24 @@ const SECURITY_EVENTS = 20;
 const CHAT_PAGE = 50;         // scrollback page size
 const DM_PREFIX = 'dm-';      // reserved room-id prefix; the open chat endpoints refuse it
 const TS_SKEW_SECONDS = 300;
-// Launcher UI ids a client may report as its game. Coming-soon titles (s2x) stay off until they ship.
+// Launcher UI ids a client may report as its game.
 const GAMES = new Set([
     'cod1', 'coduo', 'cod2x', 'cod4x', 't4', 'iw4x', 't5', 'iw5', 't6',
-    'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod',
+    'iw6x', 's1x', 'boiii', 'iw7-mod', 'h1-mod', 'bo4', 'mw2r', 'hmw-mod', 's2x',
 ]);
+
+// Coming-soon titles open to beta testers: friends see them in presence and can join, but they stay
+// out of player counts, stats history and LFG. Drop an id here when the launcher ships it.
+const UNLISTED_GAMES = new Set(['s2x']);
 
 // An unknown or disabled game reads as idle rather than failing the request.
 function gameId(value) {
     return typeof value === 'string' && GAMES.has(value) ? value : '';
+}
+
+// The game as public aggregates may show it; an unlisted one counts as an idle launcher.
+function listedGame(game) {
+    return UNLISTED_GAMES.has(game) ? '' : game;
 }
 
 function json(status, body) {
@@ -1370,7 +1379,7 @@ async function handleChatPoll(env, cbId, body) {
 
 // A post carries a profile snapshot so the board can be listed without a KV read per poster.
 async function handleLfgPost(env, cbId, body) {
-    const game = gameId(body.game);
+    const game = listedGame(gameId(body.game));
     if (!game) return json(400, { error: 'game required' });
 
     const mute = await activeMute(env, cbId);
@@ -1486,7 +1495,7 @@ async function handlePulse(env, fpr, body) {
 
 function noteSighting(env, fpr, game) {
     if (!env.STATS) return;
-    try { env.STATS.seen(Math.floor(Date.now() / 1000), game, fpr); } catch (e) { console.error('stats seen:', e); }
+    try { env.STATS.seen(Math.floor(Date.now() / 1000), listedGame(game), fpr); } catch (e) { console.error('stats seen:', e); }
 }
 
 const STATS_SERVERS_TIMEOUT_MS = 10_000;
@@ -2059,6 +2068,7 @@ export class Directory {
         const add = (game, at) => {
             if (now - at >= PRESENCE_FRESH_MS) return;
             online++;
+            game = listedGame(game);
             if (game) launcher[game] = (launcher[game] || 0) + 1;
         };
         for (const it of this.people.values()) {

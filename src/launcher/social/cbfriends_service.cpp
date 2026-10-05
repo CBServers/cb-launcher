@@ -818,7 +818,7 @@ namespace social
         std::lock_guard lock(mutex_);
         cb_own_presence me;
         me.game = current_game_.empty() ? activity_game_ : current_game_;
-        me.joinable = !activity_secret_.empty();
+        me.joinable = !activity_secret_.empty() && !activity_invite_only_;
         // Match details only describe the fork's game, not whatever the frontend reports.
         if (!activity_game_.empty() && activity_game_ == me.game)
         {
@@ -867,6 +867,7 @@ namespace social
             activity_secret_ = activity.join_secret;
             activity_direct_ = activity.direct_join;
             activity_openable_ = activity.openable;
+            activity_invite_only_ = activity.invite_only;
             activity_match_ = activity.match_id;
             activity_mode_ = activity.mode;
             activity_map_ = activity.map_display;
@@ -907,6 +908,7 @@ namespace social
             activity_secret_.clear();
             activity_direct_ = false;
             activity_openable_ = false;
+            activity_invite_only_ = false;
             activity_match_.clear();
             activity_mode_.clear();
             activity_map_.clear();
@@ -1076,15 +1078,16 @@ namespace social
         if (kind == "join-request")
         {
             std::string my_game, my_match, my_secret;
-            bool openable;
+            bool openable, invite_only;
             {
                 std::lock_guard lock(mutex_);
                 my_game = activity_game_.empty() ? current_game_ : activity_game_;
                 my_match = activity_match_;
                 my_secret = activity_secret_;
                 openable = activity_openable_;
+                invite_only = activity_invite_only_;
             }
-            if (!my_secret.empty())
+            if (!my_secret.empty() && !invite_only)
             {
                 utils::logger::write("[cbl-invite] auto-approving join-request from {} (match is open)", sender);
                 send_reply(sender, id, my_game, my_match, my_secret);

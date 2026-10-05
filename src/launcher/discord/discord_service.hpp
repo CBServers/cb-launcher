@@ -112,6 +112,7 @@ namespace discord
             std::string join_secret; // unified cbl: secret; empty => not joinable
             bool direct_join{false}; // transport is direct (public/dedicated server) vs nat (private host)
             bool openable{false};    // hosting a private match not yet open to friends
+            bool invite_only{false}; // join_secret rides outgoing invites only; never published as joinable
             std::string map_raw;      // raw map key for the party-id presence flags
             std::string gametype_raw; // raw gametype key for the party-id presence flags
             std::string match_id;     // fork-derived match identity; identical for everyone in the match
