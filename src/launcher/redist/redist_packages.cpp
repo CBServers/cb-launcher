@@ -200,8 +200,12 @@ namespace redist
                 "/install /quiet /norestart",
                 false,
                 {
-                    {{ detect_kind::registry_dword, { L"SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64" }, L"Installed", 1 }},
-                    system_dlls(L"System32", { L"vcruntime140.dll", L"msvcp140.dll" }),
+                    // vcruntime140_1.dll only ships with 2019+, so it catches a stale 2015/2017 install.
+                    {
+                        { detect_kind::registry_dword, { L"SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64" }, L"Installed", 1 },
+                        { detect_kind::file_exists, { L"%SystemRoot%\\System32\\vcruntime140_1.dll" }, L"", 0 },
+                    },
+                    system_dlls(L"System32", { L"vcruntime140.dll", L"vcruntime140_1.dll", L"msvcp140.dll" }),
                 }
             },
             {
