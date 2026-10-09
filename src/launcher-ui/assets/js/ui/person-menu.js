@@ -146,14 +146,13 @@
         return h < 24 ? t('hoursAgo', { n: h }) : t('daysAgo', { n: Math.round(h / 24) });
     }
 
-    // The three games they have actually put time into; anything below an hour is noise.
+    // Every game they have put time into, most played first; under a minute is noise.
     function playedRows(playtime) {
-        const top = Object.entries(playtime || {})
+        const played = Object.entries(playtime || {})
             .filter(([, seconds]) => seconds >= 60)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3);
-        if (!top.length) return '';
-        return top.map(([game, seconds]) =>
+            .sort((a, b) => b[1] - a[1]);
+        if (!played.length) return '';
+        return played.map(([game, seconds]) =>
             `<div class="cb-person-field"><span>${escapeHtml(gameName(game))}</span>${escapeHtml(hours(seconds))}</div>`).join('');
     }
 
@@ -201,7 +200,7 @@
                     ${meta ? `<div class="cb-person-meta">${meta}</div>` : ''}
                     ${played ? `<div class="cb-person-section">
                         <div class="cb-person-section-title">${escapeHtml(t('playtime'))}</div>
-                        <div class="cb-person-meta">${played}</div>
+                        <div class="cb-person-meta cb-person-playtime">${played}</div>
                     </div>` : ''}
                 </div>
                 <div class="cb-person-actions">${relationAction(p)}</div>

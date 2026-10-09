@@ -6307,6 +6307,18 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     margin-top: 0;
 }
 
+/* Five and a half rows, so a cut-off row shows there is more to scroll to. */
+.cb-person-playtime {
+    max-height: 202px;
+    overflow-y: auto;
+}
+
+.cb-person-playtime::-webkit-scrollbar { width: 6px; }
+
+/* Long game names wrap, the hours never do. */
+.cb-person-playtime .cb-person-field { white-space: nowrap; }
+.cb-person-playtime .cb-person-field span { white-space: normal; }
+
 /* Anchored footer so the action is a deliberate control, not a label floating in the corner. */
 .cb-person-actions {
     display: flex;

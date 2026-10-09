@@ -2214,8 +2214,10 @@ export class Directory {
             }
             this.prune();
 
+            // A goodbye flushes whatever is left, since prune may have just dropped this entry.
             let flush = null;
-            if ((it.pendingTotal || 0) >= PLAY_FLUSH_SECONDS) {
+            const pendingTotal = it.pendingTotal || 0;
+            if (pendingTotal >= PLAY_FLUSH_SECONDS || (body.bye && pendingTotal > 0)) {
                 flush = it.pending;
                 it.pending = {};
                 it.pendingTotal = 0;

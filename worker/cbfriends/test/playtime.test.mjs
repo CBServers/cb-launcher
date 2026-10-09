@@ -84,4 +84,19 @@ check('sitting in the launcher earns no playtime',
 check('a friend sees the same playtime on the public card',
     (await call(A, '/v1/profile/get', { cbId: cId })).b.playtime.boiii === 600);
 
+// Closing the launcher banks what is left, since the directory forgets them on the same beat.
+const D = await mk();
+const dId = (await call(D, '/v1/account/bootstrap', { hwidHash: await sha256Hex('D'), handle: 'brief' })).b.cbId;
+await call(D, '/v1/presence', { game: 't6' });
+for (let i = 0; i < 4; i++) {
+    dir.people.get(dId).pres.at = Date.now() - 60 * 1000;
+    await call(D, '/v1/presence', { game: 't6' });
+}
+check('a short session has not flushed yet',
+    !((await call(D, '/v1/profile/get', { cbId: dId })).b.playtime || {}).t6);
+await call(D, '/v1/presence', { bye: true });
+check('a goodbye flushes the rest of the session',
+    ((await call(D, '/v1/profile/get', { cbId: dId })).b.playtime || {}).t6 === 240);
+check('nothing is left pending to flush twice', !dir.people.has(dId) || !dir.people.get(dId).pendingTotal);
+
 check.done();
