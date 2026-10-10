@@ -40,7 +40,7 @@ export default {
     ],
     t6: [
         { id: '142.248.82.8:4976', ...CB, featured: true },          // Stank's Custom Gun Game
-        { id: '103.152.197.155:4976', ...ERODED, featured: true },   // BO2 Plutonium Modded
+        { id: '103.152.197.155:2000', ...ERODED, featured: true },   // BO2 Plutonium Modded
         { id: '103.152.197.155:4977', ...ERODED, featured: true },   // BO2 Plutonium Official
         { id: '103.152.197.155:4981', ...ERODED, featured: true },   // BO2 Zombies Declassified
         { id: '103.152.197.155:4978', ...ERODED },                   // BO2 Plutonium Official #2
