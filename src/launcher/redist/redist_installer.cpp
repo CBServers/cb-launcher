@@ -19,14 +19,6 @@ namespace redist
 {
     namespace
     {
-        std::wstring expand_env(const std::wstring& input)
-        {
-            wchar_t buf[MAX_PATH * 2];
-            const auto n = ExpandEnvironmentStringsW(input.data(), buf, ARRAYSIZE(buf));
-            if (n == 0 || n > ARRAYSIZE(buf)) return input;
-            return std::wstring(buf, n - 1);
-        }
-
         bool registry_dword_equals(const std::wstring& subkey, const std::wstring& value_name, DWORD expected)
         {
             HKEY hkey = nullptr;
@@ -95,6 +87,9 @@ namespace redist
                     break;
                 case detect_kind::directory_prefix_exists:
                     if (directory_prefix_exists(expand_env(path))) return true;
+                    break;
+                case detect_kind::pe_machine:
+                    if (image_machine(expand_env(path)) == rule.expected) return true;
                     break;
                 }
             }

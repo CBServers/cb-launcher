@@ -2,6 +2,9 @@
 
 #include "redist_packages.hpp"
 
+#include <filesystem>
+#include <fstream>
+
 namespace redist
 {
     namespace
@@ -21,13 +24,13 @@ namespace redist
     namespace
     {
         // Runtime-files alternative: all listed files/dirs must exist (registry can drift, DLLs cannot).
-        detect_alternative system_dlls(const wchar_t* dir, std::initializer_list<const wchar_t*> names)
+        detect_alternative system_dlls(const wchar_t* dir, std::initializer_list<const wchar_t*> names,
+            detect_kind kind = detect_kind::file_exists, unsigned long expected = 0)
         {
             detect_alternative alt;
             for (const auto* name : names)
             {
-                alt.push_back({ detect_kind::file_exists,
-                    { std::wstring(L"%SystemRoot%\\") + dir + L"\\" + name }, L"", 0 });
+                alt.push_back({ kind, { std::wstring(L"%SystemRoot%\\") + dir + L"\\" + name }, L"", expected });
             }
             return alt;
         }
@@ -37,12 +40,24 @@ namespace redist
         detect_alternative dx_runtime_files()
         {
             static const std::initializer_list<const wchar_t*> names = {
-                L"d3dx9_34.dll", L"d3dx9_37.dll", L"d3dx9_43.dll", L"d3dx11_43.dll", L"XInput1_3.dll"
+                L"d3dx9_34.dll", L"d3dx9_37.dll", L"d3dx9_43.dll", L"d3dx11_43.dll", L"d3dcompiler_43.dll",
+                L"XInput1_3.dll", L"XAudio2_0.dll", L"XAudio2_7.dll"
             };
 
-            auto alt = system_dlls(L"System32", names);
-            const auto wow = system_dlls(L"SysWOW64", names);
+            // Same version info on both builds, so only the PE header catches an x64 copy in SysWOW64.
+            auto alt = system_dlls(L"System32", names, detect_kind::pe_machine, IMAGE_FILE_MACHINE_AMD64);
+            const auto wow = system_dlls(L"SysWOW64", names, detect_kind::pe_machine, IMAGE_FILE_MACHINE_I386);
             alt.insert(alt.end(), wow.begin(), wow.end());
+
+            // XAudio2 is COM-activated, so a hand-copied DLL with no CLSID still leaves WaW/BO1/BO2 silent.
+            for (const auto* clsid : {
+                L"{fac23f48-31f5-45a8-b49b-5225d61401aa}", // 2.0
+                L"{5a508685-a254-4fba-9b82-9a24b00306af}", // 2.7
+            })
+            {
+                alt.push_back({ detect_kind::registry_key_exists,
+                    { std::wstring(L"SOFTWARE\\Classes\\WOW6432Node\\CLSID\\") + clsid + L"\\InprocServer32" }, L"", 0 });
+            }
             return alt;
         }
 
@@ -220,5 +235,46 @@ namespace redist
             },
         };
         return packages;
+    }
+
+    std::wstring expand_env(const std::wstring& input)
+    {
+        wchar_t buf[MAX_PATH * 2];
+        const auto n = ExpandEnvironmentStringsW(input.data(), buf, ARRAYSIZE(buf));
+        if (n == 0 || n > ARRAYSIZE(buf)) return input;
+        return std::wstring(buf, n - 1);
+    }
+
+    unsigned short image_machine(const std::wstring& path)
+    {
+        std::ifstream file(std::filesystem::path(path), std::ios::binary);
+
+        IMAGE_DOS_HEADER dos{};
+        if (!file.read(reinterpret_cast<char*>(&dos), sizeof(dos)) || dos.e_magic != IMAGE_DOS_SIGNATURE) return 0;
+
+        DWORD signature = 0;
+        IMAGE_FILE_HEADER header{};
+        if (dos.e_lfanew < 0 || !file.seekg(dos.e_lfanew)) return 0;
+        if (!file.read(reinterpret_cast<char*>(&signature), sizeof(signature)) || signature != IMAGE_NT_SIGNATURE) return 0;
+        if (!file.read(reinterpret_cast<char*>(&header), sizeof(header))) return 0;
+        return header.Machine;
+    }
+
+    std::vector<std::wstring> failing_images(const package_def& def)
+    {
+        std::vector<std::wstring> out;
+        for (const auto& alternative : def.detect)
+        {
+            for (const auto& rule : alternative)
+            {
+                if (rule.kind != detect_kind::pe_machine) continue;
+                for (const auto& path : rule.paths)
+                {
+                    auto expanded = expand_env(path);
+                    if (image_machine(expanded) != rule.expected) out.push_back(std::move(expanded));
+                }
+            }
+        }
+        return out;
     }
 }

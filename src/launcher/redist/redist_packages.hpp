@@ -11,6 +11,7 @@ namespace redist
         registry_key_exists,
         file_exists,
         directory_prefix_exists,
+        pe_machine, // expected = IMAGE_FILE_MACHINE_*
     };
 
     struct detect_rule
@@ -39,4 +40,12 @@ namespace redist
     };
 
     const std::vector<package_def>& all_packages();
+
+    std::wstring expand_env(const std::wstring& input);
+
+    // 0 when the file is missing or not a PE image.
+    unsigned short image_machine(const std::wstring& path);
+
+    // Every pe_machine path of the package that is missing or built for the wrong architecture.
+    std::vector<std::wstring> failing_images(const package_def& def);
 }

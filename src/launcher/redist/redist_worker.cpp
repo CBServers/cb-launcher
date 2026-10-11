@@ -151,6 +151,13 @@ namespace redist
                     return false;
                 }
 
+                // DXSETUP keeps a same-version file with a newer timestamp, so wrong-arch copies must go first.
+                for (const auto& path : failing_images(def))
+                {
+                    if (!utils::io::file_exists(path)) continue;
+                    MoveFileExW(path.data(), (path + L".cb-bad").data(), MOVEFILE_REPLACE_EXISTING);
+                }
+
                 if (!run_and_wait(dxsetup, "/silent", extract_dir, exit_code))
                 {
                     error = "DXSETUP launch failed (" + std::to_string(exit_code) + ")";
@@ -160,6 +167,16 @@ namespace redist
                 if (exit_code != 0)
                 {
                     error = "DXSETUP exit " + std::to_string(exit_code);
+                    return false;
+                }
+
+                const auto still_bad = failing_images(def);
+                if (!still_bad.empty())
+                {
+                    const std::filesystem::path first(still_bad.front());
+                    error = "Still missing or damaged after install: " +
+                        utils::string::path_to_utf8(first.parent_path().filename() / first.filename());
+                    if (still_bad.size() > 1) error += " and " + std::to_string(still_bad.size() - 1) + " more";
                     return false;
                 }
                 return true;
