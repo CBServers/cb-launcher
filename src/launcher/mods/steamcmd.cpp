@@ -196,121 +196,133 @@ namespace mods::steamcmd
         // with it present makes chunk reuse abort with "Missing game files" (Failure).
         std::filesystem::remove(workshop_path(install_dir) / utils::string::va("appworkshop_%u.acf", appid), code);
 
-        auto runs_before = count_content_runs(appid);
-
-        // force_install_dir must precede +login or SteamCMD ignores it with a warning.
-        const auto handle = run_hidden(utils::string::va("+force_install_dir \"%s\" +login anonymous +workshop_download_item %u %s +quit",
-                                                         utils::string::path_to_utf8(install_dir).data(), appid, workshop_id.data()));
-        if (!handle)
+        std::optional<uint64_t> last_baseline{};
+        while (true)
         {
-            error = "Failed to start the Steam downloader.";
-            return std::nullopt;
-        }
+            auto runs_before = count_content_runs(appid);
 
-        auto query = handle;
-        HANDLE opened_query = nullptr;
-
-        const auto close_handles = [&]
-        {
-            if (opened_query)
+            // force_install_dir must precede +login or SteamCMD ignores it with a warning.
+            const auto handle = run_hidden(utils::string::va("+force_install_dir \"%s\" +login anonymous +workshop_download_item %u %s +quit",
+                                                             utils::string::path_to_utf8(install_dir).data(), appid, workshop_id.data()));
+            if (!handle)
             {
-                CloseHandle(opened_query);
-            }
-
-            CloseHandle(handle);
-        };
-
-        const auto abort_download = [&](const std::string& reason)
-        {
-            utils::nt::terminate_process_handle(handle);
-            close_handles();
-            cleanup_downloads(install_dir, appid, workshop_id);
-            error = reason;
-        };
-
-        uint64_t last_write = 0;
-        uintmax_t last_log_size = 0;
-        auto stalled_ticks = 0;
-        steamcmd_log::content_run run{};
-
-        while (WaitForSingleObject(handle, 500) == WAIT_TIMEOUT)
-        {
-            if (const auto log_size = std::filesystem::file_size(content_log_path(), code); !code && log_size != last_log_size)
-            {
-                last_log_size = log_size;
-                if (const auto text = read_content_log())
-                {
-                    const auto runs = steamcmd_log::parse_content_runs(*text, appid);
-                    if (runs.size() > runs_before)
-                    {
-                        run = runs.back();
-                    }
-                    else if (runs.size() < runs_before)
-                    {
-                        runs_before = 0; // the log was rotated out from under us
-                    }
-                }
-            }
-
-            IO_COUNTERS counters{};
-            auto have_io = GetProcessIoCounters(query, &counters) != FALSE;
-            if (!have_io && !opened_query)
-            {
-                // The handle from the shell may not carry query rights; reopen by pid.
-                opened_query = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, GetProcessId(handle));
-                if (opened_query)
-                {
-                    query = opened_query;
-                    have_io = GetProcessIoCounters(query, &counters) != FALSE;
-                }
-            }
-
-            auto percent = 0;
-            if (have_io)
-            {
-                // SteamCMD preallocates every file at full size up front, so folder size is flat from the
-                // first second; its own write counter is the only number that tracks the transfer.
-                const auto write = counters.WriteTransferCount;
-                stalled_ticks = write == last_write ? stalled_ticks + 1 : 0;
-                last_write = write;
-
-                if (stalled_ticks > STALL_TIMEOUT_TICKS)
-                {
-                    abort_download("The download stalled and was cancelled.");
-                    return std::nullopt;
-                }
-
-                const auto total = run.stage_total ? run.stage_total : expected_size;
-                const auto staged = run.stage_baseline + write;
-                if (total)
-                {
-                    // The commit is a same-volume move and does not count, so hold at 99 until it starts.
-                    const auto ceiling = run.saw_commit ? 100ull : 99ull;
-                    percent = static_cast<int>(std::min(ceiling, staged * 100 / total));
-                }
-            }
-            else
-            {
-                percent = phase_percent(run);
-            }
-
-            if (progress && !progress("downloading", workshop_id, percent))
-            {
-                abort_download("cancelled");
+                error = "Failed to start the Steam downloader.";
                 return std::nullopt;
             }
+
+            auto query = handle;
+            HANDLE opened_query = nullptr;
+
+            const auto close_handles = [&]
+            {
+                if (opened_query)
+                {
+                    CloseHandle(opened_query);
+                }
+
+                CloseHandle(handle);
+            };
+
+            const auto abort_download = [&](const std::string& reason)
+            {
+                utils::nt::terminate_process_handle(handle);
+                close_handles();
+                cleanup_downloads(install_dir, appid, workshop_id);
+                error = reason;
+            };
+
+            uint64_t last_write = 0;
+            uintmax_t last_log_size = 0;
+            auto stalled_ticks = 0;
+            steamcmd_log::content_run run{};
+
+            while (WaitForSingleObject(handle, 500) == WAIT_TIMEOUT)
+            {
+                if (const auto log_size = std::filesystem::file_size(content_log_path(), code); !code && log_size != last_log_size)
+                {
+                    last_log_size = log_size;
+                    if (const auto text = read_content_log())
+                    {
+                        const auto runs = steamcmd_log::parse_content_runs(*text, appid);
+                        if (runs.size() > runs_before)
+                        {
+                            run = runs.back();
+                        }
+                        else if (runs.size() < runs_before)
+                        {
+                            runs_before = 0; // the log was rotated out from under us
+                        }
+                    }
+                }
+
+                IO_COUNTERS counters{};
+                auto have_io = GetProcessIoCounters(query, &counters) != FALSE;
+                if (!have_io && !opened_query)
+                {
+                    // The handle from the shell may not carry query rights; reopen by pid.
+                    opened_query = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, GetProcessId(handle));
+                    if (opened_query)
+                    {
+                        query = opened_query;
+                        have_io = GetProcessIoCounters(query, &counters) != FALSE;
+                    }
+                }
+
+                auto percent = 0;
+                if (have_io)
+                {
+                    // SteamCMD preallocates every file at full size up front, so folder size is flat from the
+                    // first second; its own write counter is the only number that tracks the transfer.
+                    const auto write = counters.WriteTransferCount;
+                    stalled_ticks = write == last_write ? stalled_ticks + 1 : 0;
+                    last_write = write;
+
+                    if (stalled_ticks > STALL_TIMEOUT_TICKS)
+                    {
+                        abort_download("The download stalled and was cancelled.");
+                        return std::nullopt;
+                    }
+
+                    const auto total = run.stage_total ? run.stage_total : expected_size;
+                    const auto staged = run.stage_baseline + write;
+                    if (total)
+                    {
+                        // The commit is a same-volume move and does not count, so hold at 99 until it starts.
+                        const auto ceiling = run.saw_commit ? 100ull : 99ull;
+                        percent = static_cast<int>(std::min(ceiling, staged * 100 / total));
+                    }
+                }
+                else
+                {
+                    percent = phase_percent(run);
+                }
+
+                if (progress && !progress("downloading", workshop_id, percent))
+                {
+                    abort_download("cancelled");
+                    return std::nullopt;
+                }
+            }
+
+            close_handles();
+
+            if (utils::io::directory_exists(item) && !utils::io::directory_is_empty(item))
+            {
+                return item;
+            }
+
+            // SteamCMD gives up on an item after 5 minutes but keeps its staging, so relaunch while each run resumes further on.
+            if (!run.saw_update_started || run.saw_commit || (last_baseline && run.stage_baseline <= *last_baseline))
+            {
+                error = run.saw_update_started ? "The download from Steam stopped making progress. Try again later."
+                                               : "Steam did not provide the Workshop item. It may have been removed.";
+                utils::logger::write("[cbl-mods] steamcmd produced no content for {}", workshop_id);
+                return std::nullopt;
+            }
+
+            last_baseline = run.stage_baseline;
+            utils::logger::write("[cbl-mods] steamcmd timed out on {}, resuming", workshop_id);
         }
-
-        close_handles();
-
-        if (!utils::io::directory_exists(item) || utils::io::directory_is_empty(item))
-        {
-            error = "Steam did not provide the Workshop item. It may have been removed.";
-            utils::logger::write("[cbl-mods] steamcmd produced no content for {}", workshop_id);
-            return std::nullopt;
-        }
-
-        return item;
     }
 
     void cleanup_downloads(const std::filesystem::path& install_dir, const uint32_t appid, const std::string& workshop_id)
