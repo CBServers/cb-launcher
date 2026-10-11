@@ -1103,13 +1103,31 @@ namespace commands::game_commands
             return false;
         }
 
-        // Same game already tracked under another PID (e.g. wrapper parent): accept without re-tracking.
-        const auto tracked_same_game = get_tracked_launch().access<bool>([&](const tracked_launch& t)
+        // Same game already tracked under another PID: a live one (e.g. wrapper parent) keeps it; a dead one means the
+        // game relaunched itself, so the new PID takes over, or PID-checked requests (workshop, presence) would fail
+        unsigned long handed_over_from = 0;
+        const auto tracked_same_game = get_tracked_launch().access<bool>([&](tracked_launch& t)
         {
-            return t.active && t.game_id == game_id;
+            if (!t.active || t.game_id != game_id)
+            {
+                return false;
+            }
+
+            if (!utils::nt::is_process_alive(t.pid))
+            {
+                handed_over_from = t.pid;
+                t.pid = pid;
+                t.elevated = utils::nt::is_process_elevated(pid);
+            }
+            return true;
         });
         if (tracked_same_game)
         {
+            if (handed_over_from)
+            {
+                utils::logger::write("[cbl-adopt] '{}' relaunched itself: tracking pid {} instead of {}", game_id, pid,
+                                     handed_over_from);
+            }
             return true;
         }
 
