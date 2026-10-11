@@ -156,23 +156,28 @@ async function authenticate(request) {
     return { fpr: await sha256Hex(pub), body };
 }
 
-const rateBuckets = new Map(); // `${key}:${minute}` -> count
+const rateBuckets = new Map(); // `${key}:${windowMs}:${bucket}` -> { count, until }
+let rateSweepAt = 0;
 
 // Fixed windows of windowMs. Each isolate counts separately, so the effective limit is a multiple
 // of this; it exists to stop scripted abuse, not to be exact.
 function withinRate(key, limit, windowMs = 60_000) {
-    const bucket = Math.floor(Date.now() / windowMs);
-    if (rateBuckets.size > 10000) {
-        const cutoff = Date.now() - 3600_000;
+    const now = Date.now();
+    // Swept on a timer, never per call: a per-call scan is O(callers) on every request.
+    if (now >= rateSweepAt) {
+        rateSweepAt = now + 60_000;
         for (const [k, v] of rateBuckets) {
-            if (v.seen < cutoff) rateBuckets.delete(k);
+            if (v.until <= now) rateBuckets.delete(k);
         }
     }
+    const bucket = Math.floor(now / windowMs);
     const id = `${key}:${windowMs}:${bucket}`;
-    const entry = rateBuckets.get(id) || { count: 0, seen: 0 };
+    let entry = rateBuckets.get(id);
+    if (!entry) {
+        entry = { count: 0, until: (bucket + 1) * windowMs };
+        rateBuckets.set(id, entry);
+    }
     entry.count += 1;
-    entry.seen = Date.now();
-    rateBuckets.set(id, entry);
     return entry.count <= limit;
 }
 
