@@ -481,15 +481,15 @@ namespace discord
 
                 // An invite-only secret is kept for outgoing invites but never offered to friends.
                 const bool joinable = !a.join_secret.empty() && !a.invite_only;
-                // Closed private match we host; Ask to Join knocks and the host's approve opens it.
+                // Invite-only (or older forks' closed) lobby or match we host; Ask to Join knocks, the host approves.
                 const bool knockable = !joinable && a.openable;
                 if (a.max_players > 0 || joinable || knockable)
                 {
                     const int size = a.players > 0 ? a.players : 1;
                     int max = a.max_players > 0 ? a.max_players : size;
-                    if (joinable && max <= size)
+                    if ((joinable || knockable) && max <= size)
                     {
-                        max = size + 1; // a joinable party must have room for the invitee
+                        max = size + 1; // a joinable or knockable party must have room for the newcomer
                     }
 
                     // Id base is the match identity, so everyone in a match publishes the same party id
@@ -535,8 +535,11 @@ namespace discord
 
                 if (joinable || knockable)
                 {
+                    // Invite only: the real secret is safe on a private party, since Discord hands it only to people
+                    // the host approves or invites, so an approved Ask to Join can join without a launcher knock.
+                    const bool invite_secret = knockable && a.invite_only && !a.join_secret.empty();
                     discordpp::ActivitySecrets secrets{};
-                    secrets.SetJoin(joinable
+                    secrets.SetJoin(joinable || invite_secret
                                         ? a.join_secret
                                         : KNOCK_SECRET + (":" + std::to_string(this->own_user_id())));
                     activity.SetSecrets(std::move(secrets));
