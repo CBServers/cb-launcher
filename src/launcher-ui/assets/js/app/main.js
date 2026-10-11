@@ -868,6 +868,8 @@ window.GameStateManager = {
         this.launchGraceUntil = Date.now() + 8000;
         const state = this.gameStates[gameId] || {};
         this.gameStates[gameId] = Object.assign({}, state, { isRunning: true });
+        // The poll only redraws on a state change, and the cached state now already says running.
+        createGameButtons(gameId);
         if (window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
             window.AppViews.refreshActionButtons();
         }
@@ -892,8 +894,12 @@ window.GameStateManager = {
         // Get current installation status
         const installStatus = await checkGameInstallation(gameId);
 
-        // Check if game is running
-        const isRunning = await this.checkGameRunning(gameId);
+        let isRunning = await this.checkGameRunning(gameId);
+        // Hold a just-launched game as running until its process first shows up, so STOP doesn't flicker back to PLAY.
+        if (gameId === this.runningGameId && Date.now() < this.launchGraceUntil) {
+            if (isRunning) this.launchGraceUntil = 0;
+            else isRunning = true;
+        }
 
         // Store the state
         const previousState = this.gameStates[gameId];
@@ -949,6 +955,7 @@ window.GameStateManager = {
             const trackedId = this.runningGameId;
             const prev = this.gameStates[trackedId] || {};
             const isRunning = await this.checkGameRunning(trackedId);
+            if (isRunning) this.launchGraceUntil = 0;
             if (isRunning || Date.now() > this.launchGraceUntil) {
                 if (prev.isRunning !== isRunning) cardsNeedRefresh = true;
                 this.gameStates[trackedId] = Object.assign({}, prev, { isRunning });
@@ -2053,6 +2060,7 @@ function stopGame(gameId) {
 
     const gameMapping = GameUtils.getGameMapping(gameId);
     const gameDisplayName = window.GameInstallationManager.getGameDisplayName(gameId);
+    window.GameStateManager.launchGraceUntil = 0;
 
     // Send command to stop the game
     if (typeof window.executeCommand === 'function') {
