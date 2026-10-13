@@ -82,7 +82,11 @@ const server = createServer(async (req, res) => {
     }
 
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
+    try {
+        for await (const chunk of req) chunks.push(chunk);
+    } catch {
+        return; // client went away mid-body; unhandled, this rejection kills the process
+    }
     const body = Buffer.concat(chunks);
 
     const request = new Request(`http://${host}:${port}${req.url}`, {

@@ -267,16 +267,28 @@ async function handleBootstrap(env, fpr, body) {
         if (account) return json(200, publicView(account, { created: false }));
     }
 
-    // Don't mint a duplicate if this machine or Discord already owns an account.
+    // Cloned PCs share an HWID, so only clients that ask their user first (hwidPrompt) are stopped by one.
     const discordUser = await resolveDiscordUser(body.discordToken);
     const discordId = discordUser ? discordUser.id : null;
     const hwidOwner = await env.CB.get(`hwid:${body.hwidHash}`);
     const discordOwner = discordId ? await env.CB.get(`discord:${discordId}`) : null;
-    if (hwidOwner || discordOwner) {
-        const via = [];
-        if (hwidOwner) via.push('hwid');
-        if (discordOwner) via.push('discord');
-        return json(409, { error: 'account exists for this device', recoverable: true, via });
+    const via = [];
+    // Discord first: older launchers recover through the first entry.
+    if (discordOwner) via.push('discord');
+    if (hwidOwner && body.hwidPrompt === true) via.push('hwid');
+    if (via.length) {
+        const reply = { error: 'account exists for this device', recoverable: true, via };
+        if (via[0] === 'hwid') {
+            const owner = await getAccount(env, hwidOwner);
+            if (owner) {
+                reply.account = {
+                    handle: owner.profile.handle || '',
+                    displayName: owner.profile.displayName || '',
+                    avatarUrl: owner.profile.avatarUrl || '',
+                };
+            }
+        }
+        return json(409, reply);
     }
 
     // Handles are globally unique and case-insensitive.
@@ -314,7 +326,7 @@ async function handleBootstrap(env, fpr, body) {
 
     await putAccount(env, account);
     await env.CB.put(`dev:${fpr}`, account.cbId);
-    await env.CB.put(`hwid:${account.hwidHash}`, account.cbId);
+    if (!hwidOwner) await env.CB.put(`hwid:${account.hwidHash}`, account.cbId);
     await env.CB.put(`rec:${account.recoveryCodeHash}`, account.cbId);
     if (discordId) await env.CB.put(`discord:${discordId}`, account.cbId);
     if (handle) await env.CB.put(`handle:${handle.toLowerCase()}`, account.cbId);

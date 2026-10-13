@@ -1,5 +1,5 @@
 // Account lifecycle: bootstrap, whoami, the three recovery anchors, handle uniqueness, request auth.
-import { makeEnv, makeClient, mk, sha256Hex, sign, checks, worker, nowSec } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, sign, checks, worker, nowSec, stubDiscord, restoreFetch } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -23,10 +23,21 @@ check('bootstrap idempotent for same device key', r2.s === 200 && r2.b.created =
 
 check('whoami resolves signing key', (await call(idA, '/v1/account')).b.cbId === cbId0);
 
-const idB = await mk();
-const r4 = await call(idB, '/v1/account/bootstrap', { hwidHash: H1 });
-check('bootstrap on known HWID refuses duplicate', r4.s === 409 && r4.b.recoverable === true && r4.b.via.includes('hwid'));
+// A cloned PC shares the HWID: launchers that do not ask their user get their own account.
+const idClone = await mk();
+const r3 = await call(idClone, '/v1/account/bootstrap', { hwidHash: H1, handle: 'clone' });
+check('bootstrap on known HWID without hwidPrompt mints a separate account',
+    r3.s === 200 && r3.b.created === true && r3.b.cbId !== cbId0 && r3.b.profile.handle === 'clone');
+check('the separate account authenticates as itself', (await call(idClone, '/v1/account')).b.cbId === r3.b.cbId);
 
+const idB = await mk();
+const r4 = await call(idB, '/v1/account/bootstrap', { hwidHash: H1, hwidPrompt: true });
+check('bootstrap on known HWID with hwidPrompt refuses duplicate',
+    r4.s === 409 && r4.b.recoverable === true && r4.b.via.length === 1 && r4.b.via[0] === 'hwid');
+check('hwidPrompt match names the account it would adopt',
+    r4.b.account && r4.b.account.handle === 'divity' && r4.b.account.displayName === 'Divity' && !('cbId' in r4.b.account));
+
+// The anchor stays with the account that claimed it first, not the clone.
 const r5 = await call(idB, '/v1/recover/hwid', { hwidHash: H1 });
 check('recover/hwid attaches new key to same account', r5.s === 200 && r5.b.cbId === cbId0);
 check('recovered key now authenticates', (await call(idB, '/v1/account')).b.cbId === cbId0);
@@ -75,5 +86,19 @@ const collide = looksLikeDer && await worker.fetch(new Request('https://x/v1/acc
     body: looksLikeDer.body,
 }), env);
 check('raw signature starting with 0x30 is not mistaken for DER', !!collide && collide.status !== 401);
+
+// A Discord match still blocks every client, and leads `via` since older launchers recover through via[0].
+stubDiscord(token => token === 'good-token' ? { id: '196185157840011264', avatar: null, username: 'linked' } : null);
+const H7 = await sha256Hex('machine-7');
+const linkedId = (await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token' })).b.cbId;
+const legacy = await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token' });
+check('Discord match refuses a duplicate without hwidPrompt',
+    legacy.s === 409 && legacy.b.via.length === 1 && legacy.b.via[0] === 'discord');
+const prompted = await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token', hwidPrompt: true });
+check('Discord leads via when both anchors match', prompted.s === 409 && prompted.b.via.join() === 'discord,hwid');
+check('no account preview when Discord identifies the user', !('account' in prompted.b));
+check('recover/discord reaches the linked account',
+    (await call(await mk(), '/v1/recover/discord', { discordToken: 'good-token' })).b.cbId === linkedId);
+restoreFetch();
 
 check.done();
