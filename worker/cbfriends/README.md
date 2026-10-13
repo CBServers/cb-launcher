@@ -32,9 +32,10 @@ accepts both that and raw `r‖s`. The device credential id is `fpr = sha256hex(
 | `/v1/pulse` | `{ ts, game?, bye? }` | `200 { ok }` — anonymous stand-in for `/v1/presence` from a device key with **no account**; feeds `/v1/stats` only. Never creates an account |
 | `/v1/account/bootstrap` | `{ ts, hwidHash, discordToken?, hwidPrompt?, handle?, displayName?, avatarUrl? }` | `200 { cbId, profile, created, recoveryCode? }` — `recoveryCode` only on create; `409 { recoverable:true, via:[...], account? }` if the Discord account already owns one, or the machine does and `hwidPrompt` is true (`via` lists `discord` before `hwid`; `account` is the matched `{ handle, displayName, avatarUrl }` when `via[0]` is `hwid`) |
 | `/v1/account` | `{ ts }` | `200 { cbId, profile }` — whoami for the signing key; `404` if unknown |
-| `/v1/recover/hwid` | `{ ts, hwidHash }` | `200 { cbId, profile }` — attaches the signing key to the account anchored on this HWID |
-| `/v1/recover/discord` | `{ ts, discordToken }` | `200 { cbId, profile }` — via the linked Discord account |
+| `/v1/recover/hwid` | `{ ts, hwidHash }` | `200 { cbId, profile }` — attaches the signing key to the account anchored on this HWID; `409 { code:'in-use' }` while another of its keys was used in the last 14 days or it is online |
+| `/v1/recover/discord` | `{ ts, discordToken }` | `200 { cbId, profile }` — via the linked Discord account (only the account's current `discordId`) |
 | `/v1/recover/code` | `{ ts, recoveryCode }` | `200 { cbId, profile }` — via the one-time recovery code |
+| `/v1/account/sync-discord` | `{ ts, discordToken }` | `200 { cbId, profile }` — links the Discord (replacing and unlinking any previous one) and refreshes the avatar; `409 { code:'linked-elsewhere', account }` if another profile has it, naming that profile |
 
 ## Recovery model
 
@@ -50,6 +51,15 @@ Windows image share `MachineGuid` and volume serial, hence the HWID, and launche
 prompt adopted the match silently, putting strangers on one account. Without `hwidPrompt` a match
 mints a separate account; the `hwid:` anchor stays with the account that claimed it first.
 
+A genuine HWID recovery means the old key is gone, so an account whose other keys are still in use
+is never offered or handed over: with `hwidPrompt`, an owner with a key used in the last 14 days is
+treated as no match (a separate account, no preview), and `recover/hwid` refuses with
+`code: 'in-use'`. Recovering a key into an account takes it off the account it was on.
+
+An account has at most one Discord anchor, equal to its `discordId`. Switching Discord deletes the
+old `discord:` row; rows left behind before that fix are ignored by bootstrap, `recover/discord` and
+`sync-discord`.
+
 > HWID is a weak anchor (a machine-local, forgeable secret). Phase 1 adds rate-limiting on
 > `recover/hwid` and notifies existing sessions/linked Discord when a new key is bound this way.
 
@@ -58,6 +68,8 @@ mints a separate account; the `hwid:` anchor stays with the account that claimed
 `acct:<cbId>` holds the account JSON. Reverse indices `dev:<fpr>`, `hwid:<hash>`, `discord:<id>`,
 `rec:<codeHash>`, `handle:<folded>` each map to a `cbId`. Handles are globally unique and
 case-insensitive (the folded form is the key). `sec:<cbId>` holds the security event log.
+`seen:<fpr>` holds the UTC day a device key last made an account request (written at most once per
+key per day, 90-day TTL; a key with no row counts as seen on 2026-10-13, when tracking started).
 
 KV holds **only cold records**. Everything the poll loop touches lives in a Durable Object instead,
 for two reasons: KV is eventually consistent (a read can serve a value up to a minute stale, so an

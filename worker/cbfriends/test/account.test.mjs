@@ -1,5 +1,5 @@
 // Account lifecycle: bootstrap, whoami, the three recovery anchors, handle uniqueness, request auth.
-import { makeEnv, makeClient, mk, sha256Hex, sign, checks, worker, nowSec, stubDiscord, restoreFetch } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, sign, checks, worker, nowSec, stubDiscord, restoreFetch, fprOf, ageKey } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -30,9 +30,16 @@ check('bootstrap on known HWID without hwidPrompt mints a separate account',
     r3.s === 200 && r3.b.created === true && r3.b.cbId !== cbId0 && r3.b.profile.handle === 'clone');
 check('the separate account authenticates as itself', (await call(idClone, '/v1/account')).b.cbId === r3.b.cbId);
 
+// The owner's key is still in use, so even a prompting launcher is on a clone: no offer, no preview.
+const idLive = await mk();
+const live = await call(idLive, '/v1/account/bootstrap', { hwidHash: H1, hwidPrompt: true, handle: 'clone2' });
+check('hwidPrompt against an owner in use mints a separate account',
+    live.s === 200 && live.b.created === true && live.b.cbId !== cbId0 && !('account' in live.b));
+
+await ageKey(env, idA, 30);
 const idB = await mk();
 const r4 = await call(idB, '/v1/account/bootstrap', { hwidHash: H1, hwidPrompt: true });
-check('bootstrap on known HWID with hwidPrompt refuses duplicate',
+check('bootstrap on known HWID with hwidPrompt refuses duplicate when the owner is dormant',
     r4.s === 409 && r4.b.recoverable === true && r4.b.via.length === 1 && r4.b.via[0] === 'hwid');
 check('hwidPrompt match names the account it would adopt',
     r4.b.account && r4.b.account.handle === 'divity' && r4.b.account.displayName === 'Divity' && !('cbId' in r4.b.account));
@@ -45,6 +52,13 @@ check('recovered key now authenticates', (await call(idB, '/v1/account')).b.cbId
 const idC = await mk();
 check('recover/code attaches new key to same account',
     (await call(idC, '/v1/recover/code', { recoveryCode })).b.cbId === cbId0);
+
+// A key recovered into another account leaves the one it was on.
+const deviceKeysOf = async cbId => JSON.parse(await env.CB.get(`acct:${cbId}`)).deviceKeys;
+check('recovery moved idClone off its own account',
+    (await call(idClone, '/v1/recover/code', { recoveryCode })).b.cbId === cbId0 &&
+    !(await deviceKeysOf(r3.b.cbId)).includes(await fprOf(idClone)) &&
+    (await deviceKeysOf(cbId0)).includes(await fprOf(idClone)));
 
 const idD = await mk();
 const r8 = await call(idD, '/v1/account/bootstrap', { hwidHash: H2, handle: 'Divity' });
@@ -88,17 +102,42 @@ const collide = looksLikeDer && await worker.fetch(new Request('https://x/v1/acc
 check('raw signature starting with 0x30 is not mistaken for DER', !!collide && collide.status !== 401);
 
 // A Discord match still blocks every client, and leads `via` since older launchers recover through via[0].
-stubDiscord(token => token === 'good-token' ? { id: '196185157840011264', avatar: null, username: 'linked' } : null);
+const DISCORD = { 'good-token': '196185157840011264', 'second-token': '296185157840011264', 'third-token': '396185157840011264' };
+stubDiscord(token => DISCORD[token] ? { id: DISCORD[token], avatar: null, username: 'linked' } : null);
 const H7 = await sha256Hex('machine-7');
-const linkedId = (await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token' })).b.cbId;
+const idLinked = await mk();
+const linkedId = (await call(idLinked, '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token', handle: 'linked' })).b.cbId;
 const legacy = await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token' });
 check('Discord match refuses a duplicate without hwidPrompt',
     legacy.s === 409 && legacy.b.via.length === 1 && legacy.b.via[0] === 'discord');
+await ageKey(env, idLinked, 30);
 const prompted = await call(await mk(), '/v1/account/bootstrap', { hwidHash: H7, discordToken: 'good-token', hwidPrompt: true });
 check('Discord leads via when both anchors match', prompted.s === 409 && prompted.b.via.join() === 'discord,hwid');
 check('no account preview when Discord identifies the user', !('account' in prompted.b));
 check('recover/discord reaches the linked account',
     (await call(await mk(), '/v1/recover/discord', { discordToken: 'good-token' })).b.cbId === linkedId);
+
+// One Discord per account: the one it switched away from loses its way back in.
+check('switching Discord succeeds', (await call(idLinked, '/v1/account/sync-discord', { discordToken: 'second-token' })).s === 200);
+check('the Discord it switched away from no longer recovers it',
+    (await call(await mk(), '/v1/recover/discord', { discordToken: 'good-token' })).s === 404);
+check('the new Discord does',
+    (await call(await mk(), '/v1/recover/discord', { discordToken: 'second-token' })).b.cbId === linkedId);
+check('bootstrap with the old Discord mints a fresh account',
+    (await call(await mk(), '/v1/account/bootstrap', { hwidHash: await sha256Hex('machine-9'), discordToken: 'good-token' })).b.created === true);
+
+// Rows left behind by switches before this fix are inert.
+await env.CB.put(`discord:${DISCORD['third-token']}`, linkedId);
+check('a row left behind by an old switch does not recover',
+    (await call(await mk(), '/v1/recover/discord', { discordToken: 'third-token' })).s === 404);
+const idOther = await mk();
+await call(idOther, '/v1/account/bootstrap', { hwidHash: await sha256Hex('machine-8'), handle: 'other' });
+check('nor does it stop that Discord linking elsewhere',
+    (await call(idOther, '/v1/account/sync-discord', { discordToken: 'third-token' })).s === 200);
+const taken = await call(idOther, '/v1/account/sync-discord', { discordToken: 'second-token' });
+check('a Discord on another profile is refused and names that profile',
+    taken.s === 409 && taken.b.code === 'linked-elsewhere' && taken.b.account &&
+    taken.b.account.handle === 'linked' && !('cbId' in taken.b.account));
 restoreFetch();
 
 check.done();

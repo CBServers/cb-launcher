@@ -17,7 +17,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // A and B: CB friends who are also Discord-linked. C: a CB stranger. D: Discord only, no profile.
 const A = await mk(), B = await mk(), C = await mk(), D = await mk();
 const aId = (await call(A, '/v1/account/bootstrap', { hwidHash: await sha256Hex('A'), handle: 'host', displayName: 'Host' })).b.cbId;
-const bId = (await call(B, '/v1/account/bootstrap', { hwidHash: await sha256Hex('B'), handle: 'joiner', displayName: 'Joiner' })).b.cbId;
+const bBoot = (await call(B, '/v1/account/bootstrap', { hwidHash: await sha256Hex('B'), handle: 'joiner', displayName: 'Joiner' })).b;
+const bId = bBoot.cbId;
 const cId = (await call(C, '/v1/account/bootstrap', { hwidHash: await sha256Hex('C'), handle: 'stranger', displayName: 'Stranger' })).b.cbId;
 await call(A, '/v1/friends/add', { handle: 'joiner' });
 await call(B, '/v1/friends/accept', { cbId: aId });
@@ -117,7 +118,7 @@ check('a stale cursor does not hide messages from the new instance',
 
 // Two devices on one address: the newer binding wins and the older one cannot keep it alive.
 const B2 = await mk();
-await call(B2, '/v1/recover/hwid', { hwidHash: await sha256Hex('B') });
+await call(B2, '/v1/recover/code', { recoveryCode: bBoot.recoveryCode });
 await call(B2, '/v1/inbox/attach');
 await call(B, '/v1/inbox/poll', { after: 0, hold: false });
 const heldB2 = call(B2, '/v1/inbox/poll', { after: 0, hold: true });

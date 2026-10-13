@@ -22,6 +22,9 @@ const AVATAR_HOSTS = new Set([
 const RATE_PER_MINUTE = 240;       // per device key, across the CB endpoints
 const RECOVER_PER_HOUR = 5;        // per anchor; HWID is a weak secret
 const RECOVER_BLOCK_IF_ACTIVE_MS = 5 * 60_000; // an account in active use does not need recovery
+const HWID_ACTIVE_DAYS = 14;  // another key used this recently means a cloned PC, not a lost key
+const SEEN_SINCE_DAY = 20739; // 2026-10-13: keys with no seen: row count as seen on this day
+const SEEN_TTL_SECONDS = 90 * 86_400;
 const SECURITY_EVENTS = 20;
 const CHAT_PAGE = 50;         // scrollback page size
 const DM_PREFIX = 'dm-';      // reserved room-id prefix; the open chat endpoints refuse it
@@ -221,8 +224,61 @@ function publicView(account, extra = {}) {
     return { cbId: account.cbId, profile: account.profile, ...extra };
 }
 
-// Adds a device key to an account and its index. Idempotent.
+// What a client may show about an account it is offered: never its id or anchors.
+function accountPreview(account) {
+    return {
+        handle: account.profile.handle || '',
+        displayName: account.profile.displayName || '',
+        avatarUrl: account.profile.avatarUrl || '',
+    };
+}
+
+const epochDay = () => Math.floor(Date.now() / 86_400_000);
+let seenDay = 0;
+const seenToday = new Set(); // device keys whose seen: row already holds today
+
+// Records the day a key was last used, at most one write per key per day.
+async function markSeen(env, fpr) {
+    const day = epochDay();
+    if (day !== seenDay) {
+        seenDay = day;
+        seenToday.clear();
+    }
+    if (seenToday.has(fpr)) return;
+    seenToday.add(fpr);
+    await env.CB.put(`seen:${fpr}`, String(day), { expirationTtl: SEEN_TTL_SECONDS });
+}
+
+// True if a key other than the caller's was used within HWID_ACTIVE_DAYS.
+async function otherKeysActive(env, account, fpr) {
+    const fallback = Number(env.SEEN_SINCE_DAY) || SEEN_SINCE_DAY;
+    const today = epochDay();
+    for (const key of account.deviceKeys) {
+        if (key === fpr) continue;
+        const raw = await env.CB.get(`seen:${key}`);
+        if (today - (raw ? Number(raw) : fallback) < HWID_ACTIVE_DAYS) return true;
+    }
+    return false;
+}
+
+// The account a Discord id recovers, ignoring rows left behind when that account switched Discord.
+async function liveDiscordOwner(env, discordId) {
+    const cbId = await env.CB.get(`discord:${discordId}`);
+    if (!cbId) return null;
+    const account = await getAccount(env, cbId);
+    return account && account.discordId === discordId ? cbId : null;
+}
+
+// Adds a device key to an account and its index, taking it off any account it was on. Idempotent.
 async function attachDeviceKey(env, account, fpr) {
+    const previous = await env.CB.get(`dev:${fpr}`);
+    if (previous && previous !== account.cbId) {
+        const old = await getAccount(env, previous);
+        if (old && old.deviceKeys.includes(fpr)) {
+            old.deviceKeys = old.deviceKeys.filter(k => k !== fpr);
+            await putAccount(env, old);
+        }
+    }
     if (!account.deviceKeys.includes(fpr)) {
         account.deviceKeys.push(fpr);
         await putAccount(env, account);
@@ -264,30 +320,30 @@ async function handleBootstrap(env, fpr, body) {
     const existingCbId = await env.CB.get(`dev:${fpr}`);
     if (existingCbId) {
         const account = await getAccount(env, existingCbId);
-        if (account) return json(200, publicView(account, { created: false }));
+        if (account) {
+            await markSeen(env, fpr);
+            return json(200, publicView(account, { created: false }));
+        }
     }
 
     // Cloned PCs share an HWID, so only clients that ask their user first (hwidPrompt) are stopped by one.
     const discordUser = await resolveDiscordUser(body.discordToken);
     const discordId = discordUser ? discordUser.id : null;
     const hwidOwner = await env.CB.get(`hwid:${body.hwidHash}`);
-    const discordOwner = discordId ? await env.CB.get(`discord:${discordId}`) : null;
+    const discordOwner = discordId ? await liveDiscordOwner(env, discordId) : null;
+    let hwidAccount = null;
+    if (hwidOwner && body.hwidPrompt === true) {
+        const owner = await getAccount(env, hwidOwner);
+        // A key still in use elsewhere means a cloned PC, so mint rather than offer someone else's account.
+        if (owner && !(await otherKeysActive(env, owner, fpr))) hwidAccount = owner;
+    }
     const via = [];
     // Discord first: older launchers recover through the first entry.
     if (discordOwner) via.push('discord');
-    if (hwidOwner && body.hwidPrompt === true) via.push('hwid');
+    if (hwidAccount) via.push('hwid');
     if (via.length) {
         const reply = { error: 'account exists for this device', recoverable: true, via };
-        if (via[0] === 'hwid') {
-            const owner = await getAccount(env, hwidOwner);
-            if (owner) {
-                reply.account = {
-                    handle: owner.profile.handle || '',
-                    displayName: owner.profile.displayName || '',
-                    avatarUrl: owner.profile.avatarUrl || '',
-                };
-            }
-        }
+        if (via[0] === 'hwid') reply.account = accountPreview(hwidAccount);
         return json(409, reply);
     }
 
@@ -330,6 +386,7 @@ async function handleBootstrap(env, fpr, body) {
     await env.CB.put(`rec:${account.recoveryCodeHash}`, account.cbId);
     if (discordId) await env.CB.put(`discord:${discordId}`, account.cbId);
     if (handle) await env.CB.put(`handle:${handle.toLowerCase()}`, account.cbId);
+    await markSeen(env, fpr);
 
     // Returned exactly once and never stored in the clear.
     return json(200, publicView(account, { created: true, recoveryCode }));
@@ -340,6 +397,7 @@ async function handleWhoami(env, fpr) {
     if (!cbId) return json(404, { error: 'unknown device key' });
     const account = await getAccount(env, cbId);
     if (!account) return json(404, { error: 'account not found' });
+    await markSeen(env, fpr);
     return json(200, publicView(account));
 }
 
@@ -406,15 +464,21 @@ async function handleRecover(env, fpr, body, anchorKey, via) {
     if (!cbId) return json(404, { error: 'no account for this anchor' });
     const account = await getAccount(env, cbId);
     if (!account) return json(404, { error: 'account not found' });
+    // A row left behind when the account switched Discord no longer recovers it.
+    if (via === 'discord' && account.discordId !== anchorKey.slice('discord:'.length)) {
+        return json(404, { error: 'no account for this anchor' });
+    }
 
-    // HWID is a weak secret: anyone who learns the hash could bind their own key. An account that is
-    // actively online does not need recovering, so refuse rather than hand it over. Discord and the
-    // recovery code both prove possession of a real secret, so they are exempt.
+    // Cloned PCs share an HWID; a genuine recovery means the old key is gone, so live keys refuse it.
     if (via === 'hwid' && !account.deviceKeys.includes(fpr)) {
         const pres = await presenceFor(env, cbId);
-        if (pres.lastSeen && Date.now() - pres.lastSeen < RECOVER_BLOCK_IF_ACTIVE_MS) {
+        const online = pres.lastSeen && Date.now() - pres.lastSeen < RECOVER_BLOCK_IF_ACTIVE_MS;
+        if (online || await otherKeysActive(env, account, fpr)) {
             await pushSecurityEvent(env, cbId, { kind: 'recover-blocked', via: 'hwid' });
-            return json(409, { error: 'account is in use; sign in on the active device or use Discord or a recovery code' });
+            return json(409, {
+                error: 'account is in use; sign in on the active device or use Discord or a recovery code',
+                code: 'in-use',
+            });
         }
     }
 
@@ -423,6 +487,7 @@ async function handleRecover(env, fpr, body, anchorKey, via) {
     if (isNewKey) {
         await pushSecurityEvent(env, cbId, { kind: 'device-added', via });
     }
+    await markSeen(env, fpr);
     return json(200, view);
 }
 
@@ -1207,9 +1272,18 @@ async function handleDiscordSync(env, cbId, body) {
     const discordUser = await resolveDiscordUser(body.discordToken);
     if (!discordUser) return json(401, { error: 'invalid discord token' });
 
-    const owner = await env.CB.get(`discord:${discordUser.id}`);
-    if (owner && owner !== cbId) return json(409, { error: 'discord account linked elsewhere' });
+    const owner = await liveDiscordOwner(env, discordUser.id);
+    if (owner && owner !== cbId) {
+        // The caller just proved they hold this Discord, so they may see which profile has it.
+        const other = await getAccount(env, owner);
+        return json(409, {
+            error: 'discord account linked elsewhere',
+            code: 'linked-elsewhere',
+            ...(other ? { account: accountPreview(other) } : {}),
+        });
+    }
 
+    const previous = account.discordId;
     account.discordId = discordUser.id;
     if (!account.profile.avatarCustom) {
         account.profile.avatarUrl = discordUser.avatarUrl;
@@ -1219,6 +1293,10 @@ async function handleDiscordSync(env, cbId, body) {
     }
 
     await saveProfile(env, account);
+    // One Discord per account: the one it switched away from no longer recovers it.
+    if (previous && previous !== discordUser.id && (await env.CB.get(`discord:${previous}`)) === cbId) {
+        await env.CB.delete(`discord:${previous}`);
+    }
     await env.CB.put(`discord:${discordUser.id}`, cbId);
     return json(200, publicView(account));
 }
@@ -1670,6 +1748,7 @@ export default {
         if (!cbId) {
             return json(401, { error: 'no account for this device key' });
         }
+        await markSeen(env, fpr);
 
         switch (pathname) {
             case '/v1/account/profile':

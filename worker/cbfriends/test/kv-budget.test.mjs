@@ -1,7 +1,7 @@
 // The steady-state poll loop is what drives KV spend, so pin its cost here. Growing the population
 // must not grow the per-poll cost; a regression that reintroduces a per-friend or per-poster read
 // shows up as a failure rather than as a bill.
-import { makeEnv, makeClient, mk, sha256Hex, checks } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, checks, fprOf } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -78,5 +78,12 @@ check(`four polled endpoints cost three reads in total (${large.get})`, large.ge
 
 const beat = await measure(() => call(me, '/v1/presence', { game: 'boiii' }));
 check(`presence no longer writes to KV (${beat.put} puts)`, beat.put === 0);
+
+// A key's first account request of the day records it once (bootstrap already did for `me`).
+const fresh = await mk();
+await env.CB.put(`dev:${await fprOf(fresh)}`, (await call(me, '/v1/account')).b.cbId);
+const first = await measure(() => call(fresh, '/v1/friends/list'));
+const second = await measure(() => call(fresh, '/v1/friends/list'));
+check(`last-seen costs one write per key per day (${first.put} then ${second.put})`, first.put === 1 && second.put === 0);
 
 check.done();

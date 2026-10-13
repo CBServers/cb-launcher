@@ -85,6 +85,17 @@ export async function mk() {
     return { kp, key: b64(pub) };
 }
 
+// The worker's id for a device key: sha256 of the raw public key.
+export async function fprOf(who) {
+    const d = await crypto.subtle.digest('SHA-256', Buffer.from(who.key, 'base64'));
+    return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Backdates a key's last use, so the HWID rules see it as dormant.
+export async function ageKey(env, who, days) {
+    await env.CB.put(`seen:${await fprOf(who)}`, String(Math.floor(Date.now() / 86_400_000) - days));
+}
+
 function toDerInt(bytes) {
     let i = 0;
     while (i < bytes.length - 1 && bytes[i] === 0) i++;

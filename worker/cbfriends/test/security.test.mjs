@@ -1,5 +1,5 @@
 // Abuse surfaces: HWID rebind hardening, avatar host allowlist, blocking, reports, mute, throttles.
-import { makeEnv, makeClient, mk, sha256Hex, checks } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, checks, fprOf, ageKey } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -16,8 +16,31 @@ check('hwid rebind refused while the account is in use',
 check('blocked attempt is recorded for the owner',
     (await call(A, '/v1/security/events')).b.events.some(e => e.kind === 'recover-blocked'));
 
+// Offline right now but used within the last two weeks: a cloned PC, not a lost key.
+const recent = await mk();
+await call(recent, '/v1/account/bootstrap', { hwidHash: await sha256Hex('R'), handle: 'recent' });
+const refused = await call(await mk(), '/v1/recover/hwid', { hwidHash: await sha256Hex('R') });
+check('hwid rebind refused while another key was used within 14 days', refused.s === 409 && refused.b.code === 'in-use');
+await ageKey(env, recent, 13);
+check('13 days is still within the window',
+    (await call(await mk(), '/v1/recover/hwid', { hwidHash: await sha256Hex('R') })).s === 409);
+
+// A key with no seen: row counts as seen when tracking started.
+const legacy = await mk();
+const lId = (await call(legacy, '/v1/account/bootstrap', { hwidHash: await sha256Hex('L'), handle: 'legacy' })).b.cbId;
+await env.CB.delete(`seen:${await fprOf(legacy)}`);
+const today = Math.floor(Date.now() / 86_400_000);
+env.SEEN_SINCE_DAY = String(today - 2);
+check('an untracked key counts as recent while tracking is young',
+    (await call(await mk(), '/v1/recover/hwid', { hwidHash: await sha256Hex('L') })).s === 409);
+env.SEEN_SINCE_DAY = String(today - 30);
+check('an untracked key counts as dormant once tracking is old enough',
+    (await call(await mk(), '/v1/recover/hwid', { hwidHash: await sha256Hex('L') })).b.cbId === lId);
+delete env.SEEN_SINCE_DAY;
+
 const dormant = await mk();
 const dId = (await call(dormant, '/v1/account/bootstrap', { hwidHash: await sha256Hex('D'), handle: 'dormant' })).b.cbId;
+await ageKey(env, dormant, 15);
 const newKey = await mk();
 check('dormant account still recovers by hwid',
     (await call(newKey, '/v1/recover/hwid', { hwidHash: await sha256Hex('D') })).b.cbId === dId);
