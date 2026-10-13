@@ -21,9 +21,26 @@ namespace social
         creating, // a create/recover request is in flight
         ready,
         error,
+        confirm,  // this PC's HWID matches a dormant profile; waiting for the user to say if it is theirs
     };
 
     std::string profile_state_to_string(profile_state state);
+
+    // A profile offered to the user: the HWID match at create, or the profile that holds our Discord.
+    struct cb_match
+    {
+        std::string handle;
+        std::string display_name;
+        std::string avatar_url;
+    };
+
+    // A one-off outcome for the UI to announce; seq grows so each is shown once.
+    struct cb_notice
+    {
+        int seq{0};
+        std::string kind; // "created" | "restored"
+        std::string handle;
+    };
 
     struct cb_profile
     {
@@ -283,8 +300,20 @@ namespace social
                                   const std::string& bio, const std::string& accent,
                                   const std::string& favorite_game, const std::string& avatar_url);
 
+        // The profile an HWID match offers while the state is confirm.
+        std::optional<cb_match> get_match() const;
+        // adopt signs in to the match; otherwise creates a separate profile with the handle typed earlier.
+        void begin_confirm_match(bool adopt);
+        cb_notice get_notice() const;
+
         // Pulls the avatar (and a missing display name) from the linked Discord account.
         void sync_discord();
+        // Discord came up: sync the profile, or restore the one this Discord holds when there is none.
+        void on_discord_linked(const std::string& discord_id);
+        // Set when our Discord is linked to a different CB profile than this one.
+        std::optional<cb_match> get_discord_conflict() const;
+        // switch_profile signs this PC in to that profile; otherwise the offer is dismissed for this Discord.
+        void resolve_discord_conflict(bool switch_profile);
 
         // Looks up anyone's public profile for the right-click card; poll get_viewed_profile().
         void request_profile(const std::string& cb_id);
@@ -374,12 +403,18 @@ namespace social
         cbfriends_service() = default;
 
         std::string base_url() const;
-        void do_create_profile(std::string handle, std::string display_name);
+        void do_create_profile(std::string handle, std::string display_name, bool hwid_prompt);
         void do_update_profile(std::string display_name, std::string handle, std::string bio,
                                std::string accent, std::string favorite_game, std::string avatar_url);
         void do_request_profile(std::string cb_id);
         void recover_and_store(const std::string& via, const std::string& anchor, const std::string& token);
-        void store_from_response(const rapidjson::Value& doc);
+        // announce raises a "created"/"restored" notice; routine refreshes pass false.
+        void store_from_response(const rapidjson::Value& doc, bool announce = false);
+        // restoring: the key came back from the backup with no cached profile, so a 200 is a sign-in.
+        void check_account(bool restoring);
+        // The account behind our key is gone (e.g. removed by moderation): back to profile setup.
+        void clear_profile();
+        void restore_with_discord(std::string discord_id);
 
         void ensure_worker();
         void worker_loop();
@@ -429,6 +464,16 @@ namespace social
         profile_state state_{profile_state::none};
         std::optional<cb_profile> profile_;
         std::string last_error_;
+        cb_notice notice_;
+
+        std::optional<cb_match> match_;
+        // What the user typed at create, kept for "no, create my own" after an HWID match.
+        std::string pending_handle_;
+        std::string pending_display_name_;
+
+        std::optional<cb_match> discord_conflict_;
+        std::string conflict_discord_id_;
+        std::string discord_restore_tried_; // one restore attempt per Discord account per session
 
         friends_snapshot friends_;
         std::vector<cb_person> lfg_;

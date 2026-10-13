@@ -221,6 +221,10 @@ namespace
             {
                 ipc::ipc_server::instance().request_open_match();
             });
+            discord::discord_service::instance().set_linked_callback([](const std::string& discord_id)
+            {
+                social::cbfriends_service::instance().on_discord_linked(discord_id);
+            });
             social::cbfriends_service::instance().start();
 
             // One held poll carries both services' invites; each takes its own sender namespace.

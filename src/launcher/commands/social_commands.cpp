@@ -121,6 +121,22 @@ namespace commands::social_commands
         {
             array.PushBack(person_value(person, allocator), allocator);
         }
+
+        // An offered profile, or null.
+        void add_match(rapidjson::Value& target, const char* key, const std::optional<social::cb_match>& match,
+                       rapidjson::Document::AllocatorType& allocator)
+        {
+            if (!match)
+            {
+                target.AddMember(rapidjson::StringRef(key), rapidjson::Value(rapidjson::kNullType), allocator);
+                return;
+            }
+            rapidjson::Value obj(rapidjson::kObjectType);
+            add_string(obj, "handle", match->handle, allocator);
+            add_string(obj, "displayName", match->display_name, allocator);
+            add_string(obj, "avatarUrl", match->avatar_url, allocator);
+            target.AddMember(rapidjson::StringRef(key), obj, allocator);
+        }
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context&)
@@ -163,6 +179,13 @@ namespace commands::social_commands
             }
 
             response.AddMember("hasRecoveryCode", service.has_recovery_code(), allocator);
+            add_match(response, "match", service.get_match(), allocator);
+            add_match(response, "discordConflict", service.get_discord_conflict(), allocator);
+
+            const auto notice = service.get_notice();
+            response.AddMember("noticeSeq", notice.seq, allocator);
+            add_string(response, "noticeKind", notice.kind, allocator);
+            add_string(response, "noticeHandle", notice.handle, allocator);
 
             const auto mute = service.get_own_mute();
             rapidjson::Value mute_obj(rapidjson::kObjectType);
@@ -216,6 +239,20 @@ namespace commands::social_commands
                 social::cbfriends_service::instance().begin_recover_with_code(code);
             }
             response.AddMember("started", ok, allocator);
+        });
+
+        cef_ui.add_command("cbfriends-confirm-match", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().begin_confirm_match(read_bool(value, "adopt"));
+            response.AddMember("started", true, response.GetAllocator());
+        });
+
+        cef_ui.add_command("cbfriends-discord-conflict", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            social::cbfriends_service::instance().resolve_discord_conflict(read_string(value, "action") == "switch");
+            response.AddMember("started", true, response.GetAllocator());
         });
 
         cef_ui.add_command("cbfriends-get-recovery-code", [](const rapidjson::Value&, rapidjson::Document& response)

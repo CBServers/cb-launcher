@@ -41,6 +41,31 @@ namespace social
             return tokens ? tokens->access_token : std::string{};
         }
 
+        constexpr const wchar_t* RECOVERY_BACKUP = L"recovery-code";
+
+        // Tagged with its account, so a code is never restored onto a different profile.
+        void backup_recovery_code(const std::string& cb_id, const std::string& stored)
+        {
+            backup::store(RECOVERY_BACKUP, cb_id + "|" + stored);
+        }
+
+        std::string backed_up_recovery_code(const std::string& cb_id)
+        {
+            const auto saved = backup::load(RECOVERY_BACKUP);
+            const auto prefix = cb_id + "|";
+            return saved && saved->starts_with(prefix) ? saved->substr(prefix.size()) : std::string{};
+        }
+
+        std::optional<cb_match> parse_match(const rapidjson::Value& doc)
+        {
+            if (!doc.IsObject() || !doc.HasMember("account") || !doc["account"].IsObject())
+            {
+                return std::nullopt;
+            }
+            const auto& a = doc["account"];
+            return cb_match{json_get(a, "handle"), json_get(a, "displayName"), json_get(a, "avatarUrl")};
+        }
+
         // Maps an inbox outcome onto the UI's invite result statuses.
         const char* outcome_status(const inbox_client::outcome out)
         {
@@ -234,6 +259,8 @@ namespace social
             return "creating";
         case profile_state::ready:
             return "ready";
+        case profile_state::confirm:
+            return "confirm";
         default:
             return "error";
         }
@@ -269,6 +296,11 @@ namespace social
         if (account_id.empty() || !profile_json || profile_json->empty())
         {
             ensure_worker();
+            // A wiped data folder keeps its key in the registry, so the account can come straight back.
+            if (identity::instance().restored_from_backup())
+            {
+                std::thread(&cbfriends_service::check_account, this, true).detach();
+            }
             return;
         }
 
@@ -307,6 +339,20 @@ namespace social
         inbox_client::instance().reattach(); // binds the cb address; harmless before the inbox starts
         load_broadcast();
         sync_discord(); // keeps the avatar in step with Discord
+
+        // Profiles created before the registry backup existed get one now.
+        std::optional<std::string> code;
+        {
+            const auto guard = utils::properties::lock();
+            code = utils::properties::load(property_keys::CB_RECOVERY_CODE);
+        }
+        if (code && !code->empty() && backed_up_recovery_code(account_id) != *code)
+        {
+            backup_recovery_code(account_id, *code);
+        }
+
+        // The cache can outlive the account (moderation removed this key), so confirm it once per launch.
+        std::thread(&cbfriends_service::check_account, this, false).detach();
     }
 
     profile_state cbfriends_service::get_state() const
@@ -359,7 +405,8 @@ namespace social
     {
         {
             std::lock_guard lock(mutex_);
-            if (state_ == profile_state::creating || state_ == profile_state::ready)
+            if (state_ == profile_state::creating || state_ == profile_state::ready ||
+                state_ == profile_state::confirm)
             {
                 return;
             }
@@ -367,10 +414,10 @@ namespace social
             last_error_.clear();
         }
 
-        std::thread(&cbfriends_service::do_create_profile, this, handle, display_name).detach();
+        std::thread(&cbfriends_service::do_create_profile, this, handle, display_name, true).detach();
     }
 
-    void cbfriends_service::do_create_profile(std::string handle, std::string display_name)
+    void cbfriends_service::do_create_profile(std::string handle, std::string display_name, const bool hwid_prompt)
     {
         const auto fail = [this](const std::string& error)
         {
@@ -397,6 +444,8 @@ namespace social
         if (!handle.empty()) add_string(body, "handle", handle);
         if (!display_name.empty()) add_string(body, "displayName", display_name);
         if (!token.empty()) add_string(body, "discordToken", token);
+        // We ask before adopting an HWID match, so the worker may offer one instead of minting.
+        if (hwid_prompt) body.AddMember("hwidPrompt", true, body.GetAllocator());
 
         const auto response = post_signed(base + "/v1/account/bootstrap", serialize(body));
         if (!response)
@@ -410,10 +459,10 @@ namespace social
 
         if (response->response_code == 200 && parsed)
         {
-            return store_from_response(doc);
+            return store_from_response(doc, true);
         }
 
-        // This machine already owns an account: adopt it instead of minting a duplicate.
+        // Our Discord already owns an account (adopt it), or this PC's HWID matches one (ask first).
         if (response->response_code == 409 && parsed && doc.HasMember("recoverable") &&
             doc["recoverable"].IsBool() && doc["recoverable"].GetBool())
         {
@@ -424,6 +473,21 @@ namespace social
                 {
                     if (entry.IsString() && via.empty()) via = entry.GetString();
                 }
+            }
+            if (via == "hwid")
+            {
+                auto match = parse_match(doc);
+                if (!match)
+                {
+                    return do_create_profile(std::move(handle), std::move(display_name), false);
+                }
+                std::lock_guard lock(mutex_);
+                match_ = std::move(match);
+                pending_handle_ = std::move(handle);
+                pending_display_name_ = std::move(display_name);
+                state_ = profile_state::confirm;
+                last_error_.clear();
+                return;
             }
             return recover_and_store(via, hwid, token);
         }
@@ -436,7 +500,8 @@ namespace social
     {
         {
             std::lock_guard lock(mutex_);
-            if (state_ == profile_state::creating || state_ == profile_state::ready)
+            if (state_ == profile_state::creating || state_ == profile_state::ready ||
+                state_ == profile_state::confirm)
             {
                 return;
             }
@@ -500,14 +565,110 @@ namespace social
         doc.Parse(response->buffer.c_str());
         if (response->response_code != 200 || doc.HasParseError() || !doc.IsObject())
         {
-            const auto error = (!doc.HasParseError() && doc.IsObject()) ? json_get(doc, "error") : std::string{};
+            const bool parsed = !doc.HasParseError() && doc.IsObject();
+            // A code ("in-use") is stable for the UI to localize; the error text is not.
+            auto error = parsed ? json_get(doc, "code") : std::string{};
+            if (error.empty() && parsed) error = json_get(doc, "error");
             return fail(error.empty() ? "recovery failed" : error);
         }
 
-        store_from_response(doc);
+        store_from_response(doc, true);
     }
 
-    void cbfriends_service::store_from_response(const rapidjson::Value& doc)
+    std::optional<cb_match> cbfriends_service::get_match() const
+    {
+        std::lock_guard lock(mutex_);
+        return match_;
+    }
+
+    cb_notice cbfriends_service::get_notice() const
+    {
+        std::lock_guard lock(mutex_);
+        return notice_;
+    }
+
+    void cbfriends_service::begin_confirm_match(const bool adopt)
+    {
+        std::string handle;
+        std::string display_name;
+        {
+            std::lock_guard lock(mutex_);
+            if (state_ != profile_state::confirm)
+            {
+                return;
+            }
+            state_ = profile_state::creating;
+            match_.reset();
+            handle = pending_handle_;
+            display_name = pending_display_name_;
+        }
+
+        if (adopt)
+        {
+            std::thread([this] { recover_and_store("hwid", hwid::compute(), {}); }).detach();
+        }
+        else
+        {
+            std::thread(&cbfriends_service::do_create_profile, this, handle, display_name, false).detach();
+        }
+    }
+
+    void cbfriends_service::check_account(const bool restoring)
+    {
+        const auto resp = post_signed(base_url() + "/v1/account", ts_body());
+        if (!resp)
+        {
+            return; // offline: keep the cache
+        }
+
+        rapidjson::Document doc;
+        doc.Parse(resp->buffer.data());
+        if (doc.HasParseError() || !doc.IsObject())
+        {
+            return; // not the worker answering (a proxy page), so not proof the account is gone
+        }
+
+        if (resp->response_code == 404)
+        {
+            if (!restoring) clear_profile();
+            return;
+        }
+        if (resp->response_code != 200)
+        {
+            return;
+        }
+
+        if (restoring)
+        {
+            std::lock_guard lock(mutex_);
+            if (state_ != profile_state::none && state_ != profile_state::error)
+            {
+                return; // the user started a create or recovery meanwhile
+            }
+        }
+        store_from_response(doc, restoring);
+    }
+
+    void cbfriends_service::clear_profile()
+    {
+        utils::logger::write("CB account for this device key is gone; back to profile setup");
+        {
+            const auto guard = utils::properties::lock();
+            utils::properties::store(property_keys::CB_ACCOUNT_ID, "");
+            utils::properties::store(property_keys::CB_PROFILE, "");
+        }
+        {
+            std::lock_guard lock(mutex_);
+            profile_.reset();
+            friends_ = {};
+            discord_conflict_.reset();
+            state_ = profile_state::none;
+            last_error_.clear();
+        }
+        inbox_client::instance().reattach(); // drops the cb address
+    }
+
+    void cbfriends_service::store_from_response(const rapidjson::Value& doc, const bool announce)
     {
         cb_profile profile;
         profile.cb_id = json_get(doc, "cbId");
@@ -541,9 +702,11 @@ namespace social
         add_string(profile_doc, "favoriteGame", profile.favorite_game);
 
         const auto recovery_code = json_get(doc, "recoveryCode");
+        const bool created = doc.HasMember("created") && doc["created"].IsBool() && doc["created"].GetBool();
 
         {
             const auto guard = utils::properties::lock();
+            const auto previous_id = utils::properties::load(property_keys::CB_ACCOUNT_ID).value_or("");
             utils::properties::store(property_keys::CB_ACCOUNT_ID, profile.cb_id);
             utils::properties::store(property_keys::CB_PROFILE, serialize(profile_doc));
             if (!recovery_code.empty())
@@ -551,20 +714,46 @@ namespace social
                 const auto blob = utils::cryptography::dpapi::protect(recovery_code);
                 if (blob)
                 {
-                    utils::properties::store(property_keys::CB_RECOVERY_CODE,
-                                             utils::cryptography::base64::encode(*blob));
+                    const auto encoded = utils::cryptography::base64::encode(*blob);
+                    utils::properties::store(property_keys::CB_RECOVERY_CODE, encoded);
+                    backup_recovery_code(profile.cb_id, encoded);
+                }
+            }
+            else if (!previous_id.empty() && previous_id != profile.cb_id)
+            {
+                utils::properties::store(property_keys::CB_RECOVERY_CODE, ""); // the profile we left owns it
+            }
+
+            const auto stored_code = utils::properties::load(property_keys::CB_RECOVERY_CODE);
+            if (!stored_code || stored_code->empty())
+            {
+                if (const auto saved = backed_up_recovery_code(profile.cb_id); !saved.empty())
+                {
+                    utils::properties::store(property_keys::CB_RECOVERY_CODE, saved);
                 }
             }
         }
 
+        bool new_address = false;
         {
             std::lock_guard lock(mutex_);
+            new_address = !profile_ || profile_->cb_id != profile.cb_id;
+            if (new_address) discord_conflict_.reset();
+            if (announce)
+            {
+                ++notice_.seq;
+                notice_.kind = created ? "created" : "restored";
+                notice_.handle = profile.handle;
+            }
             profile_ = std::move(profile);
             state_ = profile_state::ready;
             last_error_.clear();
         }
         ensure_worker();
-        inbox_client::instance().reattach(); // a fresh profile is a new cb address
+        if (new_address)
+        {
+            inbox_client::instance().reattach(); // a different profile is a new cb address
+        }
     }
 
     void cbfriends_service::begin_update_profile(const std::string& display_name, const std::string& handle,
@@ -1455,10 +1644,195 @@ namespace social
             body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
             add_string(body, "discordToken", token);
 
-            if (auto doc = post_json(base_url() + "/v1/account/sync-discord", serialize(body)))
+            const auto resp = post_signed(base_url() + "/v1/account/sync-discord", serialize(body));
+            if (!resp)
             {
-                store_from_response(*doc);
+                return;
             }
+            rapidjson::Document doc;
+            doc.Parse(resp->buffer.data());
+            if (doc.HasParseError() || !doc.IsObject())
+            {
+                return;
+            }
+            if (resp->response_code == 200)
+            {
+                {
+                    std::lock_guard lock(mutex_);
+                    discord_conflict_.reset();
+                }
+                store_from_response(doc);
+                return;
+            }
+
+            // Our Discord belongs to another profile: offer to switch, unless declined for this Discord.
+            if (resp->response_code != 409 || json_get(doc, "code") != "linked-elsewhere")
+            {
+                return;
+            }
+            auto match = parse_match(doc);
+            if (!match)
+            {
+                return;
+            }
+            std::string discord_id;
+            std::string dismissed;
+            {
+                const auto guard = utils::properties::lock();
+                discord_id = utils::properties::load(property_keys::DISCORD_USER_ID).value_or("");
+                dismissed = utils::properties::load(property_keys::CB_DISCORD_CONFLICT_DISMISSED).value_or("");
+            }
+            if (discord_id.empty() || discord_id == dismissed)
+            {
+                return;
+            }
+            std::lock_guard lock(mutex_);
+            discord_conflict_ = std::move(match);
+            conflict_discord_id_ = discord_id;
+        }).detach();
+    }
+
+    void cbfriends_service::on_discord_linked(const std::string& discord_id)
+    {
+        const auto state = get_state();
+        if (state == profile_state::ready)
+        {
+            sync_discord();
+            return;
+        }
+        if (state != profile_state::none && state != profile_state::error)
+        {
+            return;
+        }
+
+        // The worker allows few recovery attempts per hour, so a known "no profile" answer is not re-asked.
+        std::string checked;
+        {
+            const auto guard = utils::properties::lock();
+            checked = utils::properties::load(property_keys::CB_DISCORD_RESTORE_CHECKED).value_or("");
+        }
+        {
+            std::lock_guard lock(mutex_);
+            if (discord_id.empty() || discord_id == checked || discord_restore_tried_ == discord_id)
+            {
+                return;
+            }
+            discord_restore_tried_ = discord_id;
+        }
+        std::thread(&cbfriends_service::restore_with_discord, this, discord_id).detach();
+    }
+
+    // No profile here but Discord is linked: if that Discord holds one, this PC signs in to it.
+    void cbfriends_service::restore_with_discord(std::string discord_id)
+    {
+        const auto token = discord_access_token();
+        if (token.empty() || !identity::instance().ensure())
+        {
+            return;
+        }
+
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        add_string(body, "discordToken", token);
+
+        const auto resp = post_signed(base_url() + "/v1/recover/discord", serialize(body));
+        if (resp && resp->response_code == 404)
+        {
+            // This Discord has no CB profile; Create still finds one made later, via the bootstrap.
+            const auto guard = utils::properties::lock();
+            utils::properties::store(property_keys::CB_DISCORD_RESTORE_CHECKED, discord_id);
+            return;
+        }
+        if (!resp || resp->response_code != 200)
+        {
+            return;
+        }
+        rapidjson::Document doc;
+        doc.Parse(resp->buffer.data());
+        if (doc.HasParseError() || !doc.IsObject())
+        {
+            return;
+        }
+
+        {
+            std::lock_guard lock(mutex_);
+            if (state_ != profile_state::none && state_ != profile_state::error)
+            {
+                return; // the user started a create or recovery meanwhile
+            }
+        }
+        store_from_response(doc, true);
+    }
+
+    std::optional<cb_match> cbfriends_service::get_discord_conflict() const
+    {
+        std::lock_guard lock(mutex_);
+        return discord_conflict_;
+    }
+
+    void cbfriends_service::resolve_discord_conflict(const bool switch_profile)
+    {
+        std::string discord_id;
+        cb_match conflict;
+        {
+            std::lock_guard lock(mutex_);
+            if (!discord_conflict_ || (switch_profile && state_ != profile_state::ready))
+            {
+                return;
+            }
+            discord_id = conflict_discord_id_;
+            conflict = *discord_conflict_;
+            discord_conflict_.reset();
+            if (switch_profile)
+            {
+                state_ = profile_state::creating;
+                last_error_.clear();
+            }
+        }
+
+        if (!switch_profile)
+        {
+            const auto guard = utils::properties::lock();
+            utils::properties::store(property_keys::CB_DISCORD_CONFLICT_DISMISSED, discord_id);
+            return;
+        }
+
+        std::thread([this, conflict]
+        {
+            const auto revert = [this, &conflict](const std::string& error)
+            {
+                std::lock_guard lock(mutex_);
+                state_ = profile_state::ready; // still signed in to the profile we had
+                last_error_ = error;
+                discord_conflict_ = conflict; // the offer stays up so the user can retry
+            };
+
+            const auto token = discord_access_token();
+            if (token.empty())
+            {
+                return revert("discord not linked");
+            }
+
+            rapidjson::Document body;
+            body.SetObject();
+            body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+            add_string(body, "discordToken", token);
+
+            const auto resp = post_signed(base_url() + "/v1/recover/discord", serialize(body));
+            if (!resp)
+            {
+                return revert("network error");
+            }
+            rapidjson::Document doc;
+            doc.Parse(resp->buffer.data());
+            const bool parsed = !doc.HasParseError() && doc.IsObject();
+            if (resp->response_code != 200 || !parsed)
+            {
+                const auto error = parsed ? json_get(doc, "error") : std::string{};
+                return revert(error.empty() ? "switch failed" : error);
+            }
+            store_from_response(doc, true);
         }).detach();
     }
 

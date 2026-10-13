@@ -39,6 +39,10 @@ namespace property_keys
     constexpr const char* CB_ACCOUNT_ID = "launcher-cb-account-id";
     constexpr const char* CB_PROFILE = "launcher-cb-profile";
     constexpr const char* CB_RECOVERY_CODE = "launcher-cb-recovery-code";
+    // Discord id whose "linked to another profile" offer the user dismissed
+    constexpr const char* CB_DISCORD_CONFLICT_DISMISSED = "launcher-cb-discord-conflict-dismissed";
+    // Discord id already found to hold no CB profile, so startup stops spending recovery attempts on it
+    constexpr const char* CB_DISCORD_RESTORE_CHECKED = "launcher-cb-discord-restore-checked";
 
     // CB community broadcast toggle (opt-in discovery by non-friends) + its details
     // Hides the Community tab entirely

@@ -378,6 +378,7 @@ namespace discord
         // Invites (discord thread only).
         std::function<void(std::string)> join_secret_cb{};
         std::function<void()> open_match_cb{}; // fired when an approve/invite needs the game to open its match
+        std::function<void(std::string)> linked_cb{}; // fired with our Discord id each time the link comes up
         // Actions waiting for a real join secret (host approving a knock / invite while the match opens). Discord thread only.
         struct deferred_action
         {
@@ -1359,6 +1360,11 @@ namespace discord
             // Republish presence if a game was launched before/while connecting.
             this->publish_activity();
 
+            if (this->linked_cb && profile)
+            {
+                this->linked_cb(profile->id);
+            }
+
             if (!access_token.empty())
             {
                 std::thread([access_token]()
@@ -2061,6 +2067,14 @@ namespace discord
         this->impl_->post([i = this->impl_.get(), callback = std::move(callback)]() mutable
         {
             i->open_match_cb = std::move(callback);
+        });
+    }
+
+    void discord_service::set_linked_callback(std::function<void(std::string)> callback)
+    {
+        this->impl_->post([i = this->impl_.get(), callback = std::move(callback)]() mutable
+        {
+            i->linked_cb = std::move(callback);
         });
     }
 

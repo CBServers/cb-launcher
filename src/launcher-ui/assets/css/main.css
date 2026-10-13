@@ -5809,6 +5809,30 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     letter-spacing: 0.04em;
 }
 
+.cb-conflict {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-sm);
+}
+
+.cb-conflict-text {
+    flex: 1;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text);
+}
+
+.cb-conflict-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .cb-create-error {
     padding: 9px 14px;
     margin-bottom: 16px;

@@ -14,5 +14,8 @@ namespace utils::registry
 
     bool set_hkcu_string(const std::wstring& subkey, const std::wstring& value_name, const std::wstring& value);
 
+    // True if the value is gone afterwards, including when it never existed.
+    bool delete_hkcu_value(const std::wstring& subkey, const std::wstring& value_name);
+
     bool ensure_hkcu_key_exists(const std::wstring& subkey);
 }

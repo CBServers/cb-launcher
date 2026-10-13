@@ -106,6 +106,25 @@ namespace utils::registry
         return status == ERROR_SUCCESS;
     }
 
+    bool delete_hkcu_value(const std::wstring& subkey, const std::wstring& value_name)
+    {
+        HKEY key{};
+        const auto opened = RegOpenKeyExW(HKEY_CURRENT_USER, subkey.data(), 0, KEY_SET_VALUE, &key);
+        if (opened == ERROR_FILE_NOT_FOUND)
+        {
+            return true;
+        }
+        if (opened != ERROR_SUCCESS)
+        {
+            return false;
+        }
+
+        const auto status = RegDeleteValueW(key, value_name.data());
+        RegCloseKey(key);
+
+        return status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND;
+    }
+
     bool ensure_hkcu_key_exists(const std::wstring& subkey)
     {
         HKEY key{};

@@ -26,7 +26,10 @@ const mockMods = {
 
 // Static-preview state for the CB Friends sub-tab and Community board.
 const mockCb = {
-    state: 'none', profile: null, recoveryCode: null,
+    state: 'none', profile: null, recoveryCode: null, error: null,
+    // Handles "clone" and "inuse" at create preview the HWID match card; set discordConflict to preview the switch banner.
+    match: null, pending: null, discordConflict: null,
+    notice: { seq: 0, kind: '', handle: '' },
     friends: { friends: [], incoming: [], outgoing: [] },
     lfg: [
         { cbId: 'cb_ally', handle: 'ally', displayName: 'Ally', avatarUrl: '', online: true, game: 'boiii', mode: 'zm', status: '', relation: 'none', note: 'need 2 for EE', slots: 3, joined: 1, iJoined: false, joinable: true, joiners: [{ cbId: 'cb_vex', handle: 'vex', displayName: 'Vex', avatarUrl: '', accent: '' }] },
@@ -144,8 +147,37 @@ function mockCommand(command, data) {
             mockDiscord.status = 'unlinked';
             return { started: false };
         case 'cbfriends-get-status':
-            return { state: mockCb.state, profile: mockCb.profile, error: null, hasRecoveryCode: !!mockCb.recoveryCode, joinable: !!(mockCb.presence && mockCb.presence.joinable), presence: mockCb.presence || { game: '' }, mute: mockCb.mute };
+            return { state: mockCb.state, profile: mockCb.profile, error: mockCb.error, hasRecoveryCode: !!mockCb.recoveryCode, joinable: !!(mockCb.presence && mockCb.presence.joinable), presence: mockCb.presence || { game: '' }, mute: mockCb.mute,
+                match: mockCb.state === 'confirm' ? mockCb.match : null, discordConflict: mockCb.state === 'ready' ? mockCb.discordConflict : null,
+                noticeSeq: mockCb.notice.seq, noticeKind: mockCb.notice.kind, noticeHandle: mockCb.notice.handle };
+        case 'cbfriends-confirm-match':
+            if (mockCb.state !== 'confirm') return { started: true };
+            if (!data.adopt) return mockCommand('cbfriends-create-profile', Object.assign({ confirmed: true }, mockCb.pending));
+            if (mockCb.pending.handle === 'inuse') {
+                mockCb.state = 'error';
+                mockCb.error = 'in-use';
+                return { started: true };
+            }
+            mockCb.state = 'ready';
+            mockCb.profile = { cbId: 'cb_ghost', handle: mockCb.match.handle, displayName: mockCb.match.displayName, avatarUrl: '' };
+            mockCb.notice = { seq: mockCb.notice.seq + 1, kind: 'restored', handle: mockCb.match.handle };
+            return { started: true };
+        case 'cbfriends-discord-conflict':
+            if (mockCb.discordConflict && data.action === 'switch') {
+                mockCb.profile = { cbId: 'cb_main', handle: mockCb.discordConflict.handle, displayName: mockCb.discordConflict.displayName, avatarUrl: '' };
+                mockCb.notice = { seq: mockCb.notice.seq + 1, kind: 'restored', handle: mockCb.discordConflict.handle };
+            }
+            mockCb.discordConflict = null;
+            return { started: true };
         case 'cbfriends-create-profile':
+            if (!data.confirmed && (data.handle === 'clone' || data.handle === 'inuse')) {
+                mockCb.state = 'confirm';
+                mockCb.match = { handle: 'ghost_owner', displayName: 'Ghost', avatarUrl: '' };
+                mockCb.pending = { handle: data.handle, displayName: data.displayName };
+                return { started: true };
+            }
+            mockCb.error = null;
+            mockCb.notice = { seq: mockCb.notice.seq + 1, kind: 'created', handle: data.handle };
             mockCb.state = 'ready';
             mockCb.profile = { cbId: 'cb_preview', handle: data.handle, displayName: data.displayName || data.handle, avatarUrl: '' };
             mockCb.recoveryCode = '1A2B-3C4D-5E6F-7A8B-9C0D-1E2F-3A4B-5C6D';
@@ -165,8 +197,10 @@ function mockCommand(command, data) {
             return { started: true };
         case 'cbfriends-recover-code':
             mockCb.state = 'ready';
+            mockCb.error = null;
             mockCb.profile = { cbId: 'cb_preview', handle: 'recovered', displayName: 'Recovered', avatarUrl: '' };
             mockCb.recoveryCode = data.code;
+            mockCb.notice = { seq: mockCb.notice.seq + 1, kind: 'restored', handle: 'recovered' };
             return { started: true };
         case 'cbfriends-get-recovery-code':
             return { code: mockCb.recoveryCode || null };
