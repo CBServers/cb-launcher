@@ -40,6 +40,8 @@
     let openRecoveryCode = '';    // the code behind the open recovery dialog, in the DOM only while revealed
     let recoveryBound = false;
     let recoveryCopyTimer = null;
+    const openBlocked = new Map(); // cbId -> person, for the open blocked users dialog
+    let blockedBound = false;
     const announcedRequests = new Set();
     let requestsPrimed = false; // the first pass only records, so a cold start stays quiet
 
@@ -285,6 +287,7 @@
             { separator: true },
             { label: linked ? tf('unlinkDiscord') : tf(busy ? 'linking' : 'linkDiscord'),
               hidden: ds.status === 'unavailable', disabled: busy, action: linked ? unlinkDiscord : linkDiscord },
+            { label: t('blockedUsers'), action: showBlockedUsers },
             { label: t('recoveryCode'), action: showRecoveryCode },
         ]);
     }
@@ -794,6 +797,67 @@
         openRecoveryCode = '';
     }
 
+    function blockedRowHtml(p) {
+        const avatar = p.avatarUrl
+            ? `<img class="friend-avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" loading="lazy" />`
+            : `<span class="friend-avatar-initials">${escapeHtml(initials(p.displayName || p.handle))}</span>`;
+        return `
+            <div class="cb-blocked-row" data-blocked-id="${escapeHtml(p.cbId)}">
+                <div class="friend-avatar">${avatar}</div>
+                <div class="friend-row-body">
+                    <div class="friend-name">${escapeHtml(p.displayName || p.handle)}</div>
+                    <div class="cb-friend-handle">@${escapeHtml(p.handle)}</div>
+                </div>
+                <button type="button" class="cb-blocked-btn" data-blocked-unblock="${escapeHtml(p.cbId)}">${escapeHtml(t('unblock'))}</button>
+            </div>
+        `;
+    }
+
+    function blockedEmptyHtml() {
+        return `<div class="cb-blocked-empty">${escapeHtml(t('blockedEmpty'))}</div>`;
+    }
+
+    // One delegated listener on the shared message box, like the recovery dialog's.
+    function bindBlockedDialog() {
+        const box = document.getElementById('message-box');
+        if (blockedBound || !box) return;
+        blockedBound = true;
+        box.addEventListener('click', async (event) => {
+            const btn = event.target.closest('[data-blocked-unblock]');
+            const person = btn && openBlocked.get(btn.getAttribute('data-blocked-unblock'));
+            if (!person || btn.disabled) return;
+            btn.disabled = true;
+            if (!(await window.PersonMenu.unblock(person, true))) {
+                btn.disabled = false;
+                return;
+            }
+            openBlocked.delete(person.cbId);
+            const row = btn.closest('.cb-blocked-row');
+            const list = row && row.parentElement;
+            if (row) row.remove();
+            if (list && !list.children.length) list.outerHTML = blockedEmptyHtml();
+        });
+    }
+
+    async function showBlockedUsers() {
+        if (!window.PersonMenu) return;
+        const list = await window.PersonMenu.refreshBlocked();
+        if (!list) return;
+
+        bindBlockedDialog();
+        openBlocked.clear();
+        list.forEach(p => openBlocked.set(p.cbId, p));
+        const body = list.length
+            ? `<div class="cb-blocked-list">${list.map(blockedRowHtml).join('')}</div>`
+            : blockedEmptyHtml();
+        try {
+            await window.showMessageBox(escapeHtml(t('blockedUsers')), body, [t('done')]);
+        } catch (error) {
+            console.warn('Failed to show blocked users:', error);
+        }
+        openBlocked.clear();
+    }
+
     function openCreateForm() {
         createOpen = true;
         createError = '';
@@ -1075,6 +1139,7 @@
                     const seen = await window.executeCommand('cbfriends-get-played-with');
                     playedWith = (seen && seen.people) || [];
                 } catch (error) { playedWith = []; }
+                if (window.PersonMenu) window.PersonMenu.refreshBlocked();
                 renderPage();
             }
         } catch (error) { /* offline / preview */ }

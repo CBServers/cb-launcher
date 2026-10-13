@@ -167,6 +167,8 @@
                 unblock: 'Unblock',
                 report: 'Report',
                 blocked: 'Blocked',
+                blockedUsers: 'Blocked users',
+                blockedEmpty: "You haven't blocked anyone. Right-click someone to block them.",
                 blockTitle: 'Block @{{handle}}?',
                 blockBody: "They won't be able to message, add or invite you, and you won't see them. This also removes them as a friend.",
                 blockConfirm: 'Block',

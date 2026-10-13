@@ -289,9 +289,19 @@ function mockCommand(command, data) {
         case 'cbfriends-show-invite-notification':
         case 'cbfriends-dismiss-invite-notification':
             return { ok: true };
-        case 'cbfriends-block':
-            mockCb.blocked.push(mockPerson('blocked' + mockCb.blocked.length, 'Blocked user'));
+        case 'cbfriends-block': {
+            // Records the actual person and severs the friendship, the way the worker does.
+            const f = mockCb.friends;
+            const pool = mockCb.lfg.concat(f.friends, f.incoming, f.outgoing, mockCb.playedWith, ...Object.values(mockCb.chat));
+            const found = pool.find(p => p.cbId === data.cbId);
+            const person = found
+                ? mockPerson(found.handle, found.displayName, { cbId: found.cbId, avatarUrl: found.avatarUrl || '' })
+                : mockPerson(String(data.cbId).replace(/^cb_/, ''));
+            ['friends', 'incoming', 'outgoing'].forEach(k => { f[k] = f[k].filter(p => p.cbId !== data.cbId); });
+            mockCb.playedWith = mockCb.playedWith.filter(p => p.cbId !== data.cbId);
+            if (!mockCb.blocked.some(p => p.cbId === data.cbId)) mockCb.blocked.push(person);
             return { ok: true };
+        }
         case 'cbfriends-unblock':
             mockCb.blocked = mockCb.blocked.filter(p => p.cbId !== data.cbId);
             return { ok: true };

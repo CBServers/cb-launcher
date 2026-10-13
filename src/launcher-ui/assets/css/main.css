@@ -5899,7 +5899,8 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     margin-top: 10px;
 }
 
-.cb-recovery-btn {
+.cb-recovery-btn,
+.cb-blocked-btn {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -5916,7 +5917,8 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
-.cb-recovery-btn:hover {
+.cb-recovery-btn:hover,
+.cb-blocked-btn:hover {
     border-color: var(--interactive-hover-border);
 }
 
@@ -5927,6 +5929,47 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
 .cb-recovery-btn svg {
     width: 15px;
     height: 15px;
+}
+
+.cb-blocked-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.cb-blocked-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.cb-blocked-row .friend-avatar {
+    width: 34px;
+    height: 34px;
+    box-shadow: none;
+}
+
+.cb-blocked-btn {
+    flex-shrink: 0;
+}
+
+.cb-blocked-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.cb-blocked-empty {
+    padding: 24px 16px;
+    text-align: center;
+    background: var(--surface-lo);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
 }
 
 .cb-create-actions {
@@ -6348,6 +6391,7 @@ select.cb-create-input option { background: #222222; color: #fff; padding: 8px; 
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    gap: 12px;
     padding: 13px 20px;
     border-top: 1px solid var(--border);
     background: var(--surface-lo);

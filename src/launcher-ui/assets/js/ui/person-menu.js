@@ -7,6 +7,7 @@
     let menu = null;
     let card = null;
     let cardPerson = null; // whoever the open profile card shows, for its own menu button
+    let blockedIds = new Set(); // from the launcher's cached block list, refreshed by the Friends poll
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -115,6 +116,10 @@
     }
 
     function relationAction(p) {
+        if (p.relation !== 'self' && blockedIds.has(p.cbId)) {
+            return `<span class="cb-pending-label">${escapeHtml(t('blocked'))}</span>
+                <button class="cb-add-btn" data-person-unblock>${escapeHtml(t('unblock'))}</button>`;
+        }
         switch (p.relation) {
             case 'self': return `<span class="cb-pending-label">${escapeHtml(t('thisIsYou'))}</span>`;
             case 'friend': return `<span class="cb-pending-label">${escapeHtml(t('friendsAlready'))}</span>`;
@@ -240,6 +245,13 @@
                 if (cardPerson) window.PersonMenu.open(event, cardPerson, null, { fromCard: true });
                 return;
             }
+            if (event.target.closest('[data-person-unblock]')) {
+                const person = cardPerson;
+                if (person && await unblockUser(person) && cardPerson === person && !card.hidden) {
+                    card.innerHTML = cardHtml(person, false);
+                }
+                return;
+            }
             const add = event.target.closest('[data-person-add]');
             if (add) {
                 const handle = add.getAttribute('data-person-add');
@@ -269,10 +281,36 @@
                 [{ label: t('blockConfirm'), danger: true }, t('cancel')]);
             if (idx !== 0) return;
             await window.executeCommand('cbfriends-block', { cbId: person.cbId });
+            blockedIds.add(person.cbId);
             if (window.showToast) window.showToast(t('blockedToast', { handle: person.handle }), 'info');
             hideCard();
         } catch (error) {
             console.warn('Block failed:', error);
+        }
+    }
+
+    // Not destructive, so no confirmation; quiet skips the toast for callers that show their own feedback.
+    async function unblockUser(person, quiet) {
+        try {
+            await window.executeCommand('cbfriends-unblock', { cbId: person.cbId });
+            blockedIds.delete(person.cbId);
+            if (!quiet && window.showToast) window.showToast(t('unblockedToast', { handle: person.handle }), 'success');
+            return true;
+        } catch (error) {
+            console.warn('Unblock failed:', error);
+            return false;
+        }
+    }
+
+    // Returns the list, or null when the launcher could not be asked.
+    async function refreshBlocked() {
+        try {
+            const res = await window.executeCommand('cbfriends-get-blocked');
+            const list = (res && res.blocked) || [];
+            blockedIds = new Set(list.map(p => p.cbId));
+            return list;
+        } catch (error) {
+            return null;
         }
     }
 
@@ -363,15 +401,17 @@
             const groups = Array.isArray(extra) ? { bottom: extra } : (extra || {});
             const isSelf = person.relation === 'self';
             const known = person.relation === 'friend' || person.relation === 'requested' || person.relation === 'incoming';
+            const blocked = !isSelf && blockedIds.has(person.cbId);
             const items = [].concat(groups.top || [], [
                 { separator: true },
                 { label: t('viewProfile'), hidden: fromCard, action: () => showCard(person) },
-                { label: t('message'), hidden: isSelf || person.relation !== 'friend' || !window.DirectMessages,
+                { label: t('message'), hidden: isSelf || blocked || person.relation !== 'friend' || !window.DirectMessages,
                   action: () => window.DirectMessages.open(person.cbId) },
-                { label: t('addFriend'), hidden: isSelf || known || !person.handle, action: () => addFriend(person.handle) },
+                { label: t('addFriend'), hidden: isSelf || blocked || known || !person.handle, action: () => addFriend(person.handle) },
                 { separator: true },
             ], groups.bottom || [], [
-                { label: t('block'), hidden: isSelf, danger: true, action: () => blockUser(person) },
+                { label: t('unblock'), hidden: !blocked, action: () => unblockUser(person) },
+                { label: t('block'), hidden: isSelf || blocked, danger: true, action: () => blockUser(person) },
                 { label: t('report'), hidden: isSelf, danger: true, action: () => reportUser(person) },
             ]);
             const pos = positionFor(event);
@@ -388,6 +428,8 @@
         },
         showCard,
         report: reportUser,
+        unblock: unblockUser,
+        refreshBlocked,
         matchContext,
         formatAgo: ago,
         init() { bindCardActions(); }
