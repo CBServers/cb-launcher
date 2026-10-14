@@ -61,6 +61,13 @@ const mockCb = {
     modLog: [],
     modLookup: null
 };
+// Mirrors launch_flags in game_config.cpp: [id, argument, risky, choices?]
+const mockLaunchFlags = {
+    bo3: [['nointro', '-nointro', false], ['unsafe-lua', '-unsafe-lua', true], ['allowproxydlls', '-allowproxydlls', true], ['logfile', '-logfile', false], ['nosteam', '-nosteam', false]],
+    mwr: [['nodriverprofile', '-nodriverprofile', false], ['allow_root_io', '-allow_root_io', true], ['nosteam', '-nosteam', false]],
+    iw: [['nointro', '-nointro', false], ['d3d12', '-d3d12', false], ['allow_root_io', '-allow_root_io', true], ['console', '', false, ['terminal', 'syscon', 'wincon', 'noconsole']]],
+    ww2: [['console', '', false, ['syscon', 'terminal', 'noconsole']]]
+};
 // Discord link state for the preview; flip status from the console to see each Friends card.
 const mockDiscord = { status: 'linked' };
 
@@ -423,6 +430,11 @@ function mockCommand(command, data) {
         case 'open-folder':
         case 'open-url':
             return true;
+        case 'get-launch-flags':
+            return (mockLaunchFlags[data && data.game] || []).map(([id, argument, risky, choices]) =>
+                choices ? { id, argument, risky, choices, value: choices[0] } : { id, argument, risky, enabled: false });
+        case 'get-client-channel':
+            return { available: ['bo3', 'ghosts', 'aw', 'mwr', 'iw', 'ww2'].includes(data && data.game), channel: 'release', defaultChannel: 'release' };
         case 'get-missing-redists-for-game':
             return { checked: true, missing: [] };
         default:

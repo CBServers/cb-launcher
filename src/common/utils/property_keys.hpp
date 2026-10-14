@@ -70,6 +70,10 @@ namespace property_keys
     constexpr const char* LAUNCH_ADMIN = "launch-admin";
     // Plutonium games only: launch the bootstrapper directly with -lan, no account or token needed.
     constexpr const char* PLUTONIUM_LAN = "plutonium-lan";
+    // + flag id ("launch-flag-unsafe-lua"): "true" adds that client flag to the launch arguments.
+    constexpr const char* LAUNCH_FLAG_PREFIX = "launch-flag-";
+    // "release" or "dev"; empty follows the launcher's own build channel.
+    constexpr const char* CLIENT_CHANNEL = "client-channel";
 
     // Game component settings (used with game config get/set)
     constexpr const char* DETECTED_COMPONENTS = "detected-components";
@@ -84,7 +88,4 @@ namespace property_keys
     constexpr const char* CUSTOM_RESOLUTION_ENABLED = "custom-resolution-enabled";
     constexpr const char* CUSTOM_RESOLUTION_WIDTH = "custom-resolution-width";
     constexpr const char* CUSTOM_RESOLUTION_HEIGHT = "custom-resolution-height";
-
-    // Game-specific settings
-    constexpr const char* BO3_SKIP_INTRO_CINEMATIC = "bo3-skip-intro-cinematic";
 }

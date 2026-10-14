@@ -13,15 +13,6 @@
 
 namespace game_config
 {
-    namespace
-    {
-        // develop builds pull each client's dev channel instead of the one main users get
-        std::string select_channel(const std::string& main, const std::string& develop)
-        {
-            return GIT_BRANCH == "develop"s ? develop : main;
-        }
-    }
-
     // Property access method implementations
     std::string game_config_t::make_property_key(const std::string& suffix) const
     {
@@ -259,6 +250,53 @@ namespace game_config
         return this->requires_elevation;
     }
 
+    bool game_config_t::has_dev_channel() const
+    {
+        // Raw table entries (reset_all_games) haven't had `clients` synthesized yet
+        if (this->clients.empty())
+        {
+            return !this->dev_manifest_url.empty();
+        }
+
+        return std::any_of(this->clients.begin(), this->clients.end(), [](const client_files_t& client)
+        {
+            return !client.dev_manifest_url.empty() && !client.dev_folder_url.empty();
+        });
+    }
+
+    bool game_config_t::uses_dev_channel() const
+    {
+        const auto value = this->get(property_keys::CLIENT_CHANNEL);
+        if (value && !value->empty())
+        {
+            return *value == "dev";
+        }
+        return build_defaults_to_dev_channel();
+    }
+
+    std::string game_config_t::launch_flag_property(const launch_flag_t& flag) const
+    {
+        return flag.property.empty() ? property_keys::LAUNCH_FLAG_PREFIX + flag.id : flag.property;
+    }
+
+    bool game_config_t::launch_flag_enabled(const launch_flag_t& flag) const
+    {
+        return this->get(this->launch_flag_property(flag)).value_or("") == "true";
+    }
+
+    const launch_choice_t* game_config_t::launch_flag_choice(const launch_flag_t& flag) const
+    {
+        const auto value = this->get(this->launch_flag_property(flag)).value_or("");
+        for (const auto& choice : flag.choices)
+        {
+            if (choice.value == value)
+            {
+                return &choice;
+            }
+        }
+        return nullptr;
+    }
+
     std::vector<std::string> game_config_t::collect_exes() const
     {
         std::vector<std::string> exes{ this->exe_name };
@@ -287,11 +325,15 @@ namespace game_config
         this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
         this->set(property_keys::LAUNCH_ADMIN, "");
 
-        // Game-specific settings — only clear on the games that own them
-        if (this->game_key == "bo3")
+        for (const auto& flag : this->launch_flags)
         {
-            this->set(property_keys::SKIP_INTRO_CINEMATIC, "");
+            this->set(this->launch_flag_property(flag), "");
         }
+        if (this->has_dev_channel())
+        {
+            this->set(property_keys::CLIENT_CHANNEL, "");
+        }
+
         //if (this->game_key == "hmw")
         //{
         //    this->set(property_keys::DISABLE_CB_EXTENSION, "");
@@ -671,16 +713,23 @@ namespace game_config
                 .display_name = "Black Ops 3",
                 .id = "boiii",
                 .exe_name = "boiii.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "boiii.json",
-                                                     CLIENT_UPDATE_SERVER "boiii-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "boiii/",
-                                                   CLIENT_UPDATE_SERVER "boiii-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "boiii.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "boiii/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "boiii-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "boiii-dev/",
                 .manifest_path = "manifest/bo3.json",
                 .required_updater_files = {},
                 .valid_game_files = {"BlackOps3.exe"},
                 .mode_arguments = {},
                 .default_args = "-launch -noupdate",
                 .name_argument = "-name",
+                .launch_flags = {
+                    {.id = "nointro", .argument = "-nointro", .property = property_keys::SKIP_INTRO_CINEMATIC},
+                    {.id = "unsafe-lua", .argument = "-unsafe-lua", .risky = true},
+                    {.id = "allowproxydlls", .argument = "-allowproxydlls", .risky = true},
+                    {.id = "logfile", .argument = "-logfile"},
+                    {.id = "nosteam", .argument = "-nosteam"}
+                },
                 .base_folder = "bo3_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -697,10 +746,10 @@ namespace game_config
                 .display_name = "Ghosts",
                 .id = "iw6x",
                 .exe_name = "iw6x.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "iw6x.json",
-                                                     CLIENT_UPDATE_SERVER "iw6x-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "iw6x/",
-                                                   CLIENT_UPDATE_SERVER "iw6x-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "iw6x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "iw6x/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "iw6x-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "iw6x-dev/",
                 .manifest_path = "manifest/ghosts.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
@@ -728,10 +777,10 @@ namespace game_config
                 .display_name = "Advanced Warfare",
                 .id = "s1x",
                 .exe_name = "s1x.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "s1x.json",
-                                                     CLIENT_UPDATE_SERVER "s1x-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "s1x/",
-                                                   CLIENT_UPDATE_SERVER "s1x-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "s1x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "s1x/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "s1x-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "s1x-dev/",
                 .manifest_path = "manifest/aw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s1_sp64_ship.exe", "s1_mp64_ship.exe"},
@@ -761,10 +810,10 @@ namespace game_config
                 .display_name = "Modern Warfare Remastered",
                 .id = "h1-mod",
                 .exe_name = "h1-mod.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "h1-mod/files.json",
-                                                     CLIENT_UPDATE_SERVER "h1-mod/files-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "h1-mod/data/",
-                                                   CLIENT_UPDATE_SERVER "h1-mod/data-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "h1-mod/files-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "h1-mod/data-dev/",
                 .manifest_path = "manifest/mwr.json",
                 .required_updater_files = {},
                 .valid_game_files = {"h1_sp64_ship.exe", "h1_mp64_ship.exe"},
@@ -777,6 +826,11 @@ namespace game_config
                 },
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
+                .launch_flags = {
+                    {.id = "nodriverprofile", .argument = "-nodriverprofile"},
+                    {.id = "allow_root_io", .argument = "-allow_root_io", .risky = true},
+                    {.id = "nosteam", .argument = "-nosteam"}
+                },
                 .base_folder = "mwr_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -794,16 +848,27 @@ namespace game_config
                 .display_name = "Infinite Warfare",
                 .id = "iw7-mod",
                 .exe_name = "iw7-mod.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "iw7-mod/files.json",
-                                                     CLIENT_UPDATE_SERVER "iw7-mod/files-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "iw7-mod/data/",
-                                                   CLIENT_UPDATE_SERVER "iw7-mod/data-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "iw7-mod/files-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "iw7-mod/data-dev/",
                 .manifest_path = "manifest/iw.json",
                 .required_updater_files = {},
                 .valid_game_files = {"iw7_ship.exe"},
                 .mode_arguments = {},
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
+                .launch_flags = {
+                    {.id = "nointro", .argument = "-nointro"},
+                    {.id = "d3d12", .argument = "-d3d12"},
+                    {.id = "allow_root_io", .argument = "-allow_root_io", .risky = true},
+                    {.id = "console", .choices = {
+                        {"terminal", "-terminal"},
+                        {"syscon", "-syscon"},
+                        {"wincon", "-wincon"},
+                        {"noconsole", "-noconsole"}
+                    }}
+                },
                 .base_folder = "iw_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -821,10 +886,10 @@ namespace game_config
                 .display_name = "World War II",
                 .id = "s2x",
                 .exe_name = "s2x.exe",
-                .update_manifest_url = select_channel(CLIENT_UPDATE_SERVER "s2x.json",
-                                                     CLIENT_UPDATE_SERVER "s2x-dev.json"),
-                .update_folder_url = select_channel(CLIENT_UPDATE_SERVER "s2x/",
-                                                   CLIENT_UPDATE_SERVER "s2x-dev/"),
+                .update_manifest_url = CLIENT_UPDATE_SERVER "s2x.json",
+                .update_folder_url = CLIENT_UPDATE_SERVER "s2x/",
+                .dev_manifest_url = CLIENT_UPDATE_SERVER "s2x-dev.json",
+                .dev_folder_url = CLIENT_UPDATE_SERVER "s2x-dev/",
                 .manifest_path = "manifest/ww2.json",
                 .required_updater_files = {},
                 .valid_game_files = {"s2_mp64_ship.exe", "s2_sp64_ship.exe"},
@@ -840,6 +905,13 @@ namespace game_config
                 },
                 .default_args = "-noupdate",
                 .name_argument = "",
+                .launch_flags = {
+                    {.id = "console", .choices = {
+                        {"syscon", "-syscon"},
+                        {"terminal", "-terminal"},
+                        {"noconsole", "-noconsole"}
+                    }}
+                },
                 .base_folder = "ww2_game_files",
                 .base_properties_game = "",
                 .property_overrides = {},
@@ -965,6 +1037,8 @@ namespace game_config
                 .client_id = config.id.empty() ? config.game_key : config.id,
                 .update_manifest_url = config.update_manifest_url,
                 .update_folder_url = config.update_folder_url,
+                .dev_manifest_url = config.dev_manifest_url,
+                .dev_folder_url = config.dev_folder_url,
                 .client_default_path = config.client_default_path,
                 .client_install_path_files = config.client_install_path_files,
                 .client_data_folders = config.client_data_folders,
@@ -1144,15 +1218,37 @@ namespace game_config
             }
         }
 
-        // BO3-specific: append -nointro if user has enabled skip intro cinematic
-        if (game == "bo3")
+        return args;
+    }
+
+    bool build_defaults_to_dev_channel()
+    {
+        return GIT_BRANCH == "develop"s;
+    }
+
+    std::string get_launch_flag_arguments(const game_config_t& config)
+    {
+        std::string args{};
+        for (const auto& flag : config.launch_flags)
         {
-            const auto cinematic_setting = utils::properties::load(property_keys::BO3_SKIP_INTRO_CINEMATIC);
-            if (cinematic_setting && cinematic_setting->data() == std::string("true"))
+            std::string argument{};
+            if (!flag.choices.empty())
             {
-                if (!args.empty()) args += " ";
-                args += "-nointro";
+                const auto* choice = config.launch_flag_choice(flag);
+                argument = choice ? choice->argument : "";
             }
+            else if (config.launch_flag_enabled(flag))
+            {
+                argument = flag.argument;
+            }
+
+            if (argument.empty())
+            {
+                continue;
+            }
+
+            if (!args.empty()) args += " ";
+            args += argument;
         }
 
         return args;

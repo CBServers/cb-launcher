@@ -32,7 +32,6 @@ const PROPERTY_KEYS = {
         LAUNCH_OPTIONS: 'launch-options',
         GAME_MODE: 'game-mode',
         SELECTED_CLIENT_PREFIX: 'selected-client-',
-        SKIP_INTRO_CINEMATIC: 'skip-intro-cinematic',
         LAUNCH_ADMIN: 'launch-admin',
         PLUTONIUM_LAN: 'plutonium-lan',
         DISABLE_CB_EXTENSION: 'disable-cb-extension',

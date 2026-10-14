@@ -486,6 +486,7 @@ namespace commands::game_commands
         std::string build_launch_args(const std::string& base_args, const std::string& mode,
             const game_config::game_config_t& config, const std::string& player_name)
         {
+            const auto flag_args = game_config::get_launch_flag_arguments(config);
             const auto user_options = config.get_launch_options().value_or("");
             const auto name_arg = format_name_arg(config.name_argument, player_name);
             const auto res_args = build_custom_resolution_args(config);
@@ -494,7 +495,7 @@ namespace commands::game_commands
             const auto pass_it = config.mode_pass_arguments.find(mode);
             if (pass_it != config.mode_pass_arguments.end())
             {
-                const auto inner = trim_ws(std::format("{} {} {} {}", pass_it->second, user_options, name_arg, res_args));
+                const auto inner = trim_ws(std::format("{} {} {} {} {}", pass_it->second, flag_args, user_options, name_arg, res_args));
                 if (inner.empty())
                 {
                     return base_args;
@@ -502,7 +503,7 @@ namespace commands::game_commands
                 return std::format("{} --pass \"{}\"", base_args, inner);
             }
 
-            const auto extras = trim_ws(std::format("{} {} {}", user_options, name_arg, res_args));
+            const auto extras = trim_ws(std::format("{} {} {} {}", flag_args, user_options, name_arg, res_args));
             if (extras.empty()) return base_args;
             return std::format("{} {}", base_args, extras);
         }

@@ -32,11 +32,33 @@ namespace game_config
     // One updatable client of a game. A game can declare several (CoD4: CoD4x, IW3SP-Mod,
     // IW3x); they share the game's install path but update independently. The install path
     // itself stays on game_config_t, since it is the game's, not the client's.
+    struct launch_choice_t
+    {
+        std::string value;
+        std::string argument;
+    };
+
+    // A client command-line flag the Game Settings popup exposes as a toggle, or as a dropdown when it has choices.
+    struct launch_flag_t
+    {
+        std::string id;
+        std::string argument;
+        // The UI warns before it's turned on (opens the game to untrusted code).
+        bool risky = false;
+        // Property suffix holding the toggle; empty = LAUNCH_FLAG_PREFIX + id.
+        std::string property;
+        // First entry is the client's own default; unset passes nothing so the client decides.
+        std::vector<launch_choice_t> choices;
+    };
+
     struct client_files_t
     {
         std::string client_id;
         std::string update_manifest_url;
         std::string update_folder_url;
+        // Dev channel copies of the two urls above; empty = the client has no dev channel.
+        std::string dev_manifest_url;
+        std::string dev_folder_url;
         // Modes this client serves ("sp", "mp", ...). Empty = every mode of the game.
         std::vector<std::string> modes;
         // The `appdata` root: client's appdata dir. Empty = same as the game's install path.
@@ -72,6 +94,15 @@ namespace game_config
         // Effective "launch as admin" value: user property if set, else requires_elevation default.
         bool launch_elevated() const;
 
+        bool has_dev_channel() const;
+        // Effective client channel: the user's pick if set, else the launcher's own build channel.
+        bool uses_dev_channel() const;
+
+        std::string launch_flag_property(const launch_flag_t& flag) const;
+        bool launch_flag_enabled(const launch_flag_t& flag) const;
+        // The stored choice if it is still one of the flag's choices, else null.
+        const launch_choice_t* launch_flag_choice(const launch_flag_t& flag) const;
+
         // Every exe this game can run as: launch exe, per-mode exes, and known child/companion exes.
         std::vector<std::string> collect_exes() const;
 
@@ -90,6 +121,8 @@ namespace game_config
         std::string exe_name;
         std::string update_manifest_url;
         std::string update_folder_url;
+        std::string dev_manifest_url;
+        std::string dev_folder_url;
         std::string manifest_path;
         std::vector<std::string> required_updater_files;
         std::vector<std::string> valid_game_files;
@@ -103,6 +136,7 @@ namespace game_config
         std::unordered_map<std::string, std::string> plutonium_game_names;
         std::string default_args;  // Arguments always passed when launching, regardless of mode
         std::string name_argument; // Command-line prefix for setting in-game name (e.g. "+set name", "-name"). Empty = unsupported.
+        std::vector<launch_flag_t> launch_flags;
         std::string pluto_path_key;
         std::string base_folder;
         std::string base_game;
@@ -160,6 +194,10 @@ namespace game_config
     bool has_multiple_modes(const std::string& game);
     std::optional<std::string> get_mode_argument(const std::string& game, const std::string& mode);
     std::string get_launch_arguments(const std::string& game, const std::string& mode = "");
+    // Client channel a game follows until the user picks one: develop launcher builds pull dev clients.
+    bool build_defaults_to_dev_channel();
+    // The arguments of every launch flag the user turned on, space separated.
+    std::string get_launch_flag_arguments(const game_config_t& config);
     std::string get_exe_for_mode(const std::string& game, const std::string& mode);
     bool validate_game_path(const std::string& game, const std::filesystem::path& path);
     // OS-level check: any of the game's executables is running. `game` is the wire id (game_config.id).

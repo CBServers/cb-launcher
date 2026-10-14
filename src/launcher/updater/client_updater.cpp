@@ -172,8 +172,9 @@ namespace client_updater
           client_id_(client.client_id), store_routed_(game_config::is_store_routed(config)),
           skip_files_(skip_files), progress_listener_(listener)
     {
-        this->update_manifest_url_ = client.update_manifest_url;
-        this->update_folder_url_ = client.update_folder_url;
+        const auto dev = !client.dev_manifest_url.empty() && !client.dev_folder_url.empty() && config.uses_dev_channel();
+        this->update_manifest_url_ = dev ? client.dev_manifest_url : client.update_manifest_url;
+        this->update_folder_url_ = dev ? client.dev_folder_url : client.update_folder_url;
 
         // Keyed on the client, so two clients of one game can't overwrite each other's cache
         // and diff away each other's files. Client ids are unique across all games.

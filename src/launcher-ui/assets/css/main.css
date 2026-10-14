@@ -2955,6 +2955,28 @@ html[data-theme="dark"] .setup-button {
     font-weight: 400;
 }
 
+.game-settings-popup .setting-description.is-risky {
+    color: var(--warn);
+}
+
+.game-settings-popup .settings-save-status {
+    margin-left: auto;
+    margin-right: 14px;
+    color: var(--play);
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease);
+}
+
+.game-settings-popup .settings-save-status.visible {
+    opacity: 1;
+}
+
+.game-settings-popup .settings-save-status.is-error {
+    color: var(--danger);
+}
+
 .game-settings-popup .setting-text-input,
 .inline-game-settings .setting-text-input {
     min-width: 220px;
