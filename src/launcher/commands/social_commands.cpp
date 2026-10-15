@@ -113,6 +113,7 @@ namespace commands::social_commands
             obj.AddMember("directJoin", person.direct_join, allocator);
             obj.AddMember("openable", person.openable, allocator);
             obj.AddMember("sameMatch", person.same_match, allocator);
+            obj.AddMember("sameParty", person.same_party, allocator);
             return obj;
         }
 

@@ -34,6 +34,7 @@ namespace discord
         bool direct_join{false};      // joinable on a public/dedicated server => "Join" (no host approval)
         bool openable{false};         // closed private match we could knock on (host opens on approve)
         bool same_match{false};       // already in the match we're in => joining/inviting is a no-op
+        bool same_party{false};       // same_match on a native party identity ("P" match id)
         std::string activity_details; // game name from their launcher presence, empty if none
         std::string activity_state;   // mode/line 3 from their launcher presence, empty if none
 

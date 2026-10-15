@@ -99,6 +99,7 @@ namespace social
         bool direct_join{false}; // public/dedicated server => join without host approval
         bool openable{false};    // closed private match we can knock on
         bool same_match{false};
+        bool same_party{false}; // same_match on a native party identity ("P" match id)
         std::string match_id;
     };
 

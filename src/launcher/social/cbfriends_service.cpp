@@ -1470,6 +1470,7 @@ namespace social
         for (auto& f : snap.friends)
         {
             f.same_match = !my_match.empty() && !f.match_id.empty() && f.match_id == my_match && f.game == my_game;
+            f.same_party = f.same_match && f.match_id.front() == 'P';
         }
 
         std::function<void()> notify;

@@ -226,8 +226,10 @@ namespace discord
             {
                 const bool same = !own_match_id.empty() && entry.match_id == own_match_id
                     && entry.game_id == own_game_id;
-                changed = changed || same != entry.same_match;
+                const bool party = same && entry.match_id.front() == 'P';
+                changed = changed || same != entry.same_match || party != entry.same_party;
                 entry.same_match = same;
+                entry.same_party = party;
             }
             return changed;
         }

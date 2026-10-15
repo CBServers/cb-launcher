@@ -414,7 +414,7 @@
 
     // Takes a CB person or a Discord friend; both carry the same join flags.
     function matchChip(src) {
-        if (src.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(tf('inYourMatch'))}</span>`;
+        if (src.sameMatch) return `<span class="friend-chip" data-kind="same">${escapeHtml(tf(src.sameParty ? 'inYourParty' : 'inYourMatch'))}</span>`;
         if (src.joinable) return `<span class="friend-chip" data-kind="joinable">${escapeHtml(tf('joinable'))}</span>`;
         if (src.openable) return `<span class="friend-chip" data-kind="open">${escapeHtml(tf('openMatch'))}</span>`;
         return '';
