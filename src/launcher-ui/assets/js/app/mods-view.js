@@ -171,11 +171,17 @@
         }
     }
 
+    // A Steam subscription can share its workshop id with the launcher's own copy; the launcher's copy speaks for the id.
+    function installedFor(s, workshopId) {
+        const copies = (s.installed || []).filter(mod => mod.workshopId === workshopId);
+        return copies.find(mod => mod.source !== 'steam') || copies[0];
+    }
+
     // Search results arrive with installed/updateAvailable cleared; re-mark them from the installed list.
     function syncInstalledFlags(s) {
         if (!s.results || !s.installed) return;
         s.results.items.forEach(item => {
-            const installed = s.installed.find(mod => mod.workshopId === item.id);
+            const installed = installedFor(s, item.id);
             item.installed = !!installed;
             item.updateAvailable = !!(installed && installed.updateAvailable);
         });
@@ -190,13 +196,13 @@
             ]);
             s.installed = installed;
             // Overridden ids compare against the hosted version; Steam's updated time is irrelevant for them.
-            const steamIds = installed.filter(mod => mod.workshopId && !overrides[mod.workshopId]).map(mod => mod.workshopId);
+            const steamIds = [...new Set(installed.filter(mod => mod.workshopId && !overrides[mod.workshopId]).map(mod => mod.workshopId))];
             const times = await window.ModsService.getUpdatedTimes(gameId, steamIds);
             s.installed.forEach(mod => {
                 const override = overrides[mod.workshopId];
-                mod.updateAvailable = override
+                mod.updateAvailable = installedFor(s, mod.workshopId) === mod && (override
                     ? override.version !== (mod.version || '')
-                    : !!(times[mod.workshopId] && times[mod.workshopId] > Date.parse(mod.installedAt) / 1000);
+                    : !!(times[mod.workshopId] && times[mod.workshopId] > Date.parse(mod.installedAt) / 1000));
             });
         } catch (error) {
             console.error(error);
@@ -270,7 +276,7 @@
     }
 
     function installedRowHTML(gameId, s, mod) {
-        const job = jobFor(gameId, mod.workshopId);
+        const job = installedFor(s, mod.workshopId) === mod ? jobFor(gameId, mod.workshopId) : null;
         const meta = [
             mod.version && mod.version !== '—' ? t('mods.version', { version: mod.version }) : null,
             GameUtils.formatBytes(mod.size || 0),
@@ -338,7 +344,7 @@
 
     function updateRow(gameId, workshopId) {
         const job = jobFor(gameId, workshopId);
-        const mod = (getState(gameId).installed || []).find(m => m.workshopId === workshopId);
+        const mod = installedFor(getState(gameId), workshopId);
         if (!job || !mod) return;
         const row = query(gameId, `.mods-row[data-mod-id="${CSS.escape(mod.id)}"]`);
         const label = row && row.querySelector('.mods-row-progress');
@@ -593,7 +599,7 @@
             window.showToast(t('mods.needsInstall', { game: gameName(gameId) }), 'info');
             return;
         }
-        const installed = (s.installed || []).find(mod => mod.workshopId === id);
+        const installed = installedFor(s, id);
         const item = (s.results && s.results.items.find(entry => entry.id === id)) || fallback;
         if (!item) {
             return installed && installed.updateAvailable ? updateMod(gameId, installed.id) : undefined;
@@ -713,7 +719,7 @@
         const s = getState(gameId);
         // The detail popup also opens from the installed list, where the workshop
         // search results may not hold this item.
-        const installed = (s.installed || []).find(mod => mod.workshopId === id);
+        const installed = installedFor(s, id);
         const item = (s.results && s.results.items.find(entry => entry.id === id))
             || { id, installed: !!installed, updateAvailable: !!(installed && installed.updateAvailable) };
         return cardButton(gameId, item);

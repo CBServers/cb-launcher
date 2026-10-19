@@ -699,14 +699,6 @@ namespace mods
                 }
 
                 const auto workshop_id = info->publisher_id.empty() ? dirname : info->publisher_id;
-                const auto duplicate = std::any_of(result.begin(), result.end(), [&workshop_id](const installed_mod& mod)
-                {
-                    return !mod.workshop_id.empty() && mod.workshop_id == workshop_id;
-                });
-                if (duplicate)
-                {
-                    continue;
-                }
 
                 installed_mod mod{};
                 mod.id = make_id(FOLDER_STEAM, dirname);
