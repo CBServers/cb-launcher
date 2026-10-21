@@ -703,7 +703,9 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                // One changed file per depot the Sep 2026 Steam update changed in place (MP exe, content, English), plus the SP exe
+                .version_check_files = {"iw5mp.exe", "iw5sp.exe", "zone/english/patch_mp.ff"}
             }
         },
         {
@@ -752,7 +754,7 @@ namespace game_config
                 .dev_folder_url = CLIENT_UPDATE_SERVER "iw6x-dev/",
                 .manifest_path = "manifest/ghosts.json",
                 .required_updater_files = {},
-                .valid_game_files = {"iw6mp64_ship.exe", "iw6mp64_ship.exe"},
+                .valid_game_files = {"iw6mp64_ship.exe", "iw6sp64_ship.exe"},
                 .mode_arguments = {
                     {"sp", "-singleplayer"},
                     {"mp", "-multiplayer"}
@@ -767,7 +769,10 @@ namespace game_config
                 .property_overrides = {},
                 .client_data_folders = {"data"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
-                .supports_steam_install = true
+                .supports_steam_install = true,
+                // One changed file per depot the 2026 Steam update touched: both exes, MP content, shared content and English
+                .version_check_files = {"iw6mp64_ship.exe", "iw6sp64_ship.exe", "zone/patch_common_mp.ff", "zone/code_pre_gfx.ff",
+                    "zone/english/eng_patch_common_mp.ff"}
             }
         },
         {
@@ -800,7 +805,10 @@ namespace game_config
                 .property_overrides = {},
                 .client_data_folders = {"data"},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
-                .supports_steam_install = true
+                .supports_steam_install = true,
+                // One changed file per depot the 2026 Steam update changed in place: both exes, MP common, English ffs
+                .version_check_files = {"s1_mp64_ship.exe", "s1_sp64_ship.exe", "zone/patch_common_zm_mp.ff",
+                    "zone/english/eng_patch_common_mp.ff"}
             }
         },
         {

@@ -29,6 +29,8 @@ namespace game_updater
         bool is_update_needed() const;
 
         [[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
+        // True when a present version_check_files entry, within the components run() covers, doesn't match its manifest hash
+        [[nodiscard]] bool is_other_version() const;
 
         bool needs_to_update(const std::string& hash) const;
 
@@ -61,10 +63,16 @@ namespace game_updater
         // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
         bool remap_zone_{false};
         bool remap_video_{false};
-        bool skip_hash_check_;
+        // Mutable so run() can fall back to hashing when the install turns out to be another game version
+        mutable bool skip_hash_check_;
         bool delete_deselected_;
         updater::ui_progress_listener* progress_listener_;
         const std::atomic<bool>* cancel_flag_{nullptr};
+
+        // Stored selection without the virtual base_game_ ids
+        [[nodiscard]] std::vector<std::string> get_stored_components() const;
+        // Components a pass covers: the stored selection plus required ones, else the required and default-enabled set
+        [[nodiscard]] std::vector<std::string> get_update_components(const std::vector<std::string>& stored) const;
 
         void update_file(const updater::file_info& file) const;
 

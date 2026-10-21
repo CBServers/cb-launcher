@@ -170,6 +170,9 @@ namespace game_config
         // Game can be installed from a Steam copy (lacks zone/ and raw/video/ folders), so those manifest prefixes are remapped.
         bool supports_steam_install = false;
 
+        // Small files whose hashes pin the game version; a mismatch makes size-only passes hash everything and launches restore the game
+        std::vector<std::string> version_check_files;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };

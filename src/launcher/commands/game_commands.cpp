@@ -801,6 +801,27 @@ namespace commands::game_commands
                     }
                 }
 
+                if (!config.version_check_files.empty() && !utils::flags::has_flag("offline"))
+                {
+                    // Launching a mode selects its component, so its files are checked and repaired even if setup left it unticked
+                    if (const auto it = config.mode_components.find(mode); it != config.mode_components.end())
+                    {
+                        auto selected = config.get_list(property_keys::SELECTED_COMPONENTS);
+                        if (!selected.empty() && std::ranges::find(selected, it->second) == selected.end())
+                        {
+                            selected.push_back(it->second);
+                            config.set_list(property_keys::SELECTED_COMPONENTS, selected);
+                        }
+                    }
+
+                    game_updater::game_updater game_updater(config, false, false, &progress_listener);
+                    if (game_updater.is_other_version())
+                    {
+                        cef_ui.show_message_box("Game Repair Required", config.display_name + " game files were changed, likely by a Steam update. Please wait while they are restored before you can start playing.");
+                        game_updater.run();
+                    }
+                }
+
                 const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
                 const bool skip_client_update = (skip_client_update_prop && *skip_client_update_prop == "true")
                     || utils::flags::has_flag("offline");

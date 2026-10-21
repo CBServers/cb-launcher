@@ -305,50 +305,33 @@ namespace game_updater
 
         check_cancelled();
 
-        // Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
-        std::vector<std::string> selected_components = config_.get_list(property_keys::SELECTED_COMPONENTS);
+        const auto stored_components = this->get_stored_components();
 
-        // Remove virtual base game component IDs (they're handled separately in verify-game command)
-        selected_components.erase(
-            std::remove_if(selected_components.begin(), selected_components.end(),
-                [](const std::string& comp_id) {
-                    return comp_id.starts_with("base_game_");
-                }),
-            selected_components.end()
-        );
-
-        if (!selected_components.empty())
+        // Only delete files from deselected components if explicitly requested
+        if (!stored_components.empty() && this->delete_deselected_)
         {
-            // Only delete files from deselected components if explicitly requested
-            if (this->delete_deselected_)
+            const auto files_to_delete = this->get_files_to_delete(stored_components);
+            if (!files_to_delete.empty())
             {
-                const auto files_to_delete = this->get_files_to_delete(selected_components);
-                if (!files_to_delete.empty())
-                {
-                    this->delete_files(files_to_delete);
-                }
+                this->delete_files(files_to_delete);
             }
         }
-        else
+
+        if (stored_components.empty())
         {
-            // No component selection stored - only include required files
-            std::unordered_set<std::string> required_components;
-            for (const auto& component : this->manifest_.components)
-            {
-                if (component.second.required || component.second.default_enabled)
-                {
-                    required_components.insert(component.first);
-                }
-            }
-            selected_components.assign(required_components.begin(), required_components.end());
             printf("No component selection found, including required components\n");
         }
 
-        // A stored selection missing a required component (base, redist) must never narrow the update.
-        selected_components = this->with_required_components(selected_components);
-
         // Filter manifest files by selected components
-        const auto filtered_files = this->filter_files_by_components(this->manifest_.files, selected_components);
+        const auto filtered_files = this->filter_files_by_components(this->manifest_.files,
+            this->get_update_components(stored_components));
+
+        // Another game version can match every size, so a size-only pass hashes everything once a version file differs
+        if (this->skip_hash_check_ && this->is_other_version())
+        {
+            printf("Install is a different game version, verifying hashes\n");
+            this->skip_hash_check_ = false;
+        }
 
         // Initialize progress tracking for verification phase with filtered files
         if (this->progress_listener_)
@@ -418,6 +401,69 @@ namespace game_updater
         }
 
         printf("Update complete!\n");
+    }
+
+    std::vector<std::string> game_updater::get_stored_components() const
+    {
+        // Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
+        auto components = config_.get_list(property_keys::SELECTED_COMPONENTS);
+
+        // Remove virtual base game component IDs (they're handled separately in verify-game command)
+        std::erase_if(components, [](const std::string& comp_id) { return comp_id.starts_with("base_game_"); });
+        return components;
+    }
+
+    std::vector<std::string> game_updater::get_update_components(const std::vector<std::string>& stored) const
+    {
+        if (!stored.empty())
+        {
+            // A stored selection missing a required component (base, redist) must never narrow the update.
+            return this->with_required_components(stored);
+        }
+
+        // No component selection stored - only include required files
+        std::vector<std::string> components;
+        for (const auto& [id, info] : this->manifest_.components)
+        {
+            if (info.required || info.default_enabled)
+            {
+                components.push_back(id);
+            }
+        }
+
+        return components;
+    }
+
+    bool game_updater::is_other_version() const
+    {
+        const auto& names = this->config_.version_check_files;
+        if (this->install_path.empty() || names.empty())
+        {
+            return false;
+        }
+
+        const std::unordered_set<std::string> wanted(names.begin(), names.end());
+        const auto files = this->filter_files_by_components(this->manifest_.files,
+            this->get_update_components(this->get_stored_components()));
+
+        return std::ranges::any_of(files, [&](const updater::file_info& file)
+        {
+            if (!wanted.contains(file.name))
+            {
+                return false;
+            }
+
+            // A missing file is for the normal pass to fetch, not a sign of another version
+            const auto existing = this->resolve_existing(file);
+            if (!existing.has_value())
+            {
+                return false;
+            }
+
+            printf("Checking game version: %s\n", get_filename(file.name).data());
+            return utils::io::file_size(*existing) != file.size
+                || utils::hash::get_file_hash(*existing, [this]() { wait_if_paused_or_cancelled(); }) != file.hash;
+        });
     }
 
     size_t game_updater::get_game_size() const
@@ -1411,17 +1457,13 @@ namespace game_updater
                 auto& stats = file.localized ? localized_stats[component] : component_stats[component];
                 stats.second++; // Increment total
 
-                // First candidate present on disk decides, mirroring resolve_existing
+                // Presence alone counts: a copy of another game version still holds the component, and verify replaces mismatched files
                 for (const auto& candidate : this->get_candidate_paths(file))
                 {
                     const auto it = file_stats.find(candidate);
                     if (it != file_stats.end() && it->second.exists)
                     {
-                        if (it->second.size == file.size)
-                        {
-                            stats.first++;
-                        }
-
+                        stats.first++;
                         break;
                     }
                 }
