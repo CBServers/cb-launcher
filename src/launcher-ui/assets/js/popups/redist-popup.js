@@ -48,10 +48,10 @@ class RedistPopupController {
         });
     }
 
-    statusLabel(status, progress) {
+    statusLabel(status, progress, reboot) {
         switch (status) {
-            case 'installed':
-            case 'completed': return this.t('support.redistStatusInstalled');
+            case 'installed': return this.t('support.redistStatusInstalled');
+            case 'completed': return this.t(reboot ? 'support.redistStatusRestart' : 'support.redistStatusInstalled');
             case 'pending': return this.t('support.redistStatusMissing');
             case 'downloading': return this.t('support.redistStatusDownloading') + ' ' + (progress || 0) + '%';
             case 'installing': return this.t('support.redistStatusInstalling');
@@ -84,7 +84,7 @@ class RedistPopupController {
     renderArchChip(p) {
         const archLabel = p.arch ? `<span class="redist-arch">${p.arch}</span>` : '';
         const titleAttr = p.error ? ` title="${p.error.replace(/"/g, '&quot;')}"` : '';
-        const badge = `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress)}</span>`;
+        const badge = `<span class="redist-badge ${p.status}"${titleAttr}>${this.statusLabel(p.status, p.progress, p.reboot)}</span>`;
         const progressFill = p.status === 'downloading'
             ? `<div class="redist-row-progress" style="width:${p.progress || 0}%"></div>`
             : '';
@@ -160,6 +160,7 @@ class RedistPopupController {
             if (!state.running && this.pollId) {
                 clearInterval(this.pollId);
                 this.pollId = null;
+                if (window.GameUtils) window.GameUtils.offerFeatureSettings(state.packages);
             }
             return state;
         } catch (e) {

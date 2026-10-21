@@ -37,6 +37,8 @@ namespace redist
         bool is_directx = false;
         // Installed when any alternative passes (registry fast path first, then files on disk).
         std::vector<detect_alternative> detect;
+        // Windows Feature on Demand added through DISM instead of a downloaded installer.
+        std::string capability;
     };
 
     const std::vector<package_def>& all_packages();

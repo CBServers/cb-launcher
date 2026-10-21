@@ -233,6 +233,20 @@ namespace redist
                     dx_runtime_files(),
                 }
             },
+            {
+                "media_feature_pack", "media_feature_pack", "Windows Media Feature Pack", "",
+                "", "", "",
+                false,
+                {
+                    // BO3 exits unless it can create the H.264 decoder MFT (CLSID_CMSH264DecoderMFT), which N editions lack.
+                    {
+                        { detect_kind::registry_key_exists,
+                            { L"SOFTWARE\\Classes\\CLSID\\{62CE7E72-4C71-4D20-B15D-452831A87D9D}\\InprocServer32" }, L"", 0 },
+                        { detect_kind::file_exists, { L"%SystemRoot%\\System32\\msmpeg2vdec.dll" }, L"", 0 },
+                    },
+                },
+                "Media.MediaFeaturePack~~~~0.0.1.0"
+            },
         };
         return packages;
     }

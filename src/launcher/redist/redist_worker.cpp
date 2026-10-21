@@ -69,7 +69,7 @@ namespace redist
                 }
             }
 
-            void send_package(const std::string& id, const char* status, const std::string& error = {})
+            void send_package(const std::string& id, const char* status, const std::string& error = {}, bool reboot = false)
             {
                 this->send_line(build_json_object([&](auto& w)
                 {
@@ -79,6 +79,10 @@ namespace redist
                     if (!error.empty())
                     {
                         w.Key("error"); w.String(error.data(), static_cast<rapidjson::SizeType>(error.size()));
+                    }
+                    if (reboot)
+                    {
+                        w.Key("reboot"); w.Bool(true);
                     }
                 }));
             }
@@ -195,6 +199,51 @@ namespace redist
             return false;
         }
 
+        std::string dism_error(DWORD code)
+        {
+            const auto hex = std::format("0x{:08X}", code);
+            switch (code)
+            {
+            case 0x800F0954: return "Windows Update is unavailable or managed by your organization (" + hex + ")";
+            case 0x800F081F: return "Windows could not download the feature (" + hex + ")";
+            case 0x800F080C: return "This version of Windows does not offer this feature (" + hex + ")";
+            // Seen on an un-updated Pro N install: the feature's patches need the latest cumulative update.
+            case 0x800F0991: return "Windows needs its latest updates first. Run Windows Update, then try again (" + hex + ")";
+            default: return "DISM error " + hex;
+            }
+        }
+
+        bool install_capability(const package_def& def, const std::filesystem::path& working_dir,
+            std::string& error, bool& reboot)
+        {
+            wchar_t system_dir[MAX_PATH]{};
+            if (!GetSystemDirectoryW(system_dir, ARRAYSIZE(system_dir)))
+            {
+                error = "System directory unavailable";
+                return false;
+            }
+
+            // dism.exe is catalog-signed and in admin-only System32, so it skips the staged-installer signature check.
+            const auto dism = std::filesystem::path(system_dir) / "dism.exe";
+            const auto args = "/Online /Add-Capability /CapabilityName:" + def.capability + " /NoRestart /Quiet";
+
+            DWORD exit_code = 0;
+            if (!run_and_wait(dism, args, working_dir, exit_code))
+            {
+                error = "DISM launch failed (" + std::to_string(exit_code) + ")";
+                return false;
+            }
+
+            if (exit_code == ERROR_SUCCESS || exit_code == ERROR_SUCCESS_REBOOT_REQUIRED)
+            {
+                reboot = exit_code == ERROR_SUCCESS_REBOOT_REQUIRED;
+                return true;
+            }
+
+            error = dism_error(exit_code);
+            return false;
+        }
+
         // %SystemRoot%\Temp is admin-writable only, so a staged copy can't be swapped
         // by a medium-IL process between the signature check and execution.
         std::filesystem::path make_staging_dir()
@@ -280,6 +329,23 @@ namespace redist
         for (const auto* def : defs)
         {
             pipe.send_package(def->id, "installing");
+
+            if (!def->capability.empty())
+            {
+                std::string error;
+                auto reboot = false;
+                if (install_capability(*def, staging_dir, error, reboot))
+                {
+                    pipe.send_package(def->id, "completed", {}, reboot);
+                    ++installed;
+                }
+                else
+                {
+                    pipe.send_package(def->id, "failed", error);
+                    ++failed;
+                }
+                continue;
+            }
 
             const auto source = cache / def->filename;
             const auto staged = staging_dir / def->filename;

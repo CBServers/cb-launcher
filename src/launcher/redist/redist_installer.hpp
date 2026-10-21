@@ -27,6 +27,7 @@ namespace redist
         package_status status = package_status::unknown;
         int progress_percent = 0;
         std::string error;
+        bool reboot_required = false;
     };
 
     struct redist_state

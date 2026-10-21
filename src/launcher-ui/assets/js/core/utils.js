@@ -991,10 +991,11 @@ class GameUtils {
         return { percent, currentName: current ? current.name : null };
     }
 
+    // Resolves { ok, packages } with the scoped packages so callers can see reboot and capability flags.
     static async installRedistsWithProgressBar(missingGroups, uiGameId) {
         const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
 
-        if (!await window.guardOnline()) return false;
+        if (!await window.guardOnline()) return { ok: false, packages: [] };
 
         const scopeIds = this.expandMissingToPackageIds(missingGroups);
 
@@ -1005,18 +1006,18 @@ class GameUtils {
         const alreadyRunning = !!(initial && initial.running);
 
         if (!alreadyRunning) {
-            if (scopeIds.length === 0) return true;
+            if (scopeIds.length === 0) return { ok: true, packages: [] };
             try { await window.executeCommand('install-redist', { ids: scopeIds }); }
-            catch (e) { console.error('install-redist failed', e); return false; }
+            catch (e) { console.error('install-redist failed', e); return { ok: false, packages: [] }; }
         }
 
         window.ProgressManager.show(uiGameId, t('installer.installingComponents'), null);
 
         return new Promise((resolve) => {
-            const finish = (success) => {
+            const finish = (ok, packages = []) => {
                 if (pollId) clearInterval(pollId);
                 window.ProgressManager.hide();
-                resolve(success);
+                resolve({ ok, packages });
             };
 
             const tick = async () => {
@@ -1030,14 +1031,45 @@ class GameUtils {
                 window.ProgressManager.update(percent, msg);
 
                 if (state.running === false) {
-                    const failed = (state.packages || []).some(p => p.status === 'failed');
-                    finish(!failed);
+                    const all = state.packages || [];
+                    const failed = all.some(p => p.status === 'failed');
+                    finish(!failed, all.filter(p => scopeIds.includes(p.id)));
                 }
             };
 
             tick();
             const pollId = setInterval(tick, 500);
         });
+    }
+
+    // Windows features that DISM could not add can still be added by hand from Settings. Returns true when shown.
+    static async offerFeatureSettings(packages) {
+        const failed = (packages || []).filter(p => p.capability && p.status === 'failed');
+        if (!failed.length || typeof window.showMessageBox !== 'function') return false;
+
+        const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
+        const p = failed[0];
+        const choice = await window.showMessageBox(
+            t('installer.featureFailedTitle', { name: p.name }),
+            t('installer.featureFailedBody', { name: p.name, error: p.error || '' }),
+            [t('installer.openOptionalFeatures'), t('common.cancel')]);
+        if (choice === 0) window.executeCommand('open-url', { url: 'ms-settings:optionalfeatures' });
+        return true;
+    }
+
+    // Returns true when a just-installed package needs a Windows restart before games can use it.
+    static async warnRestartRequired(packages) {
+        const pending = (packages || []).filter(p => p.reboot);
+        if (!pending.length) return false;
+
+        const t = (k, vars) => window.LauncherI18n ? window.LauncherI18n.t(k, vars) : k;
+        if (typeof window.showMessageBox === 'function') {
+            await window.showMessageBox(
+                t('installer.restartRequiredTitle'),
+                t('installer.restartRequiredBody', { name: pending.map(p => p.name).join(', ') }),
+                [t('common.ok')]);
+        }
+        return true;
     }
 
     /**
@@ -1146,14 +1178,16 @@ class GameUtils {
                         } catch (e) { console.error('set-property skip-redist-check failed', e); }
                     }
                 } else {
-                    const ok = await GameUtils.installRedistsWithProgressBar(missing, uiGameId);
+                    const { ok, packages } = await GameUtils.installRedistsWithProgressBar(missing, uiGameId);
                     if (!ok) {
+                        if (await GameUtils.offerFeatureSettings(packages)) return;
                         const i18n = window.LauncherI18n;
                         if (typeof window.showToast === 'function') {
                             window.showToast(i18n ? i18n.t('installer.redistInstallFailed') : 'Failed to install required components.', 'error', 6000);
                         }
                         return;
                     }
+                    if (await GameUtils.warnRestartRequired(packages)) return;
                 }
             }
         }

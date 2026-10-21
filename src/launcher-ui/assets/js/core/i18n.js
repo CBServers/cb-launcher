@@ -467,6 +467,7 @@
                 redistStatusDownloading: 'Downloading',
                 redistStatusInstalling: 'Installing',
                 redistStatusFailed: 'Failed',
+                redistStatusRestart: 'Restart required',
                 popup: {
                     title: 'Manage Redistributables',
                     reinstallAllTitle: 'Reinstall all redistributables?',
@@ -483,7 +484,12 @@
                 dontCheckRedistAgain: 'Don\'t check for missing redistributables again',
                 installingComponents: 'Installing required components…',
                 installingNamed: 'Installing {{name}}…',
-                redistInstallFailed: 'Failed to install required components. Open the Support page and try the Manage redistributables option.'
+                redistInstallFailed: 'Failed to install required components. Open the Support page and try the Manage redistributables option.',
+                featureFailedTitle: 'Could not install {{name}}',
+                featureFailedBody: 'Windows could not add {{name}} automatically: {{error}}. You can add it yourself from Optional features in Settings, then restart Windows.',
+                openOptionalFeatures: 'Open Optional features',
+                restartRequiredTitle: 'Restart required',
+                restartRequiredBody: '{{name}} was installed. Restart Windows before launching the game.'
             },
             settings: {
                 title: 'Settings',
@@ -1254,6 +1260,7 @@
                 redistStatusDownloading: 'Telechargement',
                 redistStatusInstalling: 'Installation',
                 redistStatusFailed: 'Echec',
+                redistStatusRestart: 'Redemarrage requis',
                 popup: {
                     title: 'Gerer les redistribuables',
                     reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
@@ -1270,7 +1277,12 @@
                 dontCheckRedistAgain: 'Ne plus verifier les redistribuables manquants',
                 installingComponents: 'Installation des composants requis…',
                 installingNamed: 'Installation de {{name}}…',
-                redistInstallFailed: 'Echec de l’installation des composants requis. Ouvrez la page Support et utilisez Gerer les redistribuables.'
+                redistInstallFailed: 'Echec de l’installation des composants requis. Ouvrez la page Support et utilisez Gerer les redistribuables.',
+                featureFailedTitle: 'Impossible d\'installer {{name}}',
+                featureFailedBody: 'Windows n\'a pas pu ajouter {{name}} automatiquement : {{error}}. Vous pouvez l\'ajouter vous-meme depuis Fonctionnalites facultatives dans les Parametres, puis redemarrer Windows.',
+                openOptionalFeatures: 'Ouvrir les fonctionnalites facultatives',
+                restartRequiredTitle: 'Redemarrage requis',
+                restartRequiredBody: '{{name}} a ete installe. Redemarrez Windows avant de lancer le jeu.'
             },
             settings: {
                 title: 'Parametres',
@@ -2041,6 +2053,7 @@
                 redistStatusDownloading: 'Descargando',
                 redistStatusInstalling: 'Instalando',
                 redistStatusFailed: 'Fallo',
+                redistStatusRestart: 'Requiere reinicio',
                 popup: {
                     title: 'Administrar redistribuibles',
                     reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
@@ -2057,7 +2070,12 @@
                 dontCheckRedistAgain: 'No volver a comprobar los redistribuibles faltantes',
                 installingComponents: 'Instalando componentes requeridos…',
                 installingNamed: 'Instalando {{name}}…',
-                redistInstallFailed: 'Fallo al instalar los componentes requeridos. Abre la pagina de Soporte y usa Administrar redistribuibles.'
+                redistInstallFailed: 'Fallo al instalar los componentes requeridos. Abre la pagina de Soporte y usa Administrar redistribuibles.',
+                featureFailedTitle: 'No se pudo instalar {{name}}',
+                featureFailedBody: 'Windows no pudo agregar {{name}} automaticamente: {{error}}. Puedes agregarlo tu mismo desde Caracteristicas opcionales en Configuracion y luego reiniciar Windows.',
+                openOptionalFeatures: 'Abrir Caracteristicas opcionales',
+                restartRequiredTitle: 'Reinicio necesario',
+                restartRequiredBody: '{{name}} se instalo. Reinicia Windows antes de ejecutar el juego.'
             },
             settings: {
                 title: 'Ajustes',
@@ -2827,6 +2845,7 @@
                 redistStatusDownloading: 'Загрузка',
                 redistStatusInstalling: 'Установка',
                 redistStatusFailed: 'Ошибка',
+                redistStatusRestart: 'Требуется перезагрузка',
                 popup: {
                     title: 'Управление распространяемыми компонентами',
                     reinstallAllTitle: 'Переустановить все распространяемые компоненты?',
@@ -2843,7 +2862,12 @@
                 dontCheckRedistAgain: 'Больше не проверять отсутствующие распространяемые компоненты',
                 installingComponents: 'Установка необходимых компонентов…',
                 installingNamed: 'Установка {{name}}…',
-                redistInstallFailed: 'Не удалось установить необходимые компоненты. Откройте страницу Поддержки и воспользуйтесь пунктом Управление распространяемыми компонентами.'
+                redistInstallFailed: 'Не удалось установить необходимые компоненты. Откройте страницу Поддержки и воспользуйтесь пунктом Управление распространяемыми компонентами.',
+                featureFailedTitle: 'Не удалось установить {{name}}',
+                featureFailedBody: 'Windows не удалось автоматически добавить {{name}}: {{error}}. Вы можете добавить его вручную в разделе «Дополнительные компоненты» в Параметрах, затем перезагрузите Windows.',
+                openOptionalFeatures: 'Открыть дополнительные компоненты',
+                restartRequiredTitle: 'Требуется перезагрузка',
+                restartRequiredBody: '{{name}} установлен. Перезагрузите Windows перед запуском игры.'
             },
             settings: {
                 title: 'Настройки',

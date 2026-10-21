@@ -458,6 +458,8 @@ namespace commands::ui_commands
                 obj.AddMember("status", str(status_str), allocator);
                 obj.AddMember("progress", p.progress_percent, allocator);
                 obj.AddMember("error", str(p.error), allocator);
+                obj.AddMember("reboot", p.reboot_required, allocator);
+                obj.AddMember("capability", def && !def->capability.empty(), allocator);
                 packages.PushBack(obj, allocator);
             }
             response.AddMember("packages", packages, allocator);

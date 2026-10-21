@@ -219,18 +219,28 @@ namespace redist
                 if (targeted)
                 {
                     if (std::find(target_ids.begin(), target_ids.end(), this->state_.packages[i].id) == target_ids.end()) continue;
+                    // Re-adding a Windows feature that is present repairs nothing and fails on editions that don't offer it.
+                    if (!defs[i].capability.empty() && this->state_.packages[i].status == package_status::installed) continue;
                     this->state_.packages[i].status = package_status::pending;
                     this->state_.packages[i].error.clear();
+                    this->state_.packages[i].reboot_required = false;
                 }
                 else if (this->state_.packages[i].status != package_status::pending) continue;
                 work_indices.push_back(i);
             }
         }
 
-        std::vector<size_t> downloaded;
+        std::vector<size_t> ready;
         for (auto i : work_indices)
         {
             const auto& def = defs[i];
+
+            // DISM fetches Windows features itself inside the elevated worker.
+            if (!def.capability.empty())
+            {
+                ready.push_back(i);
+                continue;
+            }
 
             {
                 std::lock_guard lock(this->mutex_);
@@ -241,7 +251,7 @@ namespace redist
 
             if (this->download_to(def.url, cache_dir() / def.filename, this->state_.packages[i]))
             {
-                downloaded.push_back(i);
+                ready.push_back(i);
             }
             else
             {
@@ -251,11 +261,11 @@ namespace redist
             }
         }
 
-        if (!downloaded.empty())
+        if (!ready.empty())
         {
             {
                 std::lock_guard lock(this->mutex_);
-                for (auto i : downloaded)
+                for (auto i : ready)
                 {
                     this->state_.packages[i].status = package_status::installing;
                     this->state_.packages[i].progress_percent = 100;
@@ -263,16 +273,18 @@ namespace redist
                 this->state_.overall_message = "Waiting for administrator approval...";
             }
 
-            this->run_elevated_phase(downloaded);
+            this->run_elevated_phase(ready);
         }
 
         {
             std::lock_guard lock(this->mutex_);
             size_t done = 0, failed = 0;
+            auto reboot = false;
             for (auto i : work_indices)
             {
                 if (this->state_.packages[i].status == package_status::completed) ++done;
                 else if (this->state_.packages[i].status == package_status::failed) ++failed;
+                reboot |= this->state_.packages[i].reboot_required;
             }
 
             this->state_.running = false;
@@ -283,7 +295,9 @@ namespace redist
             }
             else if (failed == 0)
             {
-                this->state_.overall_message = "All redistributables installed.";
+                this->state_.overall_message = reboot
+                    ? "All redistributables installed. Restart Windows to finish."
+                    : "All redistributables installed.";
             }
             else
             {
@@ -456,6 +470,7 @@ namespace redist
                 else if (status == "completed")
                 {
                     ps.status = package_status::completed;
+                    ps.reboot_required = doc.HasMember("reboot") && doc["reboot"].IsBool() && doc["reboot"].GetBool();
                 }
                 else if (status == "failed")
                 {

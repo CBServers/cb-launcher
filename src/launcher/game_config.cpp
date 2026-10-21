@@ -736,7 +736,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("boiii"),
                 .client_install_path_files = {"boiii.exe", "BlackOps3.exe"},
                 .client_data_folders = {"data"},
-                .required_redists = {"vcr2012", "vcr2013", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2012", "vcr2013", "vcr2022", "dx_jun2010", "media_feature_pack"}
             }
         },
         {
