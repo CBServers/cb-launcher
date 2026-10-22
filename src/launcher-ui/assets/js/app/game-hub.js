@@ -21,6 +21,53 @@
         return (q.active && q.active.gameId === id && q.active.blocksGameButtons) ? 'active' : 'queued';
     }
 
+    // Game page + Play/Setup header buttons, shared by the hub pages and Community rooms.
+    function actionsHTML() {
+        return `
+            <div class="game-hub-actions">
+                <button class="mods-btn" type="button" data-hub-page>${escapeHtml(t('hub.gamePage'))}</button>
+                <span data-hub-action></span>
+            </div>`;
+    }
+
+    function actionHTML(id, status) {
+        if (!status) return '';
+        const busyKind = busyKindFor(id);
+        if (status === 'installed') {
+            const state = window.GameStateManager && window.GameStateManager.getGameState(id);
+            const running = !!(state && state.isRunning);
+            const q = window.DownloadQueueManager;
+            const blocked = !!busyKind || !!(q && typeof q.isAnyBlockingActive === 'function' && q.isAnyBlockingActive());
+            return `<button class="game-hub-action" type="button" data-hub-play${running || blocked ? ' disabled' : ''}>${escapeHtml(t(running ? 'hub.running' : 'common.play'))}</button>`;
+        }
+        return `<button class="game-hub-action" type="button" data-hub-setup${busyKind ? ' disabled' : ''}>${escapeHtml(setupButtonLabel(status, busyKind, id))}</button>`;
+    }
+
+    function fillAction(host, id, status) {
+        if (!host || !host.isConnected) return;
+        host.innerHTML = actionHTML(id, status);
+        const play = host.querySelector('[data-hub-play]');
+        if (play) play.addEventListener('click', () => launchGame(id));
+        const setup = host.querySelector('[data-hub-setup]');
+        if (setup) setup.addEventListener('click', () => showSetupFlow(id));
+    }
+
+    // Rereads install and running state, so the button is right even off the hub pages.
+    async function updateActions(root, id) {
+        const host = root && root.querySelector('[data-hub-action]');
+        const gsm = window.GameStateManager;
+        if (!host || !gsm) return;
+        const cached = gsm.getGameState(id);
+        fillAction(host, id, cached && cached.installStatus);
+        try {
+            await gsm.updateGameState(id);
+        } catch (error) {
+            console.error(`Failed to read ${id} state for its header buttons`, error);
+        }
+        const state = gsm.getGameState(id);
+        fillAction(host, id, state && state.installStatus);
+    }
+
     function create(opts) {
         const statuses = {};
         let current = null;
@@ -105,28 +152,9 @@
 
         // ---- game view ----
 
-        function actionHTML(id) {
-            const status = statuses[id];
-            if (!status) return '';
-            const busyKind = busyKindFor(id);
-            if (status === 'installed') {
-                const state = window.GameStateManager && window.GameStateManager.getGameState(id);
-                const running = !!(state && state.isRunning);
-                const q = window.DownloadQueueManager;
-                const blocked = !!busyKind || !!(q && typeof q.isAnyBlockingActive === 'function' && q.isAnyBlockingActive());
-                return `<button class="game-hub-action" type="button" data-hub-play${running || blocked ? ' disabled' : ''}>${escapeHtml(t(running ? 'hub.running' : 'common.play'))}</button>`;
-            }
-            return `<button class="game-hub-action" type="button" data-hub-setup${busyKind ? ' disabled' : ''}>${escapeHtml(setupButtonLabel(status, busyKind, id))}</button>`;
-        }
-
         function renderAction(id) {
-            const host = body() && body().querySelector('[data-hub-action]');
-            if (!host || current !== id) return;
-            host.innerHTML = actionHTML(id);
-            const play = host.querySelector('[data-hub-play]');
-            if (play) play.addEventListener('click', () => launchGame(id));
-            const setup = host.querySelector('[data-hub-setup]');
-            if (setup) setup.addEventListener('click', () => showSetupFlow(id));
+            if (current !== id) return;
+            fillAction(body() && body().querySelector('[data-hub-action]'), id, statuses[id]);
         }
 
         function renderGame(id) {
@@ -141,10 +169,7 @@
                     <select class="game-hub-switch" aria-label="${escapeHtml(t('hub.switchGame'))}">
                         ${options.map(option => `<option value="${escapeHtml(option)}"${option === id ? ' selected' : ''}>${escapeHtml(gameName(option))}</option>`).join('')}
                     </select>
-                    <div class="game-hub-actions">
-                        <button class="mods-btn" type="button" data-hub-page>${escapeHtml(t('hub.gamePage'))}</button>
-                        <span data-hub-action></span>
-                    </div>
+                    ${actionsHTML()}
                 </div>
                 <div class="${opts.panelClass}" data-game="${escapeHtml(id)}"></div>
             `;
@@ -224,6 +249,16 @@
 
         return { show, open, back, refresh, refreshBadges, supports: isAvailable, current: () => current };
     }
+
+    window.GameHubActions = {
+        html: actionsHTML,
+        mount(root, id) {
+            const page = root && root.querySelector('[data-hub-page]');
+            if (page) page.addEventListener('click', () => navigateToGamePage(id));
+            return updateActions(root, id);
+        },
+        update: updateActions
+    };
 
     const modSummaries = {};
 

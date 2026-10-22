@@ -352,6 +352,7 @@
                 ${hero}
                 <button class="cb-ghost-btn community-back" id="community-back" type="button">${escapeHtml(t('back'))}</button>
                 <select class="game-hub-switch" id="community-room-switch" aria-label="${escapeHtml(window.LauncherI18n ? window.LauncherI18n.t('hub.switchGame') : '')}">${options}</select>
+                ${cfg && window.GameHubActions ? window.GameHubActions.html() : ''}
             </div>
             <div class="community-room-body">
                 <div class="community-room-main">
@@ -383,10 +384,19 @@
         body.innerHTML = room ? renderRoom() : renderHub();
         if (room) {
             GameUtils.fitSelectWidth(document.getElementById('community-room-switch'));
+            if (room !== ALL && window.GameHubActions) window.GameHubActions.mount(body, room);
             scrollChat();
             applyMute();
         }
     }
+
+    function refreshHeaderActions() {
+        if (!active || !room || room === ALL || !window.GameHubActions) return;
+        window.GameHubActions.update(document.getElementById('community-body'), room);
+    }
+
+    window.addEventListener('cb-download-queue-changed', refreshHeaderActions);
+    window.addEventListener('gameInstallationUpdated', refreshHeaderActions);
 
     function scrollChat() {
         const log = document.getElementById('community-chat-log');
