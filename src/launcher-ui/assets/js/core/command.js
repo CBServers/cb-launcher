@@ -101,6 +101,8 @@ function mockCommand(command, data) {
             return data && data.suffix === PROPERTY_KEYS.GAME.IS_INSTALLED ? 'false' : '';
         case 'is-game-running':
             return false;
+        case 'launch-game':
+            return { started: true };
         case 'get-cdn-servers':
             return {
                 preference: 'auto',

@@ -1172,8 +1172,11 @@ namespace commands::game_commands
         g_cef_ui = &cef_ui;
         g_ctx = &ctx;
 
-        cef_ui.add_command("launch-game", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
+        cef_ui.add_command("launch-game", [&cef_ui, &ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
             const auto config = ctx.get_game_config_from_request(value);
             if (!config)
             {
@@ -1207,8 +1210,11 @@ namespace commands::game_commands
                 }
 
                 cef_ui.show_message_box("Game Launch Error", message);
+                response.AddMember("started", false, allocator);
                 return;
             }
+
+            response.AddMember("started", true, allocator);
 
             // A user-initiated launch supersedes any invite join still queued for this game's hello.
             ipc::ipc_server::instance().clear_pending_join();

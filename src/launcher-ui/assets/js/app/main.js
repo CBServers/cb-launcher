@@ -866,13 +866,22 @@ window.GameStateManager = {
     markGameLaunched(gameId) {
         this.runningGameId = gameId;
         this.launchGraceUntil = Date.now() + 8000;
-        const state = this.gameStates[gameId] || {};
-        this.gameStates[gameId] = Object.assign({}, state, { isRunning: true });
         // The poll only redraws on a state change, and the cached state now already says running.
-        createGameButtons(gameId);
-        if (window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
-            window.AppViews.refreshActionButtons();
+        const redraw = () => {
+            createGameButtons(gameId);
+            if (window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
+                window.AppViews.refreshActionButtons();
+            }
+        };
+
+        // Launched off its page there is no cached state, and one without installStatus reads as not installed.
+        const state = this.gameStates[gameId];
+        if (!state || !state.installStatus) {
+            this.updateGameState(gameId).then(redraw);
+            return;
         }
+        this.gameStates[gameId] = Object.assign({}, state, { isRunning: true });
+        redraw();
     },
 
     async checkGameRunning(gameId) {
@@ -958,7 +967,7 @@ window.GameStateManager = {
             if (isRunning) this.launchGraceUntil = 0;
             if (isRunning || Date.now() > this.launchGraceUntil) {
                 if (prev.isRunning !== isRunning) cardsNeedRefresh = true;
-                this.gameStates[trackedId] = Object.assign({}, prev, { isRunning });
+                this.gameStates[trackedId] = Object.assign({}, this.gameStates[trackedId], { isRunning });
                 if (!isRunning) this.runningGameId = null;
             }
         }

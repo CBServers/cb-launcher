@@ -829,9 +829,16 @@ class GameUtils {
             window.ProgressManager.show(gameId, initialMessage, cancelOperation);
 
             window.executeCommand(command, commandArgs)
-                .then(() => {
+                .then((response) => {
                     console.log(`${command} command handler completed, starting polling`);
                     if (cancelRequested) return;
+
+                    // A refused command (started: false) runs no worker, so there is no progress to follow
+                    if (response && response.started === false) {
+                        window.ProgressManager.hide();
+                        resolve(response);
+                        return;
+                    }
 
                     pollIntervalId = setInterval(async () => {
                         if (cancelRequested) {
@@ -858,7 +865,7 @@ class GameUtils {
 
                                 setTimeout(() => {
                                     window.ProgressManager.hide();
-                                    resolve();
+                                    resolve(response);
                                 }, 1000);
                                 return;
                             }
@@ -1209,7 +1216,8 @@ class GameUtils {
             completeMessage: window.LauncherI18n ? window.LauncherI18n.t('progress.launchComplete') : 'Launch complete!'
         });
 
-        if (window.GameStateManager && typeof window.GameStateManager.markGameLaunched === 'function') {
+        // Refused, cancelled and duplicate launches resolve without started: true.
+        if (result && result.started && window.GameStateManager && typeof window.GameStateManager.markGameLaunched === 'function') {
             window.GameStateManager.markGameLaunched(uiGameId);
         }
 
