@@ -27,6 +27,8 @@ export default {
         { id: '103.152.197.155:4777', ...ERODED, featured: true },   // WAW Plutonium Official
         { id: '103.152.197.155:4778', ...ERODED, featured: true },   // WAW Plutonium Modded
         { id: '103.152.197.155:4779', ...ERODED },                   // WaW First Room
+        { id: '208.84.100.111:4777', ...ERODED },                    // [US] World at War (Official)
+        { id: '208.84.100.111:4778', ...ERODED },                    // [US] World at War (Modded)
         { id: '159.195.205.193:27019', ...ERODED },                  // [EU] WAW Plutonium Official
         { id: '159.195.205.193:27020', ...ERODED },                  // [EU] WAW Plutonium Modded
     ],
@@ -35,6 +37,8 @@ export default {
         { id: '103.152.197.155:4877', ...ERODED, featured: true },   // BO1 Plutonium Modded
         { id: '103.152.197.155:4879', ...ERODED },                   // BO1 Plutonium Official #2
         { id: '103.152.197.155:4880', ...ERODED },                   // BO1 First Room
+        { id: '208.84.100.111:4878', ...ERODED },                    // [US] Black Ops 1 (Official)
+        { id: '208.84.100.111:4877', ...ERODED },                    // [US] Black Ops 1 (Modded)
         { id: '159.195.205.193:27017', ...ERODED },                  // [EU] BO1 Plutonium Official
         { id: '159.195.205.193:27018', ...ERODED },                  // [EU] BO1 Plutonium Modded
     ],
@@ -46,6 +50,10 @@ export default {
         { id: '103.152.197.155:4978', ...ERODED },                   // BO2 Plutonium Official #2
         { id: '103.152.197.155:4980', ...ERODED },                   // BO2 FFA Bot Fill
         { id: '103.152.197.155:4982', ...ERODED },                   // BO2 First Room
+        { id: '208.84.100.111:2000', ...ERODED },                    // [US] Black Ops 2 (Modded)
+        { id: '208.84.100.111:4977', ...ERODED },                    // [US] Black Ops 2 (Official)
+        { id: '208.84.100.111:4978', ...ERODED },                    // [US] Black Ops 2 (Official #2)
+        { id: '208.84.100.111:4981', ...ERODED },                    // [US] BO2 Declassified
         { id: '159.195.205.193:27015', ...ERODED },                  // [EU] BO2 Plutonium Official
         { id: '159.195.205.193:27016', ...ERODED },                  // [EU] BO2 Plutonium Modded
     ],
