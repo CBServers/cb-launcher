@@ -68,6 +68,8 @@ namespace game_config
         std::unordered_set<std::string> client_install_path_files;
         // Relative folder path(s) under the client data root that bound client-file deletions.
         std::vector<data_folder_t> client_data_folders;
+        // The client owns client_data_folders outright: anything in them the manifest doesn't ship is deleted.
+        bool sweep_client_data_folders = false;
         std::vector<std::string> required_updater_files;
     };
 
@@ -156,6 +158,8 @@ namespace game_config
         std::unordered_set<std::string> client_install_path_files;
         // Relative folder path(s) under the client data root that bound client-file deletions.
         std::vector<data_folder_t> client_data_folders;
+        // The client owns client_data_folders outright: anything in them the manifest doesn't ship is deleted.
+        bool sweep_client_data_folders = false;
 
         // Every client of this game. Populated by get_game_config(); never read from the
         // static table directly.

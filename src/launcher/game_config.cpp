@@ -738,6 +738,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("boiii"),
                 .client_install_path_files = {"boiii.exe", "BlackOps3.exe"},
                 .client_data_folders = {"data"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2012", "vcr2013", "vcr2022", "dx_jun2010", "media_feature_pack"}
             }
         },
@@ -768,6 +769,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
                 .supports_steam_install = true,
                 // One changed file per depot the 2026 Steam update touched: both exes, MP content, shared content and English
@@ -804,6 +806,7 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"data"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
                 .supports_steam_install = true,
                 // One changed file per depot the 2026 Steam update changed in place: both exes, MP common, English ffs
@@ -845,6 +848,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("h1-mod"),
                 .client_install_path_files = {"h1-mod.exe"},
                 .client_data_folders = {"cdata"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
                 .supports_steam_install = true
             }
@@ -883,6 +887,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("auroramod/iw7-mod"),
                 .client_install_path_files = {"iw7-mod.exe"},
                 .client_data_folders = {"cdata"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
                 .supports_steam_install = true
             }
@@ -926,6 +931,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("s2x"),
                 .client_install_path_files = {"s2x.exe"},
                 .client_data_folders = {"data"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
@@ -949,6 +955,7 @@ namespace game_config
                 .client_default_path = utils::properties::get_appdata_folder_path("h2-mod"),
                 .client_install_path_files = {"h2-mod.exe"},
                 .client_data_folders = {"cdata"},
+                .sweep_client_data_folders = true,
                 .required_redists = {"vcr2022", "dx_jun2010"}
             }
         },
@@ -1050,6 +1057,7 @@ namespace game_config
                 .client_default_path = config.client_default_path,
                 .client_install_path_files = config.client_install_path_files,
                 .client_data_folders = config.client_data_folders,
+                .sweep_client_data_folders = config.sweep_client_data_folders,
                 .required_updater_files = config.required_updater_files
             });
         }

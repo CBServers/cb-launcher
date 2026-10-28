@@ -36,6 +36,7 @@ namespace client_updater
         std::vector<updater::file_info> manifest_files_;   // FULL manifest, pre-filter
         std::vector<std::string> skip_files_;
         std::vector<game_config::data_folder_t> client_data_folders_;
+        bool sweep_client_data_folders_ = false;
         updater::ui_progress_listener* progress_listener_;
         bool manifest_fetch_failed_ = false;
 
@@ -45,6 +46,7 @@ namespace client_updater
         // Download/verify target: the store for store-routed games, the live destination otherwise.
         [[nodiscard]] std::filesystem::path get_drive_filename(const updater::file_info& file) const;
         void remove_stale_files() const;
+        void sweep_data_folders() const;
         void store_applied_manifest() const;
         [[nodiscard]] bool is_update_cancelled() const;
     };

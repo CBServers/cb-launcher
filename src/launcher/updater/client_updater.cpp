@@ -186,6 +186,7 @@ namespace client_updater
         }
 
         this->client_data_folders_ = client.client_data_folders;
+        this->sweep_client_data_folders_ = client.sweep_client_data_folders;
 
         // Fetch manifest and compute valid files
         const auto manifest_files = get_file_infos(this->update_manifest_url_);
@@ -217,6 +218,7 @@ namespace client_updater
         }
 
         this->remove_stale_files();
+        this->sweep_data_folders();
 
         // Initialize progress tracking for verification phase
         if (this->progress_listener_)
@@ -552,6 +554,56 @@ namespace client_updater
         }
 
         client_store::prune_empty_directories(directories_to_check);
+    }
+
+    // Opt-in on top of the diff: also removes files this client never shipped (e.g. another fork's scripts).
+    void client_updater::sweep_data_folders() const
+    {
+        // Store-routed clients share their live folders with the game's other clients.
+        if (!this->sweep_client_data_folders_ || this->store_routed_ || this->manifest_files_.empty())
+        {
+            return;
+        }
+
+        std::unordered_set<std::wstring> expected{};
+        expected.reserve(this->manifest_files_.size());
+        for (const auto& file : this->manifest_files_)
+        {
+            expected.emplace(client_store::path_key(this->paths_.resolve_file(file.name, file.dest)));
+        }
+
+        std::set<std::filesystem::path> directories{};
+
+        for (const auto& entry : this->client_data_folders_)
+        {
+            const auto root = this->paths_.resolve_data_dir(entry);
+            if (!utils::io::directory_exists(root))
+            {
+                continue;
+            }
+
+            for (const auto& path : utils::io::list_files(root, true))
+            {
+                std::error_code code{};
+                if (std::filesystem::is_directory(path, code))
+                {
+                    directories.insert(path);
+                    continue;
+                }
+
+                if (expected.contains(client_store::path_key(path)))
+                {
+                    continue;
+                }
+
+                if (utils::io::remove_file(path))
+                {
+                    utils::logger::write("Swept foreign client file {}", utils::string::path_to_utf8(path));
+                }
+            }
+        }
+
+        client_store::prune_empty_directories(directories);
     }
 
     void client_updater::store_applied_manifest() const
