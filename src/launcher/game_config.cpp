@@ -798,7 +798,8 @@ namespace game_config
                     {"sv", "-survival"}
                 },
                 .mode_components = {
-                    {"sp", "sp"}
+                    {"sp", "sp"},
+                    {"zm", "dlc"}
                 },
                 .default_args = "-noupdate",
                 .name_argument = "+set name",
