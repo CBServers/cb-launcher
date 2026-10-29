@@ -358,7 +358,7 @@ namespace game_updater
             this->store_detection_result(detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
-                config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
+                this->store_selection(this->with_required_components(detected));
             }
 
             // The installed flag is the caller's to set, once client files are in place too.
@@ -393,7 +393,7 @@ namespace game_updater
             this->store_detection_result(detected);
             if (config_.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
-                config_.set_list(property_keys::SELECTED_COMPONENTS, this->with_required_components(detected));
+                this->store_selection(this->with_required_components(detected));
             }
 
             // The installed flag is the caller's to set, once client files are in place too.
@@ -405,6 +405,8 @@ namespace game_updater
 
     std::vector<std::string> game_updater::get_stored_components() const
     {
+        this->reconcile_selection();
+
         // Load selected components from properties (e.g., "bo3-selected-components" = "base,mp_dlc,zm_dlc")
         auto components = config_.get_list(property_keys::SELECTED_COMPONENTS);
 
@@ -1362,6 +1364,53 @@ namespace game_updater
     {
         config_.set_list(property_keys::DETECTED_COMPONENTS, detected);
         config_.set(property_keys::DETECTED_COMPONENTS_STAMP, this->make_detection_stamp());
+    }
+
+    void game_updater::store_selection(const std::vector<std::string>& components) const
+    {
+        std::vector<std::string> known;
+        known.reserve(this->manifest_.components.size());
+        for (const auto& [id, unused] : this->manifest_.components)
+        {
+            known.push_back(id);
+        }
+
+        config_.set_list(property_keys::SELECTED_COMPONENTS, components);
+        config_.set_list(property_keys::KNOWN_COMPONENTS, known);
+    }
+
+    void game_updater::reconcile_selection() const
+    {
+        // An empty selection is seeded from detection instead
+        auto selected = config_.get_list(property_keys::SELECTED_COMPONENTS);
+        if (selected.empty())
+        {
+            return;
+        }
+
+        const auto known_list = config_.get_list(property_keys::KNOWN_COMPONENTS);
+        const std::unordered_set<std::string> known(known_list.begin(), known_list.end());
+        const auto effective = this->with_required_components(selected);
+        const std::unordered_set<std::string> present(effective.begin(), effective.end());
+
+        auto changed = known.size() != this->manifest_.components.size()
+            || std::ranges::any_of(this->manifest_.components, [&](const auto& entry) { return !known.contains(entry.first); });
+
+        // An id already in known was there when the user last chose, so leaving it out was deliberate
+        for (const auto& [component, source] : config_.split_components)
+        {
+            if (this->manifest_.components.contains(component) && !known.contains(component)
+                && !present.contains(component) && present.contains(source))
+            {
+                selected.push_back(component);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            this->store_selection(selected);
+        }
     }
 
     std::vector<std::string> game_updater::with_required_components(const std::vector<std::string>& components) const

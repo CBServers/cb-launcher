@@ -132,6 +132,8 @@ namespace game_config
         std::unordered_map<std::string, std::string> mode_arguments;
         // Mode -> manifest component the mode needs; no entry means "base"
         std::unordered_map<std::string, std::string> mode_components;
+        // Component -> the component it was split out of; selections saved before the split gain it
+        std::unordered_map<std::string, std::string> split_components;
         std::unordered_map<std::string, std::string> mode_executables;  // mode -> exe name
         std::unordered_map<std::string, std::string> mode_pass_arguments; // Per-mode args forwarded inside --pass "..." (e.g. AlterWare launcher).
         // Mode -> Plutonium URI name (e.g. "mp" -> "t6mp"); an entry launches via plutonium://, no entry uses the normal exe path.

@@ -344,7 +344,17 @@ namespace commands::component_commands
                 }
             }
 
-            // Store selected components using list helper
+            // Records the manifest's ids too, so a split-out component the user unticks stays unticked
+            try
+            {
+                const game_updater::game_updater updater(*config);
+                updater.store_selection(components_vec);
+                return;
+            }
+            catch (...)
+            {
+            }
+
             config->set_list(property_keys::SELECTED_COMPONENTS, components_vec);
         });
 

@@ -72,7 +72,7 @@ namespace detection_service
             updater.store_detection_result(detected);
             if (config.get_list(property_keys::SELECTED_COMPONENTS).empty())
             {
-                config.set_list(property_keys::SELECTED_COMPONENTS, updater.with_required_components(detected));
+                updater.store_selection(updater.with_required_components(detected));
             }
         }
 

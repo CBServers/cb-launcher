@@ -46,6 +46,8 @@ namespace game_updater
         [[nodiscard]] bool detection_cache_valid() const;
         // Persists the detection result together with its validity stamp
         void store_detection_result(const std::vector<std::string>& detected) const;
+        // Persists a complete selection together with the manifest component ids it was made against
+        void store_selection(const std::vector<std::string>& components) const;
         [[nodiscard]] std::vector<updater::file_info> filter_files_by_components(
             const std::vector<updater::file_info>& all_files,
             const std::vector<std::string>& selected_components) const;
@@ -69,7 +71,9 @@ namespace game_updater
         updater::ui_progress_listener* progress_listener_;
         const std::atomic<bool>* cancel_flag_{nullptr};
 
-        // Stored selection without the virtual base_game_ ids
+        // Adds split_components the stored selection predates when the component they came from is selected
+        void reconcile_selection() const;
+        // Stored selection, reconciled first, without the virtual base_game_ ids
         [[nodiscard]] std::vector<std::string> get_stored_components() const;
         // Components a pass covers: the stored selection plus required ones, else the required and default-enabled set
         [[nodiscard]] std::vector<std::string> get_update_components(const std::vector<std::string>& stored) const;

@@ -320,6 +320,7 @@ namespace game_config
         this->set_list(property_keys::DETECTED_COMPONENTS, {});
         this->set(property_keys::DETECTED_COMPONENTS_STAMP, "");
         this->set_list(property_keys::SELECTED_COMPONENTS, {});
+        this->set_list(property_keys::KNOWN_COMPONENTS, {});
         this->set(property_keys::LAUNCH_OPTIONS, "");
         this->set(property_keys::GAME_MODE, "");
         this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
@@ -723,6 +724,10 @@ namespace game_config
                 .required_updater_files = {},
                 .valid_game_files = {"BlackOps3.exe"},
                 .mode_arguments = {},
+                .split_components = {
+                    {"mp", "base"},
+                    {"zm", "base"}
+                },
                 .default_args = "-launch -noupdate",
                 .name_argument = "-name",
                 .launch_flags = {
@@ -1012,6 +1017,7 @@ namespace game_config
                     {property_keys::DETECTED_COMPONENTS, "hmw"},
                     {property_keys::DETECTED_COMPONENTS_STAMP, "hmw"},
                     {property_keys::SELECTED_COMPONENTS, "hmw"},
+                    {property_keys::KNOWN_COMPONENTS, "hmw"},
                     {property_keys::LAUNCH_OPTIONS, "hmw"}
                     //, {property_keys::DISABLE_CB_EXTENSION, "hmw"}
                 },

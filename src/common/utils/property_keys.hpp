@@ -82,6 +82,8 @@ namespace property_keys
     // + mode ("selected-client-mp"): which client serves a mode with more than one.
     constexpr const char* SELECTED_CLIENT_PREFIX = "selected-client-";
     constexpr const char* SELECTED_COMPONENTS = "selected-components";
+    // Manifest component ids the selection was made against; a split-out id missing here is new to it
+    constexpr const char* KNOWN_COMPONENTS = "known-components";
     constexpr const char* DISABLE_CB_EXTENSION = "disable-cb-extension";
 
     // Custom resolution (CoD1 / CoDUO / CoD2 only)
