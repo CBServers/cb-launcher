@@ -235,6 +235,17 @@ namespace game_config
         this->set(property_keys::IS_STEAM_INSTALL, is_steam ? "true" : "false");
     }
 
+    bool game_config_t::is_microsoft_store_install() const
+    {
+        if (this->microsoft_store_components.empty())
+        {
+            return false;
+        }
+
+        const auto install_path = this->get_install_path();
+        return install_path && utils::io::file_exists(*install_path / "MicrosoftGame.config");
+    }
+
     std::optional<std::string> game_config_t::get_launch_options() const
     {
         return this->get(property_keys::LAUNCH_OPTIONS);
@@ -938,7 +949,8 @@ namespace game_config
                 .client_install_path_files = {"s2x.exe"},
                 .client_data_folders = {"data"},
                 .sweep_client_data_folders = true,
-                .required_redists = {"vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2022", "dx_jun2010"},
+                .microsoft_store_components = {"base", "sp", "mp"}
             }
         },
         {

@@ -1990,9 +1990,49 @@ function showGameSettings(gameId) {
     popups.gameSettingsPopup.show(gameMapping, gameConfig);
 }
 
-function showManageInstall(gameId, options = {}) {
+async function isMicrosoftStoreInstall(gameMapping) {
+    try {
+        return await window.executeCommand('is-microsoft-store-install', { game: gameMapping }) === true;
+    } catch (error) {
+        return false;
+    }
+}
+
+async function showXboxManagedNotice(gameId, offerUninstall = false) {
+    if (typeof window.showMessageBox !== 'function') return;
+    const config = GameUtils.getGameConfigByUIId(gameId);
+    if (!config) return;
+
+    const buttons = [t('common.ok')];
+    if (offerUninstall) {
+        buttons.push({ label: t('popup.componentSelection.uninstall'), danger: true });
+    }
+
+    const result = await window.showMessageBox(
+        t('dialog.xboxManagedTitle'),
+        t('dialog.xboxManagedBody', { game: config.displayName, client: config.client }),
+        buttons
+    );
+    if (offerUninstall && result === 1) {
+        uninstallGameDirect(gameId);
+    }
+}
+
+async function showManageInstall(gameId, options = {}) {
     console.log(`Manage install button clicked for ${gameId}`);
     if (GameUtils.isComingSoon(gameId)) return;
+
+    const gameMapping = GameUtils.getGameMapping(gameId);
+
+    // The Xbox app owns a Store copy's components, so setup goes straight to the client files
+    if (await isMicrosoftStoreInstall(gameMapping)) {
+        if (options.finishSetup === true) {
+            verifyGame(gameId, false, 'verify', true);
+        } else {
+            showXboxManagedNotice(gameId, true);
+        }
+        return;
+    }
 
     const popups = ensureGamePopups(gameId);
 
@@ -2000,7 +2040,6 @@ function showManageInstall(gameId, options = {}) {
         popups.componentSelectionPopup = new ComponentSelectionPopup();
     }
 
-    const gameMapping = GameUtils.getGameMapping(gameId);
     const gameConfig = GameUtils.getGameConfig(gameMapping);
     popups.componentSelectionPopup.show(gameMapping, gameConfig, options);
 }
@@ -2011,9 +2050,12 @@ async function uninstallGameDirect(gameId) {
     const backendId = GameUtils.getGameMapping(gameId);
 
     if (typeof window.showMessageBox === 'function') {
+        const bodyKey = await isMicrosoftStoreInstall(backendId)
+            ? 'popup.componentSelection.confirmUninstallStoreBody'
+            : 'popup.componentSelection.confirmUninstallBody';
         const result = await window.showMessageBox(
             t('popup.componentSelection.confirmUninstallTitle'),
-            t('popup.componentSelection.confirmUninstallBody', { game: config.displayName }),
+            t(bodyKey, { game: config.displayName, client: config.client }),
             [t('common.cancel'), { label: t('popup.componentSelection.uninstall'), danger: true }]
         );
         if (result === 0) return false;
@@ -2043,6 +2085,8 @@ async function verifyGame(gameId, deleteComponents = false, op = 'verify', skipH
 
     const gameMapping = GameUtils.getGameMapping(gameId);
     const displayName = window.GameInstallationManager.getGameDisplayName(gameId);
+    // A user-started verify of a Store copy only covers the client, so point them at the Xbox app's repair
+    const xboxNotice = op === 'verify' && !skipHash && await isMicrosoftStoreInstall(gameMapping);
 
     GameUtils.trackCommandProgress({
         gameId: gameId,
@@ -2058,6 +2102,9 @@ async function verifyGame(gameId, deleteComponents = false, op = 'verify', skipH
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
                 detail: { game: gameMapping }
             }));
+            if (xboxNotice) {
+                showXboxManagedNotice(gameId);
+            }
         }
     }).catch(error => {
         console.error('Failed to start verification:', error);

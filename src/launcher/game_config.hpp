@@ -91,6 +91,8 @@ namespace game_config
         void set_installed(bool installed) const;
         bool is_steam_install() const;
         void set_steam_install(bool is_steam) const;
+        // Live check of the install root, so a re-pointed path never trusts a stale flag
+        bool is_microsoft_store_install() const;
         std::optional<std::string> get_launch_options() const;
 
         // Effective "launch as admin" value: user property if set, else requires_elevation default.
@@ -178,6 +180,9 @@ namespace game_config
 
         // Small files whose hashes pin the game version; a mismatch makes size-only passes hash everything and launches restore the game
         std::vector<std::string> version_check_files;
+
+        // Components a Microsoft Store copy always carries; non-empty = supported, and the Xbox app owns its game files
+        std::vector<std::string> microsoft_store_components;
 
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;

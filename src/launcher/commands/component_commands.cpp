@@ -156,6 +156,12 @@ namespace commands::component_commands
             response.AddMember("sizes", sizesObj, allocator);
         });
 
+        cef_ui.add_command("is-microsoft-store-install", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto config = ctx.get_game_config_from_request(value);
+            response.SetBool(config && config->is_microsoft_store_install());
+        });
+
         cef_ui.add_command("get-component-detection-status", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto config = ctx.get_game_config_from_request(value);

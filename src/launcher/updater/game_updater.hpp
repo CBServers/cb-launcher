@@ -62,6 +62,8 @@ namespace game_updater
         update_manifest manifest_;
         // Install carries a CASC store packed by someone else, so the manifest's copy must not be verified or fetched
         bool foreign_casc_store_{false};
+        // Xbox app owns every game file; our manifest matches neither its packing nor its fastfile signatures
+        bool microsoft_store_{false};
         // Per-prefix steam remaps (zone/ and raw/video/ to the install root), probed from disk
         bool remap_zone_{false};
         bool remap_video_{false};

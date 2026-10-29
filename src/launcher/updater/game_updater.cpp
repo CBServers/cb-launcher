@@ -281,6 +281,7 @@ namespace game_updater
             this->install_path = *install_path_prop;
         }
 
+        this->microsoft_store_ = config.is_microsoft_store_install();
         this->probe_layout();
         this->set_cdn_url(utils::cdn::cdn_manager::instance().get_active_cdn_url());
 
@@ -298,6 +299,15 @@ namespace game_updater
     {
         if (this->install_path.empty())
         {
+            return;
+        }
+
+        if (this->microsoft_store_)
+        {
+            printf("Microsoft Store install, game files are left to the Xbox app\n");
+            const auto components = this->detect_installed_components();
+            this->store_detection_result(components);
+            this->store_selection(components);
             return;
         }
 
@@ -439,7 +449,7 @@ namespace game_updater
     bool game_updater::is_other_version() const
     {
         const auto& names = this->config_.version_check_files;
-        if (this->install_path.empty() || names.empty())
+        if (this->install_path.empty() || names.empty() || this->microsoft_store_)
         {
             return false;
         }
@@ -475,7 +485,7 @@ namespace game_updater
 
     bool game_updater::is_update_needed() const
     {
-        return this->needs_to_update(this->manifest_.hash);
+        return !this->microsoft_store_ && this->needs_to_update(this->manifest_.hash);
     }
 
     void game_updater::update_file(const updater::file_info& file) const
@@ -1451,6 +1461,14 @@ namespace game_updater
             return {};
         }
 
+        // Presence can't speak for a Store copy, which lacks the German campaign files and the DLC paks
+        if (this->microsoft_store_)
+        {
+            auto components = this->config_.microsoft_store_components;
+            std::erase_if(components, [this](const std::string& id) { return !this->manifest_.components.contains(id); });
+            return components;
+        }
+
         // Stat every layout candidate so a steam-shaped copy can't read as missing
         std::vector<std::filesystem::path> paths_to_check;
         paths_to_check.reserve(this->manifest_.files.size());
@@ -1649,6 +1667,13 @@ namespace game_updater
         }
 
         check_cancelled();
+
+        // Uninstalling only unlinks a Store copy; removing the game is the Xbox app's job
+        if (this->microsoft_store_)
+        {
+            this->delete_installed_hash();
+            return;
+        }
 
         std::vector<updater::file_info> files_to_delete;
 

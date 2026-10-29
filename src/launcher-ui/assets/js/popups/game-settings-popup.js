@@ -733,7 +733,12 @@ class GameSettingsPopup {
             }
 
             errorEl.classList.remove('visible');
-            this.popup.querySelector('#game-path').value = folder;
+            // The backend may have stepped into a subfolder (Xbox app installs keep the game in Content)
+            const savedPath = await window.executeCommand('get-game-property', {
+                game: this.currentGame,
+                suffix: PROPERTY_KEYS.GAME.INSTALL
+            });
+            this.popup.querySelector('#game-path').value = savedPath || folder;
             this.showSaveStatus(true);
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', {
                 detail: { game: this.currentGame }

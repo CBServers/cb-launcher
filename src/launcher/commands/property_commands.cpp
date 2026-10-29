@@ -245,7 +245,7 @@ namespace commands::property_commands
             }
 
             const auto game = std::string{ value["game"].GetString() };
-            const auto path = utils::string::utf8_to_path(value["path"].GetString());
+            auto path = utils::string::utf8_to_path(value["path"].GetString());
             const auto existing_install = value["existing_install"].GetBool();
 
             // Get game config
@@ -257,6 +257,13 @@ namespace commands::property_commands
 
             if (existing_install)
             {
+                // The Xbox app keeps the game in Content, one level below the folder it shows users
+                if (!config->microsoft_store_components.empty() && !game_config::validate_game_path(game, path)
+                    && utils::io::file_exists(path / "Content" / "MicrosoftGame.config"))
+                {
+                    path /= "Content";
+                }
+
                 if (!game_config::validate_game_path(game, path))
                 {
                     return; // Invalid - no valid game exe found
