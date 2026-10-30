@@ -638,7 +638,10 @@ namespace game_config
                 .base_properties_game = "",
                 .property_overrides = {},
                 .client_data_folders = {"zone/patch", "zone/zonebuilder"},
-                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"}
+                .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
+                // One changed file per depot the Sep 2026 Steam update changed in place (both exes, English, both DLC packs)
+                .version_check_files = {"iw4mp.exe", "iw4sp.exe", "zone/english/patch_mp.ff", "zone/dlc/mp_complex_load.ff",
+                    "zone/dlc/mp_abandon_load.ff"}
             }
         },
         {
@@ -716,8 +719,9 @@ namespace game_config
                 .property_overrides = {},
                 .client_data_folders = {},
                 .required_redists = {"vcr2010", "vcr2022", "dx_jun2010"},
-                // One changed file per depot the Sep 2026 Steam update changed in place (MP exe, content, English), plus the SP exe
-                .version_check_files = {"iw5mp.exe", "iw5sp.exe", "zone/english/patch_mp.ff"}
+                // One changed file per depot the Sep 2026 Steam update changed in place (both exes, content, English, four DLC collections)
+                .version_check_files = {"iw5mp.exe", "iw5sp.exe", "main/0.sdm", "zone/english/patch_mp.ff", "main/42695.sdm",
+                    "main/42696.sdm", "main/42697.sdm", "main/42698.sdm"}
             }
         },
         {
