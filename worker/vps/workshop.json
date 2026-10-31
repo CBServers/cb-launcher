@@ -2,6 +2,6 @@
     "module": "../workshop/src/index.js",
     "port": 8790,
     "kv": ["WORKSHOP"],
-    "vars": ["STEAM_API_KEY", "CDN_ORIGIN"],
+    "vars": ["STEAM_API_KEY", "INDEX_REFRESH_SECRET"],
     "cronSeconds": 300
 }

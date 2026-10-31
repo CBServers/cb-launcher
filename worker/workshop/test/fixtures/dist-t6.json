@@ -1,0 +1,55 @@
+{
+  "game": "t6",
+  "commit": "b36d86332900e882ac115f3e05be6a8eb344e6a9",
+  "generatedAt": 1793413362,
+  "items": [
+    {
+      "id": "smoke",
+      "type": "mod",
+      "name": "Smoke",
+      "author": "test",
+      "version": "1",
+      "description": "Smoke test.",
+      "requires": [],
+      "preview": null,
+      "screenshots": [],
+      "size": 188792,
+      "changesGameFiles": true,
+      "addedAt": 1793413357,
+      "updatedAt": 1793413357,
+      "files": [
+        {
+          "root": "storage",
+          "path": "mods/dlc5/mod.json",
+          "size": 149,
+          "hash": "0C1017169C545469",
+          "url": "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/mod.json"
+        },
+        {
+          "root": "storage",
+          "path": "raw/ui/t6/mainlobby.lua",
+          "size": 43047,
+          "hash": "AD1264F9CC0A2557",
+          "url": "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/mainlobby.lua"
+        },
+        {
+          "root": "game",
+          "path": "sound/zmb_blops_moon.english.sabl",
+          "size": 102400,
+          "hash": "2E6DF771DF18CAD6",
+          "url": "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/zmb_blops_moon.english.sabl"
+        },
+        {
+          "root": "storage",
+          "path": "mods/smoke/joined.bin",
+          "size": 43196,
+          "hash": "DFA6C676257F7EDC",
+          "parts": [
+            "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/mod.json",
+            "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/mainlobby.lua"
+          ]
+        }
+      ]
+    }
+  ]
+}
