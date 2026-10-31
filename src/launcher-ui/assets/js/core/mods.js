@@ -1,25 +1,29 @@
 // Mod manager facade. Installed list, import, uninstall, folder lookup and
-// Workshop installs (anonymous steamcmd) are native commands; search and item
-// details hit the workshop worker (see worker/workshop). Preview mode
+// catalog installs (anonymous steamcmd for the Steam Workshop, the launcher's
+// file-by-file installer for the mod index) are native commands; search and
+// item details hit the workshop worker (see worker/workshop). Preview mode
 // (file://, localhost) serves mock data instead.
 //
-// InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import', workshopId }
-// WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable }
+// CAPABILITIES: catalog = a Browse tab (the worker serves the game); steam = that
+// catalog is the Steam Workshop, otherwise it is the community mod index.
+//
+// InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import'|'steam'|'catalog', workshopId, missingFiles }
+// WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable, version, comingSoon, changesGameFiles }
 // Job progress:  { active, phase: 'queued'|'preparing'|'downloading'|'copying'|'extracting'|'installing'|'done'|'error', name, percent, error }
 (function () {
     'use strict';
 
     const CAPABILITIES = {
-        boiii:     { workshop: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
-        cod4x:     { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        iw4x:      { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        'h1-mod':  { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        'iw7-mod': { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        mw2r:      { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        t4:        { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        t5:        { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        iw5:       { workshop: false, import: true, folders: ['mods', 'usermaps'] },
-        t6:        { workshop: false, import: true, folders: ['mods', 'usermaps'] }
+        boiii:     { catalog: true, steam: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
+        cod4x:     { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        iw4x:      { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        'h1-mod':  { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        'iw7-mod': { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        mw2r:      { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        t4:        { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        t5:        { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        iw5:       { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        t6:        { catalog: true, import: true, folders: ['mods', 'usermaps'] }
     };
 
     const MB = 1024 * 1024;
@@ -67,8 +71,21 @@
         { id: '2999871123', title: 'Office Complex',             author: 'Abnormal202',      kind: 'map', subscribers: 23455,  size: 740 * MB, updatedAt: daysAgo(1) }
     ].map((item, index) => Object.assign(item, { preview: PREVIEWS[index % PREVIEWS.length] }));
 
+    // Mock mod index for the other games: slug ids, versions, no subscriber counts.
+    const INDEX = [
+        { id: 'zombies_declassified', title: 'Zombies Declassified (DLC 5)', author: 'Logo-2K', kind: 'map', size: 9.06 * GB, updatedAt: daysAgo(3), version: 'beta2', changesGameFiles: true },
+        { id: 'cargo', title: 'Nazi Zombie Cargo', author: 'SomeMapper', kind: 'map', size: 700 * MB, updatedAt: daysAgo(12), version: '1.2.0', requires: ['cargo_assets'] },
+        { id: 'cargo_assets', title: 'Cargo Shared Assets', author: 'SomeMapper', kind: 'mod', size: 10 * MB, updatedAt: daysAgo(40), version: '1.0.0' },
+        { id: 'town_reimagined', title: 'Town Reimagined', author: 'Another', kind: 'map', size: 0, updatedAt: daysAgo(2), version: '', comingSoon: true }
+    ].map((item, index) => Object.assign({ subscribers: 0, comingSoon: false, changesGameFiles: false, requires: [] }, item, { preview: PREVIEWS[(index + 3) % PREVIEWS.length] }));
+
     function supports(game) {
         return CAPABILITIES[game] || null;
+    }
+
+    function mockCatalog(game) {
+        const caps = supports(game);
+        return caps && caps.steam ? WORKSHOP : INDEX;
     }
 
     function backendId(game) {
@@ -96,9 +113,9 @@
         return mods.map(mod => Object.assign(mod, { name: clean(mod.name) }));
     }
 
-    function searchMock({ query, kind, sort }) {
+    function searchMock(game, { query, kind, sort }) {
         const needle = query.trim().toLowerCase();
-        const items = WORKSHOP
+        const items = mockCatalog(game)
             .filter(item => (kind === 'all' || item.kind === kind)
                 && (!needle || item.title.toLowerCase().includes(needle) || item.author.toLowerCase().includes(needle)))
             .sort((a, b) => {
@@ -113,7 +130,7 @@
 
     async function search(game, options) {
         const caps = supports(game);
-        if (!caps || !caps.workshop) return { items: [], total: 0 };
+        if (!caps || !caps.catalog) return { items: [], total: 0 };
 
         const opts = {
             query: String((options && options.query) || ''),
@@ -124,7 +141,7 @@
 
         if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
             await delay();
-            return searchMock(opts);
+            return searchMock(game, opts);
         }
 
         try {
@@ -166,8 +183,10 @@
         }
 
         // Required items install alongside the item, like Steam's subscribe flow.
-        // An unreachable worker degrades to installing the item alone.
-        if (!Array.isArray(item.children)) {
+        // An unreachable worker degrades to installing the item alone. The mod
+        // index installer resolves its own requirements.
+        const caps = supports(game);
+        if (caps && caps.steam && !Array.isArray(item.children)) {
             item.children = [];
             try {
                 const detail = await getDetails(game, item.id);
@@ -202,12 +221,25 @@
         }
     }
 
+    // Mod index games: { id: version } for each listed id, compared against the version an install recorded.
+    async function getVersions(game, ids) {
+        if (!ids.length) return {};
+        if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
+            return Object.fromEntries(INDEX.filter(item => ids.includes(item.id)).map(item => [item.id, item.version]));
+        }
+        try {
+            return await workshopFetch('/v1/updated', { game: backendId(game), ids: ids.join(',') });
+        } catch (error) {
+            return {};
+        }
+    }
+
     // CDN-hosted overrides ({ workshopId: { version, size } }): these ids install
     // from our CDN instead of steamCMD, and their update state is version equality
     // against the hosted release rather than Steam's updated time.
     async function getOverrides(game) {
         const caps = supports(game);
-        if (!caps || !caps.workshop || PREVIEW_MODE) return {};
+        if (!caps || !caps.steam || PREVIEW_MODE) return {};
         try {
             const data = await window.executeCommand('get-mod-overrides', { game: backendId(game) });
             return data && typeof data === 'object' ? data : {};
@@ -244,19 +276,20 @@
     async function getDetails(game, id) {
         if (PREVIEW_MODE && !window.__modsMock.workshopApi) {
             await delay();
-            const item = WORKSHOP.find(entry => entry.id === id);
+            const catalog = mockCatalog(game);
+            const item = catalog.find(entry => entry.id === id);
             if (!item) throw new Error('Unknown item');
+            const index = catalog === INDEX;
+            const requires = index ? item.requires : (item.id === '2967301155' ? ['2750100123', '2840561120'] : []);
             return cleanDetail(Object.assign(clone(item), {
                 description: '[h1]Preview[/h1]\nThis is placeholder detail text shown in UI preview mode.\n[b]Bold[/b], [i]italic[/i] and a [url=https://cbservers.xyz]link[/url].',
-                children: item.id === '2967301155' ? [
-                    { id: '2750100123', title: 'Perk Overhaul', kind: 'mod', size: 212 * MB },
-                    { id: '2840561120', title: 'Chaos Perks', kind: 'mod', size: 88 * MB }
-                ] : [],
+                children: requires.map(childId => catalog.find(entry => entry.id === childId)).filter(Boolean)
+                    .map(child => ({ id: child.id, title: child.title, kind: child.kind, size: child.size })),
                 screenshots: [],
                 views: item.subscribers * 4,
                 createdAt: Math.floor(new Date(item.updatedAt).getTime() / 1000) - 86400 * 200,
                 updatedAt: Math.floor(new Date(item.updatedAt).getTime() / 1000),
-                votes: { score: 0.93, up: 1200, down: 90 }
+                votes: index ? null : { score: 0.93, up: 1200, down: 90 }
             }));
         }
 
@@ -281,6 +314,7 @@
         update: install,
         cancelInstall,
         getUpdatedTimes,
+        getVersions,
         getOverrides,
         uninstall,
         importFolder: (game, path, onPhase) => importFromPath(game, path, 'folder', onPhase),

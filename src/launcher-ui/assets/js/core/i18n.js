@@ -687,7 +687,18 @@
                 comingSoon: 'Coming soon',
                 foldersHint: 'Content folders used by this client:',
                 requiredItems: 'Required items',
-                requiredItemsNote: 'These are installed automatically with this item ({{size}} extra).'
+                requiredItemsNote: 'These are installed automatically with this item ({{size}} extra).',
+                browse: 'Browse',
+                searchPlaceholderCatalog: 'Search maps and mods...',
+                noResultsCatalog: 'No maps or mods match your search.',
+                noInstalledCatalog: 'No custom content installed yet. Browse community maps and mods or import your own to get started.',
+                sourceCatalog: 'Community',
+                changesGameFiles: 'Changes game files',
+                changesGameFilesHint: 'Installs some files into the game folder itself, not only into mods or usermaps',
+                changesGameFilesNote: 'Some of its files go into the {{game}} game folder, outside the mods and usermaps folders. Uninstalling removes them again.',
+                repair: 'Repair',
+                filesMissing: 'Files missing',
+                uninstallCatalogConfirmBody: 'Remove <strong>{{name}}</strong>? Every file it installed will be deleted, including any it placed in the {{game}} game folder.'
             },
             servers: {
                 featured: 'Featured',
@@ -1483,7 +1494,18 @@
                 comingSoon: 'Bientot disponible',
                 foldersHint: 'Dossiers de contenu utilises par ce client :',
                 requiredItems: 'Elements requis',
-                requiredItemsNote: 'Ils sont installes automatiquement avec cet element ({{size}} en plus).'
+                requiredItemsNote: 'Ils sont installes automatiquement avec cet element ({{size}} en plus).',
+                browse: 'Parcourir',
+                searchPlaceholderCatalog: 'Rechercher des cartes et des mods...',
+                noResultsCatalog: 'Aucune carte ni aucun mod ne correspond a votre recherche.',
+                noInstalledCatalog: 'Aucun contenu personnalise installe. Parcourez les cartes et mods de la communaute ou importez les votres pour commencer.',
+                sourceCatalog: 'Communaute',
+                changesGameFiles: 'Modifie les fichiers du jeu',
+                changesGameFilesHint: 'Installe certains fichiers dans le dossier du jeu lui-meme, pas seulement dans mods ou usermaps',
+                changesGameFilesNote: 'Certains de ses fichiers vont dans le dossier de {{game}}, en dehors des dossiers mods et usermaps. La desinstallation les supprime.',
+                repair: 'Reparer',
+                filesMissing: 'Fichiers manquants',
+                uninstallCatalogConfirmBody: 'Supprimer <strong>{{name}}</strong> ? Tous les fichiers installes seront effaces, y compris ceux places dans le dossier de {{game}}.'
             },
             servers: {
                 featured: 'En vedette',
@@ -2279,7 +2301,18 @@
                 comingSoon: 'Proximamente',
                 foldersHint: 'Carpetas de contenido que usa este cliente:',
                 requiredItems: 'Elementos requeridos',
-                requiredItemsNote: 'Se instalan automaticamente junto con este elemento ({{size}} adicionales).'
+                requiredItemsNote: 'Se instalan automaticamente junto con este elemento ({{size}} adicionales).',
+                browse: 'Explorar',
+                searchPlaceholderCatalog: 'Buscar mapas y mods...',
+                noResultsCatalog: 'Ningun mapa o mod coincide con tu busqueda.',
+                noInstalledCatalog: 'Aun no hay contenido personalizado instalado. Explora los mapas y mods de la comunidad o importa los tuyos para empezar.',
+                sourceCatalog: 'Comunidad',
+                changesGameFiles: 'Modifica archivos del juego',
+                changesGameFilesHint: 'Instala algunos archivos en la propia carpeta del juego, no solo en mods o usermaps',
+                changesGameFilesNote: 'Algunos de sus archivos van a la carpeta de {{game}}, fuera de las carpetas mods y usermaps. Al desinstalarlo se eliminan.',
+                repair: 'Reparar',
+                filesMissing: 'Faltan archivos',
+                uninstallCatalogConfirmBody: 'Eliminar <strong>{{name}}</strong>? Se borraran todos los archivos que instalo, incluidos los que coloco en la carpeta de {{game}}.'
             },
             servers: {
                 featured: 'Destacados',
@@ -3074,7 +3107,18 @@
                 comingSoon: 'Скоро',
                 foldersHint: 'Папки контента этого клиента:',
                 requiredItems: 'Обязательные элементы',
-                requiredItemsNote: 'Они устанавливаются автоматически вместе с этим элементом (еще {{size}}).'
+                requiredItemsNote: 'Они устанавливаются автоматически вместе с этим элементом (еще {{size}}).',
+                browse: 'Обзор',
+                searchPlaceholderCatalog: 'Поиск карт и модов...',
+                noResultsCatalog: 'По вашему запросу карт и модов не найдено.',
+                noInstalledCatalog: 'Пользовательский контент ещё не установлен. Загляните в карты и моды сообщества или импортируйте свои.',
+                sourceCatalog: 'Сообщество',
+                changesGameFiles: 'Меняет файлы игры',
+                changesGameFilesHint: 'Устанавливает часть файлов прямо в папку игры, а не только в mods или usermaps',
+                changesGameFilesNote: 'Часть его файлов попадает в папку {{game}}, вне папок mods и usermaps. При удалении мода они тоже будут удалены.',
+                repair: 'Восстановить',
+                filesMissing: 'Не хватает файлов',
+                uninstallCatalogConfirmBody: 'Удалить <strong>{{name}}</strong>? Все установленные им файлы будут удалены, включая те, что он поместил в папку {{game}}.'
             },
             servers: {
                 featured: 'Рекомендуемые',

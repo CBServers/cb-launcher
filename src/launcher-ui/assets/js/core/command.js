@@ -18,7 +18,10 @@ const mockMods = {
         ],
         t6: [
             { id: 'usermaps:zm_buried_lite', name: 'zm_buried_lite', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-08-14T10:00:00Z', size: 398458880 },
-            { id: 'mods:zombie_reloaded', name: 'zombie_reloaded', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-08-20T10:00:00Z', size: 157286400 }
+            { id: 'mods:zombie_reloaded', name: 'zombie_reloaded', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-08-20T10:00:00Z', size: 157286400 },
+            // Mod index installs: an outdated one and one missing a file (the mock index lists cargo at 1.2.0).
+            { id: 'catalog:cargo', name: 'Nazi Zombie Cargo', kind: 'map', folder: 'catalog', source: 'catalog', version: '1.1.0', workshopId: 'cargo', installedAt: '2026-10-01T10:00:00Z', size: 734003200, missingFiles: false },
+            { id: 'catalog:cargo_assets', name: 'Cargo Shared Assets', kind: 'mod', folder: 'catalog', source: 'catalog', version: '1.0.0', workshopId: 'cargo_assets', installedAt: '2026-10-01T10:00:00Z', size: 10485760, missingFiles: true }
         ]
     },
     job: null

@@ -5,6 +5,7 @@
 #include <utils/hash.hpp>
 #include <utils/http.hpp>
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/string.hpp>
 
 #include <numeric>
@@ -157,6 +158,10 @@ namespace mod_download
         if (received == 0)
         {
             hasher.emplace();
+        }
+        else
+        {
+            utils::logger::write("[cbl-mods] resuming {} at {} of {} bytes", file.name, received, file.size);
         }
 
         // Cuts the .part back to `size`, dropping whatever a failed request appended.

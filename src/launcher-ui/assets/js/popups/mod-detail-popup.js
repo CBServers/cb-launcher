@@ -1,10 +1,11 @@
-// Workshop item detail popup: screenshots, description, rating, install.
+// Catalog item detail popup (Steam Workshop or mod index): screenshots, description, rating, install.
 class ModDetailPopup {
     constructor() {
         this.backdrop = null;
         this.popup = null;
         this.gameId = null;
         this.item = null;
+        this.detail = null;
     }
 
     t(key, variables) {
@@ -51,6 +52,7 @@ class ModDetailPopup {
         this.close();
         this.gameId = gameId;
         this.item = item;
+        this.detail = null;
 
         this.backdrop = document.createElement('div');
         this.backdrop.className = 'component-selection-backdrop mod-detail-backdrop';
@@ -111,30 +113,45 @@ class ModDetailPopup {
             </div>`;
     }
 
+    // Mod index entries only: a note when files land outside mods/ and usermaps/.
+    gameFilesNoteHTML() {
+        const config = GameUtils.getGameConfigByUIId(this.gameId);
+        return `
+            <div class="mod-detail-required mod-detail-files-note">
+                <strong>${window.ModsView.changesGameFilesTag()}</strong>
+                <span>${this.esc(this.t('mods.changesGameFilesNote', { game: config ? config.displayName : this.gameId }))}</span>
+            </div>`;
+    }
+
     render(body, detail) {
-        const images = [detail.preview, ...detail.screenshots].filter(Boolean);
+        this.detail = detail;
+        const caps = window.ModsService.supports(this.gameId) || {};
+        const images = [detail.preview, ...(detail.screenshots || [])].filter(Boolean);
         const heroSrc = this.esc(images[0]);
         const language = window.LauncherI18n ? window.LauncherI18n.getLanguage() : 'en';
         const updated = detail.updatedAt ? new Date(detail.updatedAt * 1000).toLocaleDateString(language) : '';
         const percent = detail.votes ? Math.round(detail.votes.score * 100) : 0;
         const votes = detail.votes ? detail.votes.up + detail.votes.down : 0;
+        const author = this.item.author || detail.author;
+        const version = caps.steam ? '' : window.ModsView.versionLabel(detail.version);
 
         body.innerHTML = `
-            ${images.length ? `<div class="mod-detail-hero"><img class="mod-detail-hero-bg" src="${heroSrc}" alt=""><img src="${heroSrc}" alt=""></div>` : ''}
-            ${images.length > 1 ? `<div class="mod-detail-thumbs">${images.map((url, index) =>
+            ${images.length ? `<div class="mod-detail-hero"><img class="mod-detail-hero-bg" src="${heroSrc}" alt=""><img src="${heroSrc}" alt=""></div>` : ''}            ${images.length > 1 ? `<div class="mod-detail-thumbs">${images.map((url, index) =>
                 `<img src="${this.esc(url)}" data-index="${index}" class="${index === 0 ? 'active' : ''}" alt="" loading="lazy">`).join('')}</div>` : ''}
             <div class="mod-detail-meta">
                 ${window.ModsView.kindBadge(detail.kind)}
-                ${this.item.author ? `<span>${this.esc(this.t('mods.by', { author: this.item.author }))}</span>` : ''}
-                <span>${this.esc(this.t('mods.subscribers', { count: GameUtils.formatCount(detail.subscribers) }))}</span>
-                <span>${this.esc(GameUtils.formatBytes(detail.size))}</span>
+                ${author ? `<span>${this.esc(this.t('mods.by', { author }))}</span>` : ''}
+                ${caps.steam ? `<span>${this.esc(this.t('mods.subscribers', { count: GameUtils.formatCount(detail.subscribers) }))}</span>` : ''}
+                ${version ? `<span>${this.esc(version)}</span>` : ''}
+                ${detail.comingSoon ? '' : `<span>${this.esc(GameUtils.formatBytes(detail.size))}</span>`}
                 ${votes ? `<span class="mod-detail-rating">${this.esc(this.t('mods.rating', { percent, votes: GameUtils.formatCount(votes) }))}</span>` : ''}
                 ${updated ? `<span>${this.esc(this.t('mods.updatedDate', { date: updated }))}</span>` : ''}
             </div>
+            ${!caps.steam && detail.changesGameFiles ? this.gameFilesNoteHTML() : ''}
             ${Array.isArray(detail.children) && detail.children.length ? this.requiredItemsHTML(detail.children) : ''}
             <div class="mod-detail-desc">${this.bbcodeToHtml(detail.description) || this.esc(detail.title)}</div>
             <div class="popup-actions">
-                <button class="btn-cancel mod-detail-steam">${this.esc(this.t('mods.viewOnSteam'))}</button>
+                ${caps.steam ? `<button class="btn-cancel mod-detail-steam">${this.esc(this.t('mods.viewOnSteam'))}</button>` : ''}
                 <button class="btn-apply mod-detail-install"></button>
             </div>`;
 
@@ -152,9 +169,12 @@ class ModDetailPopup {
             link.addEventListener('click', () => window.executeCommand('open-url', { url: link.dataset.url }));
         });
 
-        body.querySelector('.mod-detail-steam').addEventListener('click', () => {
-            window.executeCommand('open-url', { url: `https://steamcommunity.com/sharedfiles/filedetails/?id=${this.item.id}` });
-        });
+        const steamLink = body.querySelector('.mod-detail-steam');
+        if (steamLink) {
+            steamLink.addEventListener('click', () => {
+                window.executeCommand('open-url', { url: `https://steamcommunity.com/sharedfiles/filedetails/?id=${this.item.id}` });
+            });
+        }
 
         this.installButton = body.querySelector('.mod-detail-install');
         this.installButton.addEventListener('click', () => {
@@ -167,7 +187,8 @@ class ModDetailPopup {
                     title: detail.title,
                     size: detail.size,
                     kind: detail.kind,
-                    preview: detail.preview
+                    preview: detail.preview,
+                    comingSoon: !!detail.comingSoon
                 });
             }
         });
@@ -178,8 +199,10 @@ class ModDetailPopup {
     syncInstallButton() {
         if (!this.installButton || !this.installButton.isConnected || !window.ModsView) return;
         const state = window.ModsView.cardButtonFor(this.gameId, this.item.id);
-        this.installButton.textContent = state.label || this.t('mods.install');
-        this.installButton.disabled = !!state.disabled;
+        // Opened from a deep link or the installed list, the card state may not know the entry has no files yet.
+        const soon = state.stateName === 'idle' && this.detail && this.detail.comingSoon;
+        this.installButton.textContent = soon ? this.t('mods.comingSoon') : (state.label || this.t('mods.install'));
+        this.installButton.disabled = soon || !!state.disabled;
     }
 
     close() {
@@ -188,6 +211,7 @@ class ModDetailPopup {
         this.backdrop = null;
         this.popup = null;
         this.installButton = null;
+        this.detail = null;
     }
 }
 

@@ -269,25 +269,27 @@ namespace catalog_installer
             return {};
         }
 
-        bool file_matches(const planned_file& file, const std::function<bool()>& keep_going)
+        // Why the file on disk can't be kept ("missing", "size", "hash"), or empty when it matches.
+        std::string mismatch(const planned_file& file, const std::function<bool()>& keep_going)
         {
-            if (!utils::io::file_exists(file.target) || utils::io::file_size(file.target) != file.file.size)
+            if (!utils::io::file_exists(file.target))
             {
-                return false;
+                return "missing";
             }
 
-            if (file.file.size == 0)
+            if (utils::io::file_size(file.target) != file.file.size)
             {
-                return true;
+                return "size";
             }
 
-            return utils::hash::get_file_hash(file.target, [&keep_going]
+            const auto hash = file.file.size == 0 ? file.file.hash : utils::hash::get_file_hash(file.target, [&keep_going]
             {
                 if (!keep_going())
                 {
                     throw hash_cancelled{};
                 }
-            }) == file.file.hash;
+            });
+            return hash == file.file.hash ? std::string{} : "hash";
         }
 
         std::string check_disk_space(const std::vector<const planned_file*>& outdated)
@@ -438,8 +440,15 @@ namespace catalog_installer
                         return fail("cancelled");
                     }
 
-                    if (!file_matches(file, [&report] { return report("preparing", 0); }))
+                    const auto reason = mismatch(file, [&report] { return report("preparing", 0); });
+                    if (!reason.empty())
                     {
+                        // Updates and repairs name what they fetch; a fresh install fetches everything.
+                        if (previous)
+                        {
+                            utils::logger::write("[cbl-mods] {}: fetching {} ({})", item.id, file.file.path, reason);
+                        }
+
                         outdated.push_back(&file);
                         outdated_bytes += file.file.size;
                     }
