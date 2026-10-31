@@ -61,66 +61,6 @@ namespace client_store
 
             return true;
         }
-
-        // Paths the game manifest ships (plus the base game's): overwrite-only, never deleted.
-        std::unordered_set<std::wstring> collect_game_manifest_keys(const game_config::game_config_t& config,
-            const std::filesystem::path& install_path)
-        {
-            std::unordered_set<std::wstring> keys{};
-
-            const auto collect = [&keys, &install_path](const game_config::game_config_t& game)
-            {
-                std::string json{};
-                try
-                {
-                    json = game_config::read_manifest(game);
-                }
-                catch (...)
-                {
-                    return;
-                }
-
-                rapidjson::Document doc{};
-                doc.Parse(json.data(), json.size());
-                if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("files") || !doc["files"].IsArray())
-                {
-                    return;
-                }
-
-                for (const auto& entry : doc["files"].GetArray())
-                {
-                    if (!entry.IsArray() || entry.GetArray().Size() < 1 || !entry.GetArray()[0].IsString())
-                    {
-                        continue;
-                    }
-
-                    const std::string name{entry.GetArray()[0].GetString(), entry.GetArray()[0].GetStringLength()};
-                    keys.emplace(path_key(install_path / utils::string::utf8_to_path(name)));
-
-                    // Steam installs remap these prefixes to the game root; guard both shapes.
-                    for (const auto* prefix : {"zone/", "raw/video/"})
-                    {
-                        if (utils::string::starts_with(name, prefix))
-                        {
-                            const auto stripped = utils::string::replace(name, prefix, "");
-                            keys.emplace(path_key(install_path / utils::string::utf8_to_path(stripped)));
-                        }
-                    }
-                }
-            };
-
-            collect(config);
-
-            if (!config.base_game.empty())
-            {
-                if (const auto base = game_config::get_game_config(config.base_game))
-                {
-                    collect(*base);
-                }
-            }
-
-            return keys;
-        }
     }
 
     client_paths::client_paths(std::filesystem::path install_path, const game_config::client_files_t& client)
@@ -209,6 +149,65 @@ namespace client_store
         }
 
         return this->client_default_path_ / folder;
+    }
+
+    std::unordered_set<std::wstring> game_manifest_keys(const game_config::game_config_t& config,
+        const std::filesystem::path& install_path)
+    {
+        std::unordered_set<std::wstring> keys{};
+
+        const auto collect = [&keys, &install_path](const game_config::game_config_t& game)
+        {
+            std::string json{};
+            try
+            {
+                json = game_config::read_manifest(game);
+            }
+            catch (...)
+            {
+                return;
+            }
+
+            rapidjson::Document doc{};
+            doc.Parse(json.data(), json.size());
+            if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("files") || !doc["files"].IsArray())
+            {
+                return;
+            }
+
+            for (const auto& entry : doc["files"].GetArray())
+            {
+                if (!entry.IsArray() || entry.GetArray().Size() < 1 || !entry.GetArray()[0].IsString())
+                {
+                    continue;
+                }
+
+                const std::string name{entry.GetArray()[0].GetString(), entry.GetArray()[0].GetStringLength()};
+                keys.emplace(path_key(install_path / utils::string::utf8_to_path(name)));
+
+                // Steam installs remap these prefixes to the game root; guard both shapes.
+                for (const auto* prefix : {"zone/", "raw/video/"})
+                {
+                    if (utils::string::starts_with(name, prefix))
+                    {
+                        const auto stripped = utils::string::replace(name, prefix, "");
+                        keys.emplace(path_key(install_path / utils::string::utf8_to_path(stripped)));
+                    }
+                }
+            }
+        };
+
+        collect(config);
+
+        if (!config.base_game.empty())
+        {
+            if (const auto base = game_config::get_game_config(config.base_game))
+            {
+                collect(*base);
+            }
+        }
+
+        return keys;
     }
 
     updater::file_dest parse_file_dest(const std::string& token)
@@ -448,7 +447,7 @@ namespace client_store
         }
 
         // Delete side, mode-scoped: only files exclusive to other same-mode clients.
-        const auto game_owned = collect_game_manifest_keys(config, *install_path);
+        const auto game_owned = game_manifest_keys(config, *install_path);
         std::set<std::filesystem::path> directories_to_check{};
 
         for (const auto* other : game_config::clients_for_mode(config, mode))

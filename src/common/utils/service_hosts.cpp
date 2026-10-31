@@ -1,4 +1,5 @@
 #include "service_hosts.hpp"
+#include "flags.hpp"
 #include "logger.hpp"
 
 #include <atomic>
@@ -14,11 +15,28 @@ namespace utils::service_hosts
             std::atomic<size_t> active{0};
         };
 
+        // -workshop-url replaces the list with one dev backend (a local worker), like -cbfriends-url does for social.
+        std::vector<std::string> workshop_hosts()
+        {
+            auto url = flags::get_flag_value("workshop-url");
+            while (url && !url->empty() && url->back() == '/')
+            {
+                url->pop_back();
+            }
+
+            if (url && !url->empty())
+            {
+                return {*url};
+            }
+
+            return {"https://workshop.cbservers.dev", "https://workshop.cbservers.xyz"};
+        }
+
         service_entry& entry_for(const service s)
         {
             static service_entry social{"social", {"https://social.cbservers.dev", "https://social.cbservers.xyz"}};
             static service_entry auth{"auth", {"https://auth.cbservers.dev", "https://auth.cbservers.xyz"}};
-            static service_entry workshop{"workshop", {"https://workshop.cbservers.dev", "https://workshop.cbservers.xyz"}};
+            static service_entry workshop{"workshop", workshop_hosts()};
             static service_entry servers{"servers", {"https://servers.cbservers.dev", "https://servers.cbservers.xyz"}};
 
             switch (s)

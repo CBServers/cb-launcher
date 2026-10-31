@@ -35,6 +35,55 @@ namespace mods::workshop_catalog
             }
             return 0;
         }
+
+        // The worker already validated these; anything malformed rejects the whole item.
+        bool parse_files(const rapidjson::Value& doc, std::vector<catalog_file>& files)
+        {
+            if (!doc.HasMember("files"))
+            {
+                return true;
+            }
+
+            if (!doc["files"].IsArray())
+            {
+                return false;
+            }
+
+            for (const auto& entry : doc["files"].GetArray())
+            {
+                if (!entry.IsObject() || !entry.HasMember("size") || !entry["size"].IsUint64())
+                {
+                    return false;
+                }
+
+                catalog_file file{json_string(entry, "root"), json_string(entry, "path"), entry["size"].GetUint64(), json_string(entry, "hash"), {}};
+                if (entry.HasMember("parts") && entry["parts"].IsArray())
+                {
+                    for (const auto& part : entry["parts"].GetArray())
+                    {
+                        if (!part.IsString())
+                        {
+                            return false;
+                        }
+
+                        file.urls.emplace_back(part.GetString(), part.GetStringLength());
+                    }
+                }
+                else if (const auto url = json_string(entry, "url"); !url.empty())
+                {
+                    file.urls.push_back(url);
+                }
+
+                if (file.root.empty() || file.path.empty() || file.hash.empty() || file.urls.empty())
+                {
+                    return false;
+                }
+
+                files.push_back(std::move(file));
+            }
+
+            return true;
+        }
     }
 
     std::optional<item> fetch(const game_config::game_config_t& config, const std::string& workshop_id)
@@ -67,6 +116,12 @@ namespace mods::workshop_catalog
         out.title = json_string(doc, "title");
         out.kind = json_string(doc, "kind");
         out.size = json_size(doc, "size");
+        out.version = json_string(doc, "version");
+        if (!parse_files(doc, out.files))
+        {
+            utils::logger::write("[cbl-mods] workshop item {} has a malformed file list", workshop_id);
+            return std::nullopt;
+        }
 
         if (doc.HasMember("children") && doc["children"].IsArray())
         {

@@ -1,5 +1,7 @@
 #include "std_include.hpp"
 #include "mod_store.hpp"
+#include "catalog_installer.hpp"
+#include "mod_download.hpp"
 #include "mod_updater.hpp"
 #include "steamcmd.hpp"
 #include "updater/client_store.hpp"
@@ -25,6 +27,9 @@ namespace mods
         constexpr auto FOLDER_USERMAPS = "usermaps";
         constexpr auto FOLDER_MODS = "mods";
         constexpr auto FOLDER_STEAM = "steam-workshop";
+        constexpr auto FOLDER_CATALOG = "catalog";
+        constexpr auto ROOT_GAME = "game";
+        constexpr auto ROOT_STORAGE = "storage";
         constexpr auto SOURCE_STEAM = "steam";
         constexpr auto KIND_MAP = "map";
         constexpr auto KIND_MOD = "mod";
@@ -79,11 +84,6 @@ namespace mods
             return buffer;
         }
 
-        std::string now_iso8601()
-        {
-            return format_iso8601(std::time(nullptr));
-        }
-
         std::string iso8601_from(const std::filesystem::file_time_type& time)
         {
             if (time == std::filesystem::file_time_type{})
@@ -114,90 +114,12 @@ namespace mods
             });
         }
 
-        std::vector<installed_mod> read_index(const game_config::game_config_t& config)
+        uint64_t json_uint64(const rapidjson::Value& object, const char* key)
         {
-            std::string data{};
-            if (!utils::io::read_file(index_path(config), &data) || data.empty())
-            {
-                return {};
-            }
-
-            rapidjson::Document doc{};
-            doc.Parse(data.data(), data.size());
-            if (doc.HasParseError() || !doc.IsArray())
-            {
-                return {};
-            }
-
-            std::vector<installed_mod> mods{};
-            for (const auto& element : doc.GetArray())
-            {
-                installed_mod mod{};
-                mod.id = json_string(element, "id");
-                mod.name = json_string(element, "name");
-                mod.kind = json_string(element, "kind");
-                mod.folder = json_string(element, "folder");
-                mod.source = json_string(element, "source");
-                mod.version = json_string(element, "version");
-                mod.workshop_id = json_string(element, "workshopId");
-                mod.installed_at = json_string(element, "installedAt");
-
-                if (!mod.id.empty())
-                {
-                    mods.push_back(std::move(mod));
-                }
-            }
-
-            return mods;
+            return object.IsObject() && object.HasMember(key) && object[key].IsUint64() ? object[key].GetUint64() : 0;
         }
 
-        bool write_index(const game_config::game_config_t& config, const std::vector<installed_mod>& mods)
-        {
-            rapidjson::Document doc{rapidjson::kArrayType};
-            auto& allocator = doc.GetAllocator();
-            for (const auto& mod : mods)
-            {
-                doc.PushBack(to_json(mod, allocator), allocator);
-            }
-
-            rapidjson::StringBuffer buffer{};
-            rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-            doc.Accept(writer);
-
-            const auto path = index_path(config);
-            const auto temp = path.string() + ".tmp";
-            if (!utils::io::write_file(temp, std::string{buffer.GetString(), buffer.GetSize()}))
-            {
-                return false;
-            }
-
-            if (!utils::io::move_file_replace(temp, path))
-            {
-                utils::io::remove_file(temp);
-                return false;
-            }
-
-            return true;
-        }
-
-        void upsert_index(const game_config::game_config_t& config, const installed_mod& mod)
-        {
-            auto mods = read_index(config);
-            std::erase_if(mods, [&mod](const installed_mod& entry) { return entry.id == mod.id; });
-            mods.push_back(mod);
-            write_index(config, mods);
-        }
-
-        void erase_index(const game_config::game_config_t& config, const std::string& id)
-        {
-            auto mods = read_index(config);
-            const auto before = mods.size();
-            std::erase_if(mods, [&id](const installed_mod& entry) { return entry.id == id; });
-            if (mods.size() != before)
-            {
-                write_index(config, mods);
-            }
-        }
+        bool write_index(const game_config::game_config_t& config, const std::vector<installed_mod>& mods);
 
         struct directory_stats
         {
@@ -569,6 +491,11 @@ namespace mods
         }
     }
 
+    std::string now_iso8601()
+    {
+        return format_iso8601(std::time(nullptr));
+    }
+
     std::string json_string(const rapidjson::Value& object, const char* key)
     {
         if (!object.IsObject() || !object.HasMember(key) || !object[key].IsString())
@@ -579,14 +506,19 @@ namespace mods
         return {object[key].GetString(), object[key].GetStringLength()};
     }
 
-    rapidjson::Value to_json(const installed_mod& mod, rapidjson::Document::AllocatorType& allocator)
+    namespace
     {
-        const auto str = [&allocator](const std::string& value)
+        rapidjson::Value json_value(const std::string& value, rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value v{};
             v.SetString(value.data(), static_cast<rapidjson::SizeType>(value.size()), allocator);
             return v;
-        };
+        }
+    }
+
+    rapidjson::Value to_json(const installed_mod& mod, rapidjson::Document::AllocatorType& allocator)
+    {
+        const auto str = [&allocator](const std::string& value) { return json_value(value, allocator); };
 
         rapidjson::Value entry(rapidjson::kObjectType);
         entry.AddMember("id", str(mod.id), allocator);
@@ -598,7 +530,127 @@ namespace mods
         entry.AddMember("workshopId", str(mod.workshop_id), allocator);
         entry.AddMember("installedAt", str(mod.installed_at), allocator);
         entry.AddMember("size", mod.size, allocator);
+        if (mod.source == SOURCE_CATALOG)
+        {
+            entry.AddMember("missingFiles", mod.missing_files, allocator);
+        }
         return entry;
+    }
+
+    std::vector<installed_mod> read_index(const game_config::game_config_t& config)
+    {
+        std::string data{};
+        if (!utils::io::read_file(index_path(config), &data) || data.empty())
+        {
+            return {};
+        }
+
+        rapidjson::Document doc{};
+        doc.Parse(data.data(), data.size());
+        if (doc.HasParseError() || !doc.IsArray())
+        {
+            return {};
+        }
+
+        std::vector<installed_mod> mods{};
+        for (const auto& element : doc.GetArray())
+        {
+            installed_mod mod{};
+            mod.id = json_string(element, "id");
+            mod.name = json_string(element, "name");
+            mod.kind = json_string(element, "kind");
+            mod.folder = json_string(element, "folder");
+            mod.source = json_string(element, "source");
+            mod.version = json_string(element, "version");
+            mod.workshop_id = json_string(element, "workshopId");
+            mod.installed_at = json_string(element, "installedAt");
+
+            if (element.IsObject() && element.HasMember("files") && element["files"].IsArray())
+            {
+                for (const auto& file : element["files"].GetArray())
+                {
+                    catalog_file entry{json_string(file, "root"), json_string(file, "path"), json_uint64(file, "size"), json_string(file, "hash"), {}};
+                    if (!entry.root.empty() && !entry.path.empty())
+                    {
+                        mod.files.push_back(std::move(entry));
+                    }
+                }
+            }
+
+            if (!mod.id.empty())
+            {
+                mods.push_back(std::move(mod));
+            }
+        }
+
+        return mods;
+    }
+
+    namespace
+    {
+        bool write_index(const game_config::game_config_t& config, const std::vector<installed_mod>& mods)
+        {
+            rapidjson::Document doc{rapidjson::kArrayType};
+            auto& allocator = doc.GetAllocator();
+            for (const auto& mod : mods)
+            {
+                auto entry = to_json(mod, allocator);
+                entry.RemoveMember("missingFiles");
+                if (mod.source == SOURCE_CATALOG)
+                {
+                    rapidjson::Value files(rapidjson::kArrayType);
+                    for (const auto& file : mod.files)
+                    {
+                        rapidjson::Value record(rapidjson::kObjectType);
+                        record.AddMember("root", json_value(file.root, allocator), allocator);
+                        record.AddMember("path", json_value(file.path, allocator), allocator);
+                        record.AddMember("size", file.size, allocator);
+                        record.AddMember("hash", json_value(file.hash, allocator), allocator);
+                        files.PushBack(record, allocator);
+                    }
+                    entry.AddMember("files", files, allocator);
+                }
+                doc.PushBack(entry, allocator);
+            }
+
+            rapidjson::StringBuffer buffer{};
+            rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+            doc.Accept(writer);
+
+            const auto path = index_path(config);
+            const auto temp = path.string() + ".tmp";
+            if (!utils::io::write_file(temp, std::string{buffer.GetString(), buffer.GetSize()}))
+            {
+                return false;
+            }
+
+            if (!utils::io::move_file_replace(temp, path))
+            {
+                utils::io::remove_file(temp);
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    void upsert_index(const game_config::game_config_t& config, const installed_mod& mod)
+    {
+        auto mods = read_index(config);
+        std::erase_if(mods, [&mod](const installed_mod& entry) { return entry.id == mod.id; });
+        mods.push_back(mod);
+        write_index(config, mods);
+    }
+
+    void erase_index(const game_config::game_config_t& config, const std::string& id)
+    {
+        auto mods = read_index(config);
+        const auto before = mods.size();
+        std::erase_if(mods, [&id](const installed_mod& entry) { return entry.id == id; });
+        if (mods.size() != before)
+        {
+            write_index(config, mods);
+        }
     }
 
     bool supports(const game_config::game_config_t& config)
@@ -606,8 +658,59 @@ namespace mods
         return layout_for(config) != nullptr;
     }
 
+    bool uses_catalog(const game_config::game_config_t& config)
+    {
+        const auto layout = layout_for(config);
+        return layout && !layout->steam_appid;
+    }
+
+    std::vector<std::string> catalog_roots(const game_config::game_config_t& config)
+    {
+        const auto layout = layout_for(config);
+        if (!layout || layout->steam_appid)
+        {
+            return {};
+        }
+
+        return layout->plutonium ? std::vector<std::string>{ROOT_STORAGE, ROOT_GAME} : std::vector<std::string>{ROOT_GAME};
+    }
+
+    std::optional<std::filesystem::path> catalog_root_path(const game_config::game_config_t& config, const std::string& root)
+    {
+        const auto roots = catalog_roots(config);
+        if (std::find(roots.begin(), roots.end(), root) == roots.end())
+        {
+            return std::nullopt;
+        }
+
+        if (root == ROOT_STORAGE)
+        {
+            return utils::properties::get_appdata_folder_path("Plutonium") / "storage" / config.game_key;
+        }
+
+        const auto install = config.get_install_path();
+        if (!install || install->empty())
+        {
+            return std::nullopt;
+        }
+
+        return *install;
+    }
+
+    std::string catalog_record_id(const std::string& entry_id)
+    {
+        return make_id(FOLDER_CATALOG, entry_id);
+    }
+
     bool is_workshop_item_installed(const game_config::game_config_t& config, const std::string& workshop_id)
     {
+        if (uses_catalog(config))
+        {
+            const auto id = catalog_record_id(workshop_id);
+            const auto index = read_index(config);
+            return std::any_of(index.begin(), index.end(), [&id](const installed_mod& mod) { return mod.id == id; });
+        }
+
         const auto layout = layout_for(config);
         const auto root = content_root(config);
         return layout && root && is_workshop_id(workshop_id) && workshop_item_installed(*layout, *root, workshop_id);
@@ -711,6 +814,84 @@ namespace mods
                 result.push_back(std::move(mod));
             }
         }
+
+        // <folder>/<dirname> directories a mod index install placed files in, like mods/dlc5 or usermaps/zm_moon.
+        std::vector<std::pair<std::string, std::string>> claimed_folders(const game_layout& layout, const installed_mod& mod)
+        {
+            std::vector<std::pair<std::string, std::string>> claimed{};
+            const auto content = layout.plutonium ? ROOT_STORAGE : ROOT_GAME;
+            for (const auto& file : mod.files)
+            {
+                const auto segments = utils::string::split(file.path, '/');
+                if (file.root != content || segments.size() < 3)
+                {
+                    continue;
+                }
+
+                const auto folder = std::find_if(layout.folders.begin(), layout.folders.end(),
+                    [&segments](const std::string& name) { return utils::string::equals_no_case(name, segments[0]); });
+                if (folder == layout.folders.end())
+                {
+                    continue;
+                }
+
+                const auto duplicate = std::any_of(claimed.begin(), claimed.end(), [&](const auto& entry)
+                {
+                    return entry.first == *folder && utils::string::equals_no_case(entry.second, segments[1]);
+                });
+                if (!duplicate)
+                {
+                    claimed.emplace_back(*folder, segments[1]);
+                }
+            }
+
+            return claimed;
+        }
+
+        // A file counts as present while its download is in flight, so a cancelled install stays listed and resumable.
+        void append_catalog(const game_config::game_config_t& config, const std::vector<installed_mod>& index, std::vector<installed_mod>& result)
+        {
+            for (const auto& entry : index)
+            {
+                if (entry.source != SOURCE_CATALOG)
+                {
+                    continue;
+                }
+
+                auto mod = entry;
+                mod.size = 0;
+                size_t complete = 0, present = 0;
+                for (const auto& file : entry.files)
+                {
+                    mod.size += file.size;
+                    const auto root = catalog_root_path(config, file.root);
+                    if (!root)
+                    {
+                        continue;
+                    }
+
+                    const auto target = *root / utils::string::utf8_to_path(file.path);
+                    if (utils::io::file_exists(target))
+                    {
+                        ++complete;
+                        ++present;
+                    }
+                    else if (mod_download::has_partial(target, file.hash))
+                    {
+                        ++present;
+                    }
+                }
+
+                // Every file is gone: it was removed outside the launcher.
+                if (!present && !entry.files.empty())
+                {
+                    continue;
+                }
+
+                mod.missing_files = complete < entry.files.size();
+                result.push_back(std::move(mod));
+            }
+        }
     }
 
     std::vector<installed_mod> list_installed(const game_config::game_config_t& config)
@@ -724,12 +905,29 @@ namespace mods
 
         auto index = read_index(config);
 
+        std::unordered_set<std::string> claimed{};
+        for (const auto& entry : index)
+        {
+            if (entry.source == SOURCE_CATALOG)
+            {
+                for (const auto& [folder, dirname] : claimed_folders(*layout, entry))
+                {
+                    claimed.insert(utils::string::to_lower(make_id(folder, dirname)));
+                }
+            }
+        }
+
         for (const auto& folder : content_folders(config))
         {
             for (const auto& directory : subdirectories(folder.path))
             {
                 const auto dirname = utils::string::path_to_utf8(directory.filename());
                 const auto id = make_id(folder.name, dirname);
+                if (claimed.contains(utils::string::to_lower(id)))
+                {
+                    continue;
+                }
+
                 const auto stats = scan_directory(directory);
 
                 installed_mod mod{};
@@ -756,6 +954,7 @@ namespace mods
             }
         }
 
+        append_catalog(config, index, result);
         append_steam_workshop(*layout, config, result);
 
         // Forget index entries whose folder was removed outside the launcher.
@@ -1103,6 +1302,11 @@ namespace mods
     import_result install_workshop_item(const game_config::game_config_t& config, const std::string& workshop_id, const uint64_t expected_size,
                                         const std::vector<workshop_download>& children, const progress_callback& progress)
     {
+        if (uses_catalog(config))
+        {
+            return catalog_installer::install(config, workshop_id, progress);
+        }
+
         const auto layout = layout_for(config);
         const auto root = content_root(config);
         if (!layout || !root || !layout->steam_appid)
@@ -1287,6 +1491,27 @@ namespace mods
             return std::nullopt;
         }
 
+        if (folder == FOLDER_CATALOG)
+        {
+            const auto index = read_index(config);
+            const auto record = std::find_if(index.begin(), index.end(), [&id](const installed_mod& mod) { return mod.id == id; });
+            const auto root = content_root(config);
+            if (record == index.end() || !root)
+            {
+                return std::nullopt;
+            }
+
+            for (const auto& [content, owned] : claimed_folders(*layout, *record))
+            {
+                if (const auto path = mod_path(config, make_id(content, owned)); path && utils::io::directory_exists(*path))
+                {
+                    return path;
+                }
+            }
+
+            return std::nullopt;
+        }
+
         // Steam-subscribed items live outside the content folders, in their own library path.
         std::optional<std::filesystem::path> parent{};
         if (folder == FOLDER_STEAM)
@@ -1309,6 +1534,11 @@ namespace mods
 
     bool uninstall(const game_config::game_config_t& config, const std::string& id, std::string& error)
     {
+        if (utils::string::starts_with(id, std::string{FOLDER_CATALOG} + ":"))
+        {
+            return catalog_installer::uninstall(config, id.substr(std::strlen(FOLDER_CATALOG) + 1), error);
+        }
+
         const auto path = mod_path(config, id);
         if (!path)
         {

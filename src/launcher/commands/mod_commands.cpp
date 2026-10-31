@@ -196,7 +196,7 @@ namespace commands::mod_commands
             auto& allocator = response.GetAllocator();
 
             const auto config = ctx.get_game_config_from_request(value);
-            if (!config || !mods::supports(*config))
+            if (!config || !mods::supports(*config) || mods::uses_catalog(*config))
             {
                 return;
             }

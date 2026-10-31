@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "mod_updater.hpp"
+#include "mod_download.hpp"
 #include "updater/client_store.hpp"
 
 #include <utils/cdn.hpp>
@@ -148,139 +149,6 @@ namespace mod_updater
             }
 
             return result;
-        }
-
-        std::string download_file(const std::string& item_url, const manifest_file& file,
-            const std::filesystem::path& target, const std::function<bool(uint64_t)>& on_progress)
-        {
-            if (target.has_parent_path())
-            {
-                utils::io::create_directory(target.parent_path());
-            }
-
-            if (file.size == 0)
-            {
-                return utils::io::write_file(target, std::string{}) ? std::string{} : "Failed to write " + file.name;
-            }
-
-            auto part = target;
-            part += "." + file.hash + ".part";
-
-            // The .part's size on disk is the resume offset, mirroring the game updater.
-            std::size_t offset = utils::io::file_size(part);
-            if (offset > file.size)
-            {
-                utils::io::remove_file(part);
-                offset = 0;
-            }
-
-            std::ofstream ofs(part, std::ios::binary | (offset > 0 ? std::ios::app : std::ios::trunc));
-            if (!ofs)
-            {
-                return "Failed to open " + utils::string::path_to_utf8(part);
-            }
-
-            // Only a download starting at byte 0 can be hashed as it streams.
-            std::optional<utils::hash::stream_hasher> hasher{};
-            if (offset == 0)
-            {
-                hasher.emplace();
-            }
-
-            auto cancelled = false;
-            auto write_failed = false;
-            uint64_t received = offset;
-
-            if (offset < file.size)
-            {
-                const auto url = item_url + utils::string::url_encode_path(file.name) + "?" + file.hash;
-                const auto data = utils::http::get_data_stream(url, {}, {}, {},
-                    [&](const char* chunk, const size_t size) -> bool
-                    {
-                        if (chunk && size > 0)
-                        {
-                            ofs.write(chunk, static_cast<std::streamsize>(size));
-                            if (!ofs)
-                            {
-                                write_failed = true;
-                                return false;
-                            }
-
-                            if (hasher)
-                            {
-                                hasher->update(chunk, size);
-                            }
-
-                            received += size;
-                        }
-
-                        if (!on_progress(received))
-                        {
-                            cancelled = true;
-                            return false;
-                        }
-
-                        return true;
-                    },
-                    [&]() -> bool { return !write_failed && !cancelled; },
-                    0, 5, offset);
-
-                ofs.flush();
-                const auto flush_failed = !ofs;
-                ofs.close();
-
-                if (cancelled)
-                {
-                    return "cancelled"; // the part stays behind as the resume point
-                }
-
-                if (write_failed || flush_failed)
-                {
-                    utils::io::remove_file(part);
-                    return "Failed to write " + utils::string::path_to_utf8(part) + ", the disk may be full or write-protected";
-                }
-
-                if (!data)
-                {
-                    return "Failed to download " + file.name;
-                }
-
-                if (data->range_ignored || data->response_code == 416)
-                {
-                    // What we hold can't be extended; drop it so the retry refetches whole.
-                    utils::io::remove_file(part);
-                    return "Resume rejected for " + file.name;
-                }
-
-                if (data->code != CURLE_OK)
-                {
-                    return utils::string::va("Failed to download %s, CURL error %d", file.name.data(), data->code);
-                }
-            }
-            else
-            {
-                ofs.close();
-            }
-
-            if (utils::io::file_size(part) != file.size)
-            {
-                utils::io::remove_file(part);
-                return "Size mismatch for " + file.name;
-            }
-
-            const auto hash = hasher ? hasher->digest() : utils::hash::get_file_hash(part);
-            if (hash != file.hash)
-            {
-                utils::io::remove_file(part);
-                return "Hash mismatch for " + file.name;
-            }
-
-            if (!utils::io::move_file_replace(part, target))
-            {
-                return "Failed to move " + file.name + " into place";
-            }
-
-            return {};
         }
 
         // The mod folder is wholly owned by the manifest: leftovers from another
@@ -456,7 +324,8 @@ namespace mod_updater
             // One retry: a hash mismatch drops the partial, so the second pass refetches whole.
             for (auto attempt = 0; attempt < 2; ++attempt)
             {
-                error = download_file(item_url, file, *resolve_target(target, file.name), on_progress);
+                const mod_download::request request{file.name, {item_url + utils::string::url_encode_path(file.name) + "?" + file.hash}, file.size, file.hash};
+                error = mod_download::download(request, *resolve_target(target, file.name), on_progress);
                 if (error.empty() || error == "cancelled")
                 {
                     break;

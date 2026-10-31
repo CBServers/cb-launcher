@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game_config.hpp"
+#include "mod_store.hpp"
 
 #include <optional>
 #include <string>
@@ -23,6 +24,9 @@ namespace mods::workshop_catalog
         std::string kind;
         uint64_t size{};
         std::vector<child> children;
+        // Mod index entries only; no files means the entry is listed but not installable yet.
+        std::string version;
+        std::vector<catalog_file> files;
     };
 
     std::optional<item> fetch(const game_config::game_config_t& config, const std::string& workshop_id);

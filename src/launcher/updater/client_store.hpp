@@ -25,6 +25,9 @@ namespace client_store
         std::unordered_set<std::string> install_path_files_;
     };
 
+    // path_key of every path the game manifest ships (plus the base game's): overwrite-only, never deleted.
+    std::unordered_set<std::wstring> game_manifest_keys(const game_config::game_config_t& config, const std::filesystem::path& install_path);
+
     // Unknown tokens fall back to automatic, never a hard failure.
     updater::file_dest parse_file_dest(const std::string& token);
     // Optional 4th manifest element: a bare string, or {"dest": "..."} for future flags.
