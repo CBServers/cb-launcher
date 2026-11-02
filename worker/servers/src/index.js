@@ -41,11 +41,10 @@ const GAMES = {
     'hmw-mod': ['HMW', 'H2M'],
 };
 
-// BO4 has no master list; its lobby service publishes a status page with the live totals. Workers
-// refuse to fetch a bare IP (Cloudflare error 1003), so an unproxied A record in our zone fronts it.
-const T8_LOBBY_URL = 'http://t8.cbservers.xyz:8080/';
-const T8_PLAYERS_RE = /PLAYERS ONLINE.*?<h6[^>]*>\s*(\d+)\s*<\/h6>/is;
-const T8_LOBBIES_RE = /LOBBYS ACTIVE.*?<h6[^>]*>\s*(\d+)\s*<\/h6>/is;
+// BO4 has no master list; its master server publishes the live totals as JSON. Workers refuse to
+// fetch a bare IP (Cloudflare error 1003), so an unproxied A record in our zone fronts it.
+const T8_PUBLIC_URL = 'http://t8.cbservers.xyz:28960/v1/public';
+const T8_TIMEOUT_MS = 5000;
 
 const RATE_LIMIT_PER_MINUTE = 60;
 const CACHE_SECONDS = 30;
@@ -232,18 +231,18 @@ async function fetchGameserveCounts() {
 }
 
 async function fetchT8Counts() {
-    const response = await fetch(T8_LOBBY_URL);
+    // A dark host must not hold up every other game's counts.
+    const response = await fetch(T8_PUBLIC_URL, { signal: AbortSignal.timeout(T8_TIMEOUT_MS) });
     if (!response.ok) {
         throw new Error(`t8 -> ${response.status}`);
     }
 
-    const html = await response.text();
-    const players = html.match(T8_PLAYERS_RE);
-    const lobbies = html.match(T8_LOBBIES_RE);
-    if (!players || !lobbies) {
-        throw new Error('t8 page missing totals');
+    // Public lobbies only, as the master's own panel counts them: private matches and parties are not listed.
+    const body = await response.json();
+    if (!Number.isFinite(body.online) || !Array.isArray(body.lobbies)) {
+        throw new Error('t8 feed missing totals');
     }
-    return { players: Number(players[1]), servers: Number(lobbies[1]) };
+    return { players: body.online, servers: body.lobbies.length };
 }
 
 async function handlePlayerCounts() {

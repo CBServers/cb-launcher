@@ -35,10 +35,12 @@ Plutonium games merge their separate mp/zm upstream ids (e.g. `T6` + `T6ZM`);
 `/v1/player-counts` is the "players in servers" number on the launcher's
 library cards and game pages, cached 30 seconds like a list. It comes from
 gameserve.rs's `/stats` feed (one upstream call for every game, folded with
-the same id merges) plus a scrape of the BO4 lobby-service status page
-(`bo4`, which has no master list). That page lives on a bare IP, which
-Workers cannot fetch (Cloudflare error 1003), so `t8.cbservers.xyz` is an
-unproxied A record pointing at it. A game whose upstream failed is omitted
+the same id merges) plus the BO4 master server's public feed (`bo4`, which
+has no master list): `online` players and the count of public `lobbies` from
+`/v1/public` on port 28960, the totals its own panel shows. That server lives
+on a bare IP, which Workers cannot fetch (Cloudflare error 1003), so
+`t8.cbservers.xyz` is an unproxied A record pointing at it; when the server
+moves, update the record. A game whose upstream failed is omitted
 rather than reported as zero; the two upstreams fail independently. The
 launcher's other count, people running each game from the launcher itself,
 comes from the cbfriends worker's `/v1/stats` and is never added to this one.
