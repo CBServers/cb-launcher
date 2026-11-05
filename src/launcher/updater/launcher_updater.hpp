@@ -1,6 +1,7 @@
 #pragma once
 
 #include "progress_listener.hpp"
+#include "update_mirrors.hpp"
 
 namespace launcher_updater
 {
@@ -13,8 +14,8 @@ namespace launcher_updater
 
         [[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
 
-        void update_host_binary(const std::vector<updater::file_info>& outdated_files) const;
-        void update_files(const std::vector<updater::file_info>& outdated_files) const;
+        void update_host_binary(const std::vector<updater::file_info>& outdated_files, const update_mirrors::route& source) const;
+        void update_files(const std::vector<updater::file_info>& outdated_files, const update_mirrors::route& source) const;
 
     private:
 
@@ -24,7 +25,7 @@ namespace launcher_updater
         std::filesystem::path process_file_;
         std::filesystem::path dead_process_file_;
 
-        void update_file(const updater::file_info& file) const;
+        void update_file(const updater::file_info& file, const update_mirrors::route& source) const;
 
         [[nodiscard]] bool is_outdated_file(const updater::file_info& file) const;
         [[nodiscard]] std::filesystem::path get_drive_filename(const updater::file_info& file) const;

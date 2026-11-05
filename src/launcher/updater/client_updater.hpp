@@ -3,6 +3,7 @@
 #include "file_info.hpp"
 #include "client_store.hpp"
 #include "ui_progress_listener.hpp"
+#include "update_mirrors.hpp"
 #include <game_config.hpp>
 
 namespace client_updater
@@ -31,7 +32,8 @@ namespace client_updater
         bool store_routed_;
         std::filesystem::path manifest_cache_path_;   // Last successfully applied manifest, per client
         std::string update_manifest_url_;
-        std::string update_folder_url_;
+        std::string update_folder_path_;   // Tree path when mirrored, else the full folder URL
+        update_mirrors::route source_{};   // Where the manifest came from; files follow it
         std::vector<updater::file_info> valid_files_;
         std::vector<updater::file_info> manifest_files_;   // FULL manifest, pre-filter
         std::vector<std::string> skip_files_;

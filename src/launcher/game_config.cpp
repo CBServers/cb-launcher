@@ -9,7 +9,9 @@
 #include <unordered_set>
 #include <version.hpp>
 
-#define CLIENT_UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
+#include "updater/update_mirrors.hpp"
+
+#define CLIENT_UPDATE_SERVER UPDATER_GITHUB_BASE
 
 namespace game_config
 {

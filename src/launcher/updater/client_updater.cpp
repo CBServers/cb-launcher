@@ -3,7 +3,6 @@
 #include "client_updater.hpp"
 
 #include <utils/cryptography.hpp>
-#include <utils/http.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
@@ -54,33 +53,20 @@ namespace client_updater
             return files;
         }
 
-        std::string get_cache_buster()
+        std::vector<updater::file_info> get_file_infos(const std::vector<update_mirrors::route>& routes,
+            const std::string& manifest_path, update_mirrors::route& source)
         {
-            return "?" + std::to_string(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
-        }
-
-        std::vector<updater::file_info> get_file_infos(const std::string& manifest_url)
-        {
-            const auto json = utils::http::get_data(manifest_url + get_cache_buster(), {}, {}, {}, 10L, 2U);
-            if (!json || !json.has_value())
-            {
-                return {};
-            }
-
             try
             {
-                const auto& result = json.value();
-                if (result.code != CURLE_OK)
-                {
-                    return {};
-                }
+                const auto manifest = update_mirrors::fetch_manifest(routes, manifest_path,
+                    [](const std::string& json) { return !parse_file_infos(json).empty(); });
 
-                return parse_file_infos(result.buffer);
+                source = manifest.source;
+                return parse_file_infos(manifest.body);
             }
-            catch (...)
+            catch (const std::exception& e)
             {
+                utils::logger::write("{}", e.what());
                 return {};
             }
         }
@@ -174,22 +160,29 @@ namespace client_updater
     {
         const auto dev = !client.dev_manifest_url.empty() && !client.dev_folder_url.empty() && config.uses_dev_channel();
         this->update_manifest_url_ = dev ? client.dev_manifest_url : client.update_manifest_url;
-        this->update_folder_url_ = dev ? client.dev_folder_url : client.update_folder_url;
+        const auto& folder_url = dev ? client.dev_folder_url : client.update_folder_url;
 
         // Keyed on the client, so two clients of one game can't overwrite each other's cache
         // and diff away each other's files. Client ids are unique across all games.
         this->manifest_cache_path_ = client_store::manifest_cache_path(client.client_id);
 
-        if (this->update_manifest_url_.empty() || this->update_folder_url_.empty())
+        if (this->update_manifest_url_.empty() || folder_url.empty())
         {
             return;
         }
+
+        // Only the updater repo's tree is mirrored; any other URL is fetched as-is
+        const auto manifest_path = update_mirrors::tree_path(this->update_manifest_url_);
+        const auto folder_path = update_mirrors::tree_path(folder_url);
+        const auto mirrored = manifest_path && folder_path;
+        const auto routes = mirrored ? update_mirrors::routes() : std::vector{update_mirrors::route{{""}}};
+        this->update_folder_path_ = mirrored ? *folder_path : folder_url;
 
         this->client_data_folders_ = client.client_data_folders;
         this->sweep_client_data_folders_ = client.sweep_client_data_folders;
 
         // Fetch manifest and compute valid files
-        const auto manifest_files = get_file_infos(this->update_manifest_url_);
+        const auto manifest_files = get_file_infos(routes, mirrored ? *manifest_path : this->update_manifest_url_, this->source_);
         this->manifest_fetch_failed_ = manifest_files.empty();
         this->manifest_files_ = manifest_files;
         this->valid_files_ = client.required_updater_files.empty() ? manifest_files : find_file_infos(client.required_updater_files, manifest_files);
@@ -247,83 +240,45 @@ namespace client_updater
 
     void client_updater::update_file(const updater::file_info& file) const
     {
-        auto url = this->update_folder_url_ + utils::string::url_encode_path(file.name) + "?" + file.hash;
-        utils::logger::write("Updating file {}", url);
-
         // Notify progress listener that file download is beginning
         if (this->progress_listener_)
         {
             this->progress_listener_->begin_file(file);
         }
 
-        size_t last_progress = 0;
-        const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
+        // Progress is cumulative per attempt; only report bytes past the furthest attempt so a fallback never double counts
+        size_t reported = 0;
+        std::string data{};
+        const auto status = update_mirrors::fetch_file(this->source_, this->update_folder_path_, file, [&](const size_t progress)
         {
-            // Notify progress listener of download progress
-            // Note: progress is cumulative bytes downloaded, so we calculate the delta
-            if (this->progress_listener_)
+            if (this->progress_listener_ && progress > reported)
             {
-                const size_t delta = progress - last_progress;
-                last_progress = progress;
-                this->progress_listener_->file_progress(file, delta);
+                this->progress_listener_->file_progress(file, progress - reported);
+                reported = progress;
             }
 
-            return !is_update_cancelled(); // Continue unless cancelled
-        });
+            return !is_update_cancelled();
+        }, data);
 
-        if (!data || !data.has_value())
+        if (status == update_mirrors::fetch_status::cancelled)
         {
-            throw std::runtime_error(utils::string::va("Failed to download: %s - Data has no value", url.data()));
+            return;
         }
 
-        try
+        const auto out_file = this->get_drive_filename(file);
+        if (!utils::io::write_file(out_file, data, false))
         {
-            const auto& result = data.value();
-            if (result.code == CURLE_ABORTED_BY_CALLBACK)
-            {
-                return;
-            }
-
-            if (result.code != CURLE_OK)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code (%u)", url.data(), result.code));
-            }
-
-            const auto result_size = result.buffer.size();
-            if (result_size != file.size)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - %zu != %zu", url.data(), result_size, file.size));
-            }
-
-            const auto result_hash = get_hash(result.buffer);
-            if (result_hash != file.hash)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - %s != %s", url.data(), result_hash.data(), file.hash.data()));
-            }
-
-            const auto out_file = this->get_drive_filename(file);
-            if (!utils::io::write_file(out_file, result.buffer, false))
-            {
-                utils::logger::write("Failed to write {}. Error code: ", file.name,
-                    std::system_category().message(static_cast<int>(::GetLastError())));
-                throw std::runtime_error(utils::string::va("Failed to write: %s", out_file.string().data()));
-            }
-
-            utils::logger::write("Done updating file {}", file.name);
-
-            // Notify progress listener that file is complete
-            if (this->progress_listener_)
-            {
-                this->progress_listener_->end_file(file);
-            }
+            utils::logger::write("Failed to write {}. Error code: {}", file.name,
+                std::system_category().message(static_cast<int>(::GetLastError())));
+            throw std::runtime_error(utils::string::va("Failed to write: %s", utils::string::path_to_utf8(out_file).data()));
         }
-        catch (const std::exception& e)
+
+        utils::logger::write("Done updating file {}", file.name);
+
+        // Notify progress listener that file is complete
+        if (this->progress_listener_)
         {
-            throw std::runtime_error(utils::string::va("Failed to update host file: %s", e.what()));
-        }
-        catch (...)
-        {
-            throw std::runtime_error("Unknown error occurred while updating host file");
+            this->progress_listener_->end_file(file);
         }
     }
 

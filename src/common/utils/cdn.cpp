@@ -1,5 +1,6 @@
 #include "cdn.hpp"
 
+#include <algorithm>
 #include <thread>
 #include "properties.hpp"
 #include "flags.hpp"
@@ -173,6 +174,23 @@ namespace utils::cdn
             return std::nullopt;
         }
         return next;
+    }
+
+    std::vector<std::vector<std::string>> cdn_manager::mirror_groups() const
+    {
+        std::lock_guard lock(this->mutex_);
+        std::vector<std::vector<std::string>> groups;
+
+        const auto preferred = this->preferred_region_locked();
+        for (const auto region : {preferred, other_region(preferred)})
+        {
+            auto hosts = hosts_for(region);
+            const auto verified = this->working_host(region);
+            std::stable_partition(hosts.begin(), hosts.end(), [&](const std::string& host) { return host == verified; });
+            groups.emplace_back(std::move(hosts));
+        }
+
+        return groups;
     }
 
     std::optional<double> cdn_manager::test_latency(const std::string& url)

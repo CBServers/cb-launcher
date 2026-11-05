@@ -19,6 +19,7 @@
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/nt.hpp>
 #include <utils/com.hpp>
 #include <utils/notification.hpp>
@@ -430,13 +431,17 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
             {
                 return 0;
             }
-            catch (const std::exception&)
+            catch (const std::exception& e)
             {
-                const auto choice = MessageBoxA(nullptr,
+                utils::logger::write("Launcher update failed: {}", e.what());
+
+                const auto message = std::string{
                     "Could not reach the update server to check for launcher updates.\n\n"
                     "Would you like to start in offline mode? Updates, downloads and online features will be disabled.\n\n"
-                    "If this is your first time running the launcher, it may fail to launch if you continue.",
-                    "CB Servers Launcher", MB_ICONWARNING | MB_YESNO);
+                    "If this is your first time running the launcher, it may fail to launch if you continue.\n\n"
+                    "Details:\n"} + e.what();
+
+                const auto choice = MessageBoxA(nullptr, message.data(), "CB Servers Launcher", MB_ICONWARNING | MB_YESNO);
 
                 if (choice != IDYES)
                 {

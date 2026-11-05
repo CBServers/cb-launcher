@@ -5,7 +5,6 @@
 #include "launcher_updater.hpp"
 
 #include <utils/cryptography.hpp>
-#include <utils/http.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/compression.hpp>
@@ -16,12 +15,10 @@
 
 #include <rapidjson/writer.h>
 
-#define UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
-
-#define UPDATE_FILE_MAIN UPDATE_SERVER "cb-launcher.json"
-#define UPDATE_FOLDER_MAIN UPDATE_SERVER "cb-launcher/"
-#define UPDATE_FILE_DEV UPDATE_SERVER "cb-launcher-dev.json"
-#define UPDATE_FOLDER_DEV UPDATE_SERVER "cb-launcher-dev/"
+#define UPDATE_FILE_MAIN "cb-launcher.json"
+#define UPDATE_FOLDER_MAIN "cb-launcher/"
+#define UPDATE_FILE_DEV "cb-launcher-dev.json"
+#define UPDATE_FOLDER_DEV "cb-launcher-dev/"
 #define UPDATE_HOST_BINARY "cb-launcher.exe"
 
 namespace launcher_updater
@@ -78,44 +75,13 @@ namespace launcher_updater
             return files;
         }
 
-        std::string get_cache_buster()
+        std::vector<updater::file_info> get_file_infos(update_mirrors::route& source)
         {
-            return "?" + std::to_string(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
-        }
+            const auto manifest = update_mirrors::fetch_manifest(update_mirrors::routes(), get_update_file(),
+                [](const std::string& json) { return !parse_file_infos(json).empty(); });
 
-        std::vector<updater::file_info> get_file_infos()
-        {
-            const auto url = get_update_file() + get_cache_buster();
-            const auto json = utils::http::get_data(url);
-            if (!json || !json.has_value())
-            {
-                throw std::runtime_error(utils::string::va(
-                    "Failed to fetch update manifest: %s - no response", url.data()));
-            }
-
-            const auto& result = json.value();
-            if (result.code != CURLE_OK)
-            {
-                throw std::runtime_error(utils::string::va(
-                    "Failed to fetch update manifest: %s - curl code %u", url.data(), result.code));
-            }
-
-            if (result.response_code < 200 || result.response_code >= 300)
-            {
-                throw std::runtime_error(utils::string::va(
-                    "Failed to fetch update manifest: %s - HTTP %u", url.data(), result.response_code));
-            }
-
-            auto files = parse_file_infos(result.buffer);
-            if (files.empty())
-            {
-                throw std::runtime_error(utils::string::va(
-                    "Failed to fetch update manifest: %s - empty or invalid JSON", url.data()));
-            }
-
-            return files;
+            source = manifest.source;
+            return parse_file_infos(manifest.body);
         }
 
         std::string get_hash(const std::string& data)
@@ -157,7 +123,8 @@ namespace launcher_updater
 
     void launcher_updater::run() const
     {
-        const auto files = get_file_infos();
+        update_mirrors::route source{};
+        const auto files = get_file_infos(source);
         if (!files.empty())
         {
             this->cleanup_directories(files);
@@ -169,71 +136,35 @@ namespace launcher_updater
             return;
         }
 
-        this->update_host_binary(outdated_files);
-        this->update_files(outdated_files);
+        this->update_host_binary(outdated_files, source);
+        this->update_files(outdated_files, source);
 
         std::this_thread::sleep_for(1s);
     }
 
-    void launcher_updater::update_file(const updater::file_info& file) const
+    void launcher_updater::update_file(const updater::file_info& file, const update_mirrors::route& source) const
     {
-        auto url = get_update_folder() + utils::string::url_encode_path(file.name) + "?" + file.hash;
-        utils::logger::write("Updating file {}", url);
-
-        const auto data = utils::http::get_data(url, {}, {}, [&](size_t progress, [[maybe_unused]] size_t total, [[maybe_unused]] size_t speed) -> bool
+        std::string data{};
+        const auto status = update_mirrors::fetch_file(source, get_update_folder(), file, [&](const size_t progress)
         {
             this->listener_.file_progress(file, progress);
             return true;
-        });
+        }, data);
 
-        if (!data || !data.has_value())
+        if (status == update_mirrors::fetch_status::cancelled)
         {
-            throw std::runtime_error(utils::string::va("Failed to download: %s - Data has no value", url.data()));
+            return;
         }
 
-        try
+        const auto out_file = this->get_drive_filename(file);
+        if (!utils::io::write_file(out_file, data, false))
         {
-            const auto& result = data.value();
-            if (result.code == CURLE_ABORTED_BY_CALLBACK)
-            {
-                return;
-            }
-
-            if (result.code != CURLE_OK)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - Invalid curl code (%u)", url.data(), result.code));
-            }
-
-            const auto result_size = result.buffer.size();
-            if (result_size != file.size)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - %zu != %zu", url.data(), result_size, file.size));
-            }
-
-            const auto result_hash = get_hash(result.buffer);
-            if (result_hash != file.hash)
-            {
-                throw std::runtime_error(utils::string::va("Failed to download: %s - %s != %s", url.data(), result_hash.data(), file.hash.data()));
-            }
-
-            const auto out_file = this->get_drive_filename(file);
-            if (!utils::io::write_file(out_file, result.buffer, false))
-            {
-                utils::logger::write("Failed to write {}. Error code: ", file.name,
-                    std::system_category().message(static_cast<int>(::GetLastError())));
-                throw std::runtime_error(utils::string::va("Failed to write: %s", out_file.string().data()));
-            }
-
-            utils::logger::write("Done updating file {}", file.name);
+            utils::logger::write("Failed to write {}. Error code: {}", file.name,
+                std::system_category().message(static_cast<int>(::GetLastError())));
+            throw std::runtime_error(utils::string::va("Failed to write: %s", utils::string::path_to_utf8(out_file).data()));
         }
-        catch (const std::exception& e)
-        {
-            throw std::runtime_error(utils::string::va("Failed to update host file: %s", e.what()));
-        }
-        catch (...)
-        {
-            throw std::runtime_error("Unknown error occurred while updating host file");
-        }
+
+        utils::logger::write("Done updating file {}", file.name);
     }
 
     std::vector<updater::file_info> launcher_updater::get_outdated_files(const std::vector<updater::file_info>& files) const
@@ -251,7 +182,7 @@ namespace launcher_updater
         return outdated_files;
     }
 
-    void launcher_updater::update_host_binary(const std::vector<updater::file_info>& outdated_files) const
+    void launcher_updater::update_host_binary(const std::vector<updater::file_info>& outdated_files, const update_mirrors::route& source) const
     {
         const auto* host_file = find_host_file_info(outdated_files);
         if (!host_file)
@@ -262,7 +193,7 @@ namespace launcher_updater
         try
         {
             this->move_current_process_file();
-            this->update_files({*host_file});
+            this->update_files({*host_file}, source);
         }
         catch (...)
         {
@@ -274,7 +205,7 @@ namespace launcher_updater
         utils::nt::terminate();
     }
 
-    void launcher_updater::update_files(const std::vector<updater::file_info>& outdated_files) const
+    void launcher_updater::update_files(const std::vector<updater::file_info>& outdated_files, const update_mirrors::route& source) const
     {
         this->listener_.update_files(outdated_files);
 
@@ -304,7 +235,7 @@ namespace launcher_updater
                     {
                         const auto& file = outdated_files[index];
                         this->listener_.begin_file(file);
-                        this->update_file(file);
+                        this->update_file(file, source);
                         this->listener_.end_file(file);
                     }
                     catch (...)

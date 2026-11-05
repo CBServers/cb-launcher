@@ -48,6 +48,9 @@ namespace utils::cdn
         // then the other region), or nullopt when every mirror has been tried
         std::optional<std::string> failover(const std::string& failed_url);
 
+        // Built-in mirrors grouped by region (one bucket each), preferred region first, probe-verified host first
+        std::vector<std::vector<std::string>> mirror_groups() const;
+
         // Test latency to a specific server URL (returns milliseconds, or nullopt on failure)
         std::optional<double> test_latency(const std::string& url);
 
