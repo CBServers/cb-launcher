@@ -1,5 +1,5 @@
 {
-  "game": "t6",
+  "game": "bo2",
   "commit": "b36d86332900e882ac115f3e05be6a8eb344e6a9",
   "generatedAt": 1793413362,
   "items": [
@@ -27,7 +27,7 @@
         },
         {
           "root": "storage",
-          "path": "raw/ui/t6/mainlobby.lua",
+          "path": "raw/ui/bo2/mainlobby.lua",
           "size": 43047,
           "hash": "AD1264F9CC0A2557",
           "url": "https://github.com/Logo-2K/zombies-declassified/releases/download/beta2-data/mainlobby.lua"

@@ -90,7 +90,7 @@ namespace mods::workshop_catalog
     {
         using utils::service_hosts::service;
 
-        const auto path = "/v1/item?game=" + config.game_key + "&id=" + workshop_id;
+        const auto path = "/v1/item?game=" + mods::catalog_id(config) + "&id=" + workshop_id;
         const auto url = utils::service_hosts::active(service::workshop) + path;
         const auto result = utils::service_hosts::with_failover(service::workshop, url, [](const std::string& target)
         {

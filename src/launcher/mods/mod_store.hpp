@@ -69,6 +69,8 @@ namespace mods
     bool supports(const game_config::game_config_t& config);
     // Games whose Browse tab is the community mod index rather than the Steam Workshop.
     bool uses_catalog(const game_config::game_config_t& config);
+    // The game's id on the mod index and workshop worker: its manifest name (t6 is bo2), not game_key.
+    std::string catalog_id(const game_config::game_config_t& config);
     // Roots a mod index file may target ("game", "storage"), the default first.
     std::vector<std::string> catalog_roots(const game_config::game_config_t& config);
     std::optional<std::filesystem::path> catalog_root_path(const game_config::game_config_t& config, const std::string& root);

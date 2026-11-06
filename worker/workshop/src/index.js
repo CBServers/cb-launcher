@@ -31,7 +31,7 @@ const STEAM_API = 'https://api.steampowered.com';
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_RAW = 'https://raw.githubusercontent.com';
 const DEFAULT_INDEX_REPO = 'CBServers/mods-index';
-const INDEX_GAMES = ['cod4x', 'iw4x', 'mwr', 'iw', 'mw2r', 't4', 't5', 'iw5', 't6'];
+const INDEX_GAMES = ['cod1', 'coduo', 'cod2', 'cod4', 'mw2', 'ghosts', 'aw', 'mwr', 'iw', 'mw2r', 'waw', 'bo1', 'mw3', 'bo2'];
 const GAMES = {
     bo3: { source: 'steam', appid: 311210, creatorAppid: 455130 },
     ...Object.fromEntries(INDEX_GAMES.map(game => [game, { source: 'index' }])),

@@ -5,7 +5,8 @@
 // (file://, localhost) serves mock data instead.
 //
 // CAPABILITIES: catalog = a Workshop tab (the worker serves the game); steam = that
-// catalog is the Steam Workshop, otherwise it is the community mod index.
+// catalog is the Steam Workshop, otherwise it is the community mod index; catalogGame = its id
+// there, the game's manifest name, when that differs from the backend key.
 //
 // InstalledMod: { id, name, author, description, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import'|'steam'|'catalog', workshopId, missingFiles }
 // WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable, version, comingSoon, changesGameFiles }
@@ -15,15 +16,20 @@
 
     const CAPABILITIES = {
         boiii:     { catalog: true, steam: true, import: true, folders: ['usermaps', 'mods'], steamAppId: 311210 },
-        cod4x:     { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        iw4x:      { catalog: true, import: true, folders: ['mods', 'usermaps'] },
+        cod1:      { catalog: true },
+        coduo:     { catalog: true },
+        cod2x:     { catalog: true, catalogGame: 'cod2' },
+        cod4x:     { catalog: true, catalogGame: 'cod4', import: true, folders: ['mods', 'usermaps'] },
+        iw4x:      { catalog: true, catalogGame: 'mw2', import: true, folders: ['mods', 'usermaps'] },
+        iw6x:      { catalog: true, import: true, folders: ['mods'] },
+        s1x:       { catalog: true, import: true, folders: ['mods'] },
         'h1-mod':  { catalog: true, import: true, folders: ['mods', 'usermaps'] },
         'iw7-mod': { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        mw2r:      { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        t4:        { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        t5:        { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        iw5:       { catalog: true, import: true, folders: ['mods', 'usermaps'] },
-        t6:        { catalog: true, import: true, folders: ['mods', 'usermaps'] }
+        mw2r:      { catalog: true, import: true, folders: ['mods'] },
+        t4:        { catalog: true, catalogGame: 'waw', import: true, folders: ['mods', 'usermaps'] },
+        t5:        { catalog: true, catalogGame: 'bo1', import: true, folders: ['mods', 'usermaps'] },
+        iw5:       { catalog: true, catalogGame: 'mw3', import: true, folders: ['mods', 'usermaps'] },
+        t6:        { catalog: true, catalogGame: 'bo2', import: true, folders: ['mods', 'usermaps'] }
     };
 
     const MB = 1024 * 1024;
@@ -92,6 +98,11 @@
         return GameUtils.getGameMapping(game);
     }
 
+    function catalogGame(game) {
+        const caps = supports(game);
+        return (caps && caps.catalogGame) || backendId(game);
+    }
+
     async function workshopFetch(path, params) {
         const query = `${path}?${new URLSearchParams(params)}`;
         const api = window.__modsMock.workshopApi;
@@ -145,7 +156,7 @@
         }
 
         try {
-            const params = { game: backendId(game), ...opts };
+            const params = { game: catalogGame(game), ...opts };
             const data = await workshopFetch('/v1/search', params);
             const items = (Array.isArray(data.items) ? data.items : [])
                 .map(item => Object.assign(item, { title: clean(item.title), installed: false, updateAvailable: false }));
@@ -215,7 +226,7 @@
     async function getUpdatedTimes(game, ids) {
         if (PREVIEW_MODE || !ids.length) return {};
         try {
-            return await workshopFetch('/v1/updated', { game: backendId(game), ids: ids.join(',') });
+            return await workshopFetch('/v1/updated', { game: catalogGame(game), ids: ids.join(',') });
         } catch (error) {
             return {};
         }
@@ -228,7 +239,7 @@
             return Object.fromEntries(INDEX.filter(item => ids.includes(item.id)).map(item => [item.id, item.version]));
         }
         try {
-            return await workshopFetch('/v1/updated', { game: backendId(game), ids: ids.join(',') });
+            return await workshopFetch('/v1/updated', { game: catalogGame(game), ids: ids.join(',') });
         } catch (error) {
             return {};
         }
@@ -293,7 +304,7 @@
             }));
         }
 
-        return cleanDetail(await workshopFetch('/v1/item', { game: backendId(game), id }));
+        return cleanDetail(await workshopFetch('/v1/item', { game: catalogGame(game), id }));
     }
 
     function getModsFolder(game, folder) {

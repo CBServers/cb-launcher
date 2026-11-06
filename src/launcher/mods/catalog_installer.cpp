@@ -91,7 +91,7 @@ namespace catalog_installer
                 return link.size() > 8 && std::none_of(link.begin(), link.end(), [](const unsigned char c) { return c <= ' ' || c == 0x7f; });
             }
 
-            const auto prefix = "cdn:mods/" + config.game_key + "/" + entry_id + "/";
+            const auto prefix = "cdn:mods/" + mods::catalog_id(config) + "/" + entry_id + "/";
             return utils::string::starts_with(link, prefix) && link.size() > prefix.size() && is_safe_path(link.substr(4));
         }
 

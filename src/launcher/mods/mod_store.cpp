@@ -44,11 +44,19 @@ namespace mods
 
         const std::unordered_map<std::string, game_layout> layouts_ = {
             {"bo3",   {false, {FOLDER_USERMAPS, FOLDER_MODS}, 311210}},
+            // Archives sit in main/ and there is no usermaps/, so these install from the mod index only.
+            {"cod1",  {false, {}, 0}},
+            {"coduo", {false, {}, 0}},
+            {"cod2x", {false, {}, 0}},
             {"cod4x", {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
             {"iw4x",  {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            // These clients load mods/<name>/mod.ff in multiplayer but have no usermaps path.
+            {"ghosts", {false, {FOLDER_MODS}, 0}},
+            {"aw",    {false, {FOLDER_MODS}, 0}},
             {"mwr",   {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
             {"iw",    {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
-            {"mw2r",  {false, {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
+            // h2-mod has no usermaps path.
+            {"mw2r",  {false, {FOLDER_MODS}, 0}},
             {"t4",    {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
             {"t5",    {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
             {"iw5",   {true,  {FOLDER_MODS, FOLDER_USERMAPS}, 0}},
@@ -682,6 +690,11 @@ namespace mods
     {
         const auto layout = layout_for(config);
         return layout && !layout->steam_appid;
+    }
+
+    std::string catalog_id(const game_config::game_config_t& config)
+    {
+        return utils::string::path_to_utf8(std::filesystem::path(config.manifest_path).stem());
     }
 
     std::vector<std::string> catalog_roots(const game_config::game_config_t& config)

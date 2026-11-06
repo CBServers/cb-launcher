@@ -7,7 +7,7 @@ endpoints:
   are served from that catalog and never touch Steam. The Steam Web API key is
   a worker secret spent only by the scrape and per-item detail lookups, so user
   traffic cannot rate-limit it and the key is never shipped in the launcher.
-- **Mod index (`cod4x`, `iw4x`, `mwr`, `iw`, `mw2r`, `t4`, `t5`, `iw5`, `t6`):**
+- **Mod index (`cod1`, `coduo`, `cod2`, `cod4`, `mw2`, `ghosts`, `aw`, `mwr`, `iw`, `mw2r`, `waw`, `bo1`, `mw3`, `bo2`, the game manifest names):**
   the community list in [CBServers/mods-index](https://github.com/CBServers/mods-index).
   Its publish workflow builds `dist/<game>.json` on the repo's `dist` branch;
   the cron (and `POST /v1/refresh`) syncs them into KV.
@@ -46,8 +46,8 @@ the catalog.
 
 The index sync is one GitHub API call per cron run (the `dist` ref, well inside
 the 60/hour unauthenticated limit; `GITHUB_TOKEN` raises it if ever needed).
-Only when that commit changes does it fetch the nine `dist/<game>.json` files
-at that exact commit and write nine `catalog:<game>` values plus
+Only when that commit changes does it fetch the fourteen `dist/<game>.json` files
+at that exact commit and write fourteen `catalog:<game>` values plus
 `index:state`. It is all or nothing: one failing or malformed file keeps every
 stored catalog and retries on the next run. Entries whose files fail
 validation are dropped and logged.
@@ -71,7 +71,7 @@ node test/run.mjs
 ```
 
 Drives the real `src/index.js` against a fake KV and a routed fetch stub.
-`test/fixtures/dist-t6.json` is real `publish.py` output.
+`test/fixtures/dist-bo2.json` is real `publish.py` output.
 
 ## Deploying
 

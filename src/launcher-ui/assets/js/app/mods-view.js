@@ -285,7 +285,7 @@
             return;
         }
         if (!s.installed.length) {
-            host.innerHTML = emptyHTML(!s.caps.catalog || s.catalogEmpty ? 'mods.noInstalledImportOnly' : (s.caps.steam ? 'mods.noInstalled' : 'mods.noInstalledCatalog'));
+            host.innerHTML = emptyHTML(!s.caps.import ? 'mods.noInstalledWorkshopOnly' : (!s.caps.catalog || s.catalogEmpty ? 'mods.noInstalledImportOnly' : (s.caps.steam ? 'mods.noInstalled' : 'mods.noInstalledCatalog')));
             return;
         }
 
