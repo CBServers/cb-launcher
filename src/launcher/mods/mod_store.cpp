@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "mod_store.hpp"
 #include "catalog_installer.hpp"
+#include "folder_info.hpp"
 #include "mod_download.hpp"
 #include "mod_updater.hpp"
 #include "steamcmd.hpp"
@@ -219,6 +220,21 @@ namespace mods
                 mod.name = info->title;
                 mod.workshop_id = info->publisher_id;
             }
+        }
+
+        // Workshop items keep their workshop title and version: update checks key on them.
+        void apply_folder_info(installed_mod& mod, const std::filesystem::path& directory)
+        {
+            auto info = read_folder_info(directory);
+            mod.author = std::move(info.author);
+            mod.description = std::move(info.description);
+            if (!mod.workshop_id.empty())
+            {
+                return;
+            }
+
+            mod.name = !info.name.empty() ? std::move(info.name) : utils::string::path_to_utf8(directory.filename());
+            mod.version = std::move(info.version);
         }
 
         // Workshop items are staged either flat or with everything under zone/.
@@ -529,6 +545,8 @@ namespace mods
         entry.AddMember("version", str(mod.version), allocator);
         entry.AddMember("workshopId", str(mod.workshop_id), allocator);
         entry.AddMember("installedAt", str(mod.installed_at), allocator);
+        entry.AddMember("author", str(mod.author), allocator);
+        entry.AddMember("description", str(mod.description), allocator);
         entry.AddMember("size", mod.size, allocator);
         if (mod.source == SOURCE_CATALOG)
         {
@@ -596,6 +614,8 @@ namespace mods
             {
                 auto entry = to_json(mod, allocator);
                 entry.RemoveMember("missingFiles");
+                entry.RemoveMember("author");
+                entry.RemoveMember("description");
                 if (mod.source == SOURCE_CATALOG)
                 {
                     rapidjson::Value files(rapidjson::kArrayType);
@@ -950,6 +970,7 @@ namespace mods
                 mod.kind = folder.name == FOLDER_USERMAPS ? KIND_MAP : KIND_MOD;
                 mod.folder = folder.name;
                 mod.size = stats.size;
+                apply_folder_info(mod, directory);
                 result.push_back(std::move(mod));
             }
         }
@@ -1061,6 +1082,7 @@ namespace mods
             mod.source = origin;
             mod.installed_at = now_iso8601();
             apply_workshop_info(mod, target);
+            apply_folder_info(mod, target);
             remove_stale_copies(config, layout, root, mod.workshop_id, item.folder, item.dirname);
             mod.size = directory_size(target);
             upsert_index(config, mod);

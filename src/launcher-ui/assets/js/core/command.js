@@ -16,9 +16,13 @@ const mockMods = {
         iw4x: [
             { id: 'usermaps:mp_bloc', name: 'mp_bloc', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-09-02T10:00:00Z', size: 96468992 }
         ],
+        iw: [
+            { id: 'usermaps:cp_factory_sh', name: 'Der Riese', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-10-22T10:00:00Z', size: 719019008 },
+            { id: 'mods:example-menu', name: 'example-menu', description: 'Example mod menu. Works in Campaign, Multiplayer (host only) and Zombies. Open with ADS + Melee.', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-09-29T10:00:00Z', size: 1100000 }
+        ],
         t6: [
             { id: 'usermaps:zm_buried_lite', name: 'zm_buried_lite', kind: 'map', folder: 'usermaps', source: 'import', version: '', installedAt: '2026-08-14T10:00:00Z', size: 398458880 },
-            { id: 'mods:zombie_reloaded', name: 'zombie_reloaded', kind: 'mod', folder: 'mods', source: 'import', version: '', installedAt: '2026-08-20T10:00:00Z', size: 157286400 },
+            { id: 'mods:zombie_reloaded', name: 'Zombie Reloaded', author: 'Mock Author & Friends', description: 'Reworked zombies gameplay with new perks, weapons and round progression.', kind: 'mod', folder: 'mods', source: 'import', version: '2.0', installedAt: '2026-08-20T10:00:00Z', size: 157286400 },
             // Mod index installs: an outdated one and one missing a file (the mock index lists cargo at 1.2.0).
             { id: 'catalog:cargo', name: 'Nazi Zombie Cargo', kind: 'map', folder: 'catalog', source: 'catalog', version: '1.1.0', workshopId: 'cargo', installedAt: '2026-10-01T10:00:00Z', size: 734003200, missingFiles: false },
             { id: 'catalog:cargo_assets', name: 'Cargo Shared Assets', kind: 'mod', folder: 'catalog', source: 'catalog', version: '1.0.0', workshopId: 'cargo_assets', installedAt: '2026-10-01T10:00:00Z', size: 10485760, missingFiles: true }

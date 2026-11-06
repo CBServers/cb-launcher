@@ -49,6 +49,25 @@ class ModDetailPopup {
     }
 
     show(gameId, item) {
+        this.open(gameId, item);
+        this.load();
+    }
+
+    // Imported folders have no catalog entry; everything shown comes from the folder's own files.
+    showInstalled(gameId, mod) {
+        this.open(gameId, { id: mod.id, title: mod.name });
+        const version = window.ModsView.versionLabel(mod.version);
+        this.popup.querySelector('.mod-detail-body').innerHTML = `
+            <div class="mod-detail-meta">
+                ${window.ModsView.kindBadge(mod.kind)}
+                ${mod.author ? `<span>${this.esc(this.t('mods.by', { author: mod.author }))}</span>` : ''}
+                ${version ? `<span>${this.esc(version)}</span>` : ''}
+                <span>${this.esc(GameUtils.formatBytes(mod.size || 0))}</span>
+            </div>
+            <div class="mod-detail-desc">${this.esc(mod.description)}</div>`;
+    }
+
+    open(gameId, item) {
         this.close();
         this.gameId = gameId;
         this.item = item;
@@ -82,8 +101,6 @@ class ModDetailPopup {
             this.backdrop.classList.add('active');
             this.popup.classList.add('active');
         });
-
-        this.load();
     }
 
     async load() {

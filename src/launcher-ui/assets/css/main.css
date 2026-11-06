@@ -3913,8 +3913,21 @@ button { font-family: inherit; cursor: pointer; }
     grid-area: meta;
     display: flex;
     gap: 14px;
+    min-width: 0;
     font-size: 11.5px;
     color: var(--text-muted);
+}
+
+.mods-row-meta span {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.mods-row-meta .mods-row-shrink {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mods-row-actions {
@@ -4003,6 +4016,31 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* Workshop */
+.mods-catalog-empty {
+    flex-direction: column;
+    min-height: 320px;
+}
+
+.mods-catalog-empty strong {
+    font-size: 16px;
+    color: #fff;
+}
+
+.mods-catalog-empty span {
+    max-width: 520px;
+    line-height: 1.5;
+}
+
+.mods-catalog-empty-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.mods-workshop-controls[hidden] { display: none; }
+
 .mods-workshop-controls {
     display: flex;
     align-items: center;

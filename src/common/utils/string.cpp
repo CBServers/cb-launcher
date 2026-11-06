@@ -146,6 +146,22 @@ namespace utils::string
         *out = '\0';
     }
 
+    std::string trim(std::string_view text)
+    {
+        const auto is_space = [](const unsigned char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+        while (!text.empty() && is_space(text.front()))
+        {
+            text.remove_prefix(1);
+        }
+
+        while (!text.empty() && is_space(text.back()))
+        {
+            text.remove_suffix(1);
+        }
+
+        return std::string{text};
+    }
+
     std::string convert(const std::wstring& wstr)
     {
         if (wstr.empty()) return {};

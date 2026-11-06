@@ -30,6 +30,9 @@ namespace mods
         std::string version;
         std::string workshop_id;
         std::string installed_at;
+        // Read from the folder on every listing, never stored in the index.
+        std::string author;
+        std::string description;
         uint64_t size{};
         // Mod index installs: every file the launcher placed, and whether any has gone missing since.
         std::vector<catalog_file> files;

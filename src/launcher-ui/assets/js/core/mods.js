@@ -4,10 +4,10 @@
 // item details hit the workshop worker (see worker/workshop). Preview mode
 // (file://, localhost) serves mock data instead.
 //
-// CAPABILITIES: catalog = a Browse tab (the worker serves the game); steam = that
+// CAPABILITIES: catalog = a Workshop tab (the worker serves the game); steam = that
 // catalog is the Steam Workshop, otherwise it is the community mod index.
 //
-// InstalledMod: { id, name, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import'|'steam'|'catalog', workshopId, missingFiles }
+// InstalledMod: { id, name, author, description, kind: 'map'|'mod', folder, version, size, installedAt, updateAvailable, source: 'workshop'|'import'|'steam'|'catalog', workshopId, missingFiles }
 // WorkshopItem: { id, title, author, kind, preview, subscribers, size, updatedAt, installed, updateAvailable, version, comingSoon, changesGameFiles }
 // Job progress:  { active, phase: 'queued'|'preparing'|'downloading'|'copying'|'extracting'|'installing'|'done'|'error', name, percent, error }
 (function () {
@@ -110,7 +110,7 @@
     async function getInstalled(game) {
         const mods = await window.executeCommand('get-installed-mods', { game: backendId(game) });
         if (!Array.isArray(mods)) return [];
-        return mods.map(mod => Object.assign(mod, { name: clean(mod.name) }));
+        return mods.map(mod => Object.assign(mod, { name: clean(mod.name), author: clean(mod.author), description: clean(mod.description) }));
     }
 
     function searchMock(game, { query, kind, sort }) {
@@ -152,7 +152,7 @@
             return { items, total: Number(data.total) || items.length };
         } catch (error) {
             console.warn('Workshop search failed', error);
-            return { items: [], total: 0 };
+            return { items: [], total: 0, failed: true };
         }
     }
 
