@@ -21,6 +21,8 @@ const AVATAR_HOSTS = new Set([
 // room for user actions on top while still stopping scripted abuse.
 const RATE_PER_MINUTE = 240;       // per device key, across the CB endpoints
 const RECOVER_PER_HOUR = 5;        // per anchor; HWID is a weak secret
+const RESET_PER_HOUR = 5;          // per device key, so another key can't use up the owner's attempts
+const RESET_AFTER_DISCORD_SWITCH_MS = 7 * 86_400_000;
 const RECOVER_BLOCK_IF_ACTIVE_MS = 5 * 60_000; // an account in active use does not need recovery
 const HWID_ACTIVE_DAYS = 14;  // another key used this recently means a cloned PC, not a lost key
 const SEEN_SINCE_DAY = 20739; // 2026-10-13: keys with no seen: row count as seen on this day
@@ -489,6 +491,48 @@ async function handleRecover(env, fpr, body, anchorKey, via) {
     }
     await markSeen(env, fpr);
     return json(200, view);
+}
+
+// For a leaked code: issues a new one, kills the old one and signs every other device out.
+async function handleRecoveryReset(env, cbId, fpr, body) {
+    if (!withinRate(`reset:${fpr}`, RESET_PER_HOUR, 3600_000)) {
+        return json(429, { error: 'too many resets', code: 'rate-limited' });
+    }
+    const account = await getAccount(env, cbId);
+    if (!account) return json(404, { error: 'account not found' });
+
+    // Whoever used the leaked code holds an equal device key, so a linked Discord decides.
+    if (account.discordId) {
+        if ((await resolveDiscordId(body.discordToken)) !== account.discordId) {
+            return json(403, { error: 'sign in with the Discord linked to this profile', code: 'discord-required' });
+        }
+        // Any device key can switch the Discord, so a fresh switch proves nothing yet.
+        if (Date.now() - (account.discordSwitchedAt || 0) < RESET_AFTER_DISCORD_SWITCH_MS) {
+            return json(403, { error: 'linked Discord changed recently', code: 'discord-recent' });
+        }
+    }
+
+    const recoveryCode = newRecoveryCode();
+    const previousHash = account.recoveryCodeHash;
+    const removed = account.deviceKeys.filter(key => key !== fpr);
+    account.recoveryCodeHash = await sha256Hex(new TextEncoder().encode(recoveryCode));
+    account.deviceKeys = [fpr];
+
+    await env.CB.put(`rec:${account.recoveryCodeHash}`, cbId);
+    await putAccount(env, account);
+    if (previousHash) await env.CB.delete(`rec:${previousHash}`);
+    for (const key of removed) {
+        await env.CB.delete(`dev:${key}`);
+        // A removed device stops getting this account's invites, but keeps its own Discord address.
+        const self = await inboxCall(env, key, 'self');
+        if (self.cbId !== cbId) continue;
+        await inboxCall(env, key, 'attach', { cbId: '', discordId: self.discordId, discordTokenHash: self.discordTokenHash });
+        await dirCall(env, 'inbox/bind', { fpr: key, addresses: self.discordId ? [`discord:${self.discordId}`] : [] });
+    }
+    await pushSecurityEvent(env, cbId, { kind: 'recovery-reset', removedDevices: removed.length });
+
+    // Returned exactly once and never stored in the clear.
+    return json(200, publicView(account, { recoveryCode, removedDevices: removed.length }));
 }
 
 // The owner polls this to see device binds and blocked attempts on their account.
@@ -1284,6 +1328,7 @@ async function handleDiscordSync(env, cbId, body) {
     }
 
     const previous = account.discordId;
+    if (previous && previous !== discordUser.id) account.discordSwitchedAt = Date.now();
     account.discordId = discordUser.id;
     if (!account.profile.avatarCustom) {
         account.profile.avatarUrl = discordUser.avatarUrl;
@@ -1753,6 +1798,8 @@ export default {
         switch (pathname) {
             case '/v1/account/profile':
                 return handleProfileUpdate(env, cbId, body);
+            case '/v1/account/reset-recovery':
+                return handleRecoveryReset(env, cbId, fpr, body);
             case '/v1/profile/get':
                 return handleProfileGet(env, cbId, body);
             case '/v1/security/events':

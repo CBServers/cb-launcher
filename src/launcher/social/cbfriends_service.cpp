@@ -401,6 +401,68 @@ namespace social
         return utils::cryptography::dpapi::unprotect(blob).value_or("");
     }
 
+    bool cbfriends_service::begin_reset_recovery_code()
+    {
+        {
+            std::lock_guard lock(mutex_);
+            if (state_ != profile_state::ready || recovery_reset_.state == "busy")
+            {
+                return false;
+            }
+            recovery_reset_ = {"busy", {}};
+        }
+
+        std::thread(&cbfriends_service::do_reset_recovery_code, this).detach();
+        return true;
+    }
+
+    recovery_reset_status cbfriends_service::get_recovery_reset() const
+    {
+        std::lock_guard lock(mutex_);
+        return recovery_reset_;
+    }
+
+    void cbfriends_service::do_reset_recovery_code()
+    {
+        const auto fail = [this](const std::string& error)
+        {
+            std::lock_guard lock(mutex_);
+            recovery_reset_ = {"error", error};
+        };
+
+        rapidjson::Document body;
+        body.SetObject();
+        body.AddMember("ts", static_cast<int64_t>(std::time(nullptr)), body.GetAllocator());
+        if (const auto token = discord_access_token(); !token.empty()) add_string(body, "discordToken", token);
+
+        const auto response = post_signed(base_url() + "/v1/account/reset-recovery", serialize(body));
+        if (!response)
+        {
+            return fail("network error");
+        }
+
+        rapidjson::Document doc;
+        doc.Parse(response->buffer.data());
+        const bool parsed = !doc.HasParseError() && doc.IsObject();
+        if (response->response_code != 200 || !parsed)
+        {
+            auto error = parsed ? json_get(doc, "code") : std::string{};
+            if (error.empty() && parsed) error = json_get(doc, "error");
+            return fail(error.empty() ? "reset failed" : error);
+        }
+
+        const auto code = json_get(doc, "recoveryCode");
+        store_from_response(doc);
+        // The old code is already dead, so a code that failed to save must not read as success.
+        if (code.empty() || get_recovery_code() != code)
+        {
+            return fail("reset failed");
+        }
+
+        std::lock_guard lock(mutex_);
+        recovery_reset_ = {"done", {}};
+    }
+
     void cbfriends_service::begin_create_profile(const std::string& handle, const std::string& display_name)
     {
         {

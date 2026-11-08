@@ -35,6 +35,7 @@ accepts both that and raw `r‖s`. The device credential id is `fpr = sha256hex(
 | `/v1/recover/hwid` | `{ ts, hwidHash }` | `200 { cbId, profile }` — attaches the signing key to the account anchored on this HWID; `409 { code:'in-use' }` while another of its keys was used in the last 14 days or it is online |
 | `/v1/recover/discord` | `{ ts, discordToken }` | `200 { cbId, profile }` — via the linked Discord account (only the account's current `discordId`) |
 | `/v1/recover/code` | `{ ts, recoveryCode }` | `200 { cbId, profile }` — via the one-time recovery code |
+| `/v1/account/reset-recovery` | `{ ts, discordToken? }` | `200 { cbId, profile, recoveryCode, removedDevices }` — replaces the recovery code and removes every other device key; `403 { code:'discord-required' }` without the token of the linked Discord, `403 { code:'discord-recent' }` for 7 days after that Discord was switched, `429 { code:'rate-limited' }` |
 | `/v1/account/sync-discord` | `{ ts, discordToken }` | `200 { cbId, profile }` — links the Discord (replacing and unlinking any previous one) and refreshes the avatar; `409 { code:'linked-elsewhere', account }` if another profile has it, naming that profile |
 
 ## Recovery model

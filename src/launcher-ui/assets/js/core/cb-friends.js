@@ -40,6 +40,8 @@
     let openRecoveryCode = '';    // the code behind the open recovery dialog, in the DOM only while revealed
     let recoveryBound = false;
     let recoveryCopyTimer = null;
+    let resettingRecovery = false;
+    const RECOVERY_RESET_TIMEOUT_MS = 30000;
     const openBlocked = new Map(); // cbId -> person, for the open blocked users dialog
     let blockedBound = false;
     const announcedRequests = new Set();
@@ -289,6 +291,7 @@
               hidden: ds.status === 'unavailable', disabled: busy, action: linked ? unlinkDiscord : linkDiscord },
             { label: t('blockedUsers'), action: showBlockedUsers },
             { label: t('recoveryCode'), action: showRecoveryCode },
+            { label: t('resetRecoveryCode'), action: resetRecoveryCode },
         ]);
     }
 
@@ -795,6 +798,44 @@
         // The closed box stays in the DOM, so put the mask back before letting go of the code.
         document.querySelectorAll('#message-box .cb-recovery').forEach(root => setRecoveryRevealed(root, false));
         openRecoveryCode = '';
+    }
+
+    function resetErrorText(error) {
+        if (error === 'discord-required') return t('resetNeedsDiscord');
+        if (error === 'discord-recent') return t('resetDiscordRecent');
+        if (error === 'rate-limited') return t('resetRateLimited');
+        return t('resetFailed');
+    }
+
+    async function resetRecoveryCode() {
+        if (resettingRecovery) return;
+        try {
+            const idx = await window.showMessageBox(t('resetTitle'), escapeHtml(t('resetBody')),
+                [{ label: t('resetConfirm'), danger: true }, t('cancel')]);
+            if (idx !== 0) return;
+        } catch (error) { return; }
+
+        resettingRecovery = true;
+        let status = null;
+        try {
+            const started = await window.executeCommand('cbfriends-reset-recovery-code');
+            const deadline = Date.now() + RECOVERY_RESET_TIMEOUT_MS;
+            while (started && started.started && Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 250));
+                status = await window.executeCommand('cbfriends-get-recovery-reset');
+                if (status && status.state !== 'busy') break;
+            }
+        } catch (error) {
+            console.warn('Failed to reset recovery code:', error);
+        }
+        resettingRecovery = false;
+
+        if (!status || status.state !== 'done') {
+            if (window.showToast) window.showToast(resetErrorText(status && status.error), 'error');
+            return;
+        }
+        if (window.showToast) window.showToast(t('resetDone'), 'success');
+        return showRecoveryCode();
     }
 
     function blockedRowHtml(p) {

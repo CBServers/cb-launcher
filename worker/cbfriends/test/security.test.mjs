@@ -1,5 +1,5 @@
 // Abuse surfaces: HWID rebind hardening, avatar host allowlist, blocking, reports, mute, throttles.
-import { makeEnv, makeClient, mk, sha256Hex, checks, fprOf, ageKey } from './harness.mjs';
+import { makeEnv, makeClient, mk, sha256Hex, checks, fprOf, ageKey, stubDiscord, restoreFetch } from './harness.mjs';
 
 const { env } = makeEnv();
 const call = makeClient(env);
@@ -97,5 +97,69 @@ for (let i = 0; i < 400 && !capped; i++) {
     capped = (await call(spammer, '/v1/account')).s === 429;
 }
 check('per-caller rate limit applies to CB endpoints', capped);
+
+// A leaked recovery code: the owner replaces it and signs out whoever used it.
+const owner = await mk(), thief = await mk();
+const ownerBoot = (await call(owner, '/v1/account/bootstrap', { hwidHash: await sha256Hex('O'), handle: 'owner' })).b;
+await call(thief, '/v1/recover/code', { recoveryCode: ownerBoot.recoveryCode });
+await call(owner, '/v1/inbox/attach');
+await call(thief, '/v1/inbox/attach');
+const resolveCb = async () => (await (await env.DIRECTORY.get('main').fetch(new Request('https://dir/inbox/resolve', {
+    method: 'POST', body: JSON.stringify({ address: `cb:${ownerBoot.cbId}` }),
+}))).json()).fpr;
+check('the thief holds the inbox address before the reset', (await resolveCb()) === await fprOf(thief));
+
+const reset = await call(owner, '/v1/account/reset-recovery');
+check('reset returns a new code and the removed device count',
+    reset.s === 200 && reset.b.cbId === ownerBoot.cbId && reset.b.removedDevices === 1 &&
+    /^[0-9A-F]{4}(-[0-9A-F]{4}){7}$/.test(reset.b.recoveryCode) && reset.b.recoveryCode !== ownerBoot.recoveryCode);
+check('reset does not leak account internals', !('recoveryCodeHash' in reset.b) && !('deviceKeys' in reset.b));
+check('the old code is dead', (await call(await mk(), '/v1/recover/code', { recoveryCode: ownerBoot.recoveryCode })).s === 404);
+check('the removed device is signed out', (await call(thief, '/v1/account')).s === 404);
+check('the removed device cannot act', (await call(thief, '/v1/account/profile', { bio: 'hacked' })).s === 401);
+check('the removed device cannot reset', (await call(thief, '/v1/account/reset-recovery')).s === 401);
+check('the removed device loses the inbox address', (await resolveCb()) === null);
+check('the removed device keeps no cb inbox binding', (await call(thief, '/v1/inbox/attach')).b.cbId === '');
+check('the resetting device stays signed in', (await call(owner, '/v1/account')).b.cbId === ownerBoot.cbId);
+check('the reset is recorded for the owner',
+    (await call(owner, '/v1/security/events')).b.events.some(e => e.kind === 'recovery-reset' && e.removedDevices === 1));
+const later = await mk();
+check('the new code works', (await call(later, '/v1/recover/code', { recoveryCode: reset.b.recoveryCode })).b.cbId === ownerBoot.cbId);
+
+const noAccount = await mk();
+check('a key with no account cannot reset', (await call(noAccount, '/v1/account/reset-recovery')).s === 401);
+
+// A linked Discord decides who may reset, since every device key looks alike.
+stubDiscord(token => ({ 'real-token': { id: '196185157840011264', avatar: null, username: 'real' },
+    'other-token': { id: '296185157840011264', avatar: null, username: 'other' } })[token] || null);
+const linked = await mk(), linkedThief = await mk();
+const linkedBoot = (await call(linked, '/v1/account/bootstrap', { hwidHash: await sha256Hex('DL'), discordToken: 'real-token', handle: 'linkedowner' })).b;
+await call(linkedThief, '/v1/recover/code', { recoveryCode: linkedBoot.recoveryCode });
+const noToken = await call(linkedThief, '/v1/account/reset-recovery');
+check('a linked profile refuses a reset without its Discord', noToken.s === 403 && noToken.b.code === 'discord-required');
+check('a linked profile refuses a reset with another Discord',
+    (await call(linkedThief, '/v1/account/reset-recovery', { discordToken: 'other-token' })).b.code === 'discord-required');
+check('a refused reset changes nothing',
+    (await call(linkedThief, '/v1/account')).b.cbId === linkedBoot.cbId &&
+    (await call(await mk(), '/v1/recover/code', { recoveryCode: linkedBoot.recoveryCode })).s === 200);
+
+// Switching the Discord first must not open the gate.
+await call(linkedThief, '/v1/account/sync-discord', { discordToken: 'other-token' });
+const afterSwitch = await call(linkedThief, '/v1/account/reset-recovery', { discordToken: 'other-token' });
+check('a fresh Discord switch cannot reset', afterSwitch.s === 403 && afterSwitch.b.code === 'discord-recent');
+const row = JSON.parse(await env.CB.get(`acct:${linkedBoot.cbId}`));
+row.discordSwitchedAt = Date.now() - 8 * 86_400_000;
+await env.CB.put(`acct:${linkedBoot.cbId}`, JSON.stringify(row));
+check('an old switch no longer blocks a reset',
+    (await call(linkedThief, '/v1/account/reset-recovery', { discordToken: 'other-token' })).s === 200);
+restoreFetch();
+
+// Limited per key, so another device on the account can't use up the owner's attempts.
+const resetter = await mk(), noisy = await mk();
+const resetterBoot = (await call(resetter, '/v1/account/bootstrap', { hwidHash: await sha256Hex('RL'), handle: 'resetter' })).b;
+await call(noisy, '/v1/recover/code', { recoveryCode: resetterBoot.recoveryCode });
+let resetLimited = false;
+for (let i = 0; i < 6; i++) resetLimited = (await call(resetter, '/v1/account/reset-recovery')).s === 429;
+check('resets are rate limited per key', resetLimited);
 
 check.done();

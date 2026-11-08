@@ -220,6 +220,11 @@ function mockCommand(command, data) {
             return { started: true };
         case 'cbfriends-get-recovery-code':
             return { code: mockCb.recoveryCode || null };
+        case 'cbfriends-reset-recovery-code':
+            mockCb.recoveryCode = 'A1B2-C3D4-E5F6-0718-293A-4B5C-6D7E-8F90';
+            return { started: true };
+        case 'cbfriends-get-recovery-reset':
+            return { state: 'done', error: '' };
         case 'cbfriends-update-profile':
             if (mockCb.profile) {
                 if (data.displayName) mockCb.profile.displayName = data.displayName;

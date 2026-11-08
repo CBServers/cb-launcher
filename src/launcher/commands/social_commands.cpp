@@ -272,6 +272,23 @@ namespace commands::social_commands
             }
         });
 
+        cef_ui.add_command("cbfriends-reset-recovery-code", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            const bool started = social::cbfriends_service::instance().begin_reset_recovery_code();
+            response.AddMember("started", started, response.GetAllocator());
+        });
+
+        cef_ui.add_command("cbfriends-get-recovery-reset", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto status = social::cbfriends_service::instance().get_recovery_reset();
+            add_string(response, "state", status.state, allocator);
+            add_string(response, "error", status.error, allocator);
+        });
+
         cef_ui.add_command("cbfriends-update-profile", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();

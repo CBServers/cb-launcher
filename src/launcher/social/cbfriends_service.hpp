@@ -42,6 +42,12 @@ namespace social
         std::string handle;
     };
 
+    struct recovery_reset_status
+    {
+        std::string state{"idle"}; // "idle" | "busy" | "done" | "error"
+        std::string error;
+    };
+
     struct cb_profile
     {
         std::string cb_id;
@@ -291,6 +297,9 @@ namespace social
         std::string get_last_error() const;
         bool has_recovery_code() const;
         std::string get_recovery_code() const;
+        // Replaces the recovery code and signs every other device out. Non-blocking; false if not started.
+        bool begin_reset_recovery_code();
+        recovery_reset_status get_recovery_reset() const;
 
         // Opt-in creation, seeded from the linked Discord account if there is one. Non-blocking.
         void begin_create_profile(const std::string& handle, const std::string& display_name);
@@ -408,6 +417,7 @@ namespace social
         void do_update_profile(std::string display_name, std::string handle, std::string bio,
                                std::string accent, std::string favorite_game, std::string avatar_url);
         void do_request_profile(std::string cb_id);
+        void do_reset_recovery_code();
         void recover_and_store(const std::string& via, const std::string& anchor, const std::string& token);
         // announce raises a "created"/"restored" notice; routine refreshes pass false.
         void store_from_response(const rapidjson::Value& doc, bool announce = false);
@@ -466,6 +476,7 @@ namespace social
         std::optional<cb_profile> profile_;
         std::string last_error_;
         cb_notice notice_;
+        recovery_reset_status recovery_reset_;
 
         std::optional<cb_match> match_;
         // What the user typed at create, kept for "no, create my own" after an HWID match.
