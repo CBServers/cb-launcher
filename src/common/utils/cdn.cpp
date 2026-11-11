@@ -4,6 +4,7 @@
 #include <thread>
 #include "properties.hpp"
 #include "flags.hpp"
+#include "http.hpp"
 
 #include <curl/curl.h>
 #include <chrono>
@@ -201,6 +202,7 @@ namespace utils::cdn
             return std::nullopt;
         }
 
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, utils::http::user_agent().data());
         curl_easy_setopt(curl, CURLOPT_URL, url.data());
         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // HEAD request
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);

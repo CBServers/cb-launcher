@@ -11,6 +11,8 @@ namespace utils::http
 {
     namespace
     {
+        std::string agent{"cb-launcher"};
+
         struct progress_helper
         {
             const std::function<bool(size_t, size_t, size_t)>* callback{};
@@ -176,6 +178,16 @@ namespace utils::http
         }
     }
 
+    void set_user_agent(std::string value)
+    {
+        agent = std::move(value);
+    }
+
+    const std::string& user_agent()
+    {
+        return agent;
+    }
+
     std::optional<result> get_data(const std::string& url, const std::string& fields,
         const headers& headers, const std::function<bool(size_t, size_t, size_t)>& callback, int timeout, uint32_t retries)
     {
@@ -198,6 +210,7 @@ namespace utils::http
             header_list = curl_slist_append(header_list, data.data());
         }
 
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, agent.data());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
         curl_easy_setopt(curl, CURLOPT_URL, url.data());
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
@@ -304,6 +317,7 @@ namespace utils::http
         {
             curl_easy_setopt(curl, CURLOPT_SHARE, share);
         }
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, agent.data());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
         curl_easy_setopt(curl, CURLOPT_URL, url.data());
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);

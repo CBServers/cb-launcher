@@ -17,6 +17,10 @@ namespace utils::http
 
     using headers = std::unordered_map<std::string, std::string>;
 
+    // Call once at startup, before any request thread exists
+    void set_user_agent(std::string value);
+    const std::string& user_agent();
+
     std::optional<result> get_data(const std::string& url, const std::string& fields = {},
         const headers& headers = {}, const std::function<bool(size_t, size_t, size_t)>& callback = {}, int timeout = 0, uint32_t retries = 5);
 

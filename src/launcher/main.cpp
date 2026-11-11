@@ -15,6 +15,7 @@
 #include "uri_scheme.hpp"
 
 #include <utils/flags.hpp>
+#include <utils/http.hpp>
 #include <utils/named_mutex.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
@@ -25,6 +26,7 @@
 #include <utils/notification.hpp>
 
 #include <propkey.h>
+#include <version.hpp>
 
 // WinToast references PKEY_AppUserModel_ID, and cef_sandbox.lib both defines it and sits first in
 // the link order — resolving it there drags in Chromium sandbox objects that need WinRT/ntdll
@@ -361,6 +363,8 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
             run_watchdog();
             return run_subprocess(lib, path);
         }
+
+        utils::http::set_user_agent("cb-launcher/" VERSION_FILE);
 
         // Elevated redist install worker: no singleton, no updater, no CEF.
         if (const auto redist_ids = utils::flags::get_flag_value("redist-worker"))

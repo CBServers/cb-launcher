@@ -3,6 +3,7 @@
 #include "signed_http.hpp"
 #include "discord/token_store.hpp"
 
+#include <utils/http.hpp>
 #include <utils/logger.hpp>
 #include <utils/service_hosts.hpp>
 
@@ -163,6 +164,7 @@ namespace social
             abort_context ctx{s.get(), abort_on_reattach};
 
             curl_easy_reset(curl);
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, utils::http::user_agent().data());
             curl_easy_setopt(curl, CURLOPT_URL, url.data());
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
             curl_easy_setopt(curl, CURLOPT_POST, 1L);
