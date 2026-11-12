@@ -42,6 +42,9 @@ jobs:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      - name: Test game language settings
+        run: node --test tools/tests/game-language-settings.test.cjs
+
       # Tag checkouts are detached HEAD; premake's branch-decoration fallback could
       # resolve GIT_BRANCH to "develop" and put the release exe on the dev channel.
       - name: Pin branch name for tag builds
@@ -56,6 +59,10 @@ jobs:
 
       - name: Build ${{matrix.configuration}}
         run: msbuild /m /v:minimal /p:Configuration=${{matrix.configuration}} /p:Platform=x64 build/cb-launcher.sln
+
+      - name: Test native game language installer
+        if: matrix.configuration == 'Release'
+        run: tools/test-game-languages.cmd
 
       - name: Upload ${{matrix.configuration}} binary
         id: upload-unsigned-binary

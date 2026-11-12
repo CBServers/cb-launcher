@@ -336,6 +336,7 @@ namespace game_config
         this->set_list(property_keys::KNOWN_COMPONENTS, {});
         this->set(property_keys::LAUNCH_OPTIONS, "");
         this->set(property_keys::GAME_MODE, "");
+        this->set(property_keys::GAME_LANGUAGE, "");
         this->set(property_keys::PLAYER_NAME_OVERRIDE, "");
         this->set(property_keys::LAUNCH_ADMIN, "");
 

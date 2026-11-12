@@ -2,6 +2,7 @@
 
 #include "updater.hpp"
 #include "game_updater.hpp"
+#include "languages/game_languages.hpp"
 
 #include <utils/flags.hpp>
 #include <utils/http.hpp>
@@ -813,7 +814,10 @@ namespace game_updater
                         this->progress_listener_->begin_file(info);
                     }
 
-                    outdated[index] = this->is_outdated_file(info);
+                    // The language installer journals and verifies these files itself.
+                    // CB's English manifest must not overwrite an active language overlay.
+                    outdated[index] = !game_languages::owns_path(this->config_, info.name)
+                        && this->is_outdated_file(info);
 
                     if (this->progress_listener_)
                     {
@@ -1645,7 +1649,8 @@ namespace game_updater
         for (const auto& file : this->manifest_.files)
         {
             // Check if this file belongs to a deselected component
-            if (deselected_components.find(file.component) != deselected_components.end())
+            if (deselected_components.find(file.component) != deselected_components.end()
+                && !game_languages::owns_path(this->config_, file.name))
             {
                 // Check if the file actually exists on disk
                 const auto drive_name = this->resolve_target(file);

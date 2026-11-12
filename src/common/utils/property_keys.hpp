@@ -66,6 +66,8 @@ namespace property_keys
     constexpr const char* LAUNCH_OPTIONS = "launch-options";
     constexpr const char* PLAYER_NAME_OVERRIDE = "player-name-override";
     constexpr const char* GAME_MODE = "game-mode";
+    // Applied only by the language installer after its verified transaction succeeds.
+    constexpr const char* GAME_LANGUAGE = "game-language";
     constexpr const char* SKIP_INTRO_CINEMATIC = "skip-intro-cinematic";
     constexpr const char* LAUNCH_ADMIN = "launch-admin";
     // Plutonium games only: launch the bootstrapper directly with -lan, no account or token needed.
