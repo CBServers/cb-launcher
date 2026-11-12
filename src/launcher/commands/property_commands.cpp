@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "property_commands.hpp"
+#include "language_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include <utils/io.hpp>
 #include <utils/properties.hpp>
@@ -63,6 +64,7 @@ namespace commands::property_commands
 
             const auto game = std::string{ value["game"].GetString() };
             const auto suffix = std::string{ value["suffix"].GetString() };
+            if (suffix == property_keys::INSTALL && language_commands::active_for(game)) return;
             const auto val = std::string{ value["value"].GetString() };
 
             const auto config = game_config::get_game_config(game);
@@ -237,6 +239,7 @@ namespace commands::property_commands
 
         cef_ui.add_command("set-game-path", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
+            if (language_commands::active()) { response.SetBool(false); return; }
             response.SetBool(false); // Default to failure
 
             if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("path") || !value.HasMember("existing_install"))
@@ -315,6 +318,7 @@ namespace commands::property_commands
             }
 
             const auto game = std::string{ value["game"].GetString() };
+            if (language_commands::active_for(game) || (game == "all" && language_commands::active())) return;
 
             if (game == "all")
             {

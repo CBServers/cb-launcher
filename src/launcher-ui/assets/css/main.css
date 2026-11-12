@@ -2959,6 +2959,29 @@ html[data-theme="dark"] .setup-button {
     color: var(--warn);
 }
 
+#game-language-section .setting-description {
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+}
+
+#game-language-status.is-error {
+    color: var(--danger);
+}
+
+#game-language-section .input-group {
+    flex-wrap: wrap;
+}
+
+#game-language-section .behavior-dropdown {
+    min-width: 160px;
+}
+
+#game-language-section button:disabled,
+#game-language-section select:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
 .game-settings-popup .settings-save-status {
     margin-left: auto;
     margin-right: 14px;

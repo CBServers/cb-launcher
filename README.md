@@ -40,11 +40,54 @@ The launcher registers a `cbservers://` URL protocol on startup (per-user, no ad
 
 `<game>` accepts the same ids as `-launch` (e.g. `bo2`, `waw`, `mw3`, `cod4`). `<mode>` accepts the same values as `-mode`, validated against what the game supports.
 
+## Game language downloads (BO1, BO2 and WaW only)
+
+Open a supported game's **Game Settings → Game language**. Choose a language and
+click **Download & apply**. **Use CB launcher language** resolves the current CB
+interface language when you click Apply; changing the interface language alone
+does not download game files. Each game keeps its own CB preference.
+
+Files are downloaded directly from the public
+[Eroded Networks FastDL](https://fastdl.erodednetworks.com/Game%20Language%20installs/).
+No EN account is required. Only reviewed inventories and their SHA-256 verified
+language assets are accepted; game files are not included in this repository.
+
+| Game | Currently published packs | Coverage |
+| --- | --- | --- |
+| Black Ops (BO1) | French, German, Italian, Spanish; partial Japanese voices | German uses the engine's Austrian language variant. Japanese keeps English text and requires an English base. |
+| Black Ops 2 (BO2) | French, German, Italian, Spanish; partial Japanese voices | Conventional packs cover base Zombies, without a promise of Campaign, MP, DLC or custom-map translations. Japanese keeps English text and requires an English base. |
+| World at War (WaW) | French, Italian, Spanish, Korean | Korean uses English audio. |
+
+Other games are currently unsupported. Unpublished packs are not offered. If a
+selected language is unavailable, the current files are kept. Downloads require
+online mode, a complete game installation, and closed game processes.
+
+The Downloads view shows progress and supports pause/cancel. Downloads are staged
+and verified before application. CB keeps original files and recovery information
+in the installation's `.cb-language` directory. **Original game files** or
+**English / restore original** restores those originals; if the original game was
+installed in another language, use its installer or Steam to obtain English.
+Locally modified managed files are preserved and reported instead of overwritten.
+Do not delete `.cb-language` while a language pack is installed. After an
+interrupted application, retry from Game Settings to recover before playing.
+BO1 Japanese voices also use Plutonium's `storage/t5` directory.
+Restore those voices from their original BO1 installation before applying them
+to a different BO1 folder, because Plutonium shares that storage.
+
+CB verification preserves files owned by the active language pack. Restore the
+original files before troubleshooting or replacing the game installation. These
+packs do not change CB's interface translations.
+
 ## Compile from source code
 
 - Clone the Git repo via [Git](https://git-scm.com/install/windows) or [GitHub Desktop](https://desktop.github.com/download/). **DO NOT download it as ZIP** as it will not work.
 - Run the `generate.bat` script to generate the project solution.
 - Build the project via the generated solution file in `build\cb-launcher.sln`.
+
+After an x64 Release build, run `tools\test-game-languages.cmd` for the native
+language installer fixtures and `node --test tools/tests/game-language-settings.test.cjs`
+for the settings controls. The fixtures use temporary game folders and a mock
+transport; they do not change installed games or download game payloads.
 
 ## Code signing policy
 

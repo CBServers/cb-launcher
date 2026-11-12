@@ -1,5 +1,7 @@
 #include "std_include.hpp"
 #include "game_commands.hpp"
+#include "language_commands.hpp"
+#include "languages/game_languages.hpp"
 #include <utils/property_keys.hpp>
 #include "cef/cef_ui.hpp"
 
@@ -39,9 +41,26 @@ namespace commands::game_commands
 
         bool try_lock_launch_barrier()
         {
+            if (language_commands::active())
+            {
+                return false;
+            }
+
             auto* barrier = get_launch_barrier();
             auto expected = false;
-            return barrier->compare_exchange_strong(expected, true);
+            if (!barrier->compare_exchange_strong(expected, true))
+            {
+                return false;
+            }
+
+            // Language admission rechecks this barrier after claiming its job. Checking
+            // both sides of the CAS prevents either worker entering during that handoff.
+            if (language_commands::active())
+            {
+                barrier->store(false);
+                return false;
+            }
+            return true;
         }
 
         void unlock_launch_barrier()
@@ -666,6 +685,12 @@ namespace commands::game_commands
         bool launch_game(const game_config::game_config_t& config, const std::string& game, const std::string& mode, cef::cef_ui& cef_ui, const uint64_t generation,
             const std::string& connect = {})
         {
+            if (language_commands::blocks_game(config))
+            {
+                cef_ui.show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before launching this game.");
+                return false;
+            }
+
             if (config.mode_arguments.size() > 0 && !mode.empty())
             {
                 if (config.mode_arguments.find(mode) == config.mode_arguments.end())
@@ -785,6 +810,16 @@ namespace commands::game_commands
         void run_launch_worker(game_config::game_config_t config, std::string game, std::string mode,
             cef::cef_ui& cef_ui, command_context& ctx, const uint64_t generation, const std::string& connect = {})
         {
+            // A recovery journal must be settled before the normal updater can touch
+            // the installation, including launches started through an invite or URI.
+            if (language_commands::blocks_game(config))
+            {
+                cef_ui.show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before launching this game.");
+                ipc::ipc_server::instance().clear_pending_join();
+                unlock_launch_barrier();
+                return;
+            }
+
             updater::ui_progress_listener progress_listener;
             progress_listener.reset(true);
 
@@ -921,6 +956,11 @@ namespace commands::game_commands
         }
     }
 
+    bool launch_busy()
+    {
+        return get_launch_barrier()->load();
+    }
+
     void launch_for_join(const std::string& game_id, const std::string& mode)
     {
         if (!g_cef_ui || !g_ctx)
@@ -974,6 +1014,12 @@ namespace commands::game_commands
             return;
         }
 
+        if (language_commands::blocks_game(*config))
+        {
+            g_cef_ui->show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before launching this game.");
+            return;
+        }
+
         const auto launch_mode = resolve_join_mode(*config, mode);
 
         // Validate the target before stopping anything, so we never kill the running game for a doomed launch.
@@ -986,6 +1032,13 @@ namespace commands::game_commands
 
         // Inherit the barrier from the running game (or take it if free); a fresh generation supersedes its old watchdog.
         const bool already_running = !try_lock_launch_barrier();
+        if (already_running && (language_commands::active() || !get_launch_barrier()->load()))
+        {
+            // A language job can deny admission without holding the game barrier.
+            // That failure must not be mistaken for a running game to hand over.
+            g_cef_ui->show_message_box("Game Language", "Wait for the language pack operation to finish before joining.");
+            return;
+        }
         const auto generation = reserve_launch_generation();
 
         std::thread([cfg = *config, game = config->game_key, mode = launch_mode,
@@ -1183,6 +1236,13 @@ namespace commands::game_commands
                 return;
             }
 
+            if (language_commands::blocks_game(*config))
+            {
+                cef_ui.show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before launching this game.");
+                response.AddMember("started", false, allocator);
+                return;
+            }
+
             const auto game = std::string{ value["game"].GetString() };
 
             // Get mode if provided, otherwise empty string
@@ -1270,6 +1330,12 @@ namespace commands::game_commands
             const auto config = ctx.get_game_config_from_request(value);
             if (!config)
             {
+                return;
+            }
+
+            if (language_commands::blocks_game(*config))
+            {
+                cef_ui.show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before verifying game files.");
                 return;
             }
 
@@ -1384,6 +1450,12 @@ namespace commands::game_commands
                 return;
             }
 
+            if (language_commands::blocks_game(*config))
+            {
+                cef_ui.show_message_box("Game Language", "Finish or restore the language pack operation in Game Settings before uninstalling this game.");
+                return;
+            }
+
             // Check if game is running
             bool is_running = utils::nt::is_process_running(config->exe_name);
             if (!config->check_running_exes.empty())
@@ -1412,6 +1484,13 @@ namespace commands::game_commands
             {
                 try
                 {
+                    // Restore CB-owned overrides first, including BO1 voices in Plutonium
+                    // storage, before uninstalling the base files and forgetting this path.
+                    if (game_languages::supported(config.game_key)
+                        && game_languages::installed(config) != "source")
+                    {
+                        game_languages::apply(config, "source", *progress_listener);
+                    }
                     game_updater::game_updater game_updater(config, true, false, progress_listener.get());
                     game_updater.delete_game();
 

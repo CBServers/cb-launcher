@@ -10,6 +10,9 @@ namespace commands::game_commands
     // Registers: launch-game, stop-game, is-game-running, verify-game
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx);
 
+    // Includes an update/launch handoff before a game PID is available.
+    bool launch_busy();
+
     // True if pid is the tracked launcher-launched game with matching id; used to validate IPC clients.
     bool is_tracked_game_pid(unsigned long pid, std::string_view game_id);
 

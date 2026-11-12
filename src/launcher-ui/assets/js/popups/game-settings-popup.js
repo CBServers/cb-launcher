@@ -1,3 +1,162 @@
+// Owns the asynchronous language controls so results from a closed or different
+// game's settings cannot change the current view. Closing leaves native work running.
+class GameLanguageSettings {
+    constructor(popup, translate) {
+        this.popup = popup;
+        this.t = key => translate(`popup.gameSettings.${key}`);
+        this.section = popup.querySelector('#game-language-section');
+        this.select = popup.querySelector('#game-language-select');
+        this.applyButton = popup.querySelector('#game-language-apply');
+        this.status = popup.querySelector('#game-language-status');
+        this.installed = popup.querySelector('#game-language-installed');
+        this.epoch = 0;
+        this.busy = false;
+        this.ready = false;
+        this.disabledControls = new Map();
+        if (typeof MutationObserver !== 'undefined') {
+            this.controlsObserver = new MutationObserver(() => {
+                if (this.busy) this.lockControls();
+            });
+        }
+        this.select.addEventListener('change', () => this.updateButton());
+        this.applyButton.addEventListener('click', () => this.apply());
+    }
+
+    setBusy(busy) {
+        this.busy = busy;
+        if (busy) {
+            this.lockControls();
+            this.controlsObserver?.observe(this.popup, { childList: true, subtree: true });
+        } else {
+            this.controlsObserver?.disconnect();
+            for (const [control, disabled] of this.disabledControls) control.disabled = disabled;
+            this.disabledControls.clear();
+        }
+        this.select.disabled = busy || !this.ready;
+        this.applyButton.disabled = busy || !this.ready;
+        this.section.setAttribute('aria-busy', String(busy));
+        this.updateButton();
+    }
+
+    lockControls() {
+        for (const control of this.popup.querySelectorAll('input, select, button')) {
+            if (control === this.select || control === this.applyButton || control.matches('.popup-close, .btn-cancel')) continue;
+            if (!this.disabledControls.has(control)) this.disabledControls.set(control, control.disabled);
+            control.disabled = true;
+        }
+    }
+
+    updateButton() {
+        this.applyButton.textContent = this.t(this.busy ? 'gameLanguageWorking'
+            : ['source', 'en'].includes(this.select.value) ? 'gameLanguageRestore' : 'gameLanguageApply');
+        this.popup.querySelector('#game-language-note').textContent = this.t(
+            this.select.value === 'ja' ? 'gameLanguageJapanese' : 'gameLanguageHelp');
+    }
+
+    message(text, error = false) {
+        this.status.textContent = text;
+        this.status.classList.toggle('is-error', error);
+    }
+
+    close() {
+        this.epoch++;
+        clearTimeout(this.timer);
+        this.ready = false;
+        this.setBusy(false);
+    }
+
+    async show(game) {
+        this.close();
+        this.game = game;
+        this.section.style.display = ['t4', 't5', 't6'].includes(game) ? 'block' : 'none';
+        this.select.replaceChildren();
+        this.installed.textContent = '';
+        this.message('');
+        if (!['t4', 't5', 't6'].includes(game)) return;
+
+        this.message(this.t('gameLanguageLoading'));
+        await this.refresh(this.epoch, true);
+    }
+
+    schedule(epoch) {
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => this.refresh(epoch), 700);
+    }
+
+    async refresh(epoch, initial = false) {
+        if (epoch !== this.epoch) return;
+        try {
+            const info = await window.executeCommand('get-game-languages', { game: this.game });
+            if (epoch !== this.epoch) return;
+            if (!info || !info.supported) {
+                this.section.style.display = 'none';
+                this.ready = false;
+                this.setBusy(false);
+                return;
+            }
+
+            if (initial) {
+                for (const choice of info.options || []) {
+                    const option = document.createElement('option');
+                    option.value = choice.value;
+                    const labelKeys = { auto: 'gameLanguageAuto', source: 'gameLanguageSource', en: 'gameLanguageEnglish' };
+                    option.textContent = labelKeys[choice.value] ? this.t(labelKeys[choice.value]) : choice.label;
+                    this.select.appendChild(option);
+                }
+            }
+
+            this.ready = this.select.options.length > 0;
+            const active = info.active || {};
+            // Preserve an unapplied choice while idle. Only initial load and a
+            // completed operation adopt the native saved preference.
+            if (initial || this.busy && !active.running) {
+                this.select.value = info.selected || 'source';
+            }
+            this.installed.textContent = info.installed ? this.t('gameLanguageInstalled') + ' ' + info.installed : '';
+            const recoveryRequired = !!info.recoveryRequired && !active.running;
+            this.message(active.error || (recoveryRequired ? this.t('gameLanguageRecoveryRequired') : active.message)
+                || (active.running ? this.t('gameLanguageWorking') : ''), !!active.error || recoveryRequired);
+            this.setBusy(!!active.running);
+            if (active.running) this.schedule(epoch);
+        } catch (error) {
+            if (epoch !== this.epoch) return;
+            this.message(this.t('gameLanguageStatusFailed'), true);
+            // A failed poll is not proof that the native operation stopped.
+            // Keep its controls locked and retry until an authoritative result.
+            if (this.busy) this.schedule(epoch);
+            else this.setBusy(false);
+        }
+    }
+
+    async apply() {
+        if (this.busy || !this.ready) return;
+        const epoch = this.epoch;
+        const game = this.game;
+        const language = this.select.value;
+        this.setBusy(true);
+        this.message(this.t('gameLanguageWorking'));
+        try {
+            const result = await window.executeCommand('apply-game-language', {
+                game, language,
+                launcherLanguage: window.LauncherI18n?.getLanguage() || 'en'
+            });
+            if (epoch !== this.epoch) return;
+            if (!result || !result.started) {
+                this.setBusy(false);
+                this.message(result?.error || this.t('gameLanguageStartFailed'), true);
+                return;
+            }
+            // The command starts a worker; only its status can report completion.
+            await this.refresh(epoch);
+        } catch (error) {
+            if (epoch !== this.epoch) return;
+            this.message(this.t('gameLanguageStatusFailed'), true);
+            // The bridge may have failed after starting native work.
+            this.schedule(epoch);
+        }
+    }
+}
+
 class GameSettingsPopup {
     constructor() {
         this.popup = null;
@@ -5,6 +164,7 @@ class GameSettingsPopup {
         this.currentGame = null;
         this.gameConfig = null;
         this.createPopup();
+        this.gameLanguageSettings = new GameLanguageSettings(this.popup, key => this.t(key));
     }
 
     createPopup() {
@@ -31,6 +191,21 @@ class GameSettingsPopup {
                         </div>
                     </div>
                     <span class="setting-error" id="game-path-error"></span>
+                </div>
+
+                <div class="settings-section" id="game-language-section" style="display: none;">
+                    <h4></h4>
+                    <div class="setting-item">
+                        <label for="game-language-select"></label>
+                        <div class="input-group">
+                            <select id="game-language-select" class="behavior-dropdown" aria-describedby="game-language-note game-language-source" disabled></select>
+                            <button id="game-language-apply" class="browse-button" disabled></button>
+                        </div>
+                        <span class="setting-description" id="game-language-note"></span>
+                        <span class="setting-description" id="game-language-source"></span>
+                        <span class="setting-description" id="game-language-installed"></span>
+                        <span class="setting-description" id="game-language-status" role="status" aria-live="polite"></span>
+                    </div>
                 </div>
 
                 <div class="settings-section" id="play-behavior-section">
@@ -430,6 +605,9 @@ class GameSettingsPopup {
     }
 
     refreshTexts() {
+        this.popup.querySelector('#game-language-section h4').textContent = this.t('popup.gameSettings.gameLanguageTitle');
+        this.popup.querySelector('label[for="game-language-select"]').textContent = this.t('popup.gameSettings.gameLanguageLabel');
+        this.popup.querySelector('#game-language-source').textContent = this.t('popup.gameSettings.gameLanguageSourceNotice');
         this.popup.querySelector('.settings-section h4').textContent = this.t('popup.gameSettings.installationPath');
         this.popup.querySelector('#browse-btn').textContent = this.t('common.browse');
         this.popup.querySelector('#game-path').placeholder = this.t('popup.gameSettings.installationPlaceholder');
@@ -462,6 +640,7 @@ class GameSettingsPopup {
         this.currentGame = game;
         this.gameConfig = gameConfig || GameUtils.getGameConfig(game);
         this.refreshTexts();
+        this.gameLanguageSettings.show(game);
 
         // Update the UI with game-specific information
         this.popup.querySelector('#settings-title').textContent = this.t('popup.gameSettings.titleWithGame', {
@@ -565,6 +744,7 @@ class GameSettingsPopup {
     }
 
     hide() {
+        this.gameLanguageSettings.close();
         // Esc closes without blurring, so commit a text field that is still being edited
         if (this.popup.contains(document.activeElement) && document.activeElement.matches('input')) {
             document.activeElement.blur();
@@ -708,6 +888,7 @@ class GameSettingsPopup {
     }
 
     async handleBrowse() {
+        if (this.gameLanguageSettings.busy) return;
         if (typeof window.executeCommand !== 'function') {
             return;
         }
@@ -715,7 +896,7 @@ class GameSettingsPopup {
         const errorEl = this.popup.querySelector('#game-path-error');
         try {
             const folder = await window.executeCommand('browse-folder');
-            if (!folder) {
+            if (!folder || this.gameLanguageSettings.busy) {
                 return;
             }
 
@@ -750,6 +931,7 @@ class GameSettingsPopup {
     }
 
     async handleReset() {
+        if (this.gameLanguageSettings.busy) return;
         if (typeof window.showMessageBox === 'function') {
             const result = await window.showMessageBox(
                 this.t('popup.gameSettings.resetTitle'),
@@ -757,7 +939,7 @@ class GameSettingsPopup {
                 [this.t('common.cancel'), this.t('common.resetSettings')]
             );
 
-            if (result === 1) {
+            if (result === 1 && !this.gameLanguageSettings.busy) {
                 try {
                     // Reset all game settings using the reset-game-settings command
                     await window.executeCommand('reset-game-settings', {
