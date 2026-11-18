@@ -3,6 +3,7 @@ if ($args.Count -lt 1) {
     exit 1
 }
 
+$ErrorActionPreference = 'Stop'
 $sdkVersion = $args[0]
 
 $sdkPath = 'deps/discord_social_sdk'
@@ -26,7 +27,9 @@ Invoke-WebRequest -Uri $source -OutFile $destination -UserAgent "Mozilla/5.0 (Wi
 Write-Output 'Unpacking Discord Social SDK...'
 #-------------------------------------------------
 
-Expand-Archive -Path $destination -DestinationPath $sdkPath -Force
+# Expand-Archive breaks when Windows PowerShell picks up PowerShell 7's Archive module (CI runners)
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $PWD $destination), (Join-Path $PWD $sdkPath))
 
 #-------------------------------------------------
 Write-Output 'Doing cleanup...'
