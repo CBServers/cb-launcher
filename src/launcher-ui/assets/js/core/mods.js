@@ -104,7 +104,8 @@
     }
 
     async function workshopFetch(path, params) {
-        const query = `${path}?${new URLSearchParams(params)}`;
+        // archives=1: this launcher installs zip-packaged index entries, which the worker hides from older ones.
+        const query = `${path}?${new URLSearchParams({ ...params, archives: 1 })}`;
         const api = window.__modsMock.workshopApi;
         const res = api
             ? await fetch(`${api}${query}`, { cache: 'no-store' })

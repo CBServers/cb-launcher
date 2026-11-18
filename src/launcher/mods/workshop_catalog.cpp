@@ -36,8 +36,62 @@ namespace mods::workshop_catalog
             return 0;
         }
 
+        // `parts` (ordered) or a single `url`.
+        bool parse_links(const rapidjson::Value& entry, std::vector<std::string>& links)
+        {
+            if (entry.HasMember("parts") && entry["parts"].IsArray())
+            {
+                for (const auto& part : entry["parts"].GetArray())
+                {
+                    if (!part.IsString())
+                    {
+                        return false;
+                    }
+
+                    links.emplace_back(part.GetString(), part.GetStringLength());
+                }
+            }
+            else if (const auto url = json_string(entry, "url"); !url.empty())
+            {
+                links.push_back(url);
+            }
+
+            return true;
+        }
+
+        bool parse_archives(const rapidjson::Value& doc, std::vector<archive>& archives)
+        {
+            if (!doc.HasMember("archives"))
+            {
+                return true;
+            }
+
+            if (!doc["archives"].IsArray())
+            {
+                return false;
+            }
+
+            for (const auto& entry : doc["archives"].GetArray())
+            {
+                if (!entry.IsObject() || !entry.HasMember("size") || !entry["size"].IsUint64())
+                {
+                    return false;
+                }
+
+                archive result{{}, entry["size"].GetUint64(), json_string(entry, "hash")};
+                if (!parse_links(entry, result.urls) || result.urls.empty() || result.hash.empty())
+                {
+                    return false;
+                }
+
+                archives.push_back(std::move(result));
+            }
+
+            return true;
+        }
+
         // The worker already validated these; anything malformed rejects the whole item.
-        bool parse_files(const rapidjson::Value& doc, std::vector<catalog_file>& files)
+        bool parse_files(const rapidjson::Value& doc, const size_t archive_count, std::vector<catalog_file>& files)
         {
             if (!doc.HasMember("files"))
             {
@@ -57,24 +111,23 @@ namespace mods::workshop_catalog
                 }
 
                 catalog_file file{json_string(entry, "root"), json_string(entry, "path"), entry["size"].GetUint64(), json_string(entry, "hash"), {}};
-                if (entry.HasMember("parts") && entry["parts"].IsArray())
+                if (!parse_links(entry, file.urls))
                 {
-                    for (const auto& part : entry["parts"].GetArray())
+                    return false;
+                }
+
+                if (entry.HasMember("archive"))
+                {
+                    file.member = json_string(entry, "member");
+                    if (!entry["archive"].IsUint() || entry["archive"].GetUint() >= archive_count || file.member.empty() || !file.urls.empty())
                     {
-                        if (!part.IsString())
-                        {
-                            return false;
-                        }
-
-                        file.urls.emplace_back(part.GetString(), part.GetStringLength());
+                        return false;
                     }
-                }
-                else if (const auto url = json_string(entry, "url"); !url.empty())
-                {
-                    file.urls.push_back(url);
+
+                    file.archive = entry["archive"].GetUint();
                 }
 
-                if (file.root.empty() || file.path.empty() || file.hash.empty() || file.urls.empty())
+                if (file.root.empty() || file.path.empty() || file.hash.empty() || (file.urls.empty() && !file.archive))
                 {
                     return false;
                 }
@@ -90,7 +143,7 @@ namespace mods::workshop_catalog
     {
         using utils::service_hosts::service;
 
-        const auto path = "/v1/item?game=" + mods::catalog_id(config) + "&id=" + workshop_id;
+        const auto path = "/v1/item?game=" + mods::catalog_id(config) + "&id=" + workshop_id + "&archives=1";
         const auto url = utils::service_hosts::active(service::workshop) + path;
         const auto result = utils::service_hosts::with_failover(service::workshop, url, [](const std::string& target)
         {
@@ -117,7 +170,7 @@ namespace mods::workshop_catalog
         out.kind = json_string(doc, "kind");
         out.size = json_size(doc, "size");
         out.version = json_string(doc, "version");
-        if (!parse_files(doc, out.files))
+        if (!parse_archives(doc, out.archives) || !parse_files(doc, out.archives.size(), out.files))
         {
             utils::logger::write("[cbl-mods] workshop item {} has a malformed file list", workshop_id);
             return std::nullopt;

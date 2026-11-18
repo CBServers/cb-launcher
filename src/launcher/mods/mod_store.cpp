@@ -6,6 +6,7 @@
 #include "mod_updater.hpp"
 #include "steamcmd.hpp"
 #include "updater/client_store.hpp"
+#include "zip_reader.hpp"
 
 #include <utils/finally.hpp>
 #include <utils/io.hpp>
@@ -16,7 +17,6 @@
 #include <chrono>
 #include <ctime>
 #include <random>
-#include <miniz.h>
 
 namespace mods
 {
@@ -431,32 +431,16 @@ namespace mods
 
         std::string extract_archive_impl(const std::filesystem::path& archive, const std::filesystem::path& into)
         {
-            FILE* file = nullptr;
-            if (_wfopen_s(&file, archive.c_str(), L"rb") != 0 || !file)
+            std::string error{};
+            const auto zip = zip::reader::open(archive, error);
+            if (!zip)
             {
-                return "The selected file could not be opened.";
+                return error;
             }
 
-            const auto close_file = utils::finally([file] { fclose(file); });
-
-            mz_zip_archive zip{};
-            if (!mz_zip_reader_init_cfile(&zip, file, utils::io::file_size(archive), 0))
+            for (const auto& entry : zip->entries())
             {
-                return "The file is not a valid zip archive.";
-            }
-
-            const auto close_zip = utils::finally([&zip] { mz_zip_reader_end(&zip); });
-
-            const auto count = mz_zip_reader_get_num_files(&zip);
-            for (mz_uint i = 0; i < count; ++i)
-            {
-                mz_zip_archive_file_stat stat{};
-                if (!mz_zip_reader_file_stat(&zip, i, &stat))
-                {
-                    return "Failed to read the zip archive.";
-                }
-
-                const std::string name = stat.m_filename;
+                const auto& name = entry.name;
                 if (!is_safe_archive_entry(name))
                 {
                     return "The zip archive contains an unsafe path: " + name;
@@ -468,22 +452,25 @@ namespace mods
                     return "The zip archive contains an unsafe path: " + name;
                 }
 
-                if (mz_zip_reader_is_file_a_directory(&zip, i))
+                if (entry.directory)
                 {
                     utils::io::create_directory(target);
                     continue;
                 }
 
                 utils::io::create_directory(target.parent_path());
-                FILE* out = nullptr;
-                if (_wfopen_s(&out, target.c_str(), L"wb") != 0 || !out)
+                std::ofstream out(target, std::ios::binary | std::ios::trunc);
+                if (!out)
                 {
                     return "Failed to write " + name;
                 }
 
-                const auto extracted = mz_zip_reader_extract_to_cfile(&zip, i, out, 0);
-                fclose(out);
-                if (!extracted)
+                const auto read_error = zip->read(entry, [&out](const char* data, const size_t size)
+                {
+                    out.write(data, static_cast<std::streamsize>(size));
+                    return static_cast<bool>(out);
+                });
+                if (!read_error.empty() || !out.flush())
                 {
                     return "Failed to extract " + name;
                 }

@@ -10,7 +10,8 @@ namespace mods
         std::filesystem::path path;
     };
 
-    // One file of a mod index entry. urls are the download links (several = ordered parts) and are not recorded.
+    // One file of a mod index entry. urls are the download links (several = ordered parts); a file without urls comes
+    // out of the entry's zip `archive` as `member`. None of the three are recorded.
     struct catalog_file
     {
         std::string root;
@@ -18,6 +19,8 @@ namespace mods
         uint64_t size{};
         std::string hash;
         std::vector<std::string> urls;
+        std::optional<size_t> archive{};
+        std::string member;
     };
 
     struct installed_mod

@@ -3,13 +3,17 @@
 #include "mod_download.hpp"
 #include "workshop_catalog.hpp"
 #include "updater/client_store.hpp"
+#include "zip_reader.hpp"
 
 #include <utils/finally.hpp>
 #include <utils/flags.hpp>
 #include <utils/hash.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
+#include <utils/properties.hpp>
 #include <utils/string.hpp>
+
+#include <map>
 
 namespace catalog_installer
 {
@@ -103,7 +107,40 @@ namespace catalog_installer
         mods::catalog_file without_urls(mods::catalog_file file)
         {
             file.urls.clear();
+            file.archive.reset();
+            file.member.clear();
             return file;
+        }
+
+        std::filesystem::path archives_folder()
+        {
+            return utils::properties::get_appdata_path() / "mods" / "archives";
+        }
+
+        // <game>.<id>.<hash>.zip: game and entry ids hold no dots, so "<game>.<id>." finds every archive an entry left behind.
+        std::filesystem::path archive_path(const game_config::game_config_t& config, const std::string& entry_id, const std::string& hash)
+        {
+            return archives_folder() / utils::string::utf8_to_path(mods::catalog_id(config) + "." + entry_id + "." + hash + ".zip");
+        }
+
+        // Downloaded archives and their partials: resume points for an interrupted install, otherwise leftovers.
+        void remove_archives(const game_config::game_config_t& config, const std::string& entry_id)
+        {
+            const auto prefix = utils::string::utf8_to_path(mods::catalog_id(config) + "." + entry_id + ".").wstring();
+            std::error_code code{};
+            std::vector<std::filesystem::path> found{};
+            for (const auto& file : std::filesystem::directory_iterator(archives_folder(), code))
+            {
+                if (file.path().filename().wstring().starts_with(prefix))
+                {
+                    found.push_back(file.path());
+                }
+            }
+
+            for (const auto& file : found)
+            {
+                utils::io::remove_file(file);
+            }
         }
 
         std::optional<std::filesystem::path> resolve_target(const game_config::game_config_t& config, const mods::catalog_file& file)
@@ -212,6 +249,15 @@ namespace catalog_installer
             const auto owners = files_of_others(config, index, mods::catalog_record_id(item.id));
             std::unordered_set<std::wstring> seen{};
 
+            for (const auto& archive : item.archives)
+            {
+                if (!is_hash(archive.hash) || archive.urls.empty() || !std::all_of(archive.urls.begin(), archive.urls.end(),
+                    [&](const std::string& link) { return is_safe_link(link, config, item.id); }))
+                {
+                    return "This mod has an unsupported download link for its zip archive.";
+                }
+            }
+
             for (auto file : item.files)
             {
                 if (file.root.empty())
@@ -241,7 +287,14 @@ namespace catalog_installer
                     return "This mod has a file without a valid hash: " + file.path;
                 }
 
-                if (file.urls.empty() || !std::all_of(file.urls.begin(), file.urls.end(),
+                if (file.archive)
+                {
+                    if (*file.archive >= item.archives.size() || file.member.empty() || !file.urls.empty())
+                    {
+                        return "This mod has a broken zip archive listing for " + file.path;
+                    }
+                }
+                else if (file.urls.empty() || !std::all_of(file.urls.begin(), file.urls.end(),
                     [&](const std::string& link) { return is_safe_link(link, config, item.id); }))
                 {
                     return "This mod has an unsupported download link for " + file.path;
@@ -292,15 +345,15 @@ namespace catalog_installer
             return hash == file.file.hash ? std::string{} : "hash";
         }
 
-        std::string check_disk_space(const std::vector<const planned_file*>& outdated)
+        // Each pair is a folder and the bytes still to be written under it.
+        std::string check_disk_space(const std::vector<std::pair<std::filesystem::path, uint64_t>>& needs)
         {
             std::unordered_map<std::wstring, std::pair<std::filesystem::path, uint64_t>> volumes{};
-            for (const auto* file : outdated)
+            for (const auto& [folder, bytes] : needs)
             {
-                const auto held = std::min<uint64_t>(mod_download::partial_size(file->target, file->file.hash), file->file.size);
-                auto& volume = volumes[client_store::path_key(file->root.root_path())];
-                volume.first = file->root;
-                volume.second += file->file.size - held;
+                auto& volume = volumes[client_store::path_key(folder.root_path())];
+                volume.first = folder;
+                volume.second += bytes;
             }
 
             for (const auto& [key, volume] : volumes)
@@ -369,6 +422,101 @@ namespace catalog_installer
             }
 
             client_store::prune_empty_directories(candidates);
+        }
+
+        // Extracts each member beside its target (<target>.<hash>.part, so the move never crosses volumes) and checks
+        // its size and hash. `damaged` means the archive itself is wrong and must not be reused.
+        std::string extract_members(const std::filesystem::path& zip_path, const std::vector<const planned_file*>& members,
+            const std::function<bool(uint64_t)>& on_progress, bool& damaged)
+        {
+            std::string error{};
+            const auto zip = mods::zip::reader::open(zip_path, error);
+            if (!zip)
+            {
+                damaged = true;
+                return error;
+            }
+
+            std::unordered_map<std::string, const mods::zip::entry*> by_name{};
+            for (const auto& entry : zip->entries())
+            {
+                by_name.emplace(entry.name, &entry);
+            }
+
+            uint64_t extracted = 0;
+            for (const auto* file : members)
+            {
+                const auto found = by_name.find(file->file.member);
+                if (found == by_name.end() || found->second->directory || !found->second->supported || found->second->size != file->file.size)
+                {
+                    damaged = true;
+                    return "This mod's zip archive does not match the mod catalog (" + file->file.member + ").";
+                }
+
+                utils::io::create_directory(file->target.parent_path());
+                if (file->file.size == 0)
+                {
+                    if (!utils::io::write_file(file->target, std::string{}))
+                    {
+                        return "Failed to write " + file->file.path;
+                    }
+
+                    continue;
+                }
+
+                auto part = file->target;
+                part += "." + file->file.hash + ".part";
+                std::ofstream out(part, std::ios::binary | std::ios::trunc);
+                if (!out)
+                {
+                    return "Failed to open " + utils::string::path_to_utf8(part);
+                }
+
+                utils::hash::stream_hasher hasher{};
+                auto write_failed = false;
+                const auto read_error = zip->read(*found->second, [&](const char* data, const size_t size)
+                {
+                    out.write(data, static_cast<std::streamsize>(size));
+                    if (!out)
+                    {
+                        write_failed = true;
+                        return false;
+                    }
+
+                    hasher.update(data, size);
+                    extracted += size;
+                    return on_progress(extracted);
+                });
+                out.close();
+
+                if (write_failed || out.fail())
+                {
+                    utils::io::remove_file(part);
+                    return "Failed to write " + utils::string::path_to_utf8(part) + ", the disk may be full or write-protected";
+                }
+
+                if (!read_error.empty())
+                {
+                    utils::io::remove_file(part);
+                    damaged = read_error != "cancelled";
+                    return read_error;
+                }
+
+                if (hasher.digest() != file->file.hash)
+                {
+                    utils::io::remove_file(part);
+                    damaged = true;
+                    return "Hash mismatch for " + file->file.path;
+                }
+
+                if (!utils::io::move_file_replace(part, file->target))
+                {
+                    utils::io::remove_file(part);
+                    return "Failed to move " + file->file.path + " into place";
+                }
+            }
+
+            return {};
         }
 
         mods::import_result install_entry(const game_config::game_config_t& config, const mods::workshop_catalog::item& item,
@@ -459,41 +607,131 @@ namespace catalog_installer
                 return fail("cancelled");
             }
 
-            if (const auto error = check_disk_space(outdated); !error.empty())
+            // Loose files download one by one; files from a zip download their archive once and extract from it.
+            std::vector<const planned_file*> loose{};
+            std::map<size_t, std::vector<const planned_file*>> from_archive{};
+            std::vector<std::pair<std::filesystem::path, uint64_t>> needs{};
+            for (const auto* file : outdated)
+            {
+                if (file->file.archive)
+                {
+                    from_archive[*file->file.archive].push_back(file);
+                    needs.emplace_back(file->root, file->file.size);
+                }
+                else
+                {
+                    loose.push_back(file);
+                    needs.emplace_back(file->root, file->file.size - std::min<uint64_t>(mod_download::partial_size(file->target, file->file.hash), file->file.size));
+                }
+            }
+
+            const auto archive_ready = [&config, &item](const size_t index)
+            {
+                const auto path = archive_path(config, item.id, item.archives[index].hash);
+                return utils::io::file_exists(path) && utils::io::file_size(path) == item.archives[index].size;
+            };
+
+            if (!from_archive.empty())
+            {
+                utils::io::create_directory(archives_folder());
+            }
+
+            uint64_t archive_bytes = 0;
+            for (const auto& [archive_index, members] : from_archive)
+            {
+                const auto& archive = item.archives[archive_index];
+                archive_bytes += archive.size;
+                const auto held = archive_ready(archive_index) ? archive.size : mod_download::partial_size(archive_path(config, item.id, archive.hash), archive.hash);
+                needs.emplace_back(archives_folder(), archive.size - std::min(held, archive.size));
+            }
+
+            if (const auto error = check_disk_space(needs); !error.empty())
             {
                 return fail(error);
             }
 
-            const auto total_bytes = std::max<uint64_t>(outdated_bytes, 1);
+            const auto total_bytes = std::max<uint64_t>(outdated_bytes + archive_bytes, 1);
             uint64_t completed_bytes = 0;
-            for (const auto* file : outdated)
+            const auto percent = [&](const uint64_t done) { return static_cast<int>(std::min<uint64_t>(done * 100 / total_bytes, 99)); };
+
+            const auto fetch = [&](const mod_download::request& request, const std::filesystem::path& target) -> std::string
             {
                 const auto on_progress = [&](const uint64_t current)
                 {
-                    const auto done = completed_bytes + std::min<uint64_t>(current, file->file.size);
-                    return report("downloading", static_cast<int>(std::min<uint64_t>(done * 100 / total_bytes, 99)));
+                    return report("downloading", percent(completed_bytes + std::min<uint64_t>(current, request.size)));
                 };
 
-                const mod_download::request request{file->file.path, file->file.urls, file->file.size, file->file.hash};
                 std::string error{};
                 // One retry: a size or hash mismatch drops the partial, so the second pass refetches it.
                 for (auto attempt = 0; attempt < 2; ++attempt)
                 {
-                    error = mod_download::download(request, file->target, on_progress);
+                    error = mod_download::download(request, target, on_progress);
                     if (error.empty() || error == "cancelled")
                     {
                         break;
                     }
 
-                    utils::logger::write("[cbl-mods] retrying {}: {}", file->file.path, error);
+                    utils::logger::write("[cbl-mods] retrying {}: {}", request.name, error);
                 }
 
-                if (!error.empty())
+                if (error.empty())
+                {
+                    completed_bytes += request.size;
+                }
+
+                return error;
+            };
+
+            for (const auto* file : loose)
+            {
+                if (const auto error = fetch({file->file.path, file->file.urls, file->file.size, file->file.hash}, file->target); !error.empty())
+                {
+                    return fail(error);
+                }
+            }
+
+            for (const auto& [archive_index, members] : from_archive)
+            {
+                const auto& archive = item.archives[archive_index];
+                const auto zip_path = archive_path(config, item.id, archive.hash);
+                if (archive_ready(archive_index))
+                {
+                    completed_bytes += archive.size;
+                }
+                else if (const auto error = fetch({item.id + " zip archive", archive.urls, archive.size, archive.hash}, zip_path); !error.empty())
                 {
                     return fail(error);
                 }
 
-                completed_bytes += file->file.size;
+                const auto extract_start = completed_bytes;
+                auto damaged = false;
+                const auto error = extract_members(zip_path, members, [&](const uint64_t extracted)
+                {
+                    return report("extracting", percent(extract_start + extracted));
+                }, damaged);
+
+                if (!error.empty())
+                {
+                    // A cancelled or failed write keeps the verified archive for the retry; a wrong one is fetched again.
+                    if (damaged)
+                    {
+                        utils::io::remove_file(zip_path);
+                    }
+
+                    if (error != "cancelled")
+                    {
+                        utils::logger::write("[cbl-mods] {}: extracting {} failed: {}", item.id, utils::string::path_to_utf8(zip_path.filename()), error);
+                    }
+
+                    return fail(error);
+                }
+
+                for (const auto* file : members)
+                {
+                    completed_bytes += file->file.size;
+                }
+
+                utils::io::remove_file(zip_path);
             }
 
             // Files the installed version had and this one doesn't (replaces a mod's own "retire" list).
@@ -516,6 +754,7 @@ namespace catalog_installer
             record.version = item.version;
             record.installed_at = mods::now_iso8601();
             mods::upsert_index(config, record);
+            remove_archives(config, item.id);
 
             utils::logger::write("[cbl-mods] installed catalog entry {} {} ({} files, {} downloaded)", item.id, item.version,
                 planned.size(), outdated.size());
@@ -698,6 +937,7 @@ namespace catalog_installer
         }
 
         mods::erase_index(config, record_id);
+        remove_archives(config, entry_id);
         utils::logger::write("[cbl-mods] uninstalled catalog entry {} ({} files)", entry_id, record->files.size());
         return true;
     }

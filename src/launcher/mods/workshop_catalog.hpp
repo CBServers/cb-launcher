@@ -17,6 +17,13 @@ namespace mods::workshop_catalog
         uint64_t size{};
     };
 
+    struct archive
+    {
+        std::vector<std::string> urls;
+        uint64_t size{};
+        std::string hash;
+    };
+
     struct item
     {
         std::string id;
@@ -27,6 +34,7 @@ namespace mods::workshop_catalog
         // Mod index entries only; no files means the entry is listed but not installable yet.
         std::string version;
         std::vector<catalog_file> files;
+        std::vector<archive> archives;
     };
 
     std::optional<item> fetch(const game_config::game_config_t& config, const std::string& workshop_id);
