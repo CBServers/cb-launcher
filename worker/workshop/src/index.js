@@ -18,7 +18,8 @@
 //       -> { id, title, kind, preview, description, screenshots, subscribers, size, views, createdAt, updatedAt, votes,
 //            children: [{id,title,kind,size}] }  (required items, one level deep)
 //          index items add author, version, comingSoon, changesGameFiles and files:
-//            [{ root, path, size, hash, url | parts }]
+//            [{ root, path, size, hash, url | parts | archive + member }] and archives: [{ url | parts, size, hash }]
+//   Index entries with archives are left out of search, item and updated unless the request carries archives=1.
 //   /v1/updated?game=bo3&ids=<comma list> -> { "<id>": <updatedAt unix>, ... }  (index games: "<id>": "<version>")
 //   /v1/image/<commit>/<game>/<id>/<file> -> an index image, proxied from the repo at that commit
 //   POST /v1/refresh (Authorization: Bearer INDEX_REFRESH_SECRET) -> re-syncs the index now
@@ -177,10 +178,16 @@ async function getCatalog(env, game) {
     return catalog;
 }
 
+// Launchers that cannot install from zip archives never see entries that need one.
+function visibleItems(url, catalog) {
+    const items = catalog ? catalog.items : [];
+    return url.searchParams.get('archives') === '1' ? items : items.filter(item => !item.archives);
+}
+
 function handleSearch(url, catalog, game, origin) {
     const index = GAMES[game].source === 'index';
     const sort = url.searchParams.get('sort') || 'popular';
-    const { items, total } = searchCatalog(catalog ? catalog.items : [], {
+    const { items, total } = searchCatalog(visibleItems(url, catalog), {
         query: url.searchParams.get('query') || '',
         kind: url.searchParams.get('kind') || 'all',
         // Index entries have no subscriber counts yet.
@@ -198,7 +205,7 @@ function handleSearch(url, catalog, game, origin) {
 function handleUpdated(url, catalog, game) {
     const index = GAMES[game].source === 'index';
     const ids = (url.searchParams.get('ids') || '').split(',').filter(id => SLUG_RE.test(id)).slice(0, UPDATED_IDS_MAX);
-    const byId = new Map((catalog ? catalog.items : []).map(item => [item.id, index ? item.version : item.updatedAt]));
+    const byId = new Map(visibleItems(url, catalog).map(item => [item.id, index ? item.version : item.updatedAt]));
     const result = {};
     for (const id of ids) {
         if (byId.has(id)) {
@@ -256,7 +263,7 @@ async function resolveChildren(env, game, ids) {
 async function handleItem(request, env, url, game) {
     const id = url.searchParams.get('id') || '';
     if (GAMES[game].source === 'index') {
-        return handleIndexItem(await getCatalog(env, game), id, publicOrigin(request, url));
+        return handleIndexItem(await getCatalog(env, game), id, publicOrigin(request, url), url.searchParams.get('archives') === '1');
     }
 
     if (!STEAM_ID_RE.test(id)) {
@@ -319,7 +326,31 @@ function safeRelativePath(path) {
         && !/[\\:<>"|?*\x00-\x1f]/.test(path) && path.split('/').every(part => part && part !== '.' && part !== '..');
 }
 
-function normalizeFile(file) {
+function safeMember(name) {
+    return typeof name === 'string' && name.length > 0 && name.length <= 400 && !name.startsWith('/')
+        && !/[\\:\x00-\x1f]/.test(name) && name.split('/').every(part => part && part !== '.' && part !== '..');
+}
+
+// One https:// or cdn: url, or two or more parts, never both.
+function normalizeLinks(source) {
+    const validUrl = value => typeof value === 'string' && /^(https:\/\/|cdn:)/.test(value);
+    if (validUrl(source.url) && source.parts === undefined) return { url: source.url };
+    if (Array.isArray(source.parts) && source.parts.length >= 2 && source.parts.every(validUrl) && source.url === undefined) {
+        return { parts: source.parts.slice() };
+    }
+    return null;
+}
+
+function normalizeArchive(archive) {
+    if (!archive || typeof archive !== 'object') return null;
+    const size = Number(archive.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || !HASH_RE.test(archive.hash || '')) return null;
+    const links = normalizeLinks(archive);
+    return links ? { ...links, size, hash: archive.hash } : null;
+}
+
+// A file has its own links, or names a member of one of the entry's archives.
+function normalizeFile(file, archiveCount) {
     if (!file || typeof file !== 'object') return null;
     const size = Number(file.size);
     if (!['game', 'storage'].includes(file.root) || !safeRelativePath(file.path)
@@ -327,16 +358,17 @@ function normalizeFile(file) {
         return null;
     }
 
-    const validUrl = value => typeof value === 'string' && /^(https:\/\/|cdn:)/.test(value);
     const result = { root: file.root, path: file.path, size, hash: file.hash };
-    if (validUrl(file.url) && file.parts === undefined) {
-        result.url = file.url;
-    } else if (Array.isArray(file.parts) && file.parts.length >= 2 && file.parts.every(validUrl) && file.url === undefined) {
-        result.parts = file.parts.slice();
-    } else {
-        return null;
+    if (file.archive !== undefined) {
+        if (!Number.isInteger(file.archive) || file.archive < 0 || file.archive >= archiveCount || !safeMember(file.member)
+            || file.url !== undefined || file.parts !== undefined) {
+            return null;
+        }
+        return { ...result, archive: file.archive, member: file.member };
     }
-    return result;
+
+    const links = file.member === undefined ? normalizeLinks(file) : null;
+    return links ? { ...result, ...links } : null;
 }
 
 // raw.githubusercontent URL pinned to the build commit -> our /v1/image path; anything else is dropped.
@@ -365,9 +397,18 @@ export function normalizeIndex(raw, game, repo) {
         if (!entry || !SLUG_RE.test(entry.id || '') || catalog.details[entry.id] || typeof entry.name !== 'string') {
             continue;
         }
-        const files = (Array.isArray(entry.files) ? entry.files : []).map(normalizeFile);
+        const archives = (Array.isArray(entry.archives) ? entry.archives : []).map(normalizeArchive);
+        if (archives.some(archive => !archive)) {
+            console.log(`index ${game}/${entry.id}: dropped, an archive failed validation`);
+            continue;
+        }
+        const files = (Array.isArray(entry.files) ? entry.files : []).map(file => normalizeFile(file, archives.length));
         if (files.some(file => !file)) {
             console.log(`index ${game}/${entry.id}: dropped, a file failed validation`);
+            continue;
+        }
+        if (archives.some((_, index) => !files.some(file => file.archive === index))) {
+            console.log(`index ${game}/${entry.id}: dropped, an archive installs nothing`);
             continue;
         }
 
@@ -386,6 +427,7 @@ export function normalizeIndex(raw, game, repo) {
             comingSoon: files.length === 0,
             changesGameFiles: !!entry.changesGameFiles,
         };
+        if (archives.length) item.archives = true;
         catalog.items.push(item);
         catalog.details[entry.id] = {
             ...item,
@@ -393,6 +435,7 @@ export function normalizeIndex(raw, game, repo) {
             screenshots: images.slice(1).filter(Boolean),
             createdAt: Number(entry.addedAt || 0),
             requires: (Array.isArray(entry.requires) ? entry.requires : []).filter(id => SLUG_RE.test(id) && id !== entry.id),
+            archives,
             files,
         };
     }
@@ -439,19 +482,20 @@ export async function syncIndex(env) {
     return { changed: true, distCommit };
 }
 
-function handleIndexItem(catalog, id, origin) {
+function handleIndexItem(catalog, id, origin, allowArchives) {
     if (!SLUG_RE.test(id)) {
         return json(400, { error: 'invalid id' });
     }
 
+    const visible = detail => detail && (allowArchives || !detail.archives || !detail.archives.length);
     const entry = catalog && catalog.details ? catalog.details[id] : null;
-    if (!entry) {
+    if (!visible(entry)) {
         return json(404, { error: 'not found' });
     }
 
     const children = entry.requires
         .map(childId => catalog.details[childId])
-        .filter(Boolean)
+        .filter(visible)
         .map(child => ({ id: child.id, title: child.title, kind: child.kind, size: child.size }));
 
     return json(200, {
@@ -472,6 +516,7 @@ function handleIndexItem(catalog, id, origin) {
         comingSoon: entry.comingSoon,
         changesGameFiles: entry.changesGameFiles,
         children,
+        archives: entry.archives || [],
         files: entry.files,
     }, { 'Cache-Control': 'max-age=60' });
 }

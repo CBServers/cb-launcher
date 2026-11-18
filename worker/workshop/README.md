@@ -27,7 +27,12 @@ Index items differ from Steam ones: ids are slugs, `subscribers` is always 0
 (so `sort=popular` sorts by `updatedAt`), `votes` is null, and search items
 carry `version`, `comingSoon` and `changesGameFiles`. `/v1/item` also returns
 `author`, `version` and `files: [{ root, path, size, hash, url | parts }]`,
-which is what the launcher installs from. `preview` and `screenshots` point at
+which is what the launcher installs from. A file installed from a zip names
+`archive` (an index into the item's `archives: [{ url | parts, size, hash }]`)
+and `member` instead of links. Entries with archives are left out of
+`/v1/search`, `/v1/item` (404, and dropped from other items' `children`) and
+`/v1/updated` unless the request carries `archives=1`, so launchers that cannot
+extract zips never list them. `preview` and `screenshots` point at
 `/v1/image/...` on whichever of `workshop.cbservers.dev` / `.xyz` served the
 request (`X-Forwarded-Host`), so they follow the launcher's host failover.
 
