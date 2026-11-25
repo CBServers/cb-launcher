@@ -370,13 +370,13 @@ class GameUtils {
             client: 'Project BO4',
             provider: 'Project BO4',
             clientKey: 'others',
-            hasMultipleModes: true,
-            supportedModes: ['on', 'off'],
+            hasMultipleModes: false,
+            supportedModes: [],
             supportsName: true,
             specialSettings: [],
             version: 'T8',
-            description: 'Black Ops 4 with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies.',
-            credits: 'Online and offline play are provided by Project BO4 Launcher, maintained by NotNierPea.',
+            description: 'Black Ops 4 with Project BO4 Launcher. Play multiplayer and zombies online.',
+            credits: 'Online play is provided by Project BO4 Launcher, maintained by NotNierPea.',
             accent: '#FE890A',
             assetBase: './assets/img/games/bo4',
             iconPath: './assets/img/games/bo4/icon.ico',
@@ -593,14 +593,6 @@ class GameUtils {
             'zm': {
                 name: i18n ? i18n.t('mode.zm.name') : 'Zombies',
                 description: i18n ? i18n.t('mode.zm.description') : 'Fight hordes of zombies'
-            },
-            'on': {
-                name: i18n ? i18n.t('mode.on.name') : 'Online',
-                description: i18n ? i18n.t('mode.on.description') : 'Play online with others'
-            },
-            'off': {
-                name: i18n ? i18n.t('mode.off.name') : 'Offline',
-                description: i18n ? i18n.t('mode.off.description') : 'Play offline against bots or alone'
             }
         };
     }

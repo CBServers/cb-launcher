@@ -976,14 +976,6 @@
                 zm: {
                     name: 'Zombies',
                     description: 'Fight hordes of zombies'
-                },
-                on: {
-                    name: 'Online',
-                    description: 'Play online with others'
-                },
-                off: {
-                    name: 'Offline',
-                    description: 'Play offline against bots or alone'
                 }
             },
             game: {
@@ -1049,8 +1041,8 @@
                     credits: 'This is a <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> of the original IW7-Mod Client developed by <a href="https://auroramod.dev" target="_blank">Aurora</a> with added CB patches.'
                 },
                 'bo4': {
-                    description: 'Black Ops 4 enhanced with Project BO4 Launcher. Includes online and offline modes for multiplayer and zombies, with improved stability and additional features.',
-                    credits: 'Online and offline play are provided by the <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> and maintained by <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                    description: 'Black Ops 4 enhanced with Project BO4 Launcher. Play multiplayer and zombies online, with improved stability and additional features.',
+                    credits: 'Online play is provided by the <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> and maintained by <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
                 },
                 'mw2r': {
                     description: 'Modern Warfare 2 Campaign Remastered with H2-Mod support. Run the remastered MW2 campaign with stability and quality-of-life patches.',
@@ -1788,14 +1780,6 @@
                 zm: {
                     name: 'Zombies',
                     description: 'Affronter des hordes de zombies'
-                },
-                on: {
-                    name: 'En ligne',
-                    description: 'Jouer en ligne avec les autres'
-                },
-                off: {
-                    name: 'Hors ligne',
-                    description: 'Jouer hors ligne contre des bots ou seul'
                 }
             },
             game: {
@@ -1861,8 +1845,8 @@
                     credits: 'Ceci est un <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> du client IW7-Mod original developpe par <a href="https://auroramod.dev" target="_blank">Aurora</a> avec des correctifs CB.'
                 },
                 'bo4': {
-                    description: 'Black Ops 4 ameliore avec Project BO4 Launcher. Inclut les modes en ligne et hors ligne pour le multijoueur et les zombies, avec une meilleure stabilite et des fonctionnalites supplementaires.',
-                    credits: 'Le jeu en ligne et hors ligne est fourni par <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> et developpe par <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                    description: 'Black Ops 4 ameliore avec Project BO4 Launcher. Jouez au multijoueur et aux zombies en ligne, avec une meilleure stabilite et des fonctionnalites supplementaires.',
+                    credits: 'Le jeu en ligne est fourni par <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a> et developpe par <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
                 },
                 'mw2r': {
                     description: "Modern Warfare 2 Campaign Remastered avec le support de H2-Mod. Profitez de la campagne MW2 remasterisee avec des correctifs de stabilite et de confort de jeu.",
@@ -2600,14 +2584,6 @@
                 zm: {
                     name: 'Zombis',
                     description: 'Combatir hordas de zombis'
-                },
-                on: {
-                    name: 'En linea',
-                    description: 'Jugar en linea con otros'
-                },
-                off: {
-                    name: 'Sin conexion',
-                    description: 'Jugar sin conexion contra bots o solo'
                 }
             },
             game: {
@@ -2673,8 +2649,8 @@
                     credits: 'Este es un <a href="https://github.com/CBServers/iw7-mod" target="_blank">fork</a> del cliente original IW7-Mod desarrollado por <a href="https://auroramod.dev" target="_blank">Aurora</a> con parches CB anadidos.'
                 },
                 'bo4': {
-                    description: 'Black Ops 4 mejorado con Project BO4 Launcher. Incluye modos en linea y sin conexion para multijugador y zombis, con mayor estabilidad y funciones adicionales.',
-                    credits: 'El juego en linea y sin conexion lo proporciona <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a>, desarrollado por <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                    description: 'Black Ops 4 mejorado con Project BO4 Launcher. Juega multijugador y zombis en linea, con mayor estabilidad y funciones adicionales.',
+                    credits: 'El juego en linea lo proporciona <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a>, desarrollado por <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
                 },
                 'mw2r': {
                     description: 'Modern Warfare 2 Campaign Remastered con soporte de H2-Mod. Juega la campana remasterizada de MW2 con parches de estabilidad y mejoras de calidad de vida.',
@@ -3411,14 +3387,6 @@
                 zm: {
                     name: 'Зомби',
                     description: 'Сражайтесь с ордами зомби'
-                },
-                on: {
-                    name: 'Онлайн',
-                    description: 'Играть онлайн с другими'
-                },
-                off: {
-                    name: 'Офлайн',
-                    description: 'Играть офлайн против ботов или в одиночку'
                 }
             },
             game: {
@@ -3484,8 +3452,8 @@
                     credits: 'Это <a href="https://github.com/CBServers/iw7-mod" target="_blank">форк</a> оригинального клиента IW7-Mod, разработанного <a href="https://auroramod.dev" target="_blank">Aurora</a> с добавленными CB-патчами.'
                 },
                 'bo4': {
-                    description: 'Black Ops 4 улучшенный Project BO4 Launcher. Включает онлайн и офлайн режимы для мультиплеера и зомби с улучшенной стабильностью и дополнительными функциями.',
-                    credits: 'Онлайн и офлайн игра предоставлены <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a>, разработанным <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
+                    description: 'Black Ops 4 улучшенный Project BO4 Launcher. Играйте в мультиплеер и зомби онлайн с улучшенной стабильностью и дополнительными функциями.',
+                    credits: 'Онлайн игра предоставлена <a href="https://github.com/NotNierPea/shield-launcher" target="_blank">Project BO4 Launcher</a>, разработанным <a href="https://github.com/NotNierPea" target="_blank">NotNierPea</a>.'
                 },
                 'mw2r': {
                     description: 'Modern Warfare 2 Campaign Remastered с поддержкой H2-Mod. Играйте в ремастерированную кампанию MW2 с патчами стабильности и улучшениями качества жизни.',

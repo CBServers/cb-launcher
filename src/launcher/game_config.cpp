@@ -996,10 +996,8 @@ namespace game_config
                 .required_updater_files = {},
                 .valid_game_files = {"BlackOps4.exe", "BlackOps4_boot.exe", "Black Ops 4 Launcher.exe"},
                 .check_running_exes = {"BlackOps4.exe"},
-                .mode_arguments = {
-                    {"on", "-online"},
-                    {"off", "-offline"}
-                },
+                .mode_arguments = {},
+                .default_args = "-online",
                 .name_argument = "-name",
                 .base_folder = "bo4_game_files",
                 .base_properties_game = "",
