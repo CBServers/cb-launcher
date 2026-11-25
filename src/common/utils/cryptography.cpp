@@ -58,6 +58,24 @@ namespace utils::cryptography
             return static_cast<unsigned long>(value);
         }
 
+        // libtomcrypt rejects any inlen whose inlen * 8 wraps its 32-bit unsigned long, so feed it in chunks
+        template <typename Process>
+        void process_chunked(Process process, hash_state* state, const uint8_t* data, size_t length)
+        {
+            constexpr size_t chunk_size = 64 * 1024 * 1024;
+            while (length > 0)
+            {
+                const auto size = (std::min)(length, chunk_size);
+                if (process(state, data, ul(size)) != CRYPT_OK)
+                {
+                    throw std::runtime_error("Hashing failed");
+                }
+
+                data += size;
+                length -= size;
+            }
+        }
+
         class prng
         {
         public:
@@ -444,8 +462,11 @@ namespace utils::cryptography
 
         hash_state state;
         tiger_init(&state);
-        tiger_process(&state, data, ul(length));
-        tiger_done(&state, buffer);
+        process_chunked(tiger_process, &state, data, length);
+        if (tiger_done(&state, buffer) != CRYPT_OK)
+        {
+            throw std::runtime_error("Hashing failed");
+        }
 
         std::string hash(cs(buffer), sizeof(buffer));
         if (!hex) return hash;
@@ -516,8 +537,11 @@ namespace utils::cryptography
 
         hash_state state;
         sha1_init(&state);
-        sha1_process(&state, data, ul(length));
-        sha1_done(&state, buffer);
+        process_chunked(sha1_process, &state, data, length);
+        if (sha1_done(&state, buffer) != CRYPT_OK)
+        {
+            throw std::runtime_error("Hashing failed");
+        }
 
         std::string hash(cs(buffer), sizeof(buffer));
         if (!hex) return hash;
@@ -536,8 +560,11 @@ namespace utils::cryptography
 
         hash_state state;
         sha256_init(&state);
-        sha256_process(&state, data, ul(length));
-        sha256_done(&state, buffer);
+        process_chunked(sha256_process, &state, data, length);
+        if (sha256_done(&state, buffer) != CRYPT_OK)
+        {
+            throw std::runtime_error("Hashing failed");
+        }
 
         std::string hash(cs(buffer), sizeof(buffer));
         if (!hex) return hash;
@@ -556,8 +583,11 @@ namespace utils::cryptography
 
         hash_state state;
         sha512_init(&state);
-        sha512_process(&state, data, ul(length));
-        sha512_done(&state, buffer);
+        process_chunked(sha512_process, &state, data, length);
+        if (sha512_done(&state, buffer) != CRYPT_OK)
+        {
+            throw std::runtime_error("Hashing failed");
+        }
 
         std::string hash(cs(buffer), sizeof(buffer));
         if (!hex) return hash;
