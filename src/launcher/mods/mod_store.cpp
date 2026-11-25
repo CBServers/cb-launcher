@@ -577,6 +577,7 @@ namespace mods
             mod.version = json_string(element, "version");
             mod.workshop_id = json_string(element, "workshopId");
             mod.installed_at = json_string(element, "installedAt");
+            mod.pending = element.IsObject() && element.HasMember("pending") && element["pending"].IsBool() && element["pending"].GetBool();
 
             if (element.IsObject() && element.HasMember("files") && element["files"].IsArray())
             {
@@ -624,6 +625,10 @@ namespace mods
                         files.PushBack(record, allocator);
                     }
                     entry.AddMember("files", files, allocator);
+                    if (mod.pending)
+                    {
+                        entry.AddMember("pending", true, allocator);
+                    }
                 }
                 doc.PushBack(entry, allocator);
             }
@@ -728,7 +733,7 @@ namespace mods
         {
             const auto id = catalog_record_id(workshop_id);
             const auto index = read_index(config);
-            return std::any_of(index.begin(), index.end(), [&id](const installed_mod& mod) { return mod.id == id; });
+            return std::any_of(index.begin(), index.end(), [&id](const installed_mod& mod) { return mod.id == id && !mod.pending; });
         }
 
         const auto layout = layout_for(config);
@@ -908,7 +913,7 @@ namespace mods
                     continue;
                 }
 
-                mod.missing_files = complete < entry.files.size();
+                mod.missing_files = entry.pending || complete < entry.files.size();
                 result.push_back(std::move(mod));
             }
         }

@@ -40,6 +40,8 @@ namespace mods
         // Mod index installs: every file the launcher placed, and whether any has gone missing since.
         std::vector<catalog_file> files;
         bool missing_files{};
+        // Set on the record written before an install's downloads, cleared once it finishes.
+        bool pending{};
     };
 
     struct import_result

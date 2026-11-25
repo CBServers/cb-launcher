@@ -562,6 +562,7 @@ namespace catalog_installer
 
             // Recorded before anything is written: an interrupted install stays listed, resumable and uninstallable.
             auto provisional = record;
+            provisional.pending = true;
             provisional.version = previous ? previous->version : std::string{};
             provisional.installed_at = previous ? previous->installed_at : mods::now_iso8601();
             if (previous)
@@ -800,12 +801,12 @@ namespace catalog_installer
             return fail("This mod is not available to download yet.");
         }
 
-        // Required entries first, deepest first, each once; ones already installed are left as they are.
+        // Required entries first, deepest first, each once; finished installs are left as they are, interrupted ones resume.
         const auto index = mods::read_index(config);
         const auto installed = [&index](const std::string& id)
         {
             const auto record_id = mods::catalog_record_id(id);
-            return std::any_of(index.begin(), index.end(), [&record_id](const mods::installed_mod& mod) { return mod.id == record_id; });
+            return std::any_of(index.begin(), index.end(), [&record_id](const mods::installed_mod& mod) { return mod.id == record_id && !mod.pending; });
         };
 
         std::vector<mods::workshop_catalog::item> items{};
